@@ -10,3 +10,28 @@ canvas {
     display: block;
     margin-top: 1rem;
 }
+#logo {
+    height: 60px;
+}
+.nimio-button {
+    background-color: #2A7BE3;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Segoe UI', sans-serif;
+    cursor: pointer;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 4px 12px rgba(42, 123, 227, 0.3);
+}
+
+.nimio-button:hover {
+    background-color: #1f5fb1;
+    box-shadow: 0 6px 16px rgba(42, 123, 227, 0.4);
+}
+
+.nimio-button:active {
+    transform: scale(0.98);
+}
