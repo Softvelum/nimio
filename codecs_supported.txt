@@ -1,0 +1,29 @@
+[Log] Safari codecs supported: (index.html, line 37)
+[Log] - avc1.42E01E (H.264 Baseline Profile) (index.html, line 38)
+[Log] - avc1.4D401E (H.264 Main Profile) (index.html, line 38)
+[Log] - avc1.640028 (H.264 High Profile) (index.html, line 38)
+[Log] - vp8 (VP8) (index.html, line 38)
+[Log] - vp09.00.10.08 (VP9 Profile 0) (index.html, line 38)
+[Log] - vp09.02.10.10 (VP9 Profile 2 (HDR10)) (index.html, line 38)
+[Log] - hvc1.1.6.L93.B0 (HEVC Main Profile (H.265)) (index.html, line 38)
+
+Chrome codecs supported:
+index.html:38 - avc1.42E01E (H.264 Baseline Profile)
+index.html:38 - avc1.4D401E (H.264 Main Profile)
+index.html:38 - avc1.640028 (H.264 High Profile)
+index.html:38 - vp8 (VP8)
+index.html:38 - vp09.00.10.08 (VP9 Profile 0)
+index.html:38 - vp09.02.10.10 (VP9 Profile 2 (HDR10))
+index.html:38 - av01.0.04M.08 (AV1 Main Profile)
+index.html:38 - av01.0.05M.10.0.110.09.16.09.0 (AV1 High Profile HDR10+)
+index.html:38 - hvc1.1.6.L93.B0 (HEVC Main Profile (H.265))
+
+Firefox codecs supported: index.html:37:17
+- avc1.42E01E (H.264 Baseline Profile) index.html:38:40
+- avc1.4D401E (H.264 Main Profile) index.html:38:40
+- avc1.640028 (H.264 High Profile) index.html:38:40
+- vp8 (VP8) index.html:38:40
+- vp09.00.10.08 (VP9 Profile 0) index.html:38:40
+- vp09.02.10.10 (VP9 Profile 2 (HDR10)) index.html:38:40
+- av01.0.04M.08 (AV1 Main Profile) index.html:38:40
+- av01.0.05M.10.0.110.09.16.09.0 (AV1 High Profile HDR10+)

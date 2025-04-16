@@ -1,0 +1,12 @@
+body {
+    font-family: sans-serif;
+    padding: 2rem;
+    background: #f9f9f9;
+}
+h1 {
+    font-size: 1.4rem;
+}
+canvas {
+    display: block;
+    margin-top: 1rem;
+}

@@ -1,0 +1,16 @@
+{
+  "name": "nimio",
+  "description": "Nimio SLDP 2.0 Player",
+  "version": "0.0.0",
+  "author": "Dmitrii Shovtiuk <shovtyuk@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "6.2.6"
+  }
+}
