@@ -7,7 +7,7 @@ function processDecodedFrame(audioFrame) {
 self.addEventListener('message', async function(e) {
     var type = e.data.type;
 
-    console.log("decoder_audio message received: ", type);
+    // console.log("decoder_audio message received: ", type);
 
     if (type === "codecData") {
         audioDecoder = new AudioDecoder({
@@ -20,7 +20,7 @@ self.addEventListener('message', async function(e) {
 
         audioDecoder.configure({
             codec: 'mp4a.40.2', //TODO: use params from status
-            sampleRate: 48000,
+            sampleRate: 48000, //todo: use proper sample rate
             numberOfChannels: 2,
             description: e.data.codecData
         });

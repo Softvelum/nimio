@@ -7,7 +7,7 @@ function processDecodedFrame(videoFrame) {
 self.addEventListener('message', async function(e) {
     var type = e.data.type;
 
-    console.log("decoder_video message received: ", type);
+    // console.log("decoder_video message received: ", type);
 
     if (type === "codecData") {
         videoDecoder = new VideoDecoder({

@@ -66,30 +66,35 @@ function processFrame(event) {
     let frameSize = frameWithHeader.byteLength;
     let timestamp;
 
-    console.debug('Frame received:', frameType);
+    // console.debug('Frame received:', frameType);
 
     if (frameType === WEB_AAC_SEQUENCE_HEADER || frameType === WEB_AVC_SEQUENCE_HEADER) {
         let codecData = frameWithHeader.subarray(2, frameSize);
         if (frameType === WEB_AAC_SEQUENCE_HEADER) {
-            console.log('audio codecData received');
+            // console.log('audio codecData received');
             self.postMessage({type: "audioCodecData", codecData: codecData});
         } else if (frameType === WEB_AVC_SEQUENCE_HEADER) {
-            console.log('video codecData received');
+            // console.log('video codecData received');
             self.postMessage({type: "videoCodecData", codecData: codecData});
         }
     } else if (frameType === WEB_AAC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
+
         if (true) { //TODO: useSteady
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
         let frame = frameWithHeader.subarray(dataPos, frameSize);
-        logbin(frame);
+        // logbin(frame);
+        let timestampSeconds = timestamp/90000; //todo timescale
+        let timestampMicroseconds = 1000000 * timestampSeconds;
         const audioChunk = new EncodedAudioChunk({
-            timestamp: performance.now() * 1000, //TODO: valid timestamp with delay
+            timestamp: timestampMicroseconds,
             type: 'key',
+            // duration: 21333, //todo use correct duration?
             data: frame
         });
+        // console.log('AUDIO inMicrosecondsTimestamp',inMicrosecondsTimestamp)
         self.postMessage({type: "audioChunk", audioChunk: audioChunk});
     } else if (frameType === WEB_AVC_KEY_FRAME || frameType === WEB_AVC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
@@ -103,12 +108,15 @@ function processFrame(event) {
         let frame = frameWithHeader.subarray(dataPos, frameSize);
 
         const isKey = frameType === WEB_AVC_KEY_FRAME;
+        let inSecondsTimestamp = (timestamp+compositionOffset)/90000; //todo timescale
+        let inMicrosecondsTimestamp = 1000000 * inSecondsTimestamp;
         const videoChunk = new EncodedVideoChunk({
-            timestamp: timestamp,//performance.now() * 1000,
+            timestamp: inMicrosecondsTimestamp,
             type: isKey ? 'key' : 'delta',
-            duration: 34, //todo: calculate
+            // duration: 2000000, //todo: calculate duration in Microseconds?
             data: frame
         });
+        // console.log('EncodedVideoChunk.timestamp',inMicrosecondsTimestamp)
         self.postMessage({type: "videoChunk", videoChunk: videoChunk});
     }
 }
@@ -131,7 +139,7 @@ function processStatus(e) {
 self.addEventListener('message', async function(e) {
     var type = e.data.type;
 
-    console.log("web_socket worker message received: ", type);
+    // console.log("web_socket worker message received: ", type);
 
     if (type === "initWebSocket") {
         socket = new WebSocket(e.data.url, e.data.protocols);
