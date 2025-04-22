@@ -8,27 +8,22 @@ function ran_all() {
     function processWorkerMessage(e) {
         var type = e.data.type;
 
-        // console.log("message from worker: ", type);
-
         if (type === "videoFrame") {
-            // console.log('audioContext.currentTime', audioContext.currentTime)
             let frame = e.data.videoFrame;
-            // console.log('decoded frame.timestamp', frame.timestamp)
-            let frameTimestampMicroseconds = frame.timestamp;
-            let currentPlayedTimestampMicroseconds = ringBuffer.getCurrentPlayedTS();
-            let ts_diff = frameTimestampMicroseconds - currentPlayedTimestampMicroseconds;
-            if (ts_diff < 0) {
+            let frameTsUs = frame.timestamp;
+            let currentPlayedTsUs = ringBuffer.getCurrentPlayedTsUs();
+            let delayUs = frameTsUs - currentPlayedTsUs;
+            if (delayUs < 0) {
                 console.warn('late frame');
-                ts_diff = 0;
+                delayUs = 0;
             }
-            // ts_diff = 0;
-            console.log(currentPlayedTimestampMicroseconds, frameTimestampMicroseconds, ts_diff)
+            console.log(currentPlayedTsUs, frameTsUs, delayUs)
             setTimeout(function(){
                 requestAnimationFrame(() => {
                     ctx.drawImage(frame, 0, 0);
                     frame.close();
                 });
-            }, ts_diff / 1000); // delay in milliseconds
+            }, delayUs / 1_000); // timeout in milliseconds
         } else if (type === "audioConfig") {
             audioDecoderWorker.postMessage({ type: "audioConfig", audioConfig: e.data.audioConfig });
         } else if (type === "audioFrame") {
@@ -65,10 +60,6 @@ function ran_all() {
     const ctx = videoCanvas.getContext('2d');
 
     audioContext = new AudioContext({ latencyHint: "interactive" }); //TODO: set sampleRate param
-
-    // if (audioContext.state === "suspended") {
-    //     document.addEventListener("click", () => audioContext.resume(), { once: true });
-    // }
 
     const ringBuffer = new AudioRingBuffer(100, audioContext);
 

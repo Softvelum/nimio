@@ -2,20 +2,18 @@ export class AudioRingBuffer {
     constructor(capacity, audioContext) {
         this.capacity = capacity;
         this.buffer = new Array(capacity);
-        this.write_index = 0;
-        this.read_index = 0;
+        this.writeIndex = 0;
+        this.readIndex = 0;
         this.size = 0;
         this.audioContext = audioContext;
         this.nextTime = 0;
         this.startThreshold = 10; //frames
         this.initialStartComplete = false;
-        this.currentPlayedTS = 0;
-        this.firstFrameTimestampMicrosecond = null;
+        this.firstFrameTsUs = null;
     }
 
-    getCurrentPlayedTS() {
-        this.currentPlayedTS = this.audioContext.currentTime*1000000 + this.firstFrameTimestampMicrosecond;
-        return this.currentPlayedTS;
+    getCurrentPlayedTsUs() {
+        return (this.audioContext.currentTime*1_000_000 + this.firstFrameTsUs);
     }
 
     isEmpty() {
@@ -35,12 +33,12 @@ export class AudioRingBuffer {
     push(audioFrame) {
         if (this.isFull()) {
             console.warn("Buffer full, rewrite old frame", this.size, this.capacity);
-            this.read_index = (this.read_index + 1) % this.capacity;
+            this.readIndex = (this.readIndex + 1) % this.capacity;
             this.size--;
         }
 
-        this.buffer[this.write_index] = audioFrame;
-        this.write_index = (this.write_index + 1) % this.capacity;
+        this.buffer[this.writeIndex] = audioFrame;
+        this.writeIndex = (this.writeIndex + 1) % this.capacity;
         this.size++;
 
         if (this.canStart()) {
@@ -54,9 +52,9 @@ export class AudioRingBuffer {
             return null;
         }
 
-        const audioFrame = this.buffer[this.read_index];
-        this.buffer[this.read_index] = null; // cleanup
-        this.read_index = (this.read_index + 1) % this.capacity;
+        const audioFrame = this.buffer[this.readIndex];
+        this.buffer[this.readIndex] = null; // cleanup
+        this.readIndex = (this.readIndex + 1) % this.capacity;
         this.size--;
         return audioFrame;
     }
@@ -86,15 +84,16 @@ export class AudioRingBuffer {
 
         const duration = audioFrame.numberOfFrames / audioFrame.sampleRate;
 
-        let audioFrameTimestampMicroseconds = audioFrame.timestamp;
-        let audioContextCurrentTimeMicroseconds = this.audioContext.currentTime*1000000;
-        if (null === this.firstFrameTimestampMicrosecond) {
-            this.firstFrameTimestampMicrosecond = audioFrameTimestampMicroseconds-audioContextCurrentTimeMicroseconds;
+        const audioFrameTsUs = audioFrame.timestamp;
+        const audioContextCurrentTsSec = this.audioContext.currentTime;
+        const audioContextCurrentTsUs = audioContextCurrentTsSec * 1_000_000;
+        if (null === this.firstFrameTsUs) {
+            this.firstFrameTsUs = audioFrameTsUs-audioContextCurrentTsUs;
         }
 
-        if (this.nextTime < audioContextCurrentTimeMicroseconds/1000000) {
-            console.log('adjust this.nextTime', this.nextTime, audioContextCurrentTimeMicroseconds/1000000)
-            this.nextTime = audioContextCurrentTimeMicroseconds/1000000
+        if (this.nextTime < audioContextCurrentTsSec) {
+            console.log('adjust this.nextTime', this.nextTime, audioContextCurrentTsSec)
+            this.nextTime = audioContextCurrentTsSec
         }
 
         source.start(this.nextTime);
