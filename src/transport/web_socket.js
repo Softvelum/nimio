@@ -20,6 +20,11 @@ const WEB_AV1_FRAME =            18
 
 let socket = null;
 
+let timescale = {
+    audio: null,
+    video: null
+}
+
 function logbin(bin) {
     console.log([...bin.slice(0, 32)].map(byte => byte.toString(16).padStart(2, '0')).join(' '));
 }
@@ -80,25 +85,23 @@ function processFrame(event) {
     } else if (frameType === WEB_AAC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
 
-        if (true) { //TODO: useSteady
+        if (false) { //TODO: useSteady
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
-        let frame = frameWithHeader.subarray(dataPos, frameSize);
+        const frame = frameWithHeader.subarray(dataPos, frameSize);
         // logbin(frame);
-        let timestampSeconds = timestamp/90000; //todo timescale
-        let timestampMicroseconds = 1000000 * timestampSeconds;
+        const tsSec = timestamp/timescale.audio;
+        const tsUs = 1_000_000 * tsSec;
         const audioChunk = new EncodedAudioChunk({
-            timestamp: timestampMicroseconds,
+            timestamp: tsUs,
             type: 'key',
-            // duration: 21333, //todo use correct duration?
             data: frame
         });
-        // console.log('AUDIO inMicrosecondsTimestamp',inMicrosecondsTimestamp)
         self.postMessage({type: "audioChunk", audioChunk: audioChunk});
     } else if (frameType === WEB_AVC_KEY_FRAME || frameType === WEB_AVC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
-        if (true) {//TODO: useSteady
+        if (false) {//TODO: useSteady
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
@@ -108,15 +111,13 @@ function processFrame(event) {
         let frame = frameWithHeader.subarray(dataPos, frameSize);
 
         const isKey = frameType === WEB_AVC_KEY_FRAME;
-        let inSecondsTimestamp = (timestamp+compositionOffset)/90000; //todo timescale
-        let inMicrosecondsTimestamp = 1000000 * inSecondsTimestamp;
+        const tsSec = (timestamp+compositionOffset)/timescale.video;
+        const tsUs = 1_000_000 * tsSec;
         const videoChunk = new EncodedVideoChunk({
-            timestamp: inMicrosecondsTimestamp,
+            timestamp: tsUs,
             type: isKey ? 'key' : 'delta',
-            // duration: 2000000, //todo: calculate duration in Microseconds?
             data: frame
         });
-        // console.log('EncodedVideoChunk.timestamp',inMicrosecondsTimestamp)
         self.postMessage({type: "videoChunk", videoChunk: videoChunk});
     }
 }
@@ -134,6 +135,10 @@ function processStatus(e) {
     const audioConfig = {
         codec: status.info[0].stream_info.acodec
     }
+
+    timescale.video = +status.info[0].stream_info.vtimescale
+    timescale.audio = +status.info[0].stream_info.atimescale
+
     self.postMessage({type: "videoConfig", videoConfig: videoConfig});
     self.postMessage({type: "audioConfig", audioConfig: audioConfig});
     //TODO: use streams from status
@@ -142,10 +147,10 @@ function processStatus(e) {
         streams: [{
             "type": "video",
             "offset": "1100",
-            "steady": true,
+            "steady": false,
             "stream": "video_ads/stream",
             "sn": 0
-        }, {"type": "audio", "offset": "1100", "steady": true, "stream": "video_ads/stream", "sn": 1}]
+        }, {"type": "audio", "offset": "1100", "steady": false, "stream": "video_ads/stream", "sn": 1}]
     }));
 }
 
