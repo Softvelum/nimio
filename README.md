@@ -7,4 +7,4 @@ It relies on WebCodecs for playback.
 
 
 ## License
-Nimio released under MIT License
+Nimio released under [MIT License](https://github.com/Softvelum/nimio/blob/main/LICENSE).
