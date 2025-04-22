@@ -87,35 +87,39 @@ function processFrame(event) {
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
-        const frame = frameWithHeader.subarray(dataPos, frameSize);
+
         const tsSec = timestamp/timescale.audio;
         const tsUs = 1_000_000 * tsSec;
-        const audioChunk = new EncodedAudioChunk({
+
+        self.postMessage({
+            type: "audioChunk",
             timestamp: tsUs,
-            type: 'key',
-            data: frame
+            frameWithHeader: frameWithHeader.buffer,
+            framePos: dataPos
         });
-        self.postMessage({type: "audioChunk", audioChunk: audioChunk});
     } else if (frameType === WEB_AVC_KEY_FRAME || frameType === WEB_AVC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
+
         if (steady) {
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
+
         let compositionOffset = 0
         compositionOffset = readInt(frameWithHeader, dataPos, 4);
         dataPos += 4;
-        let frame = frameWithHeader.subarray(dataPos, frameSize);
 
         const isKey = frameType === WEB_AVC_KEY_FRAME;
         const tsSec = (timestamp+compositionOffset)/timescale.video;
         const tsUs = 1_000_000 * tsSec;
-        const videoChunk = new EncodedVideoChunk({
+
+        self.postMessage({
+            type: "videoChunk",
             timestamp: tsUs,
-            type: isKey ? 'key' : 'delta',
-            data: frame
-        });
-        self.postMessage({type: "videoChunk", videoChunk: videoChunk});
+            chunkType: isKey ? 'key' : 'delta',
+            frameWithHeader: frameWithHeader.buffer,
+            framePos: dataPos
+        }, [frameWithHeader.buffer]);
     }
 }
 

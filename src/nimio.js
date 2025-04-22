@@ -72,9 +72,20 @@ export class Nimio {
         } else if (type === "videoCodecData") {
             this.videoDecoderWorker.postMessage({ type: "codecData", codecData: e.data.codecData });
         } else if (type === "audioChunk") {
-            this.audioDecoderWorker.postMessage({ type: "audioChunk", audioChunk: e.data.audioChunk });
+            this.audioDecoderWorker.postMessage({
+                type: "audioChunk",
+                timestamp: e.data.timestamp,
+                frameWithHeader: e.data.frameWithHeader,
+                framePos: e.data.framePos
+            }, [e.data.frameWithHeader]);
         } else if (type === "videoChunk") {
-            this.videoDecoderWorker.postMessage({ type: "videoChunk", videoChunk: e.data.videoChunk });
+            this.videoDecoderWorker.postMessage({
+                type: "videoChunk",
+                timestamp: e.data.timestamp,
+                chunkType: e.data.chunkType,
+                frameWithHeader: e.data.frameWithHeader,
+                framePos: e.data.framePos
+            }, [e.data.frameWithHeader]);
         }
     }
 }

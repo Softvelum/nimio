@@ -31,6 +31,15 @@ self.addEventListener('message', async function(e) {
             description: e.data.codecData
         });
     } else if (type === "videoChunk") {
-        videoDecoder.decode(e.data.videoChunk);
+        const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
+        const frame = frameWithHeader.subarray(e.data.framePos, frameWithHeader.byteLength);
+
+        const encodedVideoChunk = new EncodedVideoChunk({
+            timestamp: e.data.timestamp,
+            type: e.data.chunkType,
+            data: frame
+        });
+
+        videoDecoder.decode(encodedVideoChunk);
     }
 })

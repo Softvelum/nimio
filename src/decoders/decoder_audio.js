@@ -28,6 +28,15 @@ self.addEventListener('message', async function(e) {
             description: e.data.codecData
         });
     } else if (type === "audioChunk") {
-        audioDecoder.decode(e.data.audioChunk);
+        const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
+        const frame = frameWithHeader.subarray(e.data.framePos, frameWithHeader.byteLength);
+
+        const encodedAudioChunk = new EncodedAudioChunk({
+            timestamp: e.data.timestamp,
+            type: 'key',
+            data: frame
+        });
+
+        audioDecoder.decode(encodedAudioChunk);
     }
 })
