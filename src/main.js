@@ -29,10 +29,14 @@ function ran_all() {
                     frame.close();
                 });
             }, ts_diff / 1000); // delay in milliseconds
+        } else if (type === "audioConfig") {
+            audioDecoderWorker.postMessage({ type: "audioConfig", audioConfig: e.data.audioConfig });
         } else if (type === "audioFrame") {
             ringBuffer.pushAndPlay(e.data.audioFrame);
         } else if (type === "audioCodecData") {
             audioDecoderWorker.postMessage({ type: "codecData", codecData: e.data.codecData });
+        } else if (type === "videoConfig") {
+            videoDecoderWorker.postMessage({ type: "videoConfig", videoConfig: e.data.videoConfig });
         } else if (type === "videoCodecData") {
             videoDecoderWorker.postMessage({ type: "codecData", codecData: e.data.codecData });
         } else if (type === "audioChunk") {

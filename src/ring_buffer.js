@@ -7,10 +7,10 @@ export class AudioRingBuffer {
         this.size = 0;
         this.audioContext = audioContext;
         this.nextTime = 0;
-        this.startThreshold = 50; //frames
+        this.startThreshold = 10; //frames
         this.initialStartComplete = false;
         this.currentPlayedTS = 0;
-        this.firstFrameTimestampMicrosecond = 0;
+        this.firstFrameTimestampMicrosecond = null;
     }
 
     getCurrentPlayedTS() {
@@ -85,19 +85,15 @@ export class AudioRingBuffer {
         source.connect(this.audioContext.destination);
 
         const duration = audioFrame.numberOfFrames / audioFrame.sampleRate;
-        console.log('duration',duration, audioFrame.duration);
 
         let audioFrameTimestampMicroseconds = audioFrame.timestamp;
         let audioContextCurrentTimeMicroseconds = this.audioContext.currentTime*1000000;
-        if (0 === this.firstFrameTimestampMicrosecond) { //todo make initial nil
+        if (null === this.firstFrameTimestampMicrosecond) {
             this.firstFrameTimestampMicrosecond = audioFrameTimestampMicroseconds-audioContextCurrentTimeMicroseconds;
-            console.log('audioFrameTimestampMicroseconds',audioFrameTimestampMicroseconds)
-            console.log('audioContextCurrentTimeMicroseconds',audioContextCurrentTimeMicroseconds)
-            console.log('audioFrame.sampleRate',audioFrame.sampleRate);
         }
 
         if (this.nextTime < audioContextCurrentTimeMicroseconds/1000000) {
-            console.log('ajust this.nextTime', this.nextTime, audioContextCurrentTimeMicroseconds/1000000)
+            console.log('adjust this.nextTime', this.nextTime, audioContextCurrentTimeMicroseconds/1000000)
             this.nextTime = audioContextCurrentTimeMicroseconds/1000000
         }
 

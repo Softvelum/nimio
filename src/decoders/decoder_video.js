@@ -1,5 +1,7 @@
 let videoDecoder = null;
 
+let config = {}
+
 function processDecodedFrame(videoFrame) {
     self.postMessage({type: "videoFrame", videoFrame: videoFrame}, [videoFrame]);
 }
@@ -7,9 +9,9 @@ function processDecodedFrame(videoFrame) {
 self.addEventListener('message', async function(e) {
     var type = e.data.type;
 
-    // console.log("decoder_video message received: ", type);
-
-    if (type === "codecData") {
+    if (type === "videoConfig") {
+        config = e.data.videoConfig;
+    } else if (type === "codecData") {
         videoDecoder = new VideoDecoder({
             output: frame => {
                 processDecodedFrame(frame);
@@ -18,9 +20,10 @@ self.addEventListener('message', async function(e) {
         });
 
         videoDecoder.configure({
-            codec: 'avc1.4d4015', //TODO: use params from status
-            codedWidth: 476,
-            codedHeight: 268,
+            codec: config.codec,
+            codedWidth: config.width,
+            codedHeight: config.height,
+            optimizeForLatency: true,
             hardwareAcceleration: 'prefer-hardware',
             // bitrate: 1_000_000, // 1 Mbps
             // framerate: 30,

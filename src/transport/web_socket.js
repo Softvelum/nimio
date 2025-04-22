@@ -123,16 +123,29 @@ function processFrame(event) {
 
 function processStatus(e) {
     console.debug('Command received', e.data);
+    const status = JSON.parse(e.data);
+    const resolution = status.info[0].stream_info.resolution;
+    const [width, height] = resolution.split('x').map(Number);
+    const videoConfig = {
+        width: width,
+        height: height,
+        codec: status.info[0].stream_info.vcodec
+    }
+    const audioConfig = {
+        codec: status.info[0].stream_info.acodec
+    }
+    self.postMessage({type: "videoConfig", videoConfig: videoConfig});
+    self.postMessage({type: "audioConfig", audioConfig: audioConfig});
     //TODO: use streams from status
     socket.send(JSON.stringify({
         command: 'Play',
         streams: [{
             "type": "video",
-            "offset": "1000",
+            "offset": "1100",
             "steady": true,
             "stream": "video_ads/stream",
             "sn": 0
-        }, {"type": "audio", "offset": "1000", "steady": true, "stream": "video_ads/stream", "sn": 1}]
+        }, {"type": "audio", "offset": "1100", "steady": true, "stream": "video_ads/stream", "sn": 1}]
     }));
 }
 
