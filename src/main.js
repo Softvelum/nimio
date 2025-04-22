@@ -3,7 +3,7 @@ import { AudioRingBuffer } from './ring_buffer.js';
 
 let audioContext;
 
-function ran_all() {
+function initNimio() {
 
     function processWorkerMessage(e) {
         var type = e.data.type;
@@ -63,13 +63,11 @@ function ran_all() {
 
     const ringBuffer = new AudioRingBuffer(100, audioContext);
 
+    const streamURL = document.getElementById('streamURL').value;
+    webSocketWorker.postMessage({type: 'initWebSocket', url: streamURL, protocols: ['sldp.softvelum.com'] });
 
-
-    webSocketWorker.postMessage({type: 'initWebSocket', url: "wss://vd1.wmspanel.com/video_demo_without_ads/stream", protocols: ['sldp.softvelum.com'] });
-
-    // schedulePlayback();
 }
 
 
 
-document.getElementById('runAllButton').addEventListener('click', ran_all);
+document.getElementById('initNimioButton').addEventListener('click', initNimio);

@@ -10,7 +10,8 @@
 <div id="app"></div>
 <img src="nimio-logo.png" id="logo">
 <h1>SLDP 2.0 Player</h1>
-<button id="runAllButton" class="nimio-button">Play</button>
+<input id="streamURL" type="text" class="nimio-input" placeholder="wss URL..." value="wss://vd1.wmspanel.com/video_demo_without_ads/stream" />
+<button id="initNimioButton" class="nimio-button">Play</button>
 <canvas id="video" width="640" height="480" style="border:1px solid #ccc;"></canvas>
 <script type="module" src="/src/main.js"></script>
 </body>

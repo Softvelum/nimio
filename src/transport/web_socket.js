@@ -25,6 +25,8 @@ let timescale = {
     video: null
 }
 
+let steady = false;
+
 function logbin(bin) {
     console.log([...bin.slice(0, 32)].map(byte => byte.toString(16).padStart(2, '0')).join(' '));
 }
@@ -71,26 +73,21 @@ function processFrame(event) {
     let frameSize = frameWithHeader.byteLength;
     let timestamp;
 
-    // console.debug('Frame received:', frameType);
-
     if (frameType === WEB_AAC_SEQUENCE_HEADER || frameType === WEB_AVC_SEQUENCE_HEADER) {
         let codecData = frameWithHeader.subarray(2, frameSize);
         if (frameType === WEB_AAC_SEQUENCE_HEADER) {
-            // console.log('audio codecData received');
             self.postMessage({type: "audioCodecData", codecData: codecData});
         } else if (frameType === WEB_AVC_SEQUENCE_HEADER) {
-            // console.log('video codecData received');
             self.postMessage({type: "videoCodecData", codecData: codecData});
         }
     } else if (frameType === WEB_AAC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
 
-        if (false) { //TODO: useSteady
+        if (steady) {
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
         const frame = frameWithHeader.subarray(dataPos, frameSize);
-        // logbin(frame);
         const tsSec = timestamp/timescale.audio;
         const tsUs = 1_000_000 * tsSec;
         const audioChunk = new EncodedAudioChunk({
@@ -101,7 +98,7 @@ function processFrame(event) {
         self.postMessage({type: "audioChunk", audioChunk: audioChunk});
     } else if (frameType === WEB_AVC_KEY_FRAME || frameType === WEB_AVC_FRAME) {
         timestamp = readInt(frameWithHeader, 2, 8);
-        if (false) {//TODO: useSteady
+        if (steady) {
             showTime = readInt(frameWithHeader, dataPos, 8);
             dataPos += 8;
         }
@@ -139,25 +136,31 @@ function processStatus(e) {
     timescale.video = +status.info[0].stream_info.vtimescale
     timescale.audio = +status.info[0].stream_info.atimescale
 
+    const streamName = status.info[0].stream
+
     self.postMessage({type: "videoConfig", videoConfig: videoConfig});
     self.postMessage({type: "audioConfig", audioConfig: audioConfig});
-    //TODO: use streams from status
+
     socket.send(JSON.stringify({
         command: 'Play',
         streams: [{
             "type": "video",
             "offset": "1100",
-            "steady": false,
-            "stream": "video_ads/stream",
+            "steady": steady,
+            "stream": streamName,
             "sn": 0
-        }, {"type": "audio", "offset": "1100", "steady": false, "stream": "video_ads/stream", "sn": 1}]
+        }, {
+            "type": "audio",
+            "offset": "1100",
+            "steady": steady,
+            "stream": streamName,
+            "sn": 1
+        }]
     }));
 }
 
 self.addEventListener('message', async function(e) {
     var type = e.data.type;
-
-    // console.log("web_socket worker message received: ", type);
 
     if (type === "initWebSocket") {
         socket = new WebSocket(e.data.url, e.data.protocols);
