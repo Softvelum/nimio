@@ -1,4 +1,4 @@
-import { parseAACConfig } from './utils/aac_config_parcer.js'
+import { parseAACConfig } from './utils/aac_config_parser.js'
 import workletUrl from './audio-worklet-processor.js?url';
 
 export class Nimio {
@@ -40,6 +40,7 @@ export class Nimio {
         if (type === "videoFrame") {
             let frame = e.data.videoFrame;
             let frameTsUs = frame.timestamp;
+            //todo if first video frame received before first audio frame, this.audioContext may be null
             let currentPlayedTsUs = this.audioContext.currentTime*1_000_000 + this.firstFrameTsUs - (0.2*1_000_000); //todo: 0.2 sec NimioProcessor startThreshold
             let delayUs = frameTsUs - currentPlayedTsUs;
             if (delayUs < 0) {
