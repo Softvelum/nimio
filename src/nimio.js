@@ -1,8 +1,14 @@
 import { parseAACConfig } from './utils/aac_config_parser.js'
-import workletUrl from './audio-worklet-processor.js?url';
+import workletUrl from './audio-worklet-processor.js?worker&url'; // ?worker&url - Vite initiate new Rollup build
+import { IDX } from './shared.js';
+import { StateManager } from './state_manager.js';
 
 export class Nimio {
     constructor(videoElement, streamURL) {
+        this._sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length);
+        this.state = new StateManager(this._sab);
+        this.state.stop();
+
         this.videoElement = videoElement;
         this.streamURL = streamURL;
         this.audioContext = null;
@@ -28,10 +34,17 @@ export class Nimio {
         this.webSocketWorker.addEventListener('message', (e) => {
             this.processWorkerMessage(e);
         });
+        this.webSocketWorker.postMessage({type: 'initShared', sab: this._sab});
     }
 
     play() {
+        this.state.start();
         this.webSocketWorker.postMessage({type: 'initWebSocket', url: this.streamURL, protocols: ['sldp.softvelum.com'] });
+    }
+
+    stop() {
+        this.state.stop();
+        this.webSocketWorker.postMessage({type: 'stop' });
     }
 
     processWorkerMessage(e) {
@@ -45,9 +58,9 @@ export class Nimio {
             let delayUs = frameTsUs - currentPlayedTsUs;
             if (delayUs < 0) {
                 console.warn('late frame');
-                delayUs = 0;
+                return true;
             }
-            console.log(currentPlayedTsUs, frameTsUs, delayUs)
+            // console.log(currentPlayedTsUs, frameTsUs, delayUs)
             setTimeout(() => {
                 requestAnimationFrame(() => {
                     this.ctx.drawImage(frame, 0, 0);
@@ -126,7 +139,8 @@ export class Nimio {
                 numberOfOutputs: 1,
                 outputChannelCount: [channels],
                 processorOptions: {
-                    sampleRate: audioFrame.sampleRate
+                    sampleRate: audioFrame.sampleRate,
+                    sab: this._sab
                 }
             });
 

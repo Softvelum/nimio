@@ -1,3 +1,5 @@
+import {StateManager} from "../state_manager.js";
+
 const WEB_AAC_SEQUENCE_HEADER =   0
 const WEB_AAC_FRAME =             1
 const WEB_AVC_SEQUENCE_HEADER =   2
@@ -163,20 +165,31 @@ function processStatus(e) {
     }));
 }
 
-self.addEventListener('message', async function(e) {
+let stateManager;
+
+self.onmessage = e => {
     var type = e.data.type;
 
-    if (type === "initWebSocket") {
+    if (type === "initShared") {
+        stateManager = new StateManager(e.data.sab);
+    } else if (type === "initWebSocket") {
         socket = new WebSocket(e.data.url, e.data.protocols);
 
         socket.binaryType = 'arraybuffer';
 
         socket.onmessage = ws_event => {
+            if (stateManager.isStopped()) return;
+
             if (ws_event.data instanceof ArrayBuffer) {
                 processFrame(ws_event)
             } else {
                 processStatus(ws_event)
             }
         }
+    } else if (type === "stop") {
+        socket.send(JSON.stringify({
+            command: 'Cancel',
+            streams: [0,1] // TODO: correct stream IDs
+        }));
     }
-})
+}

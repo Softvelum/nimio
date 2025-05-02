@@ -1,7 +1,9 @@
+import {StateManager} from "./state_manager.js";
+
 class NimioProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super(options);
-        console.debug(options)
+        this.stateManager = new StateManager(options.processorOptions.sab);
         this.sampleRate = options.processorOptions.sampleRate;
         this.channelCount = options.outputChannelCount[0];
         this.bufferSize   = this.sampleRate * this.channelCount * 5;  // 5 sec
@@ -25,11 +27,19 @@ class NimioProcessor extends AudioWorkletProcessor {
     process(inputs, outputs) {
         const out   = outputs[0];
         const chCnt = out.length;
-        const frame = out[0].length;  // almost 128
+        const frame = out[0].length;
+
+        if (this.stateManager.isStopped()) {
+            return true; // Insert silence
+        }
+
+        if (this.stateManager.isPaused()) {
+            return true; // Insert silence, TODO: calculate duration
+        }
 
         if (this.available < frame * chCnt && this.available < this.startThreshold) { // Insert silence
             for (let c = 0; c < chCnt; c++) out[c].fill(0);
-            console.debug('silens', this.available)
+            console.debug('silence', this.available)
         } else {
             this.startThreshold = 0;
 
