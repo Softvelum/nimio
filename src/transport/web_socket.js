@@ -107,8 +107,7 @@ function processFrame(event) {
             dataPos += 8;
         }
 
-        let compositionOffset = 0
-        compositionOffset = readInt(frameWithHeader, dataPos, 4);
+        let compositionOffset = readInt(frameWithHeader, dataPos, 4);
         dataPos += 4;
 
         const isKey = frameType === WEB_AVC_KEY_FRAME;

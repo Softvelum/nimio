@@ -2,18 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
 </head>
 <body>
 <div id="app"></div>
-<img src="nimio-logo.png" id="logo">
+<img src="nimio-logo.png" id="logo" alt="Nimio logo">
 <h1>SLDP 2.0 Player</h1>
 <input id="streamURL" type="text" class="nimio-input" placeholder="wss URL..." value="wss://vd1.wmspanel.com/video_demo_without_ads/stream" />
-<button id="initNimioButton" class="nimio-button">Play</button>
-<button id="stopNimio" class="nimio-button">Stop</button>
-<canvas id="video" width="640" height="480" style="border:1px solid #ccc;"></canvas>
+<button id="initNimioButton" class="nimio-button">Load</button>
+<br>
+<div id="video"></div>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

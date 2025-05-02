@@ -7,7 +7,6 @@ h1 {
     font-size: 1.4rem;
 }
 canvas {
-    display: block;
     margin-top: 1rem;
 }
 #logo {

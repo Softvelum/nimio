@@ -2,18 +2,26 @@ import { parseAACConfig } from './utils/aac_config_parser.js'
 import workletUrl from './audio-worklet-processor.js?worker&url'; // ?worker&url - Vite initiate new Rollup build
 import { IDX } from './shared.js';
 import { StateManager } from './state_manager.js';
+import { Ui } from './ui/ui.js';
 
 export class Nimio {
-    constructor(videoElement, streamURL) {
+    constructor(container, streamURL, options = {}) {
+        this.options = options
+
         this._sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length);
         this.state = new StateManager(this._sab);
         this.state.stop();
 
-        this.videoElement = videoElement;
         this.streamURL = streamURL;
         this.audioContext = null;
-        this.videoCanvas = document.getElementById(this.videoElement);
-        this.ctx = this.videoCanvas.getContext('2d');
+
+        this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
+        this.ui = new Ui(container, {
+            width: this.options.width  || 476, //todo get from video
+            height: this.options.height || 268
+        }, this._onPlayPauseClick);
+
+        this.ctx = this.ui.getCanvas().getContext('2d');
         this.firstFrameTsUs = null;
         this.initWorkers();
         this.workletReady = null;
@@ -37,14 +45,24 @@ export class Nimio {
         this.webSocketWorker.postMessage({type: 'initShared', sab: this._sab});
     }
 
+    _onPlayPauseClick(e, isPlayClicked) {
+        if (isPlayClicked) {
+            this.play();
+        } else {
+            this.stop(); //todo pause
+        }
+    }
+
     play() {
         this.state.start();
         this.webSocketWorker.postMessage({type: 'initWebSocket', url: this.streamURL, protocols: ['sldp.softvelum.com'] });
+        this.ui.drawPause();
     }
 
     stop() {
         this.state.stop();
         this.webSocketWorker.postMessage({type: 'stop' });
+        this.ui.drawPlay();
     }
 
     processWorkerMessage(e) {
