@@ -40,4 +40,12 @@ export class StateManager {
     stop() {
         this.value = STATE.STOPPED;
     }
+
+    getSilenceUs() {
+        return Atomics.load(this._flags, IDX.SILENCE_USEC);
+    }
+
+    incSilenceUs(durationUs) {
+        Atomics.add(this._flags, IDX.SILENCE_USEC, curDurUs + durationUs);
+    }
 }

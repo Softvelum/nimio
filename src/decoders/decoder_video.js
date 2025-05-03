@@ -23,11 +23,8 @@ self.addEventListener('message', async function(e) {
             codec: config.codec,
             codedWidth: config.width,
             codedHeight: config.height,
-            optimizeForLatency: true,
+            // optimizeForLatency: true, //this dramatically decrease performance in FF, skipped frames
             hardwareAcceleration: 'prefer-hardware',
-            // bitrate: 1_000_000, // 1 Mbps
-            // framerate: 30,
-            latencyMode: 'realtime', // one chunk = one frame
             description: e.data.codecData
         });
     } else if (type === "videoChunk") {

@@ -12,7 +12,7 @@ export class Ui {
         this.container.classList.add('nimio-container');
 
         this.canvas = document.createElement('canvas');
-        this.canvas.width  = opts.width; // todo if no options, get from element
+        this.canvas.width  = opts.width; // todo if no options, get from container
         this.canvas.height = opts.height;
         Object.assign(this.canvas.style, {
             cursor: 'pointer',
@@ -40,7 +40,9 @@ export class Ui {
             onPlayPause(e, isPlayClicked)
         });
 
-        this.setupEasing()
+        this.setupEasing();
+
+        this.createDebugOverlay();
     }
 
     setupEasing() {
@@ -59,6 +61,16 @@ export class Ui {
         this.container.addEventListener('mouseout', () => {
             this.btnPlayPause.style.opacity = '0';
         });
+    }
+
+    createDebugOverlay() {
+        this.debugOverlay = document.createElement('div');
+        this.debugOverlay.classList.add('debug-overlay')
+        this.container.appendChild(this.debugOverlay);
+    }
+
+    getDebugOverlay() {
+        return this.debugOverlay;
     }
 
     getCanvas() {

@@ -3,6 +3,7 @@ import workletUrl from './audio-worklet-processor.js?worker&url'; // ?worker&url
 import { IDX } from './shared.js';
 import { StateManager } from './state_manager.js';
 import { Ui } from './ui/ui.js';
+import { VideoBuffer} from "./video-buffer.js";
 
 export class Nimio {
     constructor(container, streamURL, options = {}) {
@@ -11,6 +12,8 @@ export class Nimio {
         this._sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length);
         this.state = new StateManager(this._sab);
         this.state.stop();
+
+        this.videoBuffer = new VideoBuffer(1000);
 
         this.streamURL = streamURL;
         this.audioContext = null;
@@ -21,10 +24,15 @@ export class Nimio {
             height: this.options.height || 268
         }, this._onPlayPauseClick);
 
+        this.videoBuffer.attachDebugElement(this.ui.getDebugOverlay());
+
         this.ctx = this.ui.getCanvas().getContext('2d');
         this.firstFrameTsUs = null;
         this.initWorkers();
         this.workletReady = null;
+
+        this._renderVideoFrame = this._renderVideoFrame.bind(this);
+        this._pauseTimeoutId = null;
     }
 
     initWorkers() {
@@ -45,24 +53,70 @@ export class Nimio {
         this.webSocketWorker.postMessage({type: 'initShared', sab: this._sab});
     }
 
+    _renderVideoFrame() {
+        if (this.state.isPlaying()) {
+            requestAnimationFrame(this._renderVideoFrame);
+            if (null === this.workletReady) return true;
+            const currentPlayedTsUs = this.audioContext.currentTime * 1_000_000 + this.firstFrameTsUs - (0.2 * 1_000_000) - this.state.getSilenceUs(); //todo: 0.2 sec NimioProcessor startThreshold
+            const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
+            if (frame) {
+                this.ctx.drawImage(frame, 0, 0);
+                frame.close();
+            }
+        }
+    }
+
     _onPlayPauseClick(e, isPlayClicked) {
         if (isPlayClicked) {
             this.play();
         } else {
-            this.stop(); //todo pause
+            this.pause();
         }
     }
 
     play() {
+        const resumeFromPause = this.state.isPaused();
+
+        if (this._pauseTimeoutId !== null) {
+            clearTimeout(this._pauseTimeoutId);
+            this._pauseTimeoutId = null;
+        }
+
         this.state.start();
-        this.webSocketWorker.postMessage({type: 'initWebSocket', url: this.streamURL, protocols: ['sldp.softvelum.com'] });
+
+        requestAnimationFrame(this._renderVideoFrame);
+
+        if (!resumeFromPause) {
+            this.webSocketWorker.postMessage({
+                type: 'initWebSocket',
+                url: this.streamURL,
+                protocols: ['sldp.softvelum.com']
+            });
+        }
+
         this.ui.drawPause();
+    }
+
+    pause() {
+        this.state.pause();
+        this._pauseTimeoutId = setTimeout(() => {
+            console.log('Auto stop()');
+            this.stop();
+        }, 3000); //todo make configurable
     }
 
     stop() {
         this.state.stop();
         this.webSocketWorker.postMessage({type: 'stop' });
+        this.videoBuffer.clear();
+        if (this.audioContext) {
+            this.audioContext.close()
+            this.audioContext = null;
+            this.workletReady = null;
+        }
+        this.firstFrameTsUs = null;
         this.ui.drawPlay();
+        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height)
     }
 
     processWorkerMessage(e) {
@@ -71,20 +125,7 @@ export class Nimio {
         if (type === "videoFrame") {
             let frame = e.data.videoFrame;
             let frameTsUs = frame.timestamp;
-            //todo if first video frame received before first audio frame, this.audioContext may be null
-            let currentPlayedTsUs = this.audioContext.currentTime*1_000_000 + this.firstFrameTsUs - (0.2*1_000_000); //todo: 0.2 sec NimioProcessor startThreshold
-            let delayUs = frameTsUs - currentPlayedTsUs;
-            if (delayUs < 0) {
-                console.warn('late frame');
-                return true;
-            }
-            // console.log(currentPlayedTsUs, frameTsUs, delayUs)
-            setTimeout(() => {
-                requestAnimationFrame(() => {
-                    this.ctx.drawImage(frame, 0, 0);
-                    frame.close();
-                });
-            }, delayUs / 1_000); // timeout in milliseconds
+            this.videoBuffer.addFrame(frame, frameTsUs);
         } else if (type === "audioConfig") {
             this.audioDecoderWorker.postMessage({ type: "audioConfig", audioConfig: e.data.audioConfig });
         } else if (type === "audioFrame") {
@@ -115,6 +156,11 @@ export class Nimio {
     }
 
     async handleAudioFrame(audioFrame) {
+        if (this.state.isStopped()) {
+            audioFrame.close();
+            return true;
+        }
+
         // create AudioContext with correct sampleRate on first frame
         if (!this.audioContext) {
             this.audioContext = new AudioContext({ latencyHint: 'interactive', sampleRate: audioFrame.sampleRate });

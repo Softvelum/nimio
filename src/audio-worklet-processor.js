@@ -16,7 +16,7 @@ class NimioProcessor extends AudioWorkletProcessor {
             const chunk = new Float32Array(data.buffer);
             for (let i = 0; i < chunk.length; i++) {
                 this.ringBuffer[(this.writeIndex + i) % this.bufferSize] = chunk[i];
-                if (this.readIndex === this.writeIndex+i) { console.error('buffer overflow', this.readIndex, this.writeIndex+i) }
+                if (this.readIndex === this.writeIndex+i && 0 !== this.readIndex) { console.error('buffer overflow', this.readIndex, this.writeIndex+i) }
             }
             this.writeIndex  = (this.writeIndex + chunk.length) % this.bufferSize;
             this.available  += chunk.length;
@@ -30,16 +30,13 @@ class NimioProcessor extends AudioWorkletProcessor {
         const frame = out[0].length;
 
         if (this.stateManager.isStopped()) {
-            return true; // Insert silence
+            return false; // stop processing
         }
 
-        if (this.stateManager.isPaused()) {
-            return true; // Insert silence, TODO: calculate duration
-        }
-
-        if (this.available < frame * chCnt && this.available < this.startThreshold) { // Insert silence
+        if (this.stateManager.isPaused() || (this.available < frame * chCnt && this.available < this.startThreshold) ) { // Insert silence
             for (let c = 0; c < chCnt; c++) out[c].fill(0);
-            console.debug('silence', this.available)
+            const durationUs = frame * 1e6 / sampleRate;
+            this.stateManager.incSilenceUs(durationUs);
         } else {
             this.startThreshold = 0;
 

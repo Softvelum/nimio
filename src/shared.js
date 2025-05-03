@@ -4,5 +4,6 @@ export const STATE = {
     PAUSED:   2,
 };
 export const IDX = {
-    STATE:       0
+    STATE:        0,
+    SILENCE_USEC: 1
 };
