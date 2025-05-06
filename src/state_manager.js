@@ -46,6 +46,6 @@ export class StateManager {
     }
 
     incSilenceUs(durationUs) {
-        Atomics.add(this._flags, IDX.SILENCE_USEC, curDurUs + durationUs);
+        Atomics.add(this._flags, IDX.SILENCE_USEC, durationUs);
     }
 }

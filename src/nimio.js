@@ -4,10 +4,11 @@ import { IDX } from './shared.js';
 import { StateManager } from './state_manager.js';
 import { Ui } from './ui/ui.js';
 import { VideoBuffer} from "./video-buffer.js";
+import { createConfig} from "./player_config.js";
 
 export class Nimio {
-    constructor(container, streamURL, options = {}) {
-        this.options = options
+    constructor(options) {
+        this.config = createConfig(options);
 
         this._sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length);
         this.state = new StateManager(this._sab);
@@ -15,13 +16,12 @@ export class Nimio {
 
         this.videoBuffer = new VideoBuffer(1000);
 
-        this.streamURL = streamURL;
         this.audioContext = null;
 
         this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
-        this.ui = new Ui(container, {
-            width: this.options.width  || 476, //todo get from video
-            height: this.options.height || 268
+        this.ui = new Ui(this.config.container, {
+            width: this.config.width, //todo get from video?
+            height: this.config.height
         }, this._onPlayPauseClick);
 
         this.videoBuffer.attachDebugElement(this.ui.getDebugOverlay());
@@ -57,7 +57,7 @@ export class Nimio {
         if (this.state.isPlaying()) {
             requestAnimationFrame(this._renderVideoFrame);
             if (null === this.workletReady) return true;
-            const currentPlayedTsUs = this.audioContext.currentTime * 1_000_000 + this.firstFrameTsUs - (0.2 * 1_000_000) - this.state.getSilenceUs(); //todo: 0.2 sec NimioProcessor startThreshold
+            const currentPlayedTsUs = this.audioContext.currentTime * 1_000_000 + this.firstFrameTsUs - (this.config.latency * 1_000) - this.state.getSilenceUs();
             const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
             if (frame) {
                 this.ctx.drawImage(frame, 0, 0);
@@ -89,8 +89,9 @@ export class Nimio {
         if (!resumeFromPause) {
             this.webSocketWorker.postMessage({
                 type: 'initWebSocket',
-                url: this.streamURL,
-                protocols: ['sldp.softvelum.com']
+                url: this.config.streamUrl,
+                protocols: ['sldp.softvelum.com'],
+                startOffset: this.config.startOffset,
             });
         }
 
@@ -102,7 +103,7 @@ export class Nimio {
         this._pauseTimeoutId = setTimeout(() => {
             console.log('Auto stop()');
             this.stop();
-        }, 3000); //todo make configurable
+        }, this.config.pauseTimeout); // TODO: monitor current latency and reduce pauseTimeout if low buffer capacity
     }
 
     stop() {
@@ -204,7 +205,10 @@ export class Nimio {
                 outputChannelCount: [channels],
                 processorOptions: {
                     sampleRate: audioFrame.sampleRate,
-                    sab: this._sab
+                    sab: this._sab,
+                    latency: this.config.latency,
+                    startOffset: this.config.startOffset,
+                    pauseTimeout: this.config.pauseTimeout,
                 }
             });
 

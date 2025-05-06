@@ -29,6 +29,8 @@ let timescale = {
 
 let steady = false;
 
+let startOffset = 0;
+
 function logbin(bin) {
     console.log([...bin.slice(0, 32)].map(byte => byte.toString(16).padStart(2, '0')).join(' '));
 }
@@ -150,13 +152,13 @@ function processStatus(e) {
         command: 'Play',
         streams: [{
             "type": "video",
-            "offset": "1100",
+            "offset": `${startOffset}`,
             "steady": steady,
             "stream": streamName,
             "sn": 0
         }, {
             "type": "audio",
-            "offset": "1100",
+            "offset": `${startOffset}`,
             "steady": steady,
             "stream": streamName,
             "sn": 1
@@ -172,6 +174,8 @@ self.onmessage = e => {
     if (type === "initShared") {
         stateManager = new StateManager(e.data.sab);
     } else if (type === "initWebSocket") {
+        startOffset = e.data.startOffset;
+
         socket = new WebSocket(e.data.url, e.data.protocols);
 
         socket.binaryType = 'arraybuffer';
