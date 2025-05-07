@@ -3,7 +3,7 @@ let audioDecoder = null;
 let config = {};
 
 function processDecodedFrame(audioFrame) {
-    self.postMessage({type: "audioFrame", audioFrame: audioFrame}, [audioFrame]);
+    self.postMessage({type: "audioFrame", audioFrame: audioFrame, decoderQueue: audioDecoder.decodeQueueSize}, [audioFrame]);
 }
 
 self.addEventListener('message', async function(e) {

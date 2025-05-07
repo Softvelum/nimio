@@ -1,8 +1,11 @@
+import {IDX} from "./shared.js";
+
 export class VideoBuffer {
-    constructor(maxFrames = 100) { //todo length in uSec?
+    constructor(maxFrames = 100, sab) { //todo length in uSec?
         this.maxFrames = maxFrames;
         this.frames = [];
         this.debugElement = null;
+        this._flags = new Int32Array(sab); //todo move to state manager
     }
 
     attachDebugElement(element) {
@@ -13,7 +16,16 @@ export class VideoBuffer {
     _updateDebugView() {
         // todo use metrics collector instead direct overlay drawing
         if (this.debugElement) {
-            this.debugElement.textContent = `Video buffer size: ${this.frames.length}`;
+            let audioMs = Atomics.load(this._flags, IDX.AVAILABLE_AUDIO); // todo move state manager and display independently
+            let silenceMs = Atomics.load(this._flags, IDX.SILENCE_USEC)/1000;
+            let vDecQueue = Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
+            let aDecQueue = Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
+            this.debugElement.textContent =
+                `Video buffer: ${this.frames.length.toString().padStart(4, '.')}f \n` +
+                `Audio buffer: ${audioMs.toString().padStart(4, '.')}ms \n` +
+                `Silence inserted: ${Math.ceil(silenceMs).toString().padStart(4, '.')}ms \n` + //todo state manager
+                `Video Decoder queue: ${vDecQueue} \n` +
+                `Audio Decoder queue: ${aDecQueue} \n`;
         }
     }
 

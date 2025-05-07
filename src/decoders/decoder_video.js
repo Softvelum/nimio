@@ -1,9 +1,11 @@
+import {IDX} from "../shared.js";
+
 let videoDecoder = null;
 
 let config = {}
 
 function processDecodedFrame(videoFrame) {
-    self.postMessage({type: "videoFrame", videoFrame: videoFrame}, [videoFrame]);
+    self.postMessage({type: "videoFrame", videoFrame: videoFrame, decoderQueue: videoDecoder.decodeQueueSize}, [videoFrame]);
 }
 
 self.addEventListener('message', async function(e) {

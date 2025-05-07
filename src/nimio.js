@@ -14,7 +14,7 @@ export class Nimio {
         this.state = new StateManager(this._sab);
         this.state.stop();
 
-        this.videoBuffer = new VideoBuffer(1000);
+        this.videoBuffer = new VideoBuffer(1000, this._sab);
 
         this.audioContext = null;
 
@@ -57,7 +57,7 @@ export class Nimio {
         if (this.state.isPlaying()) {
             requestAnimationFrame(this._renderVideoFrame);
             if (null === this.workletReady) return true;
-            const currentPlayedTsUs = this.audioContext.currentTime * 1_000_000 + this.firstFrameTsUs - (this.config.latency * 1_000) - this.state.getSilenceUs();
+            const currentPlayedTsUs = this.state.getCurrentTsUs() + this.firstFrameTsUs;
             const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
             if (frame) {
                 this.ctx.drawImage(frame, 0, 0);
@@ -127,10 +127,12 @@ export class Nimio {
             let frame = e.data.videoFrame;
             let frameTsUs = frame.timestamp;
             this.videoBuffer.addFrame(frame, frameTsUs);
+            this.state.setVideoDecoderQueue(e.data.decoderQueue);
         } else if (type === "audioConfig") {
             this.audioDecoderWorker.postMessage({ type: "audioConfig", audioConfig: e.data.audioConfig });
         } else if (type === "audioFrame") {
             this.handleAudioFrame(e.data.audioFrame);
+            this.state.setAudioDecoderQueue(e.data.decoderQueue);
         } else if (type === "audioCodecData") {
             const aacConfig = parseAACConfig(e.data.codecData);
             this.audioDecoderWorker.postMessage({ type: "codecData", codecData: e.data.codecData, aacConfig: aacConfig });
@@ -216,10 +218,7 @@ export class Nimio {
         }
 
         if (null === this.firstFrameTsUs) {
-            const audioContextCurrentTsSec = this.audioContext.currentTime;
-            const audioContextCurrentTsUs = audioContextCurrentTsSec * 1_000_000;
-            const audioFrameTsUs = audioFrame.timestamp;
-            this.firstFrameTsUs = audioFrameTsUs-audioContextCurrentTsUs;
+            this.firstFrameTsUs = audioFrame.timestamp;
         }
 
         this.audioNode.port.postMessage(

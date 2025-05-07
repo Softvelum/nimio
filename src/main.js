@@ -12,7 +12,7 @@ function initNimio() {
                 width: 476,
                 height: 268,
                 latency: 200,
-                startOffset: 100
+                startOffset: 1100
             });
     }
 }
