@@ -2,10 +2,18 @@ import {IDX} from "../shared.js";
 
 let videoDecoder = null;
 
-let config = {}
+let config = {};
+const decodeTimings = new Map();
 
 function processDecodedFrame(videoFrame) {
-    self.postMessage({type: "videoFrame", videoFrame: videoFrame, decoderQueue: videoDecoder.decodeQueueSize}, [videoFrame]);
+    const t0 = decodeTimings.get(videoFrame.timestamp);
+    let latencyMs = 0;
+    if (t0 != null) {
+        latencyMs = performance.now() - t0;
+        decodeTimings.delete(videoFrame.timestamp);
+    }
+
+    self.postMessage({type: "videoFrame", videoFrame: videoFrame, decoderQueue: videoDecoder.decodeQueueSize, decoderLatency: latencyMs}, [videoFrame]);
 }
 
 self.addEventListener('message', async function(e) {
@@ -25,7 +33,7 @@ self.addEventListener('message', async function(e) {
             codec: config.codec,
             codedWidth: config.width,
             codedHeight: config.height,
-            // optimizeForLatency: true, //this dramatically decrease performance in FF, skipped frames
+            // optimizeForLatency: true,
             hardwareAcceleration: 'prefer-hardware',
             description: e.data.codecData
         });
@@ -40,5 +48,6 @@ self.addEventListener('message', async function(e) {
         });
 
         videoDecoder.decode(encodedVideoChunk);
+        decodeTimings.set(encodedVideoChunk.timestamp, performance.now());
     }
 })

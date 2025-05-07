@@ -19,13 +19,15 @@ export class VideoBuffer {
             let audioMs = Atomics.load(this._flags, IDX.AVAILABLE_AUDIO); // todo move state manager and display independently
             let silenceMs = Atomics.load(this._flags, IDX.SILENCE_USEC)/1000;
             let vDecQueue = Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
+            let vDecLatency = Atomics.load(this._flags, IDX.VIDEO_DECODER_LATENCY);
             let aDecQueue = Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
             this.debugElement.textContent =
-                `Video buffer: ${this.frames.length.toString().padStart(4, '.')}f \n` +
-                `Audio buffer: ${audioMs.toString().padStart(4, '.')}ms \n` +
-                `Silence inserted: ${Math.ceil(silenceMs).toString().padStart(4, '.')}ms \n` + //todo state manager
-                `Video Decoder queue: ${vDecQueue} \n` +
-                `Audio Decoder queue: ${aDecQueue} \n`;
+                `Video buffer:..........${this.frames.length.toString().padStart(4, '.')}f \n` +
+                `Audio buffer:..........${audioMs.toString().padStart(4, '.')}ms \n` +
+                `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, '.')}ms \n` + //todo state manager
+                `Video Decoder queue:......${vDecQueue} \n` +
+                `Video Decoder latency:.${vDecLatency.toString().padStart(4, '.')}ms \n` +
+                `Audio Decoder queue:......${aDecQueue} \n`;
         }
     }
 
@@ -33,6 +35,7 @@ export class VideoBuffer {
         if (this.frames.length >= this.maxFrames) {
             const removed = this.frames.shift();
             console.error(`VideoBuffer: overflow, removed old frame ${removed.timestamp}`);
+            removed.close();
         }
 
         this.frames.push({ frame, timestamp });

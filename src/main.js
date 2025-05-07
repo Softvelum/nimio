@@ -11,7 +11,7 @@ function initNimio() {
                 container: 'video',
                 width: 476,
                 height: 268,
-                latency: 200,
+                latency: 600,
                 startOffset: 1100
             });
     }

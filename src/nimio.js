@@ -128,6 +128,7 @@ export class Nimio {
             let frameTsUs = frame.timestamp;
             this.videoBuffer.addFrame(frame, frameTsUs);
             this.state.setVideoDecoderQueue(e.data.decoderQueue);
+            this.state.setVideoDecoderLatency(e.data.decoderLatency);
         } else if (type === "audioConfig") {
             this.audioDecoderWorker.postMessage({ type: "audioConfig", audioConfig: e.data.audioConfig });
         } else if (type === "audioFrame") {

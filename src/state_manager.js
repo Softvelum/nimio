@@ -61,8 +61,12 @@ export class StateManager {
         Atomics.store(this._flags, IDX.AVAILABLE_AUDIO, durationSec);
     }
 
-    setVideoDecoderQueue(f) {
-        Atomics.store(this._flags, IDX.VIDEO_DECODER_QUEUE, f);
+    setVideoDecoderQueue(numFrames) {
+        Atomics.store(this._flags, IDX.VIDEO_DECODER_QUEUE, numFrames);
+    }
+
+    setVideoDecoderLatency(latency) {
+        Atomics.store(this._flags, IDX.VIDEO_DECODER_LATENCY, latency);
     }
 
     setAudioDecoderQueue(f) {
