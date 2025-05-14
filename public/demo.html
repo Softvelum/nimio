@@ -1,10 +1,9 @@
-<!doctype html>
+<!doctype html
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Vite App</title>
-        <link rel="stylesheet" href="demo.css" type="text/css" />
     </head>
     <body>
         <div id="app"></div>
@@ -21,9 +20,10 @@
         <br />
         <br />
         <div id="video"></div>
+        <link rel="stylesheet" href="demo.css"  type='text/css' >
+        <link rel="stylesheet" href="nimio.css"  type='text/css' >
         <script type="module">
-            import { Nimio } from "/src/nimio.js";
-
+            import Nimio from "./nimio.js";
             function initNimio() {
                 const streamUrl = document.getElementById("streamURL").value;
 
