@@ -23,6 +23,36 @@ nimio = new Nimio({
 nimio.play();
 ```
 
+## Cross‑Origin Isolation
+
+Nimio uses features (e.g. `SharedArrayBuffer`) that require a fully isolated browsing context.  
+To enable this, your server must send both the **Cross‑Origin‑Opener‑Policy** and **Cross‑Origin‑Embedder‑Policy** headers on any page or asset that loads the player.
+
+Add these two headers:
+
+```nginx
+add_header Cross-Origin-Opener-Policy  same-origin always;
+add_header Cross-Origin-Embedder-Policy require-corp always;
+```
+
+#### Example: Nginx Configuration
+```nginx
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    # Serve the Nimio demo with COOP/COEP
+    location ^~ /nimio/ {
+        alias /usr/share/nginx/example.com/nimio/;
+        index index.html;
+
+        # Enable cross‑origin isolation
+        add_header Cross-Origin-Opener-Policy  same-origin always;
+        add_header Cross-Origin-Embedder-Policy require-corp always;
+    }
+}
+```
+
 ## Methods
 - play(): void — start playback
 - pause(): void — pause playback
