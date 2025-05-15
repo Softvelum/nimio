@@ -1,4 +1,4 @@
-<img src="nimio-logo.png" alt="Nimio Logo" height="60"/>
+<img src="public/nimio-logo.png" alt="Nimio Logo" height="60"/>
 
 ## Overview
 
