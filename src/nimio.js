@@ -130,8 +130,10 @@ export default class Nimio {
       this.audioContext.close();
       this.audioContext = null;
       this.workletReady = null;
+      this.audioNode = null;
     }
     this.firstFrameTsUs = null;
+    this.state.resetCurrentTsUs();
     this.ui.drawPlay();
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
   }

@@ -4,6 +4,9 @@
 
 **Nimio** is a lightweight, flexible JavaScript player for the SLDP 2.0 protocol built on the WebCodecs API. It offers low-latency streaming, full control over audio/video pipelines, and easy integration into modern web apps.
 
+## Demo
+https://softvelum.com/nimio/demo/
+
 ## SLDP & WebCodecs Features
 - **SLDP Protocol** (Softvelum Low Delay Protocol) — WebSocket‑based streaming with sub-100ms latency, supporting H.264, H.265/HEVC, AV1, VP8, VP9, AAC, MP3, Opus, and more.
 - **WebCodecs Integration** — Fine‑grained control over decoding, synchronization, jitter buffering, playback speed, and debugging at each stage of the pipeline.
