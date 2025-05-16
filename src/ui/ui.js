@@ -6,7 +6,7 @@ export class Ui {
 
         this.container = document.getElementById(container);
         Object.assign(this.container.style, {
-            display:    'inline-block',
+            display:  'inline-block',
             position: 'relative'
         });
         this.container.classList.add('nimio-container');

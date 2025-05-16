@@ -77,7 +77,7 @@ export default class Nimio {
         this.state.getCurrentTsUs() + this.firstFrameTsUs;
       const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
       if (frame) {
-        this.ctx.drawImage(frame, 0, 0);
+        this.ctx.drawImage(frame, 0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
         frame.close();
       }
     }
