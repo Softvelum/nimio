@@ -1,11 +1,13 @@
 import {IDX} from "./shared.js";
 
 export class VideoBuffer {
-    constructor(maxFrames = 100, sab) { //todo length in uSec?
+    constructor(maxFrames = 100, sab, playerConfig) { //todo length in uSec?
         this.maxFrames = maxFrames;
         this.frames = [];
         this.debugElement = null;
         this._flags = new Int32Array(sab); //todo move to state manager
+
+        this.playerConfig = playerConfig;
     }
 
     attachDebugElement(element) {
@@ -14,6 +16,7 @@ export class VideoBuffer {
     }
 
     _updateDebugView() {
+        if (!this.playerConfig.metricsOverlay) return true;
         // todo use metrics collector instead direct overlay drawing
         if (this.debugElement) {
             let audioMs = Atomics.load(this._flags, IDX.AVAILABLE_AUDIO); // todo move state manager and display independently

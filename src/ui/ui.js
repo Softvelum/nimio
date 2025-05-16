@@ -42,7 +42,7 @@ export class Ui {
 
         this.setupEasing();
 
-        this.createDebugOverlay();
+        if (opts.metricsOverlay) this.createDebugOverlay();
     }
 
     setupEasing() {

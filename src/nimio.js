@@ -16,7 +16,7 @@ export default class Nimio {
     this.state = new StateManager(this._sab);
     this.state.stop();
 
-    this.videoBuffer = new VideoBuffer(1000, this._sab);
+    this.videoBuffer = new VideoBuffer(1000, this._sab, this.config);
 
     this.audioContext = null;
 
@@ -26,6 +26,7 @@ export default class Nimio {
       {
         width: this.config.width, //todo get from video?
         height: this.config.height,
+        metricsOverlay: this.config.metricsOverlay
       },
       this._onPlayPauseClick,
     );
