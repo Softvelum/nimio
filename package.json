@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "tar": "COPYFILE_DISABLE=1 tar -czf dist.tar.gz --no-xattrs dist",
     "preview": "vite preview"
   },
   "devDependencies": {
