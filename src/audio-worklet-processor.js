@@ -16,11 +16,11 @@ class NimioProcessor extends AudioWorkletProcessor {
             options.processorOptions.pauseTimeout +
         200) / 1000) // 200 overhead for fast audio
 
-        this.bufferSize   = this.sampleRate * this.channelCount * bufferSec;
-        this.ringBuffer   = new Float32Array(this.bufferSize);
-        this.writeIndex   = 0;
-        this.readIndex    = 0;
-        this.available    = 0;
+        this.bufferSize = this.sampleRate * this.channelCount * bufferSec;
+        this.ringBuffer = new Float32Array(this.bufferSize);
+        this.writeIndex = 0;
+        this.readIndex  = 0;
+        this.available  = 0;
         this.startThreshold = this.sampleRate * this.channelCount * this.targetLatencyMs/1000;
         this.speedFactor = 1.0;
 
@@ -48,9 +48,11 @@ class NimioProcessor extends AudioWorkletProcessor {
 
         const durationUs = frame * 1e6 / this.sampleRate;
 
-        if (this.stateManager.isPaused() ||
-            this.available < frame * chCnt * speed ||
-            this.available < this.startThreshold) {
+        if (
+            this.stateManager.isPaused() ||
+            (this.available < frame * chCnt * speed) ||
+            (this.available < this.startThreshold)
+        ) {
             // Insert silence
             for (let c = 0; c < chCnt; c++) out[c].fill(0);
             console.debug('Insert silence: ', durationUs/1000)

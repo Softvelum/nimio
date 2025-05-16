@@ -35,7 +35,7 @@ export class VideoBuffer {
         if (this.frames.length >= this.maxFrames) {
             const removed = this.frames.shift();
             console.error(`VideoBuffer: overflow, removed old frame ${removed.timestamp}`);
-            removed.close();
+            removed.frame.close();
         }
 
         this.frames.push({ frame, timestamp });
