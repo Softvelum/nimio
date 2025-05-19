@@ -1,3 +1,5 @@
+import LoggersFactory from "./shared/logger";
+
 const DEFAULTS = {
     streamUrl: null,
     container: null,
@@ -7,7 +9,9 @@ const DEFAULTS = {
     startOffset: 1000,
     pauseTimeout: 3000,
     fastForward: false,
-    metricsOverlay: false
+    metricsOverlay: false,
+    instanceName: null,
+    logLevel: "warn",
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -16,18 +20,19 @@ function validateRequired(cfg) {
     REQUIRED_KEYS.forEach(key => {
         const val = cfg[key];
         if (val === null || val === undefined || val === "") {
-            throw new Error(`config key "${key}" required`);
+            throw new Error(`Config key "${key}" is required`);
         }
     });
 }
 
 export function createConfig(overrides = {}) {
     const filtered = {};
+    const unknown = [];
     for (const [key, value] of Object.entries(overrides)) {
         if (key in DEFAULTS) {
             filtered[key] = value;
         } else {
-            console.warn(`Config unknown key "${key}" ignored`);
+            unknown.push(key);
         }
     }
 
@@ -35,17 +40,23 @@ export function createConfig(overrides = {}) {
 
     validateRequired(target);
 
+    LoggersFactory.setLevel(target.logLevel);
+    const logger = LoggersFactory.create(target.instanceName, "Player config");
+    for (let i = 0; i < unknown.length; i++) {
+        logger.warn(`Config key "${unknown[i]}" is unknown`);
+    }
+
     return new Proxy(target, {
         get(obj, prop) {
             if (!(prop in DEFAULTS)) {
-                console.error(`Config get unknown key "${prop}"`);
+                logger.error(`Config get unknown key "${prop}"`);
                 return undefined;
             }
             return obj[prop];
         },
         set(obj, prop, value) {
             if (!(prop in DEFAULTS)) {
-                console.warn(`Config set unknown key "${prop}"`);
+                logger.warn(`Config set unknown key "${prop}"`);
                 return false;
             }
             obj[prop] = value;

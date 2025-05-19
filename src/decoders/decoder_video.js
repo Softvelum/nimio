@@ -1,5 +1,3 @@
-import {IDX} from "../shared.js";
-
 let videoDecoder = null;
 
 let config = {};
@@ -13,7 +11,12 @@ function processDecodedFrame(videoFrame) {
         decodeTimings.delete(videoFrame.timestamp);
     }
 
-    self.postMessage({type: "videoFrame", videoFrame: videoFrame, decoderQueue: videoDecoder.decodeQueueSize, decoderLatency: latencyMs}, [videoFrame]);
+    self.postMessage({
+        type: "videoFrame",
+        videoFrame: videoFrame,
+        decoderQueue: videoDecoder.decodeQueueSize,
+        decoderLatency: latencyMs
+    }, [videoFrame]);
 }
 
 self.addEventListener('message', async function(e) {

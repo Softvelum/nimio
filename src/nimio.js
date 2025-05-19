@@ -1,17 +1,23 @@
 import { parseAACConfig } from "./utils/aac_config_parser.js";
 import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
-import { IDX } from "./shared.js";
+import { IDX } from "./shared/values.js";
 import { StateManager } from "./state_manager.js";
 import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./video-buffer.js";
 import { createConfig } from "./player_config.js";
+import LoggersFactory from "./shared/logger.js";
 
 export default class Nimio {
-  constructor(options) {
+  constructor (options) {
+    if( options && !options.instanceName ) {
+        options.instanceName = 'nimio_' + (Math.floor(Math.random() * 1000) + 1);
+    }
+
     this.config = createConfig(options);
+    this._logger = LoggersFactory.create(options.instanceName, 'Nimio');
 
     this._sab = new SharedArrayBuffer(
-      Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length,
+        Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length,
     );
     this.state = new StateManager(this._sab);
     this.state.stop();
@@ -118,7 +124,7 @@ export default class Nimio {
   pause() {
     this.state.pause();
     this._pauseTimeoutId = setTimeout(() => {
-      console.log("Auto stop()");
+      this._logger.debug("Auto stop");
       this.stop();
     }, this.config.pauseTimeout); // TODO: monitor current latency and reduce pauseTimeout if low buffer capacity
   }
@@ -210,7 +216,7 @@ export default class Nimio {
         sampleRate: audioFrame.sampleRate,
       });
       if (audioFrame.sampleRate !== this.audioContext.sampleRate) {
-        console.error(
+        this._logger.error(
           "Unsupported sample rate",
           audioFrame.sampleRate,
           this.audioContext.sampleRate,
