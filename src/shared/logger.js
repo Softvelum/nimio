@@ -1,21 +1,11 @@
 let LoggersFactory = (function () {
     let _level = 'warn';
-    let _divs = [];
   
     class Logger {
         constructor (id, prefix) {
-            this.div = false;
             this.id = id;
             this.prefix = prefix;
             this.lf = 'log';
-        }
-
-        setDiv (elId) {
-            if( typeof elId === 'string' ) {
-                this.div = document.getElementById( elId );
-            } else {
-                console.error( 'Logger.setDiv: invalid element id ' + elId );
-            }
         }
 
         setId (id) {
@@ -71,23 +61,6 @@ let LoggersFactory = (function () {
                 '][' +this.id + '][' + this.prefix + ']: ' + arguments[0]; 
 
             console[this.lf].apply(console, arguments);
-
-            let div = this.div ? this.div : _divs[this.id];
-            if( div ) {
-                let text = '';
-                for (let i = 0; i < arguments.length; i++) {
-                    if (text.length > 0) text += ' ';
-                    text += arguments[i];
-                }
-                let node = document.createElement( 'div' );
-                div.appendChild( node );
-                node.appendChild( document.createTextNode( text ) );
-
-                if( 30000 < div.children.length ) {
-                    div.removeChild( div.children[0] );
-                }
-                div.scrollTop = div.scrollHeight;
-            }
         }
     }
 
@@ -97,11 +70,6 @@ let LoggersFactory = (function () {
         },
         setLevel: function (lvl) {
             _level = lvl;
-        },
-        setDiv: function (id, elId) {
-            if( typeof elId === "string" ) {
-                _divs[id] = document.getElementById(elId);
-            }
         },
     };
 })();
