@@ -1,21 +1,23 @@
-import {IDX} from "./shared.js";
+import {IDX} from "./shared/values.js";
+import LoggersFactory from "./shared/logger.js";
+import { RingBuffer } from "./utils/ring-buffer.js";
 
 export class VideoBuffer {
-    constructor(maxFrames = 100, sab, playerConfig) { //todo length in uSec?
-        this.maxFrames = maxFrames;
-        this.frames = [];
+    constructor (maxFrames = 100, sab, playerConfig) { //todo length in uSec?
+        this.frames = new RingBuffer(playerConfig.instanceName, maxFrames);
         this.debugElement = null;
         this._flags = new Int32Array(sab); //todo move to state manager
 
         this.playerConfig = playerConfig;
+        this._logger = LoggersFactory.create(playerConfig.instanceName, "Video Buffer");
     }
 
-    attachDebugElement(element) {
+    attachDebugElement (element) {
         this.debugElement = element;
         this._updateDebugView();
     }
 
-    _updateDebugView() {
+    _updateDebugView () {
         if (!this.playerConfig.metricsOverlay) return true;
         // todo use metrics collector instead direct overlay drawing
         if (this.debugElement) {
@@ -34,10 +36,10 @@ export class VideoBuffer {
         }
     }
 
-    addFrame(frame, timestamp) {
-        if (this.frames.length >= this.maxFrames) {
-            const removed = this.frames.shift();
-            console.error(`VideoBuffer: overflow, removed old frame ${removed.timestamp}`);
+    addFrame (frame, timestamp) {
+        if (this.frames.isFull()) {
+            const removed = this.frames.pop();
+            this._logger.warn(`VideoBuffer: overflow, removed old frame ${removed.timestamp}`);
             removed.frame.close();
         }
 
@@ -45,24 +47,20 @@ export class VideoBuffer {
         this._updateDebugView();
     }
 
-    getFrameForTime(currentTime) {
-        const n = this.frames.length;
-        if (n === 0) {
-            // console.warn(`VideoBuffer: empty at ts: ${currentTime.toFixed(3)}`);
+    getFrameForTime (currentTime) {
+        if (this.frames.isEmpty()) {
+            // this._logger.warn(`VideoBuffer: empty at ts: ${currentTime.toFixed(3)}`);
             return null;
         }
 
-        // find nearest old frame
+        // find a frame nearest to currentTime
         let lastIdx = -1;
-        for (let i = 0; i < n; i++) {
-            if (this.frames[i].timestamp <= currentTime) {
-                lastIdx = i;
-                if (i-1 >= 0 && undefined !== this.frames[i-1]) { // close more old frame
-                    this.frames[i-1].frame.close();
-                }
-            } else {
+        for (let i = 0; i < this.frames.length; i++) {
+            let frame = this.frames.get(i);
+            if (frame && frame.timestamp > currentTime) {
                 break;
             }
+            lastIdx = i;
         }
 
         // nothing to show, too early
@@ -70,23 +68,28 @@ export class VideoBuffer {
             return null;
         }
 
-        const { frame, timestamp } = this.frames[lastIdx];
+        for (let i = 0; i < lastIdx; i++) {
+            let frame = this.frames.pop();
+            if (frame && frame.frame) {
+                frame.frame.close();
+            }
+        }
 
-        this.frames.splice(0, lastIdx + 1);
+        const frame = this.frames.pop();
 
         this._updateDebugView();
 
-        // return most new frame from old
-        return frame;
+        // return the last frame earlier than currentTime
+        return frame.frame;
     }
 
-    clear() {
-        if (this.frames.length > 0) {
-            this.frames.forEach(({ frame, timestamp }) => {
-                frame.close();
-            });
-            this.frames.length = 0;
-            this._updateDebugView();
-        }
+    clear () {
+        this.frames.forEach(({ frame, _ }) => {
+            frame.close();
+        });
+
+        let needUpdate = this.frames.length > 0;
+        this.frames.reset();
+        if (needUpdate) this._updateDebugView();
     }
 }

@@ -1,4 +1,4 @@
-import { STATE, IDX } from './shared.js';
+import { STATE, IDX } from './shared/values.js';
 
 export class StateManager {
     /**
