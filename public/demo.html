@@ -1,50 +1,52 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Vite App</title>
-    </head>
-    <body>
-        <div id="app"></div>
-        <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
-        <h1>SLDP 2.0 Player</h1>
-        <a href="https://github.com/Softvelum/nimio">Get the latest code and release at Nimio github repo</a>
-        <br>
-        <br>
-        <input
-            id="streamURL"
-            type="text"
-            class="nimio-input"
-            placeholder="wss URL..."
-            value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
-        />
-        <button id="initNimioButton" class="nimio-button">Load</button>
-        <br />
-        <br />
-        <div id="video"></div>
-        <link rel="stylesheet" href="demo.css"  type='text/css' >
-        <link rel="stylesheet" href="nimio.css"  type='text/css' >
-        <script type="module">
-            import Nimio from "./nimio.js";
-            function initNimio() {
-                const streamUrl = document.getElementById("streamURL").value;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
+    <h1>SLDP 2.0 Player</h1>
+    <a href="https://github.com/Softvelum/nimio"
+      >Get the latest code and release at Nimio github repo</a
+    >
+    <br />
+    <br />
+    <input
+      id="streamURL"
+      type="text"
+      class="nimio-input"
+      placeholder="wss URL..."
+      value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
+    />
+    <button id="initNimioButton" class="nimio-button">Load</button>
+    <br />
+    <br />
+    <div id="video"></div>
+    <link rel="stylesheet" href="demo.css" type="text/css" />
+    <link rel="stylesheet" href="nimio.css" type="text/css" />
+    <script type="module">
+      import Nimio from "./nimio.js";
+      function initNimio() {
+        const streamUrl = document.getElementById("streamURL").value;
 
-                if (undefined === window.nimio) {
-                    window.nimio = new Nimio({
-                        streamUrl: streamUrl,
-                        container: "video",
-                        width: 476,
-                        height: 268,
-                        latency: 1000,
-                        startOffset: 1000,
-                    });
-                }
-            }
+        if (undefined === window.nimio) {
+          window.nimio = new Nimio({
+            streamUrl: streamUrl,
+            container: "video",
+            width: 476,
+            height: 268,
+            latency: 1000,
+            startOffset: 1000,
+          });
+        }
+      }
 
-            document
-                .getElementById("initNimioButton")
-                .addEventListener("click", initNimio);
-        </script>
-    </body>
+      document
+        .getElementById("initNimioButton")
+        .addEventListener("click", initNimio);
+    </script>
+  </body>
 </html>
