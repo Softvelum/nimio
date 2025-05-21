@@ -39,4 +39,4 @@ self.addEventListener('message', async function(e) {
 
         audioDecoder.decode(encodedAudioChunk);
     }
-})
+});

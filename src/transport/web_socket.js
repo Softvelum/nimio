@@ -77,14 +77,17 @@ function processFrame(event) {
     let frameSize = frameWithHeader.byteLength;
     let timestamp;
 
-    if (frameType === WEB_AAC_SEQUENCE_HEADER || frameType === WEB_AVC_SEQUENCE_HEADER) {
+    let tsSec, tsUs, isKey = false;
+    switch (frameType) {
+    case WEB_AAC_SEQUENCE_HEADER:
+    case WEB_AVC_SEQUENCE_HEADER:
+    case WEB_HEVC_SEQUENCE_HEADER:
+    case WEB_AV1_SEQUENCE_HEADER:
         let codecData = frameWithHeader.subarray(2, frameSize);
-        if (frameType === WEB_AAC_SEQUENCE_HEADER) {
-            self.postMessage({type: "audioCodecData", codecData: codecData});
-        } else if (frameType === WEB_AVC_SEQUENCE_HEADER) {
-            self.postMessage({type: "videoCodecData", codecData: codecData});
-        }
-    } else if (frameType === WEB_AAC_FRAME) {
+        let type = frameType === WEB_AAC_SEQUENCE_HEADER ? "audioCodecData" : "videoCodecData";
+        self.postMessage({type: type, codecData: codecData});
+        break;
+    case WEB_AAC_FRAME:
         timestamp = readInt(frameWithHeader, 2, 8);
 
         if (steady) {
@@ -92,8 +95,8 @@ function processFrame(event) {
             dataPos += 8;
         }
 
-        const tsSec = timestamp/timescale.audio;
-        const tsUs = 1_000_000 * tsSec;
+        tsSec = timestamp / timescale.audio;
+        tsUs = 1_000_000 * tsSec;
 
         self.postMessage({
             type: "audioChunk",
@@ -101,7 +104,14 @@ function processFrame(event) {
             frameWithHeader: frameWithHeader.buffer,
             framePos: dataPos
         });
-    } else if (frameType === WEB_AVC_KEY_FRAME || frameType === WEB_AVC_FRAME) {
+        break;
+    case WEB_AVC_KEY_FRAME:
+    case WEB_HEVC_KEY_FRAME:
+    case WEB_AV1_KEY_FRAME:
+        isKey = true;
+    case WEB_AVC_FRAME:
+    case WEB_HEVC_FRAME:
+    case WEB_AV1_FRAME:
         timestamp = readInt(frameWithHeader, 2, 8);
 
         if (steady) {
@@ -109,20 +119,25 @@ function processFrame(event) {
             dataPos += 8;
         }
 
-        let compositionOffset = readInt(frameWithHeader, dataPos, 4);
-        dataPos += 4;
+        let compositionOffset = 0
+        if (frameType !== WEB_AV1_KEY_FRAME && frameType !== WEB_AV1_FRAME) {
+            compositionOffset = readInt(frameWithHeader, dataPos, 4);
+            dataPos += 4;
+        }
 
-        const isKey = frameType === WEB_AVC_KEY_FRAME;
-        const tsSec = (timestamp+compositionOffset)/timescale.video;
-        const tsUs = 1_000_000 * tsSec;
+        tsSec = (timestamp + compositionOffset) / timescale.video;
+        tsUs = 1_000_000 * tsSec;
 
         self.postMessage({
             type: "videoChunk",
             timestamp: tsUs,
-            chunkType: isKey ? 'key' : 'delta',
+            chunkType: isKey ? "key" : "delta",
             frameWithHeader: frameWithHeader.buffer,
-            framePos: dataPos
+            framePos: dataPos,
         }, [frameWithHeader.buffer]);
+        break;
+    default:
+        break;
     }
 }
 
@@ -195,4 +210,4 @@ self.onmessage = e => {
             streams: [0,1] // TODO: correct stream IDs
         }));
     }
-}
+};
