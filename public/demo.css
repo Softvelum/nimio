@@ -1,60 +1,64 @@
 body {
-    font-family: sans-serif;
-    padding: 2rem;
-    background: #f9f9f9;
+  font-family: sans-serif;
+  padding: 2rem;
+  background: #f9f9f9;
 }
 h1 {
-    font-size: 1.4rem;
+  font-size: 1.4rem;
 }
 canvas {
-    margin-top: 1rem;
+  margin-top: 1rem;
 }
 #logo {
-    height: 60px;
+  height: 60px;
 }
 .nimio-button {
-    background-color: #2A7BE3;
-    color: #ffffff;
-    border: none;
-    border-radius: 12px;
-    padding: 12px 24px;
-    font-size: 16px;
-    font-weight: 600;
-    font-family: 'Segoe UI', sans-serif;
-    cursor: pointer;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 4px 12px rgba(42, 123, 227, 0.3);
+  background-color: #2a7be3;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: "Segoe UI", sans-serif;
+  cursor: pointer;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+  box-shadow: 0 4px 12px rgba(42, 123, 227, 0.3);
 }
 
 .nimio-button:hover {
-    background-color: #1f5fb1;
-    box-shadow: 0 6px 16px rgba(42, 123, 227, 0.4);
+  background-color: #1f5fb1;
+  box-shadow: 0 6px 16px rgba(42, 123, 227, 0.4);
 }
 
 .nimio-button:active {
-    transform: scale(0.98);
+  transform: scale(0.98);
 }
 
 .nimio-input {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px 12px;
-    font-size: 16px;
-    font-family: 'Segoe UI', sans-serif;
-    color: #333;
-    background-color: #f9fbfd;
-    border: 2px solid #d0d8e0;
-    border-radius: 12px;
-    outline: none;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 2px 8px rgba(42, 123, 227, 0.05);
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-family: "Segoe UI", sans-serif;
+  color: #333;
+  background-color: #f9fbfd;
+  border: 2px solid #d0d8e0;
+  border-radius: 12px;
+  outline: none;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(42, 123, 227, 0.05);
 }
 
 .nimio-input:focus {
-    border-color: #2A7BE3;
-    box-shadow: 0 0 0 3px rgba(42, 123, 227, 0.15);
+  border-color: #2a7be3;
+  box-shadow: 0 0 0 3px rgba(42, 123, 227, 0.15);
 }
 
 .nimio-input::placeholder {
-    color: #99a3b3;
+  color: #99a3b3;
 }
