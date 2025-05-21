@@ -32,14 +32,28 @@ self.addEventListener('message', async function(e) {
             error: e => console.error('Decoder error:', e)
         });
 
-        videoDecoder.configure({
+        let params = {
             codec: config.codec,
             codedWidth: config.width,
             codedHeight: config.height,
             // optimizeForLatency: true,
             hardwareAcceleration: 'prefer-hardware',
-            description: e.data.codecData
-        });
+            description: e.data.codecData,
+        };
+
+        let support = await VideoDecoder.isConfigSupported(params);
+        if (!support.supported) {
+            console.warn("Hardware acceleration not supported, falling back to software decoding");
+            params.hardwareAcceleration = "prefer-software";
+            support = await VideoDecoder.isConfigSupported(params);
+        }
+        if (support.supported) {
+            videoDecoder.configure(params);
+        } else {
+            // TODO: handle unsupported codec
+            console.error("Video codec not supported", config.codec);
+            // self.postMessage({ type: "decoderError", message: "Video codec not supported" });
+        }
     } else if (type === "videoChunk") {
         const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
         const frame = frameWithHeader.subarray(e.data.framePos, frameWithHeader.byteLength);
@@ -47,10 +61,10 @@ self.addEventListener('message', async function(e) {
         const encodedVideoChunk = new EncodedVideoChunk({
             timestamp: e.data.timestamp,
             type: e.data.chunkType,
-            data: frame
+            data: frame,
         });
 
         videoDecoder.decode(encodedVideoChunk);
         decodeTimings.set(encodedVideoChunk.timestamp, performance.now());
     }
-})
+});
