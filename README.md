@@ -6,7 +6,9 @@
 
 ## Demo
 
-https://softvelum.com/nimio/demo/
+https://softvelum.com/nimio/demo/ - Stable
+
+https://nimio.pages.dev/demo - Latest
 
 ## SLDP & WebCodecs Features
 
@@ -21,11 +23,14 @@ Read the [first beta release announcement](https://softvelum.com/2025/05/introdu
 nimio = new Nimio({
   streamUrl: "ws://example.com/stream", //SLDP stream URL
   container: "#player", // CSS selector or HTMLElement
+  //optional parameters:
   width: 476,
   height: 268,
   latency: 600, // Target latency in ms
   startOffset: 1000, // Startup offset in ms
   pauseTimeout: 3000, // ms until auto-stop when paused
+  metricsOverlay: true, // Show overlay with performance metrics
+  logLevel: "warn", // Logging verbosity
 });
 
 nimio.play();
@@ -64,9 +69,25 @@ server {
 
 ## Methods
 
-- play(): void — start playback
-- pause(): void — pause playback
-- stop(): void — stop and reset the player
+### Instance Methods
+
+These methods are available on every `Nimio` player instance.
+
+- `play()`  
+  Start playback.
+- `pause()`  
+  Pause playback.
+- `stop()`  
+  Stop and reset the player.
+- `version()`  
+  Return the current version string of this player instance.
+
+### Static Methods
+
+These methods are available directly on the `Nimio` class.
+
+- `Nimio.version()`  
+  Return the current version string (identical to `instance.version()`).
 
 ## Contributing
 

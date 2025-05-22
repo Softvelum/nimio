@@ -8,7 +8,6 @@ const DEFAULTS = {
   latency: 200,
   startOffset: 1000,
   pauseTimeout: 3000,
-  fastForward: false,
   metricsOverlay: false,
   instanceName: null,
   logLevel: "warn",
