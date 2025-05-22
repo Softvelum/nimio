@@ -28,7 +28,7 @@ nimio = new Nimio({
   startOffset: 1000, // Startup offset in ms
   pauseTimeout: 3000, // ms until auto-stop when paused
   metricsOverlay: true, // Show overlay with performance metrics
-    logLevel: 'warn', // Logging verbosity
+  logLevel: "warn", // Logging verbosity
 });
 
 nimio.play();
