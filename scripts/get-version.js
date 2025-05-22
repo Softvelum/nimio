@@ -9,5 +9,5 @@ const count = execSync("git rev-list --count HEAD").toString().trim();
 const hash = execSync("git rev-parse --short HEAD").toString().trim();
 
 // «1.2.3+45.abcdef0» — 45 commits after tag, hash abcdef0
-const version = `${base}+${count}.${hash}`;
+const version = `${base}-${count}.${hash}`;
 console.log(version);
