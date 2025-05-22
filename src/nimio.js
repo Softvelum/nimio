@@ -9,6 +9,8 @@ import LoggersFactory from "./shared/logger.js";
 
 export default class Nimio {
   constructor(options) {
+    console.debug("Nimio " + this.version());
+
     if (options && !options.instanceName) {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
     }
@@ -143,6 +145,14 @@ export default class Nimio {
     this.state.resetCurrentTsUs();
     this.ui.drawPlay();
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+  }
+
+  version() {
+    return __NIMIO_VERSION__;
+  }
+
+  static version() {
+    return __NIMIO_VERSION__;
   }
 
   processWorkerMessage(e) {
