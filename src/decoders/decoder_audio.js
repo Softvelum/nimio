@@ -1,9 +1,13 @@
-let audioDecoder = null;
+let audioDecoder;
 
 let config = {};
 
-function processDecodedFrame(audioFrame) {
-    self.postMessage({type: "audioFrame", audioFrame: audioFrame, decoderQueue: audioDecoder.decodeQueueSize}, [audioFrame]);
+function processDecodedFrame (audioFrame) {
+    self.postMessage({
+        type: "audioFrame",
+        audioFrame: audioFrame,
+        decoderQueue: audioDecoder.decodeQueueSize,
+    }, [audioFrame]);
 }
 
 self.addEventListener('message', async function(e) {
@@ -25,7 +29,7 @@ self.addEventListener('message', async function(e) {
             codec: config.codec,
             sampleRate: config.sampleRate,
             numberOfChannels: config.numberOfChannels,
-            description: e.data.codecData
+            description: e.data.codecData,
         });
     } else if (type === "audioChunk") {
         const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
@@ -34,7 +38,7 @@ self.addEventListener('message', async function(e) {
         const encodedAudioChunk = new EncodedAudioChunk({
             timestamp: e.data.timestamp,
             type: 'key',
-            data: frame
+            data: frame,
         });
 
         audioDecoder.decode(encodedAudioChunk);
