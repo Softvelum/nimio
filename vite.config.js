@@ -29,7 +29,7 @@ export default defineConfig({
                 contents
                   .toString()
                   .replace(/\.\.\/src\/nimio\.js/g, `./nimio-${version}.js`)
-                  .replace(/\.\.\/src\/nimio\.css/g, `./nimio-${version}.css`),
+                  .replace(/nimio\.css/g, `./nimio-${version}.css`),
             },
           ],
           hook: "writeBundle",
