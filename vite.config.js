@@ -28,8 +28,8 @@ export default defineConfig({
               transform: (contents) =>
                 contents
                   .toString()
-                  .replace(/nimio\.js/g, `nimio-${version}.js`)
-                  .replace(/nimio\.css/g, `nimio-${version}.css`),
+                  .replace(/\.\.\/src\/nimio\.js/g, `./nimio-${version}.js`)
+                  .replace(/\.\.\/src\/nimio\.css/g, `./nimio-${version}.css`),
             },
           ],
           hook: "writeBundle",
