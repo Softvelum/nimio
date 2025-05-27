@@ -5,4 +5,8 @@ input.mini-input {
   text-align: center;
 }
 
-label.inline {display: flex; align-items: center; gap: 0.5rem;}
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

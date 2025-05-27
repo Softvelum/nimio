@@ -38,24 +38,30 @@
           />
           <button id="initNimioButton">Load</button>
         </fieldset>
-              <fieldset>
-        <label>
-          <input name="advanced" type="checkbox" role="switch" />
-          Advanced
-        </label></fieldset>
-          <article name="advanced-params">
+        <fieldset>
+          <label>
+            <input name="advanced" type="checkbox" role="switch" />
+            Advanced
+          </label>
+        </fieldset>
+        <article name="advanced-params">
           <fieldset>
-              <label>
-                  <input type="checkbox" name="metricsOverlay" checked />
-                  Show overlay with performance metrics
-              </label>
-              <label class="inline">
-                  Target latency
-                  <input style="width: 80px;" class="mini-input"  name="targetLatency" value="1000" />
-                  ms
-              </label>
+            <label>
+              <input type="checkbox" name="metricsOverlay" checked />
+              Show overlay with performance metrics
+            </label>
+            <label class="inline">
+              Target latency
+              <input
+                style="width: 80px"
+                class="mini-input"
+                name="targetLatency"
+                value="1000"
+              />
+              ms
+            </label>
           </fieldset>
-          </article>
+        </article>
       </section>
       <section>
         <div id="video"></div>
@@ -73,7 +79,8 @@
               height: 268,
               latency: +document.getElementsByName("targetLatency")[0].value,
               startOffset: 1000,
-              metricsOverlay: document.getElementsByName("metricsOverlay")[0].checked
+              metricsOverlay:
+                document.getElementsByName("metricsOverlay")[0].checked,
             });
           }
         }
@@ -82,9 +89,9 @@
           .getElementById("initNimioButton")
           .addEventListener("click", initNimio);
 
-        let cb = document.querySelector('[name=advanced]'),
-            art = document.querySelector('[name=advanced-params]');
-        cb.onchange = () => art.hidden = !cb.checked;
+        let cb = document.querySelector("[name=advanced]"),
+          art = document.querySelector("[name=advanced-params]");
+        cb.onchange = () => (art.hidden = !cb.checked);
         cb.onchange();
       </script>
     </main>
