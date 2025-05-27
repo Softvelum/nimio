@@ -13,6 +13,10 @@ function processDecodedFrame(videoFrame) {
         decodeTimings.delete(videoFrame.timestamp);
     }
 
+    if (latencyMs > 1000) {
+        console.warn(`Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`);
+    }
+
     self.postMessage({
         type: "videoFrame",
         videoFrame: videoFrame,

@@ -79,7 +79,7 @@ export default class Nimio {
             requestAnimationFrame(this._renderVideoFrame);
             if (null === this.audioWorkletReady) return true;
 
-            const currentPlayedTsUs = this.state.getCurrentTsUs() + this.firstFrameTsUs;
+            let currentPlayedTsUs = this.state.getCurrentTsUs() + this.firstFrameTsUs - 1000000;
             const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
             if (frame) {
                 this.ctx.drawImage(frame, 0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -149,7 +149,7 @@ export default class Nimio {
             break;
         case "audioConfig":
             if (!e.data.audioConfig) {
-                this.initAudioContext(48000, 2, true);
+                this.initAudioContext(48000, 1, true);
                 this.videoOnly = true;
                 break;
             }
@@ -165,7 +165,6 @@ export default class Nimio {
             });
             break;
         case "audioCodecData":
-            console.warn("processWorkerMessage audioCodecData", e.data.codecData);
             this.audioDecoderWorker.postMessage({
                 type: "codecData",
                 codecData: e.data.codecData,
@@ -182,7 +181,6 @@ export default class Nimio {
             }, [e.data.frameWithHeader]);
             break;
         case "audioChunk":
-            // console.warn("processWorkerMessage audioChunk", e.data.timestamp, e.data.frameWithHeader);
             this.audioDecoderWorker.postMessage({
                 type: "audioChunk",
                 timestamp: e.data.timestamp,
@@ -201,7 +199,6 @@ export default class Nimio {
             this.state.setVideoDecoderLatency(e.data.decoderLatency);
             break;
         case "audioFrame":
-            // console.warn("processWorkerMessage audioFrame", e.data.audioFrame.timestamp);
             this.handleAudioFrame(e.data.audioFrame);
             this.state.setAudioDecoderQueue(e.data.decoderQueue);
             break;
@@ -274,7 +271,7 @@ export default class Nimio {
             this.audioWorkletReady = this.audioContext.audioWorklet
                 .addModule(workletUrl)
                 .catch((err) => {
-                    console.error("Audio worklet error", err);
+                    this._logger.error("Audio worklet error", err);
                 });
         }
 
