@@ -6,9 +6,9 @@
 
 ## Demo
 
-https://softvelum.com/nimio/demo/ - Stable
-
 https://nimio.pages.dev/demo - Latest
+
+https://softvelum.com/nimio/demo/ - Stable
 
 ## SLDP & WebCodecs Features
 
