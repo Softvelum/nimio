@@ -3,7 +3,7 @@ import { resolve } from "path";
 import { execSync } from "child_process";
 import copy from "rollup-plugin-copy";
 
-const version = execSync("node scripts/get-version.js").toString().trim();
+const version = execSync("git describe --tags").toString().trim();
 
 export default defineConfig({
   base: "./",
@@ -14,8 +14,8 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/nimio.js"),
       formats: ["es"],
-      fileName: () => `nimio-v${version}.js`,
-      cssFileName: `nimio-v${version}`,
+      fileName: () => `nimio-${version}.js`,
+      cssFileName: `nimio-${version}`,
     },
     rollupOptions: {
       plugins: [
@@ -28,8 +28,8 @@ export default defineConfig({
               transform: (contents) =>
                 contents
                   .toString()
-                  .replace(/nimio\.js/g, `nimio-v${version}.js`)
-                  .replace(/nimio\.css/g, `nimio-v${version}.css`),
+                  .replace(/\.\.\/src\/nimio\.js/g, `./nimio-${version}.js`)
+                  .replace(/nimio\.css/g, `./nimio-${version}.css`),
             },
           ],
           hook: "writeBundle",
