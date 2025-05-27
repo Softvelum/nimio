@@ -23,7 +23,7 @@ export class Ui {
 
     this.btnPlayPause = document.createElement("div");
     this.btnPlayPause.classList.add("play-pause");
-    this.button = document.createElement("button");
+    this.button = document.createElement("div");
     this.button.classList.add("play");
     this.btnPlayPause.appendChild(this.button);
     this.container.appendChild(this.btnPlayPause);

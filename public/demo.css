@@ -1,64 +1,12 @@
-body {
-  font-family: sans-serif;
-  padding: 2rem;
-  background: #f9f9f9;
-}
-h1 {
-  font-size: 1.4rem;
-}
-canvas {
-  margin-top: 1rem;
-}
-#logo {
-  height: 60px;
-}
-.nimio-button {
-  background-color: #2a7be3;
-  color: #ffffff;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  font-family: "Segoe UI", sans-serif;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    box-shadow 0.3s ease;
-  box-shadow: 0 4px 12px rgba(42, 123, 227, 0.3);
+input.mini-input {
+  height: 10px;
+  margin-bottom: auto;
+  padding: 15px 0;
+  text-align: center;
 }
 
-.nimio-button:hover {
-  background-color: #1f5fb1;
-  box-shadow: 0 6px 16px rgba(42, 123, 227, 0.4);
-}
-
-.nimio-button:active {
-  transform: scale(0.98);
-}
-
-.nimio-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 10px 12px;
-  font-size: 16px;
-  font-family: "Segoe UI", sans-serif;
-  color: #333;
-  background-color: #f9fbfd;
-  border: 2px solid #d0d8e0;
-  border-radius: 12px;
-  outline: none;
-  transition:
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
-  box-shadow: 0 2px 8px rgba(42, 123, 227, 0.05);
-}
-
-.nimio-input:focus {
-  border-color: #2a7be3;
-  box-shadow: 0 0 0 3px rgba(42, 123, 227, 0.15);
-}
-
-.nimio-input::placeholder {
-  color: #99a3b3;
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
