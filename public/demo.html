@@ -1,50 +1,99 @@
-<!doctype html
+<!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Vite App</title>
-    </head>
-    <body>
-        <div id="app"></div>
-        <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nimio demo</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    />
+    <link rel="stylesheet" href="demo.css" type="text/css" />
+    <link rel="stylesheet" href="nimio.css" type="text/css" />
+  </head>
+  <body>
+    <main class="container">
+      <section>
+        <img
+          src="nimio-logo.png"
+          id="logo"
+          alt="Nimio logo"
+          style="height: 60px"
+        />
+      </section>
+      <section>
         <h1>SLDP 2.0 Player</h1>
-        <a href="https://github.com/Softvelum/nimio">Get the latest code and release at Nimio github repo</a>
-        <br>
-        <br>
-        <input
+        <a href="https://github.com/Softvelum/nimio">
+          Get the latest code and release at Nimio github repo
+        </a>
+      </section>
+      <section>
+        <fieldset role="group">
+          <input
             id="streamURL"
             type="text"
             class="nimio-input"
             placeholder="wss URL..."
             value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
-        />
-        <button id="initNimioButton" class="nimio-button">Load</button>
-        <br />
-        <br />
+          />
+          <button id="initNimioButton">Load</button>
+        </fieldset>
+        <fieldset>
+          <label>
+            <input name="advanced" type="checkbox" role="switch" />
+            Advanced
+          </label>
+        </fieldset>
+        <article name="advanced-params">
+          <fieldset>
+            <label>
+              <input type="checkbox" name="metricsOverlay" checked />
+              Show overlay with performance metrics
+            </label>
+            <label class="inline">
+              Target latency
+              <input
+                style="width: 80px"
+                class="mini-input"
+                name="targetLatency"
+                value="1000"
+              />
+              ms
+            </label>
+          </fieldset>
+        </article>
+      </section>
+      <section>
         <div id="video"></div>
-        <link rel="stylesheet" href="demo.css"  type='text/css' >
-        <link rel="stylesheet" href="nimio.css"  type='text/css' >
-        <script type="module">
-            import Nimio from "./nimio.js";
-            function initNimio() {
-                const streamUrl = document.getElementById("streamURL").value;
+      </section>
+      <script type="module">
+        import Nimio from "../src/nimio.js";
+        function initNimio() {
+          const streamUrl = document.getElementById("streamURL").value;
 
-                if (undefined === window.nimio) {
-                    window.nimio = new Nimio({
-                        streamUrl: streamUrl,
-                        container: "video",
-                        width: 476,
-                        height: 268,
-                        latency: 1000,
-                        startOffset: 1000,
-                    });
-                }
-            }
+          if (undefined === window.nimio) {
+            window.nimio = new Nimio({
+              streamUrl: streamUrl,
+              container: "video",
+              width: 476,
+              height: 268,
+              latency: +document.getElementsByName("targetLatency")[0].value,
+              startOffset: 1000,
+              metricsOverlay:
+                document.getElementsByName("metricsOverlay")[0].checked,
+            });
+          }
+        }
 
-            document
-                .getElementById("initNimioButton")
-                .addEventListener("click", initNimio);
-        </script>
-    </body>
+        document
+          .getElementById("initNimioButton")
+          .addEventListener("click", initNimio);
+
+        let cb = document.querySelector("[name=advanced]"),
+          art = document.querySelector("[name=advanced-params]");
+        cb.onchange = () => (art.hidden = !cb.checked);
+        cb.onchange();
+      </script>
+    </main>
+  </body>
 </html>

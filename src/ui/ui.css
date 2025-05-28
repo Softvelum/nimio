@@ -1,75 +1,80 @@
 :root {
-    --button-height: 30px;
-    --button-color: #fff;
+  --button-height: 30px;
+  --button-color: #fff;
 }
 
 .play-pause {
-    position: absolute;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 30px;
-    border: 4px solid var(--button-color);
-    border-radius: 50%;
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
-    margin: auto;
-    inset: 0;
-    width: 30px;
-    height: 30px;
-    cursor: pointer;
-    opacity: 0.7;
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  border: 4px solid var(--button-color);
+  border-radius: 50%;
+  /*filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));*/
+  margin: auto;
+  inset: 0;
+  width: 100px;
+  height: 100px;
+  cursor: pointer;
+  opacity: 0.7;
 }
 
 .play {
-    padding: 0;
-    cursor: pointer;
-    height: 0;
-    width: 0;
-    background: none;
-    border: none;
-    border-top: var(--button-height) solid transparent;
-    border-bottom: var(--button-height) solid transparent;
-    border-left: calc(var(--button-height) * 2 * 0.86) solid var(--button-color);
-    margin: 0 0 0 15px;
+  padding: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+  background: none;
+  border: none;
+  border-top: var(--button-height) solid transparent;
+  border-bottom: var(--button-height) solid transparent;
+  border-left: calc(var(--button-height) * 2 * 0.86) solid var(--button-color);
+  margin: 0 0 0 15px;
+  border-radius: 0;
 }
 
 .pause {
-    margin: 0;
-    padding: 0;
-    cursor: pointer;
-    position: relative;
-    background: none;
-    border: none;
-    height: calc(var(--button-height) * 2);
-    width: calc(var(--button-height) * 2 * 0.86);
-    &:before, &:after {
-       content: "";
-       position: absolute;
-       top: 0;
-       height: 100%;
-       width: 33%;
-       background: var(--button-color);
-    }
-    &:before {
-      left: 0;
-    }
-    &:after {
-      right: 0;
-   }
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  background: none;
+  border: none;
+  height: calc(var(--button-height) * 2);
+  width: calc(var(--button-height) * 2 * 0.86);
+  &:before,
+  &:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 33%;
+    background: var(--button-color);
+  }
+  &:before {
+    left: 0;
+  }
+  &:after {
+    right: 0;
+  }
 }
 
 .nimio-container canvas {
-    margin-top: 0px;
+  margin-top: 0px;
 }
 
 .nimio-container .debug-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 300px;
-    height: 100px;
-    opacity: 0.7;
-    background-color: white;
-    white-space: pre-line;
-    font-family: monospace;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 112px;
+  opacity: 0.7;
+  background-color: white;
+  white-space: pre-line;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  color: black;
+  line-height: 18px;
 }

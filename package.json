@@ -1,7 +1,7 @@
 {
   "name": "nimio",
   "description": "Nimio SLDP 2.0 Player",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "author": "Dmitrii Shovtiuk <shovtyuk@gmail.com>",
   "license": "MIT",
   "type": "module",
@@ -9,9 +9,13 @@
     "dev": "vite",
     "build": "vite build",
     "tar": "COPYFILE_DISABLE=1 tar -czf dist.tar.gz --no-xattrs dist",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write ."
   },
   "devDependencies": {
+    "prettier": "^3.5.3",
+    "rollup-plugin-copy": "^3.5.0",
     "vite": "6.3.4"
   }
 }

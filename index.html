@@ -1,48 +1,44 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Vite App</title>
-        <link rel="stylesheet" href="demo.css" type="text/css" />
-    </head>
-    <body>
-        <div id="app"></div>
-        <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
-        <h1>SLDP 2.0 Player</h1>
-        <input
-            id="streamURL"
-            type="text"
-            class="nimio-input"
-            placeholder="wss URL..."
-            value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
-        />
-        <button id="initNimioButton" class="nimio-button">Load</button>
-        <br />
-        <br />
-        <div id="video"></div>
-        <script type="module">
-            import Nimio from "/src/nimio.js";
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nimio</title>
+  </head>
+  <body>
+    <input
+      id="streamURL"
+      type="text"
+      class="nimio-input"
+      placeholder="wss URL..."
+      value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
+    />
+    <button id="initNimioButton" class="nimio-button">Load</button>
+    <br />
+    <br />
+    <div id="video"></div>
+    <script type="module">
+      import Nimio from "/src/nimio.js";
 
-            function initNimio() {
-                const streamUrl = document.getElementById("streamURL").value;
+      function initNimio() {
+        const streamUrl = document.getElementById("streamURL").value;
 
-                if (undefined === window.nimio) {
-                    window.nimio = new Nimio({
-                        streamUrl: streamUrl,
-                        container: "video",
-                        width: 476,
-                        height: 268,
-                        latency: 500,
-                        startOffset: 500,
-                        metricsOverlay: true
-                    });
-                }
-            }
+        if (undefined === window.nimio) {
+          window.nimio = new Nimio({
+            streamUrl: streamUrl,
+            container: "video",
+            width: 476,
+            height: 268,
+            latency: 500,
+            startOffset: 500,
+            metricsOverlay: true,
+          });
+        }
+      }
 
-            document
-                .getElementById("initNimioButton")
-                .addEventListener("click", initNimio);
-        </script>
-    </body>
+      document
+        .getElementById("initNimioButton")
+        .addEventListener("click", initNimio);
+    </script>
+  </body>
 </html>

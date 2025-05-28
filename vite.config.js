@@ -1,12 +1,40 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
+import { execSync } from "child_process";
+import copy from "rollup-plugin-copy";
+
+const version = execSync("git describe --tags").toString().trim();
 
 export default defineConfig({
-  base: './',
+  base: "./",
+  define: {
+    __NIMIO_VERSION__: JSON.stringify(version),
+  },
   build: {
     lib: {
       entry: resolve(__dirname, "src/nimio.js"),
       formats: ["es"],
+      fileName: () => `nimio-${version}.js`,
+      cssFileName: `nimio-${version}`,
+    },
+    rollupOptions: {
+      plugins: [
+        copy({
+          targets: [
+            {
+              src: "public/demo.html",
+              dest: "dist",
+              rename: "demo.html",
+              transform: (contents) =>
+                contents
+                  .toString()
+                  .replace(/\.\.\/src\/nimio\.js/g, `./nimio-${version}.js`)
+                  .replace(/nimio\.css/g, `./nimio-${version}.css`),
+            },
+          ],
+          hook: "writeBundle",
+        }),
+      ],
     },
   },
   server: {

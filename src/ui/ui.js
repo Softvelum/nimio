@@ -1,91 +1,91 @@
-import {} from './ui.css'
+import {} from "./ui.css";
 
 export class Ui {
-    constructor(container, opts, onPlayPause) {
-        this.state = 'pause';
+  constructor(container, opts, onPlayPause) {
+    this.state = "pause";
 
-        this.container = document.getElementById(container);
-        Object.assign(this.container.style, {
-            display:  'inline-block',
-            position: 'relative'
-        });
-        this.container.classList.add('nimio-container');
+    this.container = document.getElementById(container);
+    Object.assign(this.container.style, {
+      display: "inline-block",
+      position: "relative",
+    });
+    this.container.classList.add("nimio-container");
 
-        this.canvas = document.createElement('canvas');
-        this.canvas.width  = opts.width; // todo if no options, get from container
-        this.canvas.height = opts.height;
-        Object.assign(this.canvas.style, {
-            cursor: 'pointer',
-            zIndex: 10,
-            'background-color': 'grey'
-        });
-        this.container.appendChild(this.canvas);
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = opts.width; // todo if no options, get from container
+    this.canvas.height = opts.height;
+    Object.assign(this.canvas.style, {
+      cursor: "pointer",
+      zIndex: 10,
+      "background-color": "grey",
+    });
+    this.container.appendChild(this.canvas);
 
-        this.btnPlayPause = document.createElement('div')
-        this.btnPlayPause.classList.add('play-pause');
-        this.button = document.createElement('button');
-        this.button.classList.add('play')
-        this.btnPlayPause.appendChild(this.button);
-        this.container.appendChild(this.btnPlayPause);
+    this.btnPlayPause = document.createElement("div");
+    this.btnPlayPause.classList.add("play-pause");
+    this.button = document.createElement("div");
+    this.button.classList.add("play");
+    this.btnPlayPause.appendChild(this.button);
+    this.container.appendChild(this.btnPlayPause);
 
-        this.container.addEventListener('click', e => {
-            let isPlayClicked;
-            if ('pause' === this.state) {
-                isPlayClicked = true;
-                this.drawPause()
-            } else {
-                isPlayClicked = false;
-                this.drawPlay()
-            }
-            onPlayPause(e, isPlayClicked)
-        });
+    this.container.addEventListener("click", (e) => {
+      let isPlayClicked;
+      if ("pause" === this.state) {
+        isPlayClicked = true;
+        this.drawPause();
+      } else {
+        isPlayClicked = false;
+        this.drawPlay();
+      }
+      onPlayPause(e, isPlayClicked);
+    });
 
-        this.setupEasing();
+    this.setupEasing();
 
-        if (opts.metricsOverlay) this.createDebugOverlay();
-    }
+    if (opts.metricsOverlay) this.createDebugOverlay();
+  }
 
-    setupEasing() {
-        this.hideTimer = null;
-        this.container.addEventListener('mousemove', () => {
-            this.btnPlayPause.style.opacity = '0.7';
-            this.btnPlayPause.style.transition = 'opacity 0.2s ease';
+  setupEasing() {
+    this.hideTimer = null;
+    this.container.addEventListener("mousemove", () => {
+      this.btnPlayPause.style.opacity = "0.7";
+      this.btnPlayPause.style.transition = "opacity 0.2s ease";
 
-            clearTimeout(this.hideTimer);
+      clearTimeout(this.hideTimer);
 
-            this.hideTimer = setTimeout(() => {
-                this.btnPlayPause.style.transition = 'opacity 0.5s ease';
-                this.btnPlayPause.style.opacity = '0';
-            }, 2000);
-        });
-        this.container.addEventListener('mouseout', () => {
-            this.btnPlayPause.style.opacity = '0';
-        });
-    }
+      this.hideTimer = setTimeout(() => {
+        this.btnPlayPause.style.transition = "opacity 0.5s ease";
+        this.btnPlayPause.style.opacity = "0";
+      }, 2000);
+    });
+    this.container.addEventListener("mouseout", () => {
+      this.btnPlayPause.style.opacity = "0";
+    });
+  }
 
-    createDebugOverlay() {
-        this.debugOverlay = document.createElement('div');
-        this.debugOverlay.classList.add('debug-overlay')
-        this.container.appendChild(this.debugOverlay);
-    }
+  createDebugOverlay() {
+    this.debugOverlay = document.createElement("div");
+    this.debugOverlay.classList.add("debug-overlay");
+    this.container.appendChild(this.debugOverlay);
+  }
 
-    getDebugOverlay() {
-        return this.debugOverlay;
-    }
+  getDebugOverlay() {
+    return this.debugOverlay;
+  }
 
-    getCanvas() {
-        return this.canvas;
-    }
+  getCanvas() {
+    return this.canvas;
+  }
 
-    drawPlay() {
-        this.state = 'pause';
-        this.button.classList.remove('pause')
-        this.button.classList.add('play')
-    }
+  drawPlay() {
+    this.state = "pause";
+    this.button.classList.remove("pause");
+    this.button.classList.add("play");
+  }
 
-    drawPause() {
-        this.state = 'play';
-        this.button.classList.remove('play')
-        this.button.classList.add('pause')
-    }
+  drawPause() {
+    this.state = "play";
+    this.button.classList.remove("play");
+    this.button.classList.add("pause");
+  }
 }
