@@ -10,6 +10,8 @@ function processDecodedFrame(videoFrame) {
     latencyMs = performance.now() - t0;
     decodeTimings.delete(videoFrame.timestamp);
   }
+  latencyMs = Math.round(latencyMs);
+  if (latencyMs > 500) console.debug("decoderLatency", latencyMs);
 
   self.postMessage(
     {
@@ -44,21 +46,21 @@ self.addEventListener("message", async function (e) {
       description: e.data.codecData,
     };
 
-    let support = await VideoDecoder.isConfigSupported(params);
-    if (!support.supported) {
-      console.warn(
-        "Hardware acceleration not supported, falling back to software decoding",
-      );
-      params.hardwareAcceleration = "prefer-software";
-      support = await VideoDecoder.isConfigSupported(params);
-    }
-    if (support.supported) {
-      videoDecoder.configure(params);
-    } else {
-      // TODO: handle unsupported codec
-      console.error("Video codec not supported", config.codec);
-      // self.postMessage({ type: "decoderError", message: "Video codec not supported" });
-    }
+    // let support = await VideoDecoder.isConfigSupported(params);
+    // if (!support.supported) {
+    //   console.warn(
+    //     "Hardware acceleration not supported, falling back to software decoding",
+    //   );
+    //   params.hardwareAcceleration = "prefer-software";
+    //   support = await VideoDecoder.isConfigSupported(params);
+    // }
+    // if (support.supported) {
+    videoDecoder.configure(params);
+    // } else {
+    //   // TODO: handle unsupported codec
+    //   console.error("Video codec not supported", config.codec);
+    //   // self.postMessage({ type: "decoderError", message: "Video codec not supported" });
+    // }
   } else if (type === "videoChunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
     const frame = frameWithHeader.subarray(

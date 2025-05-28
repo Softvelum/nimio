@@ -64,6 +64,7 @@ class NimioProcessor extends AudioWorkletProcessor {
       }
       console.debug("Insert silence: ", durationUs / 1000);
       this.stateManager.incSilenceUs(durationUs);
+      this.stateManager.incCurrentTsUs(durationUs);
     } else {
       this.startThreshold = 0;
       this.stateManager.incCurrentTsUs(durationUs * this.speedFactor);

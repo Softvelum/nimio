@@ -58,7 +58,7 @@ export class StateManager {
   }
 
   resetCurrentTsUs() {
-    Atomics.store(this._flags, IDX.CURRENT_TS, 0);
+    Atomics.store(this._flags, IDX.CURRENT_TS, -300_000);
   }
 
   setAvailableAudioSec(durationSec) {

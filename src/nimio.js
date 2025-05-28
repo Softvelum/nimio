@@ -23,6 +23,8 @@ export default class Nimio {
     );
     this.state = new StateManager(this._sab);
     this.state.stop();
+    this.state.resetCurrentTsUs();
+    console.debug("CURRENT_TS", this.state.getCurrentTsUs());
 
     this.videoBuffer = new VideoBuffer(1000, this._sab, this.config);
 
@@ -164,6 +166,8 @@ export default class Nimio {
       this.videoBuffer.addFrame(frame, frameTsUs);
       this.state.setVideoDecoderQueue(e.data.decoderQueue);
       this.state.setVideoDecoderLatency(e.data.decoderLatency);
+
+      this.handleAudioFrame(frame);
     } else if (type === "audioFrame") {
       this.handleAudioFrame(e.data.audioFrame);
       this.state.setAudioDecoderQueue(e.data.decoderQueue);
@@ -215,7 +219,7 @@ export default class Nimio {
 
   async handleAudioFrame(audioFrame) {
     if (this.state.isStopped()) {
-      audioFrame.close();
+      // audioFrame.close();
       return true;
     }
 
@@ -223,7 +227,7 @@ export default class Nimio {
     if (!this.audioContext) {
       this.audioContext = new AudioContext({
         latencyHint: "interactive",
-        sampleRate: audioFrame.sampleRate,
+        sampleRate: 48000,
       });
       if (audioFrame.sampleRate !== this.audioContext.sampleRate) {
         this._logger.error(
@@ -240,27 +244,27 @@ export default class Nimio {
       await this.workletReady;
     }
 
-    const channels = audioFrame.numberOfChannels;
-    const frames = audioFrame.numberOfFrames;
-    const interleaved = new Float32Array(frames * channels);
-
-    if (audioFrame.format.endsWith("-planar")) {
-      const planes = [];
-      for (let c = 0; c < channels; c++) {
-        const bytes = audioFrame.allocationSize({ planeIndex: c });
-        const samples = bytes / Float32Array.BYTES_PER_ELEMENT;
-        const planeBuf = new Float32Array(samples);
-        audioFrame.copyTo(planeBuf, { planeIndex: c });
-        planes.push(planeBuf);
-      }
-      for (let i = 0; i < frames; i++) {
-        for (let c = 0; c < channels; c++) {
-          interleaved[i * channels + c] = planes[c][i] ?? 0;
-        }
-      }
-    } else {
-      audioFrame.copyTo(interleaved, { planeIndex: 0 });
-    }
+    // const channels = audioFrame.numberOfChannels;
+    // const frames = audioFrame.numberOfFrames;
+    // const interleaved = new Float32Array(frames * channels);
+    //
+    // if (audioFrame.format.endsWith("-planar")) {
+    //   const planes = [];
+    //   for (let c = 0; c < channels; c++) {
+    //     const bytes = audioFrame.allocationSize({ planeIndex: c });
+    //     const samples = bytes / Float32Array.BYTES_PER_ELEMENT;
+    //     const planeBuf = new Float32Array(samples);
+    //     audioFrame.copyTo(planeBuf, { planeIndex: c });
+    //     planes.push(planeBuf);
+    //   }
+    //   for (let i = 0; i < frames; i++) {
+    //     for (let c = 0; c < channels; c++) {
+    //       interleaved[i * channels + c] = planes[c][i] ?? 0;
+    //     }
+    //   }
+    // } else {
+    //   audioFrame.copyTo(interleaved, { planeIndex: 0 });
+    // }
 
     if (!this.audioNode) {
       this.audioNode = new AudioWorkletNode(
@@ -269,9 +273,9 @@ export default class Nimio {
         {
           numberOfInputs: 0,
           numberOfOutputs: 1,
-          outputChannelCount: [channels],
+          outputChannelCount: [2],
           processorOptions: {
-            sampleRate: audioFrame.sampleRate,
+            sampleRate: 48000,
             sab: this._sab,
             latency: this.config.latency,
             startOffset: this.config.startOffset,
@@ -287,13 +291,13 @@ export default class Nimio {
       this.firstFrameTsUs = audioFrame.timestamp;
     }
 
-    this.audioNode.port.postMessage(
-      {
-        buffer: interleaved,
-        numberOfChannels: channels,
-      },
-      [interleaved.buffer],
-    );
-    audioFrame.close();
+    // this.audioNode.port.postMessage(
+    //   {
+    //     buffer: interleaved,
+    //     numberOfChannels: channels,
+    //   },
+    //   [interleaved.buffer],
+    // );
+    // audioFrame.close();
   }
 }
