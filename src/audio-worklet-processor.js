@@ -10,6 +10,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.targetLatencyMs = options.processorOptions.latency;
     this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1;
     this.blankProcessing = options.processorOptions.blank;
+    this.playbackStartTs = null;
 
     const bufferSec = Math.ceil(
       (this.targetLatencyMs +
@@ -65,7 +66,12 @@ class NimioProcessor extends AudioWorkletProcessor {
         out[c].fill(0);
       }
       if (this.blankProcessing) {
-        this.stateManager.incCurrentTsUs(durationUs);
+        if (this.playbackStartTs === null) {
+          this.playbackStartTs = this.stateManager.getPlaybackStartTsUs();
+        }
+        if (this.playbackStartTs !== null) {
+          this.stateManager.incCurrentTsUs(durationUs);
+        }
       } else {
         console.debug("Insert silence: ", durationUs / 1000);
         this.stateManager.incSilenceUs(durationUs);

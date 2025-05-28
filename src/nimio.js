@@ -141,6 +141,7 @@ export default class Nimio {
       this.audioContext = this.audioNode = this.audioWorkletReady = null;
     }
     this.firstFrameTsUs = null;
+    this.state.setPlaybackStartTsUs(0);
     this.state.resetCurrentTsUs();
     this.ui.drawPlay();
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -209,6 +210,7 @@ export default class Nimio {
       let frameTsUs = frame.timestamp;
       if (this.videoOnly && null === this.firstFrameTsUs) {
         this.firstFrameTsUs = frameTsUs;
+        this.state.setPlaybackStartTsUs(frameTsUs);
       }
       this.videoBuffer.addFrame(frame, frameTsUs);
       this.state.setVideoDecoderQueue(e.data.decoderQueue);
@@ -261,6 +263,7 @@ export default class Nimio {
 
     if (null === this.firstFrameTsUs) {
       this.firstFrameTsUs = audioFrame.timestamp;
+      this.state.setPlaybackStartTsUs(audioFrame.timestamp);
     }
 
     this.audioNode.port.postMessage({
