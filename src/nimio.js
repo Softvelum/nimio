@@ -79,9 +79,14 @@ export default class Nimio {
   _renderVideoFrame () {
     if (this.state.isPlaying()) {
       requestAnimationFrame(this._renderVideoFrame);
-      if (null === this.audioWorkletReady) return true;
+      if (
+        null === this.audioWorkletReady || null === this.firstFrameTsUs
+      ) return true;
 
-      let currentPlayedTsUs = this.state.getCurrentTsUs() + this.firstFrameTsUs - 1000000;
+      let curTsUs = this.state.getCurrentTsUs();
+      if (curTsUs <= 0) return true;
+
+      let currentPlayedTsUs = curTsUs + this.firstFrameTsUs;
       const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
       if (frame) {
         this.ctx.drawImage(

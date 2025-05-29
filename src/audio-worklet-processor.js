@@ -10,7 +10,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.targetLatencyMs = options.processorOptions.latency;
     this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1;
     this.blankProcessing = options.processorOptions.blank;
-    this.playbackStartTs = null;
+    this.playbackStartTs = 0;
 
     const bufferSec = Math.ceil(
       (this.targetLatencyMs +
@@ -54,28 +54,28 @@ class NimioProcessor extends AudioWorkletProcessor {
     }
 
     const durationUs = (smplCnt * 1e6) / this.sampleRate;
+    if (this.blankProcessing) {
+      this._insertSilence(out, chCnt);
+      if (this.playbackStartTs === 0) {
+        this.playbackStartTs = this.stateManager.getPlaybackStartTsUs();
+      }
+      if (this.playbackStartTs !== 0) {
+        this.available += smplCnt * chCnt * speed;
+        if (this.available >= this.startThreshold) {
+          this.stateManager.incCurrentTsUs(durationUs);
+        }
+      }
+      return true;
+    }
 
     if (
       this.stateManager.isPaused() ||
-      this.blankProcessing ||
       this.available < smplCnt * chCnt * speed ||
       this.available < this.startThreshold
     ) {
-      // Insert silence
-      for (let c = 0; c < chCnt; c++) {
-        out[c].fill(0);
-      }
-      if (this.blankProcessing) {
-        if (this.playbackStartTs === null) {
-          this.playbackStartTs = this.stateManager.getPlaybackStartTsUs();
-        }
-        if (this.playbackStartTs !== null) {
-          this.stateManager.incCurrentTsUs(durationUs);
-        }
-      } else {
-        console.debug("Insert silence: ", durationUs / 1000);
-        this.stateManager.incSilenceUs(durationUs);
-      }
+      this._insertSilence(out, chCnt);
+      console.debug("Insert silence: ", durationUs);
+      this.stateManager.incSilenceUs(durationUs);
     } else {
       this.startThreshold = 0;
       this.stateManager.incCurrentTsUs(durationUs * this.speedFactor);
@@ -116,6 +116,12 @@ class NimioProcessor extends AudioWorkletProcessor {
       this.stateManager.setAvailableAudioSec(availableMs);
     }
     return true;
+  }
+
+  _insertSilence(out, chCnt) {
+    for (let c = 0; c < chCnt; c++) {
+      out[c].fill(0);
+    }
   }
 }
 

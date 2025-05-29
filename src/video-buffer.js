@@ -50,7 +50,6 @@ export class VideoBuffer {
     }
 
     this.frames.push({ frame, timestamp });
-    console.log('add frame buffer size', this.frames.length);
     this._updateDebugView();
   }
 
