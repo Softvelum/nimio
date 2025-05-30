@@ -2,7 +2,7 @@ let audioDecoder;
 
 let config = {};
 
-function processDecodedFrame (audioFrame) {
+function processDecodedFrame(audioFrame) {
   self.postMessage(
     {
       type: "audioFrame",
@@ -13,7 +13,7 @@ function processDecodedFrame (audioFrame) {
   );
 }
 
-self.addEventListener('message', async function(e) {
+self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "audioConfig") {
@@ -23,7 +23,7 @@ self.addEventListener('message', async function(e) {
       output: (audioFrame) => {
         processDecodedFrame(audioFrame);
       },
-      error: (e) => console.error('Audio Decoder error:', e)
+      error: (e) => console.error("Audio Decoder error:", e),
     });
 
     Object.assign(config, e.data.aacConfig);
@@ -38,12 +38,12 @@ self.addEventListener('message', async function(e) {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
     const frame = frameWithHeader.subarray(
       e.data.framePos,
-      frameWithHeader.byteLength
+      frameWithHeader.byteLength,
     );
 
     const encodedAudioChunk = new EncodedAudioChunk({
       timestamp: e.data.timestamp,
-      type: 'key',
+      type: "key",
       data: frame,
     });
 

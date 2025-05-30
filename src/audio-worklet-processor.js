@@ -32,7 +32,7 @@ class NimioProcessor extends AudioWorkletProcessor {
       let curIdx = this.writeIndex;
       for (let i = 0; i < chunk.length; i++) {
         if (this.readIndex === curIdx && this.available > 0) {
-          console.error('audio buffer overflow', this.readIndex, curIdx)
+          console.error("audio buffer overflow", this.readIndex, curIdx);
         }
         this.ringBuffer[curIdx++] = chunk[i];
         if (curIdx === this.bufferSize) curIdx = 0;

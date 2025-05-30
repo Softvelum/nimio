@@ -26,7 +26,7 @@ let streams = [];
 
 let timescale = {
   audio: null,
-  video: null
+  video: null,
 };
 
 let steady = false;
@@ -157,16 +157,16 @@ function processFrame(event) {
 }
 
 function processStatus(e) {
-  console.log('Command received', e.data);
+  console.log("Command received", e.data);
   const status = JSON.parse(e.data);
   if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
-    console.error('Invalid status received:', status);
+    console.error("Invalid status received:", status);
     return;
   }
 
   const resolution = status.info[0].stream_info.resolution;
-  const [width, height] = resolution.split('x').map(Number);
-  
+  const [width, height] = resolution.split("x").map(Number);
+
   streams = [];
   if (status.info[0].stream_info.vcodec) {
     timescale.video = +status.info[0].stream_info.vtimescale;
@@ -176,11 +176,11 @@ function processStatus(e) {
         width: width,
         height: height,
         codec: status.info[0].stream_info.vcodec,
-      }
+      },
     });
 
     streams.push({
-      type: 'video',
+      type: "video",
       offset: `${startOffset}`,
       steady: steady,
       stream: status.info[0].stream,
@@ -189,11 +189,11 @@ function processStatus(e) {
   }
 
   let aconfig = null;
-  if ( status.info[0].stream_info.acodec) {
-    aconfig = { codec:  status.info[0].stream_info.acodec },
+  if (status.info[0].stream_info.acodec) {
+    aconfig = { codec: status.info[0].stream_info.acodec };
     timescale.audio = +status.info[0].stream_info.atimescale;
     streams.push({
-      type: 'audio',
+      type: "audio",
       offset: `${startOffset}`,
       steady: steady,
       stream: status.info[0].stream,
@@ -207,15 +207,15 @@ function processStatus(e) {
 
   socket.send(
     JSON.stringify({
-      command: 'Play',
+      command: "Play",
       streams: streams,
-    })
+    }),
   );
 }
 
 let stateManager;
 
-self.onmessage = e => {
+self.onmessage = (e) => {
   var type = e.data.type;
 
   if (type === "initShared") {
@@ -224,9 +224,9 @@ self.onmessage = e => {
     startOffset = e.data.startOffset;
 
     socket = new WebSocket(e.data.url, e.data.protocols);
-    socket.binaryType = 'arraybuffer';
+    socket.binaryType = "arraybuffer";
 
-    socket.onmessage = ws_event => {
+    socket.onmessage = (ws_event) => {
       if (stateManager.isStopped()) return;
 
       if (ws_event.data instanceof ArrayBuffer) {
@@ -234,13 +234,13 @@ self.onmessage = e => {
       } else {
         processStatus(ws_event);
       }
-    }
+    };
   } else if (type === "stop" && streams.length > 0) {
     socket.send(
       JSON.stringify({
-        command: 'Cancel',
-        streams: streams.map(s => s.sn),
-      })
+        command: "Cancel",
+        streams: streams.map((s) => s.sn),
+      }),
     );
   }
 };

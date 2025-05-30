@@ -15,25 +15,28 @@ function processDecodedFrame(videoFrame) {
 
   if (latencyMs > 500) {
     console.warn(
-      `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`
+      `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`,
     );
   }
 
-  self.postMessage({
-    type: "videoFrame",
-    videoFrame: videoFrame,
-    decoderQueue: videoDecoder.decodeQueueSize,
-    decoderLatency: latencyMs
-  }, [videoFrame]);
+  self.postMessage(
+    {
+      type: "videoFrame",
+      videoFrame: videoFrame,
+      decoderQueue: videoDecoder.decodeQueueSize,
+      decoderLatency: latencyMs,
+    },
+    [videoFrame],
+  );
 }
 
-function pushChunk (data, ts) {
+function pushChunk(data, ts) {
   const encodedChunk = new EncodedVideoChunk(data);
   videoDecoder.decode(encodedChunk);
   decodeTimings.set(encodedChunk.timestamp, ts || performance.now());
 }
 
-self.addEventListener('message', async function(e) {
+self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "videoConfig") {
@@ -45,7 +48,7 @@ self.addEventListener('message', async function(e) {
       output: (frame) => {
         processDecodedFrame(frame);
       },
-      error: (e) => console.error('Decoder error:', e)
+      error: (e) => console.error("Decoder error:", e),
     });
 
     let params = {
@@ -60,7 +63,7 @@ self.addEventListener('message', async function(e) {
     support = await VideoDecoder.isConfigSupported(params);
     if (!support.supported) {
       console.warn(
-        "Hardware acceleration not supported, falling back to software decoding"
+        "Hardware acceleration not supported, falling back to software decoding",
       );
       params.hardwareAcceleration = "prefer-software";
       support = await VideoDecoder.isConfigSupported(params);
@@ -75,7 +78,10 @@ self.addEventListener('message', async function(e) {
     }
   } else if (type === "videoChunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-    const frame = frameWithHeader.subarray(e.data.framePos, frameWithHeader.byteLength);
+    const frame = frameWithHeader.subarray(
+      e.data.framePos,
+      frameWithHeader.byteLength,
+    );
 
     const chunkData = {
       timestamp: e.data.timestamp,
