@@ -25,8 +25,7 @@ export default class Nimio {
     this.state.stop();
 
     this.videoBuffer = new VideoBuffer(1000, this._sab, this.config);
-
-    this.audioContext = null;
+    this.videoOnly = false;
 
     this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
     this.ui = new Ui(
@@ -44,7 +43,7 @@ export default class Nimio {
     this.ctx = this.ui.getCanvas().getContext("2d");
     this.firstFrameTsUs = null;
     this.initWorkers();
-    this.workletReady = null;
+    this.audioWorkletReady = null;
 
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._pauseTimeoutId = null;
@@ -80,9 +79,13 @@ export default class Nimio {
   _renderVideoFrame() {
     if (this.state.isPlaying()) {
       requestAnimationFrame(this._renderVideoFrame);
-      if (null === this.workletReady) return true;
-      const currentPlayedTsUs =
-        this.state.getCurrentTsUs() + this.firstFrameTsUs;
+      if (null === this.audioWorkletReady || null === this.firstFrameTsUs)
+        return true;
+
+      let curTsUs = this.state.getCurrentTsUs();
+      if (curTsUs <= 0) return true;
+
+      let currentPlayedTsUs = curTsUs + this.firstFrameTsUs;
       const frame = this.videoBuffer.getFrameForTime(currentPlayedTsUs);
       if (frame) {
         this.ctx.drawImage(
@@ -139,9 +142,10 @@ export default class Nimio {
     this.videoBuffer.clear();
     if (this.audioContext) {
       this.audioContext.close();
-      this.audioContext = this.audioNode = this.workletReady = null;
+      this.audioContext = this.audioNode = this.audioWorkletReady = null;
     }
     this.firstFrameTsUs = null;
+    this.state.setPlaybackStartTsUs(0);
     this.state.resetCurrentTsUs();
     this.ui.drawPlay();
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
@@ -157,59 +161,77 @@ export default class Nimio {
 
   processWorkerMessage(e) {
     const type = e.data.type;
-
-    if (type === "videoFrame") {
-      let frame = e.data.videoFrame;
-      let frameTsUs = frame.timestamp;
-      this.videoBuffer.addFrame(frame, frameTsUs);
-      this.state.setVideoDecoderQueue(e.data.decoderQueue);
-      this.state.setVideoDecoderLatency(e.data.decoderLatency);
-    } else if (type === "audioFrame") {
-      this.handleAudioFrame(e.data.audioFrame);
-      this.state.setAudioDecoderQueue(e.data.decoderQueue);
-    } else if (type === "audioConfig") {
-      this.audioDecoderWorker.postMessage({
-        type: "audioConfig",
-        audioConfig: e.data.audioConfig,
-      });
-    } else if (type === "audioCodecData") {
-      const aacConfig = parseAACConfig(e.data.codecData);
-      this.audioDecoderWorker.postMessage({
-        type: "codecData",
-        codecData: e.data.codecData,
-        aacConfig: aacConfig,
-      });
-    } else if (type === "videoConfig") {
-      this.videoDecoderWorker.postMessage({
-        type: "videoConfig",
-        videoConfig: e.data.videoConfig,
-      });
-    } else if (type === "videoCodecData") {
-      this.videoDecoderWorker.postMessage({
-        type: "codecData",
-        codecData: e.data.codecData,
-      });
-    } else if (type === "audioChunk") {
-      this.audioDecoderWorker.postMessage(
-        {
-          type: "audioChunk",
-          timestamp: e.data.timestamp,
-          frameWithHeader: e.data.frameWithHeader,
-          framePos: e.data.framePos,
-        },
-        [e.data.frameWithHeader],
-      );
-    } else if (type === "videoChunk") {
-      this.videoDecoderWorker.postMessage(
-        {
-          type: "videoChunk",
-          timestamp: e.data.timestamp,
-          chunkType: e.data.chunkType,
-          frameWithHeader: e.data.frameWithHeader,
-          framePos: e.data.framePos,
-        },
-        [e.data.frameWithHeader],
-      );
+    switch (type) {
+      case "videoConfig":
+        this.videoDecoderWorker.postMessage({
+          type: "videoConfig",
+          videoConfig: e.data.videoConfig,
+        });
+        break;
+      case "audioConfig":
+        if (!e.data.audioConfig) {
+          this.initAudioContext(48000, 1, true);
+          this.videoOnly = true;
+          break;
+        }
+        this.audioDecoderWorker.postMessage({
+          type: "audioConfig",
+          audioConfig: e.data.audioConfig,
+        });
+        break;
+      case "videoCodecData":
+        this.videoDecoderWorker.postMessage({
+          type: "codecData",
+          codecData: e.data.codecData,
+        });
+        break;
+      case "audioCodecData":
+        this.audioDecoderWorker.postMessage({
+          type: "codecData",
+          codecData: e.data.codecData,
+          aacConfig: parseAACConfig(e.data.codecData),
+        });
+        break;
+      case "videoChunk":
+        this.videoDecoderWorker.postMessage(
+          {
+            type: "videoChunk",
+            timestamp: e.data.timestamp,
+            chunkType: e.data.chunkType,
+            frameWithHeader: e.data.frameWithHeader,
+            framePos: e.data.framePos,
+          },
+          [e.data.frameWithHeader],
+        );
+        break;
+      case "audioChunk":
+        this.audioDecoderWorker.postMessage(
+          {
+            type: "audioChunk",
+            timestamp: e.data.timestamp,
+            frameWithHeader: e.data.frameWithHeader,
+            framePos: e.data.framePos,
+          },
+          [e.data.frameWithHeader],
+        );
+        break;
+      case "videoFrame":
+        let frame = e.data.videoFrame;
+        let frameTsUs = frame.timestamp;
+        if (this.videoOnly && null === this.firstFrameTsUs) {
+          this.firstFrameTsUs = frameTsUs;
+          this.state.setPlaybackStartTsUs(frameTsUs);
+        }
+        this.videoBuffer.addFrame(frame, frameTsUs);
+        this.state.setVideoDecoderQueue(e.data.decoderQueue);
+        this.state.setVideoDecoderLatency(e.data.decoderLatency);
+        break;
+      case "audioFrame":
+        this.handleAudioFrame(e.data.audioFrame);
+        this.state.setAudioDecoderQueue(e.data.decoderQueue);
+        break;
+      default:
+        break;
     }
   }
 
@@ -220,27 +242,14 @@ export default class Nimio {
     }
 
     // create AudioContext with correct sampleRate on first frame
-    if (!this.audioContext) {
-      this.audioContext = new AudioContext({
-        latencyHint: "interactive",
-        sampleRate: audioFrame.sampleRate,
-      });
-      if (audioFrame.sampleRate !== this.audioContext.sampleRate) {
-        this._logger.error(
-          "Unsupported sample rate",
-          audioFrame.sampleRate,
-          this.audioContext.sampleRate,
-        );
-      }
-      // load processor
-      this.workletReady = this.audioContext.audioWorklet.addModule(workletUrl);
-      await this.workletReady;
-    } else {
-      // ensure module loaded
-      await this.workletReady;
+    const channels = audioFrame.numberOfChannels;
+    await this.initAudioContext(audioFrame.sampleRate, channels);
+    if (!this.audioContext || !this.audioNode) {
+      this._logger.error("Audio context is not initialized. Can't play audio.");
+      audioFrame.close();
+      return false;
     }
 
-    const channels = audioFrame.numberOfChannels;
     const frames = audioFrame.numberOfFrames;
     const interleaved = new Float32Array(frames * channels);
 
@@ -262,29 +271,9 @@ export default class Nimio {
       audioFrame.copyTo(interleaved, { planeIndex: 0 });
     }
 
-    if (!this.audioNode) {
-      this.audioNode = new AudioWorkletNode(
-        this.audioContext,
-        "nimio-processor",
-        {
-          numberOfInputs: 0,
-          numberOfOutputs: 1,
-          outputChannelCount: [channels],
-          processorOptions: {
-            sampleRate: audioFrame.sampleRate,
-            sab: this._sab,
-            latency: this.config.latency,
-            startOffset: this.config.startOffset,
-            pauseTimeout: this.config.pauseTimeout,
-          },
-        },
-      );
-
-      this.audioNode.connect(this.audioContext.destination);
-    }
-
     if (null === this.firstFrameTsUs) {
       this.firstFrameTsUs = audioFrame.timestamp;
+      this.state.setPlaybackStartTsUs(audioFrame.timestamp);
     }
 
     this.audioNode.port.postMessage(
@@ -295,5 +284,52 @@ export default class Nimio {
       [interleaved.buffer],
     );
     audioFrame.close();
+  }
+
+  async initAudioContext(sampleRate, channels, blank) {
+    if (!this.audioContext) {
+      this.audioContext = new AudioContext({
+        latencyHint: "interactive",
+        sampleRate: sampleRate,
+      });
+
+      if (sampleRate !== this.audioContext.sampleRate) {
+        this._logger.error(
+          "Unsupported sample rate",
+          sampleRate,
+          this.audioContext.sampleRate,
+        );
+      }
+
+      // load processor
+      this.audioWorkletReady = this.audioContext.audioWorklet
+        .addModule(workletUrl)
+        .catch((err) => {
+          this._logger.error("Audio worklet error", err);
+        });
+    }
+
+    await this.audioWorkletReady;
+    if (this.audioNode) return;
+
+    this.audioNode = new AudioWorkletNode(
+      this.audioContext,
+      "nimio-processor",
+      {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [channels],
+        processorOptions: {
+          sampleRate: sampleRate,
+          sab: this._sab,
+          latency: this.config.latency,
+          startOffset: this.config.startOffset,
+          pauseTimeout: this.config.pauseTimeout,
+          blank: blank || false,
+        },
+      },
+    );
+
+    this.audioNode.connect(this.audioContext.destination);
   }
 }

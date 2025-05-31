@@ -98,4 +98,8 @@ export class VideoBuffer {
     this.frames.reset();
     if (needUpdate) this._updateDebugView();
   }
+
+  get length() {
+    return this.frames.length;
+  }
 }

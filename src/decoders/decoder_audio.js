@@ -1,4 +1,4 @@
-let audioDecoder = null;
+let audioDecoder;
 
 let config = {};
 

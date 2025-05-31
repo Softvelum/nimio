@@ -1,7 +1,9 @@
-let videoDecoder = null;
+let videoDecoder;
+let support;
 
 let config = {};
 const decodeTimings = new Map();
+const buffered = [];
 
 function processDecodedFrame(videoFrame) {
   const t0 = decodeTimings.get(videoFrame.timestamp);
@@ -9,6 +11,12 @@ function processDecodedFrame(videoFrame) {
   if (t0 != null) {
     latencyMs = performance.now() - t0;
     decodeTimings.delete(videoFrame.timestamp);
+  }
+
+  if (latencyMs > 500) {
+    console.warn(
+      `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`,
+    );
   }
 
   self.postMessage(
@@ -22,11 +30,19 @@ function processDecodedFrame(videoFrame) {
   );
 }
 
+function pushChunk(data, ts) {
+  const encodedChunk = new EncodedVideoChunk(data);
+  videoDecoder.decode(encodedChunk);
+  decodeTimings.set(encodedChunk.timestamp, ts || performance.now());
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "videoConfig") {
     config = e.data.videoConfig;
+    buffered.length = 0;
+    support = null;
   } else if (type === "codecData") {
     videoDecoder = new VideoDecoder({
       output: (frame) => {
@@ -44,7 +60,7 @@ self.addEventListener("message", async function (e) {
       description: e.data.codecData,
     };
 
-    let support = await VideoDecoder.isConfigSupported(params);
+    support = await VideoDecoder.isConfigSupported(params);
     if (!support.supported) {
       console.warn(
         "Hardware acceleration not supported, falling back to software decoding",
@@ -52,6 +68,7 @@ self.addEventListener("message", async function (e) {
       params.hardwareAcceleration = "prefer-software";
       support = await VideoDecoder.isConfigSupported(params);
     }
+
     if (support.supported) {
       videoDecoder.configure(params);
     } else {
@@ -66,13 +83,27 @@ self.addEventListener("message", async function (e) {
       frameWithHeader.byteLength,
     );
 
-    const encodedVideoChunk = new EncodedVideoChunk({
+    const chunkData = {
       timestamp: e.data.timestamp,
       type: e.data.chunkType,
       data: frame,
-    });
+    };
+    if (!support || !support.supported) {
+      // Buffer the chunk until the decoder is ready
+      buffered.push({
+        ts: this.performance.now(),
+        chunk: chunkData,
+      });
+      return;
+    }
+    if (buffered.length > 0) {
+      // Process buffered chunks before the new one
+      for (let i = 0; i < buffered.length; i++) {
+        pushChunk(buffered[i].chunk, buffered[i].ts);
+      }
+      buffered.length = 0;
+    }
 
-    videoDecoder.decode(encodedVideoChunk);
-    decodeTimings.set(encodedVideoChunk.timestamp, performance.now());
+    pushChunk(chunkData, performance.now());
   }
 });

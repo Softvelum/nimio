@@ -20,7 +20,9 @@ const WEB_AV1_SEQUENCE_HEADER = 16;
 const WEB_AV1_KEY_FRAME = 17;
 const WEB_AV1_FRAME = 18;
 
-let socket = null;
+let socket;
+
+let streams = [];
 
 let timescale = {
   audio: null,
@@ -155,46 +157,58 @@ function processFrame(event) {
 }
 
 function processStatus(e) {
-  console.debug("Command received", e.data);
+  console.log("Command received", e.data);
   const status = JSON.parse(e.data);
+  if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
+    console.error("Invalid status received:", status);
+    return;
+  }
+
   const resolution = status.info[0].stream_info.resolution;
   const [width, height] = resolution.split("x").map(Number);
-  const videoConfig = {
-    width: width,
-    height: height,
-    codec: status.info[0].stream_info.vcodec,
-  };
-  const audioConfig = {
-    codec: status.info[0].stream_info.acodec,
-  };
 
-  timescale.video = +status.info[0].stream_info.vtimescale;
-  timescale.audio = +status.info[0].stream_info.atimescale;
+  streams = [];
+  if (status.info[0].stream_info.vcodec) {
+    timescale.video = +status.info[0].stream_info.vtimescale;
+    self.postMessage({
+      type: "videoConfig",
+      videoConfig: {
+        width: width,
+        height: height,
+        codec: status.info[0].stream_info.vcodec,
+      },
+    });
 
-  const streamName = status.info[0].stream;
+    streams.push({
+      type: "video",
+      offset: `${startOffset}`,
+      steady: steady,
+      stream: status.info[0].stream,
+      sn: 0,
+    });
+  }
 
-  self.postMessage({ type: "videoConfig", videoConfig: videoConfig });
-  self.postMessage({ type: "audioConfig", audioConfig: audioConfig });
+  let aconfig = null;
+  if (status.info[0].stream_info.acodec) {
+    aconfig = { codec: status.info[0].stream_info.acodec };
+    timescale.audio = +status.info[0].stream_info.atimescale;
+    streams.push({
+      type: "audio",
+      offset: `${startOffset}`,
+      steady: steady,
+      stream: status.info[0].stream,
+      sn: 1,
+    });
+  }
+  self.postMessage({
+    type: "audioConfig",
+    audioConfig: aconfig,
+  });
 
   socket.send(
     JSON.stringify({
       command: "Play",
-      streams: [
-        {
-          type: "video",
-          offset: `${startOffset}`,
-          steady: steady,
-          stream: streamName,
-          sn: 0,
-        },
-        {
-          type: "audio",
-          offset: `${startOffset}`,
-          steady: steady,
-          stream: streamName,
-          sn: 1,
-        },
-      ],
+      streams: streams,
     }),
   );
 }
@@ -210,7 +224,6 @@ self.onmessage = (e) => {
     startOffset = e.data.startOffset;
 
     socket = new WebSocket(e.data.url, e.data.protocols);
-
     socket.binaryType = "arraybuffer";
 
     socket.onmessage = (ws_event) => {
@@ -222,11 +235,11 @@ self.onmessage = (e) => {
         processStatus(ws_event);
       }
     };
-  } else if (type === "stop") {
+  } else if (type === "stop" && streams.length > 0) {
     socket.send(
       JSON.stringify({
         command: "Cancel",
-        streams: [0, 1], // TODO: correct stream IDs
+        streams: streams.map((s) => s.sn),
       }),
     );
   }

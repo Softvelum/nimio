@@ -61,6 +61,14 @@ export class StateManager {
     Atomics.store(this._flags, IDX.CURRENT_TS, 0);
   }
 
+  getPlaybackStartTsUs() {
+    return Atomics.load(this._flags, IDX.PLAYBACK_START_TS);
+  }
+
+  setPlaybackStartTsUs(tsUs) {
+    Atomics.store(this._flags, IDX.PLAYBACK_START_TS, tsUs);
+  }
+
   setAvailableAudioSec(durationSec) {
     Atomics.store(this._flags, IDX.AVAILABLE_AUDIO, durationSec);
   }
