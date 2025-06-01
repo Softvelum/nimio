@@ -1,12 +1,14 @@
 import { STATE, IDX } from "./shared/values.js";
 
+const U32POWER = 0x0100000000;
+
 export class StateManager {
   /**
    * @param {SharedArrayBuffer|ArrayBuffer} sab — SharedArrayBuffer
    */
   constructor(sab) {
     /** @private */
-    this._flags = new Int32Array(sab);
+    this._flags = new Uint32Array(sab);
   }
 
   get value() {
@@ -41,32 +43,40 @@ export class StateManager {
     this.value = STATE.STOPPED;
   }
 
-  getSilenceUs() {
-    return Atomics.load(this._flags, IDX.SILENCE_USEC);
+  getSilenceMs() {
+    return Atomics.load(this._flags, IDX.SILENCE_MSEC);
   }
 
-  incSilenceUs(durationUs) {
-    Atomics.add(this._flags, IDX.SILENCE_USEC, durationUs);
+  incSilenceMs(durationUs) {
+    Atomics.add(this._flags, IDX.SILENCE_MSEC, durationUs);
   }
 
   getCurrentTsUs() {
-    return Atomics.load(this._flags, IDX.CURRENT_TS);
+    return this._atomicLoad64(IDX.CURRENT_TS);
   }
 
   incCurrentTsUs(durationUs) {
-    Atomics.add(this._flags, IDX.CURRENT_TS, durationUs);
+    return this._atomicAdd64(IDX.CURRENT_TS, durationUs);
   }
 
   resetCurrentTsUs() {
-    Atomics.store(this._flags, IDX.CURRENT_TS, 0);
+    this._atomicStore64(IDX.CURRENT_TS, 0);
+  }
+
+  getVideoLatestTsUs() {
+    return this._atomicLoad64(IDX.VIDEO_LATEST_TS);
+  }
+
+  setVideoLatestTsUs(tsUs) {
+    this._atomicStore64(IDX.VIDEO_LATEST_TS, tsUs);
   }
 
   getPlaybackStartTsUs() {
-    return Atomics.load(this._flags, IDX.PLAYBACK_START_TS);
+    return this._atomicLoad64(IDX.PLAYBACK_START_TS);
   }
 
   setPlaybackStartTsUs(tsUs) {
-    Atomics.store(this._flags, IDX.PLAYBACK_START_TS, tsUs);
+    this._atomicStore64(IDX.PLAYBACK_START_TS, tsUs);
   }
 
   setAvailableAudioSec(durationSec) {
@@ -84,4 +94,70 @@ export class StateManager {
   setAudioDecoderQueue(f) {
     Atomics.store(this._flags, IDX.AUDIO_DECODER_QUEUE, f);
   }
+
+  _atomicLoad64(idxs) {
+    const idx = idxs[0];
+    while (true) {
+      const high1 = Atomics.load(this._flags, idx + 1);
+      const low = Atomics.load(this._flags, idx);
+      const high2 = Atomics.load(this._flags, idx + 1);
+  
+      if (high1 === high2) {
+        return low + high1 * U32POWER;
+      }
+      // Retry if another thread wrote a new value in the middle
+    }
+  }
+
+  _atomicStore64(idxs, val) {
+    const newLow = val >>> 0;
+    const newHigh = (val / U32POWER) >>> 0;
+  
+    const idx = idxs[0];
+    while (true) {
+      const low = Atomics.load(this._flags, idx);
+      const high = Atomics.load(this._flags, idx + 1);
+  
+      // Only update if the val hasn't changed
+      if (
+        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
+        Atomics.compareExchange(this._flags, idx, low, newLow) === low
+      ) {
+        break;
+      }
+      // Retry if another thread wrote a new value in the middle
+    }
+  }
+
+  _atomicAdd64(idxs, val) {
+    if (val >= U32POWER) {
+      throw new Error("Added value must be less than 2^32");
+    }
+
+    const idx = idxs[0];
+    while (true) {
+      const low = Atomics.load(this._flags, idx);
+      const high = Atomics.load(this._flags, idx + 1);
+  
+      let newLow = low + val;
+      let newHigh = high;
+  
+      if (newLow >= U32POWER) {
+        newLow = newLow >>> 0;
+        newHigh = (high + 1) >>> 0;
+      }
+      if (newHigh >= U32POWER) {
+        throw new Error("Resulting value exceeds 64 bits");
+      }
+  
+      if (
+        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
+        Atomics.compareExchange(this._flags, idx, low, newLow) === low
+      ) {
+        return newLow + newHigh * U32POWER;
+      }
+      // Retry if another thread wrote a new value in the middle
+    }
+  }
+
 }

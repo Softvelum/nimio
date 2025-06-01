@@ -18,9 +18,12 @@ export default class Nimio {
     this.config = createConfig(options);
     this._logger = LoggersFactory.create(options.instanceName, "Nimio");
 
-    this._sab = new SharedArrayBuffer(
-      Int32Array.BYTES_PER_ELEMENT * Object.keys(IDX).length,
-    );
+    const idxCount = Object.values(IDX).reduce((total, val) => {
+      total += Array.isArray(val) ? val.length : 1;
+      return total;
+    }, 0);
+
+    this._sab = new SharedArrayBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     this.state = new StateManager(this._sab);
     this.state.stop();
 
@@ -223,6 +226,7 @@ export default class Nimio {
           this.state.setPlaybackStartTsUs(frameTsUs);
         }
         this.videoBuffer.addFrame(frame, frameTsUs);
+        this.state.setVideoLatestTsUs(frameTsUs);
         this.state.setVideoDecoderQueue(e.data.decoderQueue);
         this.state.setVideoDecoderLatency(e.data.decoderLatency);
         break;

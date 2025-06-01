@@ -62,7 +62,10 @@ class NimioProcessor extends AudioWorkletProcessor {
       if (this.playbackStartTs !== 0) {
         this.available += smplCnt * chCnt * speed;
         if (this.available >= this.startThreshold) {
-          this.stateManager.incCurrentTsUs(durationUs);
+          let curTs = this.stateManager.incCurrentTsUs(durationUs * speed);
+          curTs += this.playbackStartTs;
+          let availableMs = (this.stateManager.getVideoLatestTsUs() - curTs) / 1000;
+          this._controlPlaybackLatency(availableMs);
         }
       }
       return true;
@@ -75,10 +78,10 @@ class NimioProcessor extends AudioWorkletProcessor {
     ) {
       this._insertSilence(out, chCnt);
       console.debug("Insert silence: ", durationUs);
-      this.stateManager.incSilenceUs(durationUs);
+      this.stateManager.incSilenceMs(durationUs / 1000);
     } else {
       this.startThreshold = 0;
-      this.stateManager.incCurrentTsUs(durationUs * this.speedFactor);
+      this.stateManager.incCurrentTsUs(durationUs * speed);
 
       for (let c = 0; c < chCnt; c++) {
         const channelData = out[c];
@@ -100,20 +103,9 @@ class NimioProcessor extends AudioWorkletProcessor {
       }
       this.available -= consumedSamples * chCnt;
 
-      let availableMs =
-        (this.available / (this.sampleRate * this.channelCount)) * 1000;
-      if (availableMs <= this.targetLatencyMs) {
-        if (this.speedFactor !== 1.0) {
-          this.speedFactor = 1.0;
-          // console.debug('speedFactor 1.0', availableMs, this.targetLatencyMs);
-        }
-      } else if (availableMs > this.targetLatencyMs * this.hysteresis) {
-        if (this.speedFactor !== 1.1) {
-          this.speedFactor = 1.1; // speed boost
-          // console.debug('speedFactor 1.1', availableMs, this.targetLatencyMs);
-        }
-      }
-      this.stateManager.setAvailableAudioSec(availableMs);
+      this._controlPlaybackLatency(
+        (this.available / (this.sampleRate * this.channelCount)) * 1000
+      );
     }
     return true;
   }
@@ -122,6 +114,21 @@ class NimioProcessor extends AudioWorkletProcessor {
     for (let c = 0; c < chCnt; c++) {
       out[c].fill(0);
     }
+  }
+
+  _controlPlaybackLatency (availableMs) {
+    if (availableMs <= this.targetLatencyMs) {
+      if (this.speedFactor !== 1.0) {
+        this.speedFactor = 1.0;
+        console.debug('speedFactor 1.0', availableMs, this.targetLatencyMs);
+      }
+    } else if (availableMs > this.targetLatencyMs * this.hysteresis) {
+      if (this.speedFactor !== 1.1) {
+        this.speedFactor = 1.1; // speed boost
+        console.debug('speedFactor 1.1', availableMs, this.targetLatencyMs);
+      }
+    }
+    this.stateManager.setAvailableAudioSec(availableMs);
   }
 }
 

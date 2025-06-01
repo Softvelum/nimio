@@ -26,7 +26,7 @@ export class VideoBuffer {
     // todo use metrics collector instead direct overlay drawing
     if (this.debugElement) {
       let audioMs = Atomics.load(this._flags, IDX.AVAILABLE_AUDIO); // todo move state manager and display independently
-      let silenceMs = Atomics.load(this._flags, IDX.SILENCE_USEC) / 1000;
+      let silenceMs = Atomics.load(this._flags, IDX.SILENCE_MSEC);
       let vDecQueue = Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
       let vDecLatency = Atomics.load(this._flags, IDX.VIDEO_DECODER_LATENCY);
       let aDecQueue = Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
