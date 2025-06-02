@@ -13,7 +13,7 @@ function processDecodedFrame(videoFrame) {
     decodeTimings.delete(videoFrame.timestamp);
   }
 
-  if (latencyMs > 500) {
+  if (latencyMs > 600) {
     console.warn(
       `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`,
     );
@@ -28,6 +28,11 @@ function processDecodedFrame(videoFrame) {
     },
     [videoFrame],
   );
+}
+
+function handleDecoderError(error) {
+  console.error("Video Decoder error:", error);
+  self.postMessage({ type: "decoderError", kind: 'video' });
 }
 
 function pushChunk(data, ts) {
@@ -48,7 +53,7 @@ self.addEventListener("message", async function (e) {
       output: (frame) => {
         processDecodedFrame(frame);
       },
-      error: (e) => console.error("Decoder error:", e),
+      error: (e) => handleDecoderError(e.message),
     });
 
     let params = {
@@ -72,9 +77,8 @@ self.addEventListener("message", async function (e) {
     if (support.supported) {
       videoDecoder.configure(params);
     } else {
-      // TODO: handle unsupported codec
-      console.error("Video codec not supported", config.codec);
-      // self.postMessage({ type: "decoderError", message: "Video codec not supported" });
+      // handle unsupported codec
+      handleDecoderError(`Video codec not supported: ${config.codec}`);
     }
   } else if (type === "videoChunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);

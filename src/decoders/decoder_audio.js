@@ -13,6 +13,11 @@ function processDecodedFrame(audioFrame) {
   );
 }
 
+function handleDecoderError(error) {
+  console.error("Audio Decoder error:", error);
+  self.postMessage({ type: "decoderError", kind: 'audio' });
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
@@ -23,17 +28,21 @@ self.addEventListener("message", async function (e) {
       output: (audioFrame) => {
         processDecodedFrame(audioFrame);
       },
-      error: (e) => console.error("Audio Decoder error:", e),
+      error: (e) => handleDecoderError(e.message),
     });
 
     Object.assign(config, e.data.aacConfig);
+    try {
+      audioDecoder.configure({
+        codec: config.codec,
+        sampleRate: config.sampleRate,
+        numberOfChannels: config.numberOfChannels,
+        description: e.data.codecData,
+      });
+    } catch (error) {
+      handleDecoderError(error.message);
+    }
 
-    audioDecoder.configure({
-      codec: config.codec,
-      sampleRate: config.sampleRate,
-      numberOfChannels: config.numberOfChannels,
-      description: e.data.codecData,
-    });
   } else if (type === "audioChunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
     const frame = frameWithHeader.subarray(
