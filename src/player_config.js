@@ -3,6 +3,7 @@ import LoggersFactory from "./shared/logger";
 const DEFAULTS = {
   streamUrl: null,
   container: null,
+  autoplay: false,
   width: 476,
   height: 268,
   latency: 200,

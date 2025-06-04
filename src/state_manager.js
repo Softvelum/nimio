@@ -79,16 +79,40 @@ export class StateManager {
     this._atomicStore64(IDX.PLAYBACK_START_TS, tsUs);
   }
 
-  setAvailableAudioSec(durationSec) {
-    Atomics.store(this._flags, IDX.AVAILABLE_AUDIO, durationSec);
+  getAvailableAudioMs() {
+    return Atomics.load(this._flags, IDX.AVAILABLE_AUDIO);
+  }
+
+  setAvailableAudioMs(durationMs) {
+    Atomics.store(this._flags, IDX.AVAILABLE_AUDIO, durationMs);
+  }
+
+  getAvailableVideoMs() {
+    return Atomics.load(this._flags, IDX.AVAILABLE_VIDEO);
+  }
+
+  setAvailableVideoMs(durationMs) {
+    Atomics.store(this._flags, IDX.AVAILABLE_VIDEO, durationMs);
+  }
+
+  getVideoDecoderQueue() {
+    return Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
   }
 
   setVideoDecoderQueue(numFrames) {
     Atomics.store(this._flags, IDX.VIDEO_DECODER_QUEUE, numFrames);
   }
 
+  getVideoDecoderLatency() {
+    return Atomics.load(this._flags, IDX.VIDEO_DECODER_LATENCY);
+  }
+
   setVideoDecoderLatency(latency) {
     Atomics.store(this._flags, IDX.VIDEO_DECODER_LATENCY, latency);
+  }
+
+  getAudioDecoderQueue() {
+    return Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
   }
 
   setAudioDecoderQueue(f) {

@@ -1,68 +1,39 @@
-import { IDX } from "./shared/values.js";
 import LoggersFactory from "./shared/logger.js";
 import { RingBuffer } from "./utils/ring-buffer.js";
 
 export class VideoBuffer {
-  constructor(maxFrames = 100, sab, playerConfig) {
-    //todo length in uSec?
-    this.frames = new RingBuffer(playerConfig.instanceName, maxFrames);
-    this.debugElement = null;
-    this._flags = new Int32Array(sab); //todo move to state manager
-
-    this.playerConfig = playerConfig;
-    this._logger = LoggersFactory.create(
-      playerConfig.instanceName,
-      "Video Buffer",
-    );
-  }
-
-  attachDebugElement(element) {
-    this.debugElement = element;
-    this._updateDebugView();
-  }
-
-  _updateDebugView() {
-    if (!this.playerConfig.metricsOverlay) return true;
-    // todo use metrics collector instead direct overlay drawing
-    if (this.debugElement) {
-      let audioMs = Atomics.load(this._flags, IDX.AVAILABLE_AUDIO); // todo move state manager and display independently
-      let silenceMs = Atomics.load(this._flags, IDX.SILENCE_MSEC);
-      let vDecQueue = Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
-      let vDecLatency = Atomics.load(this._flags, IDX.VIDEO_DECODER_LATENCY);
-      let aDecQueue = Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
-      this.debugElement.textContent =
-        `Video buffer:..........${this.frames.length.toString().padStart(4, ".")}f \n` +
-        `Audio buffer:..........${audioMs.toString().padStart(4, ".")}ms \n` +
-        `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, ".")}ms \n` + //todo state manager
-        `Video Decoder queue:......${vDecQueue} \n` +
-        `Video Decoder latency:.${vDecLatency.toString().padStart(4, ".")}ms \n` +
-        `Audio Decoder queue:......${aDecQueue} \n`;
-    }
+  constructor(instName, maxFrames = 100) {
+    // TODO: length in uSec?
+    this._frames = new RingBuffer(instName, maxFrames);
+    this._logger = LoggersFactory.create(instName, "Video Buffer");
+    this._lastFrameTs = 0;
   }
 
   addFrame(frame, timestamp) {
-    if (this.frames.isFull()) {
-      const removed = this.frames.pop();
+    if (this._frames.isFull()) {
+      const removed = this._frames.pop();
       this._logger.warn(
         `VideoBuffer: overflow, removed old frame ${removed.timestamp}`,
       );
       removed.frame.close();
     }
 
-    this.frames.push({ frame, timestamp });
-    this._updateDebugView();
+    this._frames.push({ frame, timestamp });
+    if (timestamp > this._lastFrameTs) {
+      this._lastFrameTs = timestamp;
+    }
   }
 
   getFrameForTime(currentTime) {
-    if (this.frames.isEmpty()) {
+    if (this._frames.isEmpty()) {
       // this._logger.warn(`VideoBuffer: empty at ts: ${currentTime.toFixed(3)}`);
       return null;
     }
 
     // find a frame nearest to currentTime
     let lastIdx = -1;
-    for (let i = 0; i < this.frames.length; i++) {
-      let frame = this.frames.get(i);
+    for (let i = 0; i < this._frames.length; i++) {
+      let frame = this._frames.get(i);
       if (frame && frame.timestamp > currentTime) {
         break;
       }
@@ -75,31 +46,30 @@ export class VideoBuffer {
     }
 
     for (let i = 0; i < lastIdx; i++) {
-      let frame = this.frames.pop();
+      let frame = this._frames.pop();
       if (frame && frame.frame) {
         frame.frame.close();
       }
     }
 
-    const frame = this.frames.pop();
-
-    this._updateDebugView();
-
+    const frame = this._frames.pop();
     // return the last frame earlier than currentTime
     return frame.frame;
   }
 
   clear() {
-    this.frames.forEach(({ frame, _ }) => {
+    this._frames.forEach(({ frame, _ }) => {
       frame.close();
     });
-
-    let needUpdate = this.frames.length > 0;
-    this.frames.reset();
-    if (needUpdate) this._updateDebugView();
+    this._frames.reset();
+    this._lastFrameTs = 0;
   }
 
   get length() {
-    return this.frames.length;
+    return this._frames.length;
+  }
+
+  get lastFrameTs() {
+    return this._lastFrameTs;
   }
 }

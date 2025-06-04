@@ -1,4 +1,5 @@
 import {} from "./ui.css";
+import { DebugView } from "./debug-view";
 
 export class Ui {
   constructor(container, opts, onPlayPause) {
@@ -28,49 +29,34 @@ export class Ui {
     this.btnPlayPause.appendChild(this.button);
     this.container.appendChild(this.btnPlayPause);
 
-    this.container.addEventListener("click", (e) => {
-      let isPlayClicked;
-      if ("pause" === this.state) {
-        isPlayClicked = true;
-        this.drawPause();
-      } else {
-        isPlayClicked = false;
-        this.drawPlay();
-      }
-      onPlayPause(e, isPlayClicked);
-    });
+    this._onClick = (e) => this._hanldleClick(e, onPlayPause);
+    this.container.addEventListener("click", this._onClick);
 
     this.setupEasing();
+  }
 
-    if (opts.metricsOverlay) this.createDebugOverlay();
+  destroy() {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+    }
+    this.container.removeEventListener("mousemove", this._onMouseMove);
+    this.container.removeEventListener("mouseout", this._onMouseOut);
+    this.container.removeEventListener("click", this._onClick);
+    while( this.container.firstChild ) {
+      this.container.removeChild( this.container.firstChild );
+    }
   }
 
   setupEasing() {
     this.hideTimer = null;
-    this.container.addEventListener("mousemove", () => {
-      this.btnPlayPause.style.opacity = "0.7";
-      this.btnPlayPause.style.transition = "opacity 0.2s ease";
-
-      clearTimeout(this.hideTimer);
-
-      this.hideTimer = setTimeout(() => {
-        this.btnPlayPause.style.transition = "opacity 0.5s ease";
-        this.btnPlayPause.style.opacity = "0";
-      }, 2000);
-    });
-    this.container.addEventListener("mouseout", () => {
-      this.btnPlayPause.style.opacity = "0";
-    });
+    this._onMouseMove = (e) => this._handleMouseMove(e);
+    this.container.addEventListener("mousemove", this._onMouseMove);
+    this._onMouseOut = (e) => this._handleMouseOut(e);
+    this.container.addEventListener("mouseout", this._onMouseOut);
   }
 
-  createDebugOverlay() {
-    this.debugOverlay = document.createElement("div");
-    this.debugOverlay.classList.add("debug-overlay");
-    this.container.appendChild(this.debugOverlay);
-  }
-
-  getDebugOverlay() {
-    return this.debugOverlay;
+  appendDebugOverlay(state, videoBuffer) {
+    return new DebugView(this.container, state, videoBuffer);
   }
 
   getCanvas() {
@@ -87,5 +73,42 @@ export class Ui {
     this.state = "play";
     this.button.classList.remove("play");
     this.button.classList.add("pause");
+  }
+
+  showControls(animate) {
+    this.btnPlayPause.style.transition = animate ? "opacity 0.2s ease" : "none";
+    this.btnPlayPause.style.opacity = "0.7";
+  }
+
+  hideControls(animate) {
+    this.btnPlayPause.style.transition = animate ? "opacity 0.5s ease" : "none";
+    this.btnPlayPause.style.opacity = "0";
+  }
+
+  _hanldleClick(e, onPlayPause) {
+    let isPlayClicked = false;
+    if ("pause" === this.state) {
+      isPlayClicked = true;
+      this.drawPause();
+    } else {
+      this.drawPlay();
+    }
+    onPlayPause(e, isPlayClicked);
+  }
+
+  _handleMouseMove(e) {
+    this.showControls(true);
+    clearTimeout(this.hideTimer);
+
+    this.hideTimer = setTimeout(() => {
+      this.hideControls(true)
+    }, 2000);
+  }
+
+  _handleMouseOut(e) {
+    this.hideControls(true);
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+    }
   }
 }

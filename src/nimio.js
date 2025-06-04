@@ -27,7 +27,7 @@ export default class Nimio {
     this._state = new StateManager(this._sab);
     this._state.stop();
 
-    this._videoBuffer = new VideoBuffer(1000, this._sab, this._config);
+    this._videoBuffer = new VideoBuffer(this._config.instanceName, 1000);
     this._noAudio = this._noVideo = false;
 
     this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
@@ -42,7 +42,10 @@ export default class Nimio {
     );
     this._pauseTimeoutId = null;
 
-    this._videoBuffer.attachDebugElement(this._ui.getDebugOverlay());
+    if (this._config.metricsOverlay) {
+      this._debugView = this._ui.appendDebugOverlay(this._state, this._videoBuffer);
+    }
+
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._firstFrameTsUs = null;
 
@@ -50,9 +53,16 @@ export default class Nimio {
 
     this._initWorkers();
     this._audioWorkletReady = null;
+
+    if (this._config.autoplay) {
+      this.play(true);
+      setTimeout(() => {
+        this._ui.hideControls(true);
+      }, 1000);
+    }
   }
 
-  play() {
+  play(auto) {
     const resumeFromPause = this._state.isPaused();
 
     if (this._pauseTimeoutId !== null) {
@@ -71,6 +81,9 @@ export default class Nimio {
         protocols: ["sldp.softvelum.com"],
         startOffset: this._config.startOffset,
       });
+      if (this._debugView) {
+        this._debugView.start();
+      }
     }
 
     this._ui.drawPause();
@@ -87,6 +100,9 @@ export default class Nimio {
   stop(closeConnection) {
     this._state.stop();
     this._webSocketWorker.postMessage({ type: "stop", close: !!closeConnection });
+    if (this._debugView) {
+      this._debugView.stop();
+    }
 
     this._videoBuffer.clear();
     if (this._audioContext) {
@@ -102,6 +118,11 @@ export default class Nimio {
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
     this._pauseTimeoutId = null;
+  }
+
+  destroy () {
+    this.stop(true);
+    this._ui.destroy();
   }
 
   version() {
@@ -163,6 +184,10 @@ export default class Nimio {
           this._ctx.canvas.height,
         );
         frame.close();
+
+        this._state.setAvailableVideoMs(
+          ((this._videoBuffer.lastFrameTs - frame.timestamp) / 1000) >>> 0
+        );
       }
     }
   }
@@ -308,7 +333,7 @@ export default class Nimio {
     audioFrame.close();
   }
 
-  async _initAudioContext(sampleRate, channels, blank) {
+  async _initAudioContext(sampleRate, channels, idle) {
     if (!this._audioContext) {
       this._audioContext = new AudioContext({
         latencyHint: "interactive",
@@ -347,7 +372,7 @@ export default class Nimio {
           latency: this._config.latency,
           startOffset: this._config.startOffset,
           pauseTimeout: this._config.pauseTimeout,
-          blank: blank || false,
+          idle: idle || false,
         },
       },
     );
