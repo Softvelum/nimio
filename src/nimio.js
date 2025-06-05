@@ -1,10 +1,10 @@
-import { parseAACConfig } from "./utils/aac_config_parser.js";
+import { parseAACConfig } from "./media/parsers/aac-config-parser.js";
 import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import { IDX } from "./shared/values.js";
-import { StateManager } from "./state_manager.js";
+import { StateManager } from "./state-manager.js";
 import { Ui } from "./ui/ui.js";
-import { VideoBuffer } from "./video-buffer.js";
-import { createConfig } from "./player_config.js";
+import { VideoBuffer } from "./media/buffers/video-buffer.js";
+import { createConfig } from "./player-config.js";
 import LoggersFactory from "./shared/logger.js";
 
 export default class Nimio {
@@ -139,7 +139,7 @@ export default class Nimio {
 
   _initWorkers() {
     this._videoDecoderWorker = new Worker(
-      new URL("./decoders/decoder_video.js", import.meta.url),
+      new URL("./media/decoders/decoder-video.js", import.meta.url),
       { type: "module" },
     );
     this._videoDecoderWorker.addEventListener("message", (e) => {
@@ -147,7 +147,7 @@ export default class Nimio {
     });
 
     this._audioDecoderWorker = new Worker(
-      new URL("./decoders/decoder_audio.js", import.meta.url),
+      new URL("./media/decoders/decoder-audio.js", import.meta.url),
       { type: "module" },
     );
     this._audioDecoderWorker.addEventListener("message", (e) => {
@@ -155,7 +155,7 @@ export default class Nimio {
     });
 
     this._webSocketWorker = new Worker(
-      new URL("./transport/web_socket.js", import.meta.url),
+      new URL("./transport/web-socket.js", import.meta.url),
       { type: "module" },
     );
     this._webSocketWorker.addEventListener("message", (e) => {
@@ -310,8 +310,9 @@ export default class Nimio {
         planes.push(planeBuf);
       }
       for (let i = 0; i < frames; i++) {
+        let cshift = i * channels;
         for (let c = 0; c < channels; c++) {
-          interleaved[i * channels + c] = planes[c][i] ?? 0;
+          interleaved[cshift + c] = planes[c][i] ?? 0;
         }
       }
     } else {
@@ -325,8 +326,9 @@ export default class Nimio {
 
     this._audioNode.port.postMessage(
       {
-        buffer: interleaved,
+        frame: interleaved,
         numberOfChannels: channels,
+        timestamp: audioFrame.timestamp,
       },
       [interleaved.buffer],
     );
@@ -367,6 +369,7 @@ export default class Nimio {
         numberOfOutputs: 1,
         outputChannelCount: [channels],
         processorOptions: {
+          instanceName: this._config.instanceName,
           sampleRate: sampleRate,
           sab: this._sab,
           latency: this._config.latency,

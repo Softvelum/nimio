@@ -1,4 +1,4 @@
-import { StateManager } from "../state_manager.js";
+import { StateManager } from "../state-manager.js";
 
 const WEB_AAC_SEQUENCE_HEADER = 0;
 const WEB_AAC_FRAME = 1;

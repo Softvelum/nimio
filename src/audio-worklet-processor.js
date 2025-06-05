@@ -1,4 +1,5 @@
-import { StateManager } from "./state_manager.js";
+import { StateManager } from "./state-manager.js";
+import { AudioBuffer } from "./media/buffers/audio-buffer.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -23,12 +24,14 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.totalSampleRate = this.sampleRate * this.channelCount;
     this.bufferSize = this.totalSampleRate * bufferSec;
     this.ringBuffer = new Float32Array(this.bufferSize);
+    this.audioBuffer = new AudioBuffer(options.processorOptions.instanceName, 1000);
     this.readIndex = this.writeIndex = this.available = 0;
     this.startThreshold = this.totalSampleRate * this.targetLatencyMs / 1000;
     this.speedFactor = 1.0;
 
     this.port.onmessage = ({ data }) => {
-      const chunk = new Float32Array(data.buffer);
+      const chunk = new Float32Array(data.frame);
+      this.audioBuffer.addFrame(chunk, data.timestamp);
       let curIdx = this.writeIndex;
       for (let i = 0; i < chunk.length; i++) {
         if (this.readIndex === curIdx && this.available > 0) {

@@ -1,21 +1,21 @@
-import LoggersFactory from "./shared/logger.js";
-import { RingBuffer } from "./utils/ring-buffer.js";
+import LoggersFactory from "../../shared/logger.js";
+import { RingBuffer } from "../../shared/ring-buffer.js";
 
-export class VideoBuffer {
-  constructor(instName, maxFrames = 100) {
+export class FrameBuffer {
+  constructor(instName, type, maxFrames) {
     // TODO: length in uSec?
     this._frames = new RingBuffer(instName, maxFrames);
-    this._logger = LoggersFactory.create(instName, "Video Buffer");
+    this._logger = LoggersFactory.create(instName, `${type} Buffer`);
     this._lastFrameTs = 0;
   }
 
   addFrame(frame, timestamp) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
-      this._logger.warn(
-        `VideoBuffer: overflow, removed old frame ${removed.timestamp}`,
-      );
-      removed.frame.close();
+      this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
+      if (this._disposeFrame) {
+        this._disposeFrame(removed);
+      }
     }
 
     this._frames.push({ frame, timestamp });
@@ -26,7 +26,7 @@ export class VideoBuffer {
 
   getFrameForTime(currentTime) {
     if (this._frames.isEmpty()) {
-      // this._logger.warn(`VideoBuffer: empty at ts: ${currentTime.toFixed(3)}`);
+      // this._logger.warn(`empty at ts: ${currentTime.toFixed(3)}`);
       return null;
     }
 
@@ -47,8 +47,8 @@ export class VideoBuffer {
 
     for (let i = 0; i < lastIdx; i++) {
       let frame = this._frames.pop();
-      if (frame && frame.frame) {
-        frame.frame.close();
+      if (this._disposeFrame) {
+        this._disposeFrame(frame);
       }
     }
 
@@ -58,9 +58,11 @@ export class VideoBuffer {
   }
 
   clear() {
-    this._frames.forEach(({ frame, _ }) => {
-      frame.close();
-    });
+    if (this._disposeFrame) {
+      this._frames.forEach((frame) => {
+        this._disposeFrame(frame);
+      });
+    }
     this._frames.reset();
     this._lastFrameTs = 0;
   }
