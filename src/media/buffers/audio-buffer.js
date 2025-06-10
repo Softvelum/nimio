@@ -1,6 +1,4 @@
-import { FrameBuffer } from "./frame-buffer";
-
-export class AudioBuffer extends FrameBuffer {
+export class AudioBuffer {
   constructor(instName, maxFrames = 100) {
     super(instName, "Audio", maxFrames);
   }

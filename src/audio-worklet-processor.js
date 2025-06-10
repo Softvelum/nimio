@@ -1,5 +1,4 @@
 import { StateManager } from "./state-manager.js";
-import { AudioBuffer } from "./media/buffers/audio-buffer.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -24,20 +23,22 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.totalSampleRate = this.sampleRate * this.channelCount;
     this.bufferSize = this.totalSampleRate * bufferSec;
     this.ringBuffer = new Float32Array(this.bufferSize);
-    this.audioBuffer = new AudioBuffer(options.processorOptions.instanceName, 1000);
+    this.ringBuffer2 = new Float32Array(this.bufferSize);
     this.readIndex = this.writeIndex = this.available = 0;
     this.startThreshold = this.totalSampleRate * this.targetLatencyMs / 1000;
     this.speedFactor = 1.0;
 
     this.port.onmessage = ({ data }) => {
       const chunk = new Float32Array(data.frame);
-      this.audioBuffer.addFrame(chunk, data.timestamp);
       let curIdx = this.writeIndex;
-      for (let i = 0; i < chunk.length; i++) {
+      let sampleCount = chunk.length / this.channelCount;
+      for (let i = 0; i < sampleCount; i++) {
         if (this.readIndex === curIdx && this.available > 0) {
           console.error("audio buffer overflow", this.readIndex, curIdx);
         }
-        this.ringBuffer[curIdx++] = chunk[i];
+        this.ringBuffer[curIdx] = chunk[i];
+        this.ringBuffer2[curIdx] = chunk[i + sampleCount];
+        curIdx++;
         if (curIdx === this.bufferSize) curIdx = 0;
       }
       this.writeIndex = curIdx;
@@ -56,9 +57,9 @@ class NimioProcessor extends AudioWorkletProcessor {
       return false; // stop processing
     }
 
-    const durationUs = (smplCnt * 1e6) / this.sampleRate;
+    const durationNs = ((smplCnt * speed * 1e9) / this.sampleRate + 0.5) >>> 0;
     if (this.idle) {
-      return this._processIdle(out, chCnt, smplCnt, speed, durationUs);
+      return this._processIdle(out, chCnt, smplCnt, speed, durationNs);
     }
 
     if (
@@ -67,27 +68,34 @@ class NimioProcessor extends AudioWorkletProcessor {
       this.available < this.startThreshold
     ) {
       this._insertSilence(out, chCnt);
-      console.debug("Insert silence: ", durationUs);
-      this.stateManager.incSilenceMs(durationUs / 1000);
+      console.debug("Insert silence: ", durationNs);
+      // TODO: use 64-bit value for storing silence duration
+      this.stateManager.incSilenceUs((durationNs / 1000 + 0.5) >>> 0);
     } else {
       this.startThreshold = 0;
-      this.stateManager.incCurrentTsUs(durationUs * speed);
+      this.stateManager.incCurrentTsNs(durationNs);
 
-      for (let c = 0; c < chCnt; c++) {
-        const channelData = out[c];
-        for (let i = 0; i < smplCnt; i++) {
-          // nearest "skipped" sample
-          const srcSample = (i * speed) | 0;
-          let idx = this.readIndex + srcSample * chCnt + c;
-          if (idx >= this.bufferSize) {
-            idx -= this.bufferSize;
-          }
-          channelData[i] = this.ringBuffer[idx];
-        }
+      // for (let c = 0; c < chCnt; c++) {
+      //   const channelData = out[c];
+      //   for (let i = 0; i < smplCnt; i++) {
+      //     // nearest "skipped" sample
+      //     const srcSample = (i * speed) | 0;
+      //     let idx = this.readIndex + srcSample * chCnt + c;
+      //     if (idx >= this.bufferSize) {
+      //       idx -= this.bufferSize;
+      //     }
+      //     channelData[i] = this.ringBuffer[idx];
+      //   }
+      // }
+      for (let i = 0; i < smplCnt; i++) {
+        const offset = (i * speed) | 0;
+        out[0][i] = this.ringBuffer[this.readIndex + offset];
+        out[1][i] = this.ringBuffer2[this.readIndex + offset];
       }
 
       const consumedSamples = (smplCnt * speed) | 0;
-      this.readIndex = this.readIndex + consumedSamples * chCnt;
+      // this.readIndex = this.readIndex + consumedSamples * chCnt;
+      this.readIndex += consumedSamples;
       if (this.readIndex >= this.bufferSize) {
         this.readIndex -= this.bufferSize;
       }
@@ -98,7 +106,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     return true;
   }
 
-  _processIdle(output, channelCount, sampleCount, speed, durationUs) {
+  _processIdle(output, channelCount, sampleCount, speed, durationNs) {
     this._insertSilence(output, channelCount);
     if (this.stateManager.isPaused()) return true;
 
@@ -108,7 +116,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     if (this.playbackStartTs !== 0) {
       this.available += sampleCount * channelCount * speed;
       if (this.available >= this.startThreshold) {
-        let curTs = this.stateManager.incCurrentTsUs(durationUs * speed);
+        let curTs = this.stateManager.incCurrentTsNs(durationNs) / 1000;
         curTs += this.playbackStartTs;
         let availableMs = (this.stateManager.getVideoLatestTsUs() - curTs) / 1000;
         this._controlPlaybackLatency(availableMs);
@@ -137,7 +145,7 @@ class NimioProcessor extends AudioWorkletProcessor {
       }
     }
     if (!this.idle) {
-      this.stateManager.setAvailableAudioMs(availableMs >>> 0);
+      this.stateManager.setAvailableAudioMs((availableMs + 0.5) >>> 0);
     }
   }
 }

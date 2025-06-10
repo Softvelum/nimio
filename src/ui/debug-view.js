@@ -28,7 +28,7 @@ export class DebugView {
     // TODO: use metrics collector instead direct overlay drawing
     let audioMs = this._state.getAvailableAudioMs();
     let videoMs = this._state.getAvailableVideoMs();
-    let silenceMs = this._state.getSilenceMs();
+    let silenceMs = this._state.getSilenceUs() / 1000;
     let vDecQueue = this._state.getVideoDecoderQueue();
     let vDecLatency = this._state.getVideoDecoderLatency();
     let aDecQueue = this._state.getAudioDecoderQueue();
@@ -36,7 +36,7 @@ export class DebugView {
     this._inst.textContent =
       `Video buffer:....${this._vBuffer.length.toString().padStart(4, ".")}f..${videoMs}ms \n` +
       `Audio buffer:..........${audioMs.toString().padStart(4, ".")}ms \n` +
-      `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, ".")}ms \n` + //todo state manager
+      `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, ".")}ms \n` +
       `Video Decoder queue:......${vDecQueue} \n` +
       `Video Decoder latency:.${vDecLatency.toString().padStart(4, ".")}ms \n` +
       `Audio Decoder queue:......${aDecQueue} \n`;

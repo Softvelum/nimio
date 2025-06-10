@@ -105,11 +105,8 @@ export default class Nimio {
     }
 
     this._videoBuffer.clear();
-    if (this._audioContext) {
-      this._audioContext.close();
-      this._audioContext = this._audioNode = this._audioWorkletReady = null;
-    }
-    this._noVideo = this._noAudio = false;
+    this._noVideo = false;
+    this._stopAudio();
 
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
@@ -170,11 +167,11 @@ export default class Nimio {
       if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
         return true;
 
-      let curTsUs = this._state.getCurrentTsUs();
+      let curTsUs = this._state.getCurrentTsNs() / 1000;
       if (curTsUs <= 0) return true;
 
       let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
-      const frame = this._videoBuffer.getFrameForTime(currentPlayedTsUs);
+      const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
       if (frame) {
         this._ctx.drawImage(
           frame,
@@ -207,8 +204,7 @@ export default class Nimio {
         break;
       case "audioConfig":
         if (!e.data.audioConfig) {
-          this._initAudioContext(48000, 1, true);
-          this._noAudio = true;
+          this._startNoAudioMode();
           break;
         }
         this._audioDecoderWorker.postMessage({
@@ -223,6 +219,11 @@ export default class Nimio {
         });
         break;
       case "audioCodecData":
+        if (this._noAudio) {
+          this._stopAudio();
+        }
+
+        // TODO: handle all audio codecs besides AAC
         this._audioDecoderWorker.postMessage({
           type: "codecData",
           codecData: e.data.codecData,
@@ -255,9 +256,16 @@ export default class Nimio {
       case "videoFrame":
         let frame = e.data.videoFrame;
         let frameTsUs = frame.timestamp;
-        if (this._noAudio && null === this._firstFrameTsUs) {
+        if (
+          (null === this._firstFrameTsUs) &&
+          (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5)
+        ) {
           this._firstFrameTsUs = frameTsUs;
           this._state.setPlaybackStartTsUs(frameTsUs);
+
+          if (!this._noAudio) {
+            this._startNoAudioMode();
+          }
         }
         this._videoBuffer.addFrame(frame, frameTsUs);
         this._state.setVideoLatestTsUs(frameTsUs);
@@ -297,26 +305,20 @@ export default class Nimio {
       return false;
     }
 
-    const frames = audioFrame.numberOfFrames;
-    const interleaved = new Float32Array(frames * channels);
+    const frames = audioFrame.numberOfFrames
+    const audioBuffer = new Float32Array(frames * channels);
 
     if (audioFrame.format.endsWith("-planar")) {
-      const planes = [];
-      for (let c = 0; c < channels; c++) {
-        const bytes = audioFrame.allocationSize({ planeIndex: c });
-        const samples = bytes / Float32Array.BYTES_PER_ELEMENT;
-        const planeBuf = new Float32Array(samples);
-        audioFrame.copyTo(planeBuf, { planeIndex: c });
-        planes.push(planeBuf);
-      }
-      for (let i = 0; i < frames; i++) {
-        let cshift = i * channels;
-        for (let c = 0; c < channels; c++) {
-          interleaved[cshift + c] = planes[c][i] ?? 0;
-        }
+      for (let ch = 0; ch < channels; ch++) {
+        const offset = ch * frames * Float32Array.BYTES_PER_ELEMENT;
+        const channelView = new Float32Array(audioBuffer.buffer, offset, frames);
+      
+        audioFrame.copyTo(channelView, {
+          planeIndex: ch
+        });
       }
     } else {
-      audioFrame.copyTo(interleaved, { planeIndex: 0 });
+      audioFrame.copyTo(audioBuffer, { planeIndex: 0 });
     }
 
     if (null === this._firstFrameTsUs) {
@@ -326,11 +328,11 @@ export default class Nimio {
 
     this._audioNode.port.postMessage(
       {
-        frame: interleaved,
+        frame: audioBuffer,
         numberOfChannels: channels,
         timestamp: audioFrame.timestamp,
       },
-      [interleaved.buffer],
+      [audioBuffer.buffer],
     );
     audioFrame.close();
   }
@@ -381,5 +383,18 @@ export default class Nimio {
     );
 
     this._audioNode.connect(this._audioContext.destination);
+  }
+
+  _startNoAudioMode() {
+    this._initAudioContext(48000, 1, true);
+    this._noAudio = true;
+  }
+
+  _stopAudio() {
+    if (this._audioContext) {
+      this._audioContext.close();
+      this._audioContext = this._audioNode = this._audioWorkletReady = null;
+    }
+    this._noAudio = false;
   }
 }

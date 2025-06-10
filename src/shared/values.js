@@ -5,7 +5,7 @@ export const STATE = {
 };
 export const IDX = {
   STATE: 0,
-  SILENCE_MSEC: 1,
+  SILENCE_USEC: 1,
   CURRENT_TS: [2, 3],
   AVAILABLE_AUDIO: 4,
   AVAILABLE_VIDEO: 5,

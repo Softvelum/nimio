@@ -43,20 +43,20 @@ export class StateManager {
     this.value = STATE.STOPPED;
   }
 
-  getSilenceMs() {
-    return Atomics.load(this._flags, IDX.SILENCE_MSEC);
+  getSilenceUs() {
+    return Atomics.load(this._flags, IDX.SILENCE_USEC);
   }
 
-  incSilenceMs(durationUs) {
-    Atomics.add(this._flags, IDX.SILENCE_MSEC, durationUs);
+  incSilenceUs(durationUs) {
+    Atomics.add(this._flags, IDX.SILENCE_USEC, durationUs);
   }
 
-  getCurrentTsUs() {
+  getCurrentTsNs() {
     return this._atomicLoad64(IDX.CURRENT_TS);
   }
 
-  incCurrentTsUs(durationUs) {
-    return this._atomicAdd64(IDX.CURRENT_TS, durationUs);
+  incCurrentTsNs(durationNs) {
+    return this._atomicAdd64(IDX.CURRENT_TS, durationNs);
   }
 
   resetCurrentTsUs() {
