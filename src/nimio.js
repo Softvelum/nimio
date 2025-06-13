@@ -4,6 +4,7 @@ import { IDX } from "./shared/values.js";
 import { StateManager } from "./state-manager.js";
 import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./media/buffers/video-buffer.js";
+import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
 import { createConfig } from "./player-config.js";
 import LoggersFactory from "./shared/logger.js";
 
@@ -26,6 +27,8 @@ export default class Nimio {
     this._sab = new SharedArrayBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     this._state = new StateManager(this._sab);
     this._state.stop();
+
+    this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
 
     this._videoBuffer = new VideoBuffer(this._config.instanceName, 1000);
     this._noAudio = this._noVideo = false;
@@ -106,7 +109,11 @@ export default class Nimio {
 
     this._videoBuffer.clear();
     this._noVideo = false;
+
     this._stopAudio();
+    if (this._audioBuffer) {
+      this._audioBuffer.reset();
+    }
 
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
@@ -224,11 +231,19 @@ export default class Nimio {
         }
 
         // TODO: handle all audio codecs besides AAC
+        const aacConfig = parseAACConfig(e.data.codecData);
         this._audioDecoderWorker.postMessage({
           type: "codecData",
           codecData: e.data.codecData,
-          aacConfig: parseAACConfig(e.data.codecData),
+          aacConfig: aacConfig,
         });
+
+        this._audioBuffer = WritableAudioBuffer.allocate(
+          this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
+          aacConfig.sampleRate,
+          aacConfig.numberOfChannels,
+          aacConfig.sampleCount
+        );
         break;
       case "videoChunk":
         this._videoDecoderWorker.postMessage(
@@ -299,42 +314,20 @@ export default class Nimio {
     // create AudioContext with correct sampleRate on first frame
     const channels = audioFrame.numberOfChannels;
     await this._initAudioContext(audioFrame.sampleRate, channels);
+
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
       audioFrame.close();
       return false;
     }
 
-    const frames = audioFrame.numberOfFrames
-    const audioBuffer = new Float32Array(frames * channels);
-
-    if (audioFrame.format.endsWith("-planar")) {
-      for (let ch = 0; ch < channels; ch++) {
-        const offset = ch * frames * Float32Array.BYTES_PER_ELEMENT;
-        const channelView = new Float32Array(audioBuffer.buffer, offset, frames);
-      
-        audioFrame.copyTo(channelView, {
-          planeIndex: ch
-        });
-      }
-    } else {
-      audioFrame.copyTo(audioBuffer, { planeIndex: 0 });
-    }
+    this._audioBuffer.writeFrame(audioFrame);
+    audioFrame.close();
 
     if (null === this._firstFrameTsUs) {
       this._firstFrameTsUs = audioFrame.timestamp;
       this._state.setPlaybackStartTsUs(audioFrame.timestamp);
     }
-
-    this._audioNode.port.postMessage(
-      {
-        frame: audioBuffer,
-        numberOfChannels: channels,
-        timestamp: audioFrame.timestamp,
-      },
-      [audioBuffer.buffer],
-    );
-    audioFrame.close();
   }
 
   async _initAudioContext(sampleRate, channels, idle) {
@@ -363,6 +356,20 @@ export default class Nimio {
     await this._audioWorkletReady;
     if (this._audioNode) return;
 
+    let procOptions = {
+      instanceName: this._config.instanceName,
+      sampleRate: sampleRate,
+      stateSab: this._sab,
+      latency: this._config.latency,
+      idle: idle || false,
+    };
+
+    if (!idle && this._audioBuffer) {
+      procOptions.sampleCount = this._audioBuffer.sampleCount;
+      procOptions.audioSab = this._audioBuffer.buffer;
+      procOptions.capacity = this._audioBuffer.capacity;
+    }
+
     this._audioNode = new AudioWorkletNode(
       this._audioContext,
       "nimio-processor",
@@ -370,15 +377,7 @@ export default class Nimio {
         numberOfInputs: 0,
         numberOfOutputs: 1,
         outputChannelCount: [channels],
-        processorOptions: {
-          instanceName: this._config.instanceName,
-          sampleRate: sampleRate,
-          sab: this._sab,
-          latency: this._config.latency,
-          startOffset: this._config.startOffset,
-          pauseTimeout: this._config.pauseTimeout,
-          idle: idle || false,
-        },
+        processorOptions: procOptions,
       },
     );
 

@@ -4,36 +4,43 @@ export function parseAACConfig(codecData) {
     throw new Error("ASC parsing error. codecData too small");
   }
 
-  const firstByte = data[0]; // 0x11
-  const secondByte = data[1]; // 0x90
+  let samplingFrequencies = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+  let samplesPerFrames = [1024, 960];
 
-  // Audio Object Type (5 bits)
-  const audioObjectType = firstByte >> 3;
-
-  // Sampling Frequency Index (4 bits)
-  const samplingFrequencyIndex = ((firstByte & 0x07) << 1) | (secondByte >> 7);
-
-  // Channel Configuration (4 bits)
-  const channelConfiguration = (secondByte >> 3) & 0x0f;
-
-  // Frequency table
-  const sampleRateTable = [
-    96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025,
-    8000, 7350,
-  ];
-
-  if (samplingFrequencyIndex >= sampleRateTable.length) {
-    throw new Error(
-      `samplingFrequencyIndex out of range: ${samplingFrequencyIndex}`,
-    );
+  let objectType = data[0] >> 3;
+  let freqIndex = 0;
+  if( 31 == objectType ) {
+    freqIndex = (data[1] >> 1) & 0x0F;
+  } else {
+    freqIndex = ((data[0] & 0x07) << 1) | (data[1] >> 7);
   }
 
-  const sampleRate = sampleRateTable[samplingFrequencyIndex];
-  const numberOfChannels = channelConfiguration;
+  let config = { audioObjectType: objectType };
 
-  return {
-    audioObjectType,
-    sampleRate,
-    numberOfChannels,
-  };
+  if( 15 == freqIndex ) {
+    if( 31 == objectType ) {
+      config.sampleRate = ( (((data[1] & 0x01) << 7) | (data[2] >> 1)) << 16 ) |
+                          ( (((data[2] & 0x01) << 7) | (data[3] >> 1)) << 8 )  |
+                            (((data[3] & 0x01) << 7) | (data[4] >> 1));
+      config.numberOfChannels = ((data[4] & 0x01) << 3) | (data[5] >> 5);
+      config.sampleCount = samplesPerFrames[ (data[5] & 0x10) >> 4 ];
+    } else {
+      config.sampleRate = ( (((data[1] & 0x7F) << 1) | (data[2] >> 7)) << 16 ) |
+                          ( (((data[2] & 0x7F) << 1) | (data[3] >> 7)) << 8 )  |
+                            (((data[3] & 0x7F) << 1) | (data[4] >> 7));
+      config.numberOfChannels = (data[4] & 0x78) >> 3;
+      config.sampleCount = samplesPerFrames[ (data[4] & 0x04) >> 2 ];
+    }
+  } else {
+    config.sampleRate = samplingFrequencies[freqIndex];
+    if( 31 == objectType ) {
+      config.numberOfChannels = ((data[1] & 0x01) << 3) | (data[2] >> 5);
+      config.sampleCount = samplesPerFrames[ (data[2] & 0x10) >> 4 ];
+    } else {
+      config.numberOfChannels = (data[1] & 0x78) >> 3;
+      config.sampleCount = samplesPerFrames[ (data[1] & 0x04) >> 2 ];
+    }
+  }
+
+  return config;
 }

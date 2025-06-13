@@ -46,6 +46,8 @@ export function createConfig(overrides = {}) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);
   }
 
+  target.fullBufferMs = target.latency + target.startOffset + target.pauseTimeout;
+
   return new Proxy(target, {
     get(obj, prop) {
       if (!(prop in DEFAULTS)) {

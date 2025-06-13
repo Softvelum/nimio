@@ -1,50 +1,32 @@
 import { StateManager } from "./state-manager.js";
+import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
-    this.stateManager = new StateManager(options.processorOptions.sab);
+    this.stateManager = new StateManager(options.processorOptions.stateSab);
     this.sampleRate = options.processorOptions.sampleRate;
     this.channelCount = options.outputChannelCount[0];
+    this.fSampleCount = options.processorOptions.sampleCount;
+    // this.totalSampleRate = this.sampleRate * this.channelCount;
 
     this.targetLatencyMs = options.processorOptions.latency;
     this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1;
     this.idle = options.processorOptions.idle;
     this.playbackStartTs = 0;
 
-    const bufferSec = Math.ceil(
-      (this.targetLatencyMs +
-        options.processorOptions.startOffset +
-        options.processorOptions.pauseTimeout +
-        200) /
-        1000,
-    ); // 200 overhead for fast audio
+    if (!this.idle) {
+      this.audioBuffer = new ReadableAudioBuffer(
+        options.processorOptions.audioSab,
+        options.processorOptions.capacity,
+        this.channelCount,
+        this.fSampleCount,
+      );
+    }
 
-    this.totalSampleRate = this.sampleRate * this.channelCount;
-    this.bufferSize = this.totalSampleRate * bufferSec;
-    this.ringBuffer = new Float32Array(this.bufferSize);
-    this.ringBuffer2 = new Float32Array(this.bufferSize);
-    this.readIndex = this.writeIndex = this.available = 0;
-    this.startThreshold = this.totalSampleRate * this.targetLatencyMs / 1000;
+    this.available = 0;
+    this.startThreshold = this.targetLatencyMs * this.sampleRate / 1000;
     this.speedFactor = 1.0;
-
-    this.port.onmessage = ({ data }) => {
-      const chunk = new Float32Array(data.frame);
-      let curIdx = this.writeIndex;
-      let sampleCount = chunk.length / this.channelCount;
-      for (let i = 0; i < sampleCount; i++) {
-        if (this.readIndex === curIdx && this.available > 0) {
-          console.error("audio buffer overflow", this.readIndex, curIdx);
-        }
-        this.ringBuffer[curIdx] = chunk[i];
-        this.ringBuffer2[curIdx] = chunk[i + sampleCount];
-        curIdx++;
-        if (curIdx === this.bufferSize) curIdx = 0;
-      }
-      this.writeIndex = curIdx;
-      this.available += chunk.length;
-      if (this.available > this.bufferSize) this.available = this.bufferSize;
-    };
   }
 
   process(inputs, outputs) {
@@ -62,9 +44,10 @@ class NimioProcessor extends AudioWorkletProcessor {
       return this._processIdle(out, chCnt, smplCnt, speed, durationNs);
     }
 
+    this.available = this.audioBuffer.getSize() * this.fSampleCount;
     if (
       this.stateManager.isPaused() ||
-      this.available < smplCnt * chCnt * speed ||
+      this.available < smplCnt * speed ||
       this.available < this.startThreshold
     ) {
       this._insertSilence(out, chCnt);
@@ -99,14 +82,15 @@ class NimioProcessor extends AudioWorkletProcessor {
       if (this.readIndex >= this.bufferSize) {
         this.readIndex -= this.bufferSize;
       }
-      this.available -= consumedSamples * chCnt;
 
-      this._controlPlaybackLatency(1000 * this.available / this.totalSampleRate);
+      this.available -= consumedSamples;
+
+      this._controlPlaybackLatency(1000 * this.available / this.sampleRate);
     }
     return true;
   }
 
-  _processIdle(output, channelCount, sampleCount, speed, durationNs) {
+  _processIdle(output, channelCount, smplCnt, speed, durationNs) {
     this._insertSilence(output, channelCount);
     if (this.stateManager.isPaused()) return true;
 
@@ -114,8 +98,12 @@ class NimioProcessor extends AudioWorkletProcessor {
       this.playbackStartTs = this.stateManager.getPlaybackStartTsUs();
     }
     if (this.playbackStartTs !== 0) {
-      this.available += sampleCount * channelCount * speed;
+      if (this.available < this.startThreshold) {
+        this.available += smplCnt * speed;
+      }
+
       if (this.available >= this.startThreshold) {
+        this.available = this.startThreshold;
         let curTs = this.stateManager.incCurrentTsNs(durationNs) / 1000;
         curTs += this.playbackStartTs;
         let availableMs = (this.stateManager.getVideoLatestTsUs() - curTs) / 1000;
