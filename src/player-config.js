@@ -12,6 +12,7 @@ const DEFAULTS = {
   metricsOverlay: false,
   instanceName: null,
   logLevel: "warn",
+  fullBufferMs: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

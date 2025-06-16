@@ -2,7 +2,7 @@ import { SharedAudioBuffer } from './shared-audio-buffer.js';
 
 export class WritableAudioBuffer extends SharedAudioBuffer {
 
-  writeFrame(audioFrame) {
+  pushFrame(audioFrame) {
     if (audioFrame.numberOfFrames !== this.sampleCount) {
       throw new Error(
         `audioFrame must contain ${this.sampleCount} samples, got ${audioFrame.numberOfFrames}`

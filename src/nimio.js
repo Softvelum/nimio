@@ -321,7 +321,7 @@ export default class Nimio {
       return false;
     }
 
-    this._audioBuffer.writeFrame(audioFrame);
+    this._audioBuffer.pushFrame(audioFrame);
     audioFrame.close();
 
     if (null === this._firstFrameTsUs) {
@@ -367,7 +367,7 @@ export default class Nimio {
     if (!idle && this._audioBuffer) {
       procOptions.sampleCount = this._audioBuffer.sampleCount;
       procOptions.audioSab = this._audioBuffer.buffer;
-      procOptions.capacity = this._audioBuffer.capacity;
+      procOptions.capacity = this._audioBuffer.bufferCapacity;
     }
 
     this._audioNode = new AudioWorkletNode(

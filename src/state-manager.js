@@ -59,6 +59,10 @@ export class StateManager {
     return this._atomicAdd64(IDX.CURRENT_TS, durationNs);
   }
 
+  setCurrentTsNs(tsNs) {
+    this._atomicStore64(IDX.CURRENT_TS, tsNs);
+  }
+
   resetCurrentTsUs() {
     this._atomicStore64(IDX.CURRENT_TS, 0);
   }
