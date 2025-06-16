@@ -2,7 +2,14 @@ let audioDecoder;
 
 let config = {};
 
+let prevTs = null;
+
 function processDecodedFrame(audioFrame) {
+  if (prevTs !== null) {
+    console.log('Decoding', audioFrame.timestamp - prevTs, audioFrame.duration);
+  }
+  prevTs = audioFrame.timestamp;
+
   self.postMessage(
     {
       type: "audioFrame",

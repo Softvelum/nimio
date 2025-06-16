@@ -66,19 +66,21 @@ export class SharedAudioBuffer {
   }
 
   forEach(fn) {
-    let index = this.getReadIdx();
+    let idx = this.getReadIdx();
     const size = this.getSize();
     for (let i = 0; i < size; i++) {
-      const res = fn(this.timestamps[index], this.frames[index], index);
+      let res = fn(this.timestamps[idx], this.frames[idx], idx, size - i - 1);
       if (res === false) break;
 
-      index++;
-      if (index >= this.capacity) index -= this.capacity;
+      idx++;
+      if (idx >= this.capacity) idx -= this.capacity;
     }
   }
 
-  get availableWrite() {
-    return this.capacity - this.size;
+  getLastTimestamp() {
+    let writeIdx = this.getWriteIdx() - 1;
+    if (writeIdx < 0) writeIdx += this.capacity;
+    return this.timestamps[writeIdx] || 0;
   }
 
   get buffer() {
