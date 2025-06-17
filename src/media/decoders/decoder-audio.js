@@ -1,20 +1,19 @@
+import { RingBuffer } from "../../shared/ring-buffer.js";
+
 let audioDecoder;
+let timestampBuffer = new RingBuffer("audio-timestamp-buffer", 1000);
 
 let config = {};
 
 let prevTs = null;
 
 function processDecodedFrame(audioFrame) {
-  if (prevTs !== null) {
-    console.log('Decoding', audioFrame.timestamp - prevTs, audioFrame.duration);
-  }
-  prevTs = audioFrame.timestamp;
-
   self.postMessage(
     {
       type: "audioFrame",
       audioFrame: audioFrame,
       decoderQueue: audioDecoder.decodeQueueSize,
+      rawTimestamp: timestampBuffer.pop(),
     },
     [audioFrame],
   );
@@ -57,6 +56,7 @@ self.addEventListener("message", async function (e) {
       frameWithHeader.byteLength,
     );
 
+    timestampBuffer.push(e.data.timestamp);
     const encodedAudioChunk = new EncodedAudioChunk({
       timestamp: e.data.timestamp,
       type: "key",

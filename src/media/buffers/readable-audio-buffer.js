@@ -14,7 +14,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       let frameStartTsNs = frameStartTs * 1000;
       let frameEndTsNs = frameStartTsNs + this.frameNs;
       if (endTsNs < frameStartTsNs) {
-        console.log('stop iterating all frames are later than', endTsNs);
         return false; // stop iterating, all frames are later than endTsNs
       }
 
@@ -30,23 +29,15 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         readEndIdx = idx;
         readEndOffset = (endTsNs - frameStartTsNs) * this.sampleRate;
         readEndOffset = (readEndOffset / 1e9 + 0.5) >>> 0;
-        // console.log('end idx', readEndIdx, readEndOffset);
         return false; // range found, stop iterating
       }
       skipIdx = idx;
-      if (left === 0) {
-        console.log('no frames found', startTsNs - frameEndTsNs, endTsNs - frameEndTsNs);
-        debugger;
-      }
     });
     if (readEndIdx !== null) {
       this.setReadIdx(readEndOffset === this.sampleCount ? readEndIdx + 1 : readEndIdx);
     } else if (readStartIdx !== null) {
       this.setReadIdx(readStartIdx + 1);
     } else if (skipIdx !== null) {
-      // if (this.getSize() > 5) {
-      //   debugger;
-      // }
       this.setReadIdx(skipIdx);
       console.log('No frames found in the requested range');
     }
@@ -65,7 +56,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let processed = null;
     if (startIdx === endIdx) {
       if (startIdx === null) {
-        console.log('Fill Channels with silence');
         for (let c = 0; c < this.numChannels; c++) {
           outputChannels[c].fill(0);
         }

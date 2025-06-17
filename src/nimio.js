@@ -288,6 +288,7 @@ export default class Nimio {
         this._state.setVideoDecoderLatency(e.data.decoderLatency);
         break;
       case "audioFrame":
+        e.data.audioFrame.rawTimestamp = e.data.rawTimestamp;
         this._handleAudioFrame(e.data.audioFrame);
         this._state.setAudioDecoderQueue(e.data.decoderQueue);
         break;
@@ -325,8 +326,8 @@ export default class Nimio {
     audioFrame.close();
 
     if (null === this._firstFrameTsUs) {
-      this._firstFrameTsUs = audioFrame.timestamp;
-      this._state.setPlaybackStartTsUs(audioFrame.timestamp);
+      this._firstFrameTsUs = audioFrame.rawTimestamp;
+      this._state.setPlaybackStartTsUs(audioFrame.rawTimestamp);
     }
   }
 

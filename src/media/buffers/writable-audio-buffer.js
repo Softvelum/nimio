@@ -10,7 +10,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = audioFrame.timestamp;
+    this.timestamps[writeIdx] = audioFrame.rawTimestamp;
 
     if (audioFrame.format.endsWith("-planar")) {
       let offset = 0;
