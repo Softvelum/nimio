@@ -10,8 +10,8 @@ export class SharedAudioBuffer {
     this.numChannels = numChannels;
     this.sampleCount = sampleCount;
 
-    this.frameNs = Math.round(sampleCount * 1e9 / sampleRate); // frame duration in nanoseconds
-    this.sampleNs = Math.round(1e9 / sampleRate); // sample duration in nanoseconds
+    this.frameNs = sampleCount * 1e9 / sampleRate; // frame duration in nanoseconds
+    this.sampleNs = 1e9 / sampleRate; // sample duration in nanoseconds
     this.frameSize = numChannels * sampleCount;
     this.frameBytes = this.frameSize * Float32Array.BYTES_PER_ELEMENT;
 
@@ -77,7 +77,7 @@ export class SharedAudioBuffer {
     }
   }
 
-  getLastTimestamp() {
+  getLastTimestampUs() {
     let writeIdx = this.getWriteIdx() - 1;
     if (writeIdx < 0) writeIdx += this.capacity;
     return this.timestamps[writeIdx] || 0;

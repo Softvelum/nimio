@@ -1,4 +1,3 @@
-import { parseAACConfig } from "./media/parsers/aac-config-parser.js";
 import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import { IDX } from "./shared/values.js";
 import { StateManager } from "./state-manager.js";
@@ -6,6 +5,7 @@ import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./media/buffers/video-buffer.js";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
 import { createConfig } from "./player-config.js";
+import { AudioService } from "./audio-service.js";
 import LoggersFactory from "./shared/logger.js";
 
 export default class Nimio {
@@ -56,6 +56,7 @@ export default class Nimio {
 
     this._initWorkers();
     this._audioWorkletReady = null;
+    this._audioService = new AudioService(this._state);
 
     if (this._config.autoplay) {
       this.play(true);
@@ -174,7 +175,7 @@ export default class Nimio {
       if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
         return true;
 
-      let curTsUs = this._state.getCurrentTsNs() / 1000;
+      let curTsUs = this._audioService.smpCntToTsUs(this._state.getCurrentTsSmp());
       if (curTsUs <= 0) return true;
 
       let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
@@ -230,19 +231,18 @@ export default class Nimio {
           this._stopAudio();
         }
 
-        // TODO: handle all audio codecs besides AAC
-        const aacConfig = parseAACConfig(e.data.codecData);
+        let config = this._audioService.parseAudioConfig(e.data.codecData);
         this._audioDecoderWorker.postMessage({
           type: "codecData",
           codecData: e.data.codecData,
-          aacConfig: aacConfig,
+          aacConfig: config,
         });
 
         this._audioBuffer = WritableAudioBuffer.allocate(
           this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
-          aacConfig.sampleRate,
-          aacConfig.numberOfChannels,
-          aacConfig.sampleCount
+          config.sampleRate,
+          config.numberOfChannels,
+          config.sampleCount
         );
         break;
       case "videoChunk":
@@ -313,8 +313,7 @@ export default class Nimio {
     }
 
     // create AudioContext with correct sampleRate on first frame
-    const channels = audioFrame.numberOfChannels;
-    await this._initAudioContext(audioFrame.sampleRate, channels);
+    await this._initAudioContext(audioFrame.sampleRate, audioFrame.numberOfChannels);
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
@@ -366,7 +365,7 @@ export default class Nimio {
     };
 
     if (!idle && this._audioBuffer) {
-      procOptions.sampleCount = this._audioBuffer.sampleCount;
+      procOptions.sampleCount = this._audioService.sampleCount;
       procOptions.audioSab = this._audioBuffer.buffer;
       procOptions.capacity = this._audioBuffer.bufferCapacity;
     }

@@ -107,8 +107,8 @@ function processFrame(event) {
         dataPos += 8;
       }
 
-      tsSec = timestamp / timescale.audio;
-      tsUs = 1_000_000 * tsSec;
+      tsSec = timestamp / (timescale.audio / 1000);
+      tsUs = 1000 * tsSec;
 
       self.postMessage({
         type: "audioChunk",
@@ -137,8 +137,8 @@ function processFrame(event) {
         dataPos += 4;
       }
 
-      tsSec = (timestamp + compositionOffset) / timescale.video;
-      tsUs = 1_000_000 * tsSec;
+      tsSec = (timestamp + compositionOffset) / (timescale.video / 1000);
+      tsUs = 1000 * tsSec;
 
       self.postMessage(
         {

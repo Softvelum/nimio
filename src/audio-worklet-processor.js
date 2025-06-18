@@ -1,5 +1,6 @@
 import { StateManager } from "./state-manager.js";
 import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer.js";
+import { AudioService } from "./audio-service.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -8,12 +9,17 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.sampleRate = options.processorOptions.sampleRate;
     this.channelCount = options.outputChannelCount[0];
     this.fSampleCount = options.processorOptions.sampleCount;
+    this.audioService = new AudioService(
+      this.sampleRate,
+      this.channelCount,
+      this.fSampleCount
+    );
     // this.totalSampleRate = this.sampleRate * this.channelCount;
 
     this.targetLatencyMs = options.processorOptions.latency;
     this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1.2;
     this.idle = options.processorOptions.idle;
-    this.playbackStartTs = 0;
+    this.playbackStartTsUs = 0;
 
     if (!this.idle) {
       this.audioBuffer = new ReadableAudioBuffer(
@@ -25,79 +31,78 @@ class NimioProcessor extends AudioWorkletProcessor {
       );
     }
 
-    this._totalDurationFloatNs = 0;
-
     this.available = 0;
     this.startThreshold = this.targetLatencyMs * 1000;
+    this.minThreshold = 0.75 * this.startThreshold;
     this.speedFactor = 1.0;
   }
 
   process(inputs, outputs) {
     const out = outputs[0];
     const chCnt = out.length;
-    const smplCnt = out[0].length;
     const speed = this.speedFactor;
 
     if (this.stateManager.isStopped()) {
       return false; // stop processing
     }
 
-    if (this.playbackStartTs === 0) {
-      this.playbackStartTs = this.stateManager.getPlaybackStartTsUs();
+    if (this.playbackStartTsUs === 0) {
+      this.playbackStartTsUs = this.stateManager.getPlaybackStartTsUs();
     }
 
-    const durationFloatNs = (smplCnt * speed * 1e9) / this.sampleRate;
+    const sampleCount = (out[0].length * speed + 0.5) >>> 0;
     if (this.idle) {
-      return this._processIdle(out, chCnt, smplCnt, speed, durationFloatNs);
+      return this._processIdle(out, chCnt, sampleCount);
     }
 
-    let curTsUs = this.stateManager.getCurrentTsNs() / 1000 + this.playbackStartTs;
-    this.available = this.audioBuffer.getLastTimestamp() - curTsUs;
+    let curSmpCnt = this.stateManager.getCurrentTsSmp();
+    let curTsUs = this.audioService.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
+    this.available = this.audioBuffer.getLastTimestampUs() - curTsUs;
     if (this.available < 0) this.available = 0;
 
     if (
       this.stateManager.isPaused() ||
+      this.available < this.minThreshold ||
       this.startThreshold > 0 && this.available < this.startThreshold
     ) {
       this._insertSilence(out, chCnt);
-      const durationMs = (durationFloatNs / 1000 + 0.5) >>> 0;
+      const durationMs = (1e6 * sampleCount / this.sampleRate + 0.5) >>> 0;
       console.debug("Insert silence: ", durationMs);
       // TODO: use 64-bit value for storing silence duration
       this.stateManager.incSilenceUs(durationMs);
     } else {
       this.startThreshold = 0;
-      let curTsNs = this._incrementTsNs(durationFloatNs);
-      curTsNs += this.playbackStartTs * 1000;
-      const durationNs = (durationFloatNs + 0.5) >>> 0;
-      this.audioBuffer.read(curTsNs - durationNs, curTsNs, out, speed);
-
-      this.available -= durationFloatNs / 1000;
-      if (this.available < 0) this.available = 0;
+      let incTsUs = this._incrementCurTs(sampleCount);
+      this.audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, speed);
 
       this._controlPlaybackLatency(this.available / 1000);
     }
     return true;
   }
 
-  _processIdle(output, channelCount, smplCnt, speed, durationFloatNs) {
+  _processIdle(output, channelCount, sampleCount) {
     this._insertSilence(output, channelCount);
     if (this.stateManager.isPaused()) return true;
 
-    if (this.playbackStartTs !== 0) {
+    if (this.playbackStartTsUs !== 0) {
       if (this.available < this.startThreshold) {
-        this.available += (smplCnt * speed * 1e6) / this.sampleRate;
+        this.available += sampleCount * 1e6 / this.sampleRate;
       }
 
       if (this.available >= this.startThreshold) {
         this.available = this.startThreshold;
-        let curTs = this._incrementTsNs(durationFloatNs) / 1000;
-        curTs += this.playbackStartTs;
-        let availableMs = (this.stateManager.getVideoLatestTsUs() - curTs) / 1000;
+        let curTsUs = this._incrementCurTs(sampleCount)
+        let availableMs = (this.stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
         this._controlPlaybackLatency(availableMs);
       }
     }
 
     return true;
+  }
+
+  _incrementCurTs(sampleCount) {
+    let curSmpCnt = this.stateManager.incCurrentTsSmp(sampleCount);
+    return this.audioService.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
   }
 
   _insertSilence(out, chCnt) {
@@ -121,20 +126,6 @@ class NimioProcessor extends AudioWorkletProcessor {
     if (!this.idle) {
       this.stateManager.setAvailableAudioMs((availableMs + 0.5) >>> 0);
     }
-  }
-
-  _incrementTsNs(durationFloatNs) {
-    this._totalDurationFloatNs += durationFloatNs;
-    let res = this.stateManager.incCurrentTsNs((durationFloatNs + 0.5) >>> 0);
-    let diff = res > this._totalDurationFloatNs ?
-      res - this._totalDurationFloatNs : this._totalDurationFloatNs - res;
-
-    if (diff >= 2000) { // fix 2 us inaccuracy
-      console.log('fix current ts ns', diff);
-      res = Math.round(this._totalDurationFloatNs);
-      this.stateManager.setCurrentTsNs(res);
-    }
-    return res;
   }
 }
 

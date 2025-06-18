@@ -51,16 +51,12 @@ export class StateManager {
     Atomics.add(this._flags, IDX.SILENCE_USEC, durationUs);
   }
 
-  getCurrentTsNs() {
+  getCurrentTsSmp() {
     return this._atomicLoad64(IDX.CURRENT_TS);
   }
 
-  incCurrentTsNs(durationNs) {
-    return this._atomicAdd64(IDX.CURRENT_TS, durationNs);
-  }
-
-  setCurrentTsNs(tsNs) {
-    this._atomicStore64(IDX.CURRENT_TS, tsNs);
+  incCurrentTsSmp(smpCnt) {
+    return this._atomicAdd64(IDX.CURRENT_TS, smpCnt);
   }
 
   resetCurrentTsUs() {
