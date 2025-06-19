@@ -1,4 +1,4 @@
-import { SharedAudioBuffer } from './shared-audio-buffer.js';
+import { SharedAudioBuffer } from "./shared-audio-buffer.js";
 
 export class WritableAudioBuffer extends SharedAudioBuffer {
   constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
@@ -11,7 +11,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     preprocessor.setBufferIface(this);
   }
 
-  reset () {
+  reset() {
     super.reset();
     for (let i = 0; i < this._preprocessors.length; i++) {
       this._preprocessors[i].reset();
@@ -22,7 +22,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   pushFrame(audioFrame) {
     if (audioFrame.numberOfFrames !== this.sampleCount) {
       throw new Error(
-        `audioFrame must contain ${this.sampleCount} samples, got ${audioFrame.numberOfFrames}`
+        `audioFrame must contain ${this.sampleCount} samples, got ${audioFrame.numberOfFrames}`,
       );
     }
 
@@ -38,7 +38,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       for (let ch = 0; ch < this.numChannels; ch++) {
         audioFrame.copyTo(
           this.frames[writeIdx].subarray(offset, offset + this.sampleCount),
-          {planeIndex: ch}
+          { planeIndex: ch },
         );
         offset += this.sampleCount;
       }
@@ -57,5 +57,4 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     this.setWriteIdx(writeIdx + 1);
     return true;
   }
-
 }

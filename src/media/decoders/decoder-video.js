@@ -32,7 +32,7 @@ function processDecodedFrame(videoFrame) {
 
 function handleDecoderError(error) {
   console.error("Video Decoder error:", error);
-  self.postMessage({ type: "decoderError", kind: 'video' });
+  self.postMessage({ type: "decoderError", kind: "video" });
 }
 
 function pushChunk(data, ts) {

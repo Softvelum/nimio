@@ -47,7 +47,10 @@ export default class Nimio {
     this._pauseTimeoutId = null;
 
     if (this._config.metricsOverlay) {
-      this._debugView = this._ui.appendDebugOverlay(this._state, this._videoBuffer);
+      this._debugView = this._ui.appendDebugOverlay(
+        this._state,
+        this._videoBuffer,
+      );
     }
 
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
@@ -104,7 +107,10 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
-    this._webSocketWorker.postMessage({ type: "stop", close: !!closeConnection });
+    this._webSocketWorker.postMessage({
+      type: "stop",
+      close: !!closeConnection,
+    });
     if (this._debugView) {
       this._debugView.stop();
     }
@@ -126,7 +132,7 @@ export default class Nimio {
     this._pauseTimeoutId = null;
   }
 
-  destroy () {
+  destroy() {
     this.stop(true);
     this._ui.destroy();
   }
@@ -176,7 +182,9 @@ export default class Nimio {
       if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
         return true;
 
-      let curTsUs = this._audioService.smpCntToTsUs(this._state.getCurrentTsSmp());
+      let curTsUs = this._audioService.smpCntToTsUs(
+        this._state.getCurrentTsSmp(),
+      );
       if (curTsUs <= 0) return true;
 
       let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
@@ -191,7 +199,8 @@ export default class Nimio {
         );
         frame.close();
 
-        let availableMs = (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
+        let availableMs =
+          (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
         if (availableMs < 0) availableMs = 0;
         this._state.setAvailableVideoMs(availableMs);
       }
@@ -243,13 +252,13 @@ export default class Nimio {
           this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
           config.sampleRate,
           config.numberOfChannels,
-          config.sampleCount
+          config.sampleCount,
         );
         this._audioBuffer.addPreprocessor(
           new AudioGapsProcessor(
             this._audioService.sampleCount,
-            this._audioService.sampleRate
-          )
+            this._audioService.sampleRate,
+          ),
         );
         break;
       case "videoChunk":
@@ -279,7 +288,7 @@ export default class Nimio {
         let frame = e.data.videoFrame;
         let frameTsUs = frame.timestamp;
         if (
-          (null === this._firstFrameTsUs) &&
+          null === this._firstFrameTsUs &&
           (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5)
         ) {
           this._firstFrameTsUs = frameTsUs;
@@ -320,7 +329,10 @@ export default class Nimio {
     }
 
     // create AudioContext with correct sampleRate on first frame
-    await this._initAudioContext(audioFrame.sampleRate, audioFrame.numberOfChannels);
+    await this._initAudioContext(
+      audioFrame.sampleRate,
+      audioFrame.numberOfChannels,
+    );
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");

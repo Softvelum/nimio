@@ -10,13 +10,17 @@ export class SharedAudioBuffer {
     this.numChannels = numChannels;
     this.sampleCount = sampleCount;
 
-    this.frameNs = sampleCount * 1e9 / sampleRate; // frame duration in nanoseconds
+    this.frameNs = (sampleCount * 1e9) / sampleRate; // frame duration in nanoseconds
     this.sampleNs = 1e9 / sampleRate; // sample duration in nanoseconds
     this.frameSize = numChannels * sampleCount;
     this.frameBytes = this.frameSize * Float32Array.BYTES_PER_ELEMENT;
 
     this.sab = sharedBuffer;
-    this.header = new Int32Array(sharedBuffer, 0, SharedAudioBuffer.HEADER_SIZE);
+    this.header = new Int32Array(
+      sharedBuffer,
+      0,
+      SharedAudioBuffer.HEADER_SIZE,
+    );
     let offset = SharedAudioBuffer.HEADER_BYTES;
     this.timestamps = new Float64Array(sharedBuffer, offset, capacity);
 
@@ -29,14 +33,21 @@ export class SharedAudioBuffer {
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
-    const capacity = Math.ceil(bufferSec * sampleRate / sampleCount);
+    const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
     // timestamp = 2 Float32 elements + frame size
-    const frameSize = (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
+    const frameSize =
+      (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
     const sharedBuffer = new SharedArrayBuffer(
-      SharedAudioBuffer.HEADER_BYTES + frameSize * capacity
+      SharedAudioBuffer.HEADER_BYTES + frameSize * capacity,
     );
 
-    return new this(sharedBuffer, capacity, sampleRate, numChannels, sampleCount);
+    return new this(
+      sharedBuffer,
+      capacity,
+      sampleRate,
+      numChannels,
+      sampleCount,
+    );
   }
 
   reset() {
@@ -61,7 +72,8 @@ export class SharedAudioBuffer {
   }
 
   getSize() {
-    const w = this.getWriteIdx(), r = this.getReadIdx();
+    const w = this.getWriteIdx();
+    const r = this.getReadIdx();
     return w >= r ? w - r : this.capacity - r + w;
   }
 

@@ -125,7 +125,7 @@ export class StateManager {
       const high1 = Atomics.load(this._flags, idx + 1);
       const low = Atomics.load(this._flags, idx);
       const high2 = Atomics.load(this._flags, idx + 1);
-  
+
       if (high1 === high2) {
         return low + high1 * U32POWER;
       }
@@ -136,12 +136,12 @@ export class StateManager {
   _atomicStore64(idxs, val) {
     const newLow = val >>> 0;
     const newHigh = (val / U32POWER) >>> 0;
-  
+
     const idx = idxs[0];
     while (true) {
       const low = Atomics.load(this._flags, idx);
       const high = Atomics.load(this._flags, idx + 1);
-  
+
       // Only update if the val hasn't changed
       if (
         Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
@@ -162,10 +162,10 @@ export class StateManager {
     while (true) {
       const low = Atomics.load(this._flags, idx);
       const high = Atomics.load(this._flags, idx + 1);
-  
+
       let newLow = low + val;
       let newHigh = high;
-  
+
       if (newLow >= U32POWER) {
         newLow = newLow >>> 0;
         newHigh = (high + 1) >>> 0;
@@ -173,7 +173,7 @@ export class StateManager {
       if (newHigh >= U32POWER) {
         throw new Error("Resulting value exceeds 64 bits");
       }
-  
+
       if (
         Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
         Atomics.compareExchange(this._flags, idx, low, newLow) === low
@@ -183,5 +183,4 @@ export class StateManager {
       // Retry if another thread wrote a new value in the middle
     }
   }
-
 }

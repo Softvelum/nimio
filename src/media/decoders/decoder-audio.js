@@ -19,7 +19,7 @@ function processDecodedFrame(audioFrame) {
 
 function handleDecoderError(error) {
   console.error("Audio Decoder error:", error);
-  self.postMessage({ type: "decoderError", kind: 'audio' });
+  self.postMessage({ type: "decoderError", kind: "audio" });
 }
 
 self.addEventListener("message", async function (e) {
@@ -47,7 +47,6 @@ self.addEventListener("message", async function (e) {
     } catch (error) {
       handleDecoderError(error.message);
     }
-
   } else if (type === "audioChunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
     const frame = frameWithHeader.subarray(

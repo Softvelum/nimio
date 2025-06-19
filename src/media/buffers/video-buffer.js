@@ -2,7 +2,6 @@ import LoggersFactory from "../../shared/logger.js";
 import { RingBuffer } from "../../shared/ring-buffer.js";
 
 export class VideoBuffer {
-
   constructor(instName, maxFrames = 100) {
     // TODO: length in uSec?
     this._frames = new RingBuffer(`${instName} Video`, maxFrames);
@@ -99,4 +98,3 @@ export class VideoBuffer {
     }
   }
 }
-

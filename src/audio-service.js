@@ -19,7 +19,7 @@ export class AudioService {
 
   smpCntToTsUs(smpCnt) {
     if (this._sampleRate === 0) return 0;
-    return smpCnt * 1000 / (this._sampleRate / 1000);
+    return (smpCnt * 1000) / (this._sampleRate / 1000);
   }
 
   get sampleRate() {
@@ -33,5 +33,4 @@ export class AudioService {
   get sampleCount() {
     return this._sampleCount;
   }
-
 }

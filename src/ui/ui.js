@@ -42,8 +42,8 @@ export class Ui {
     this.container.removeEventListener("mousemove", this._onMouseMove);
     this.container.removeEventListener("mouseout", this._onMouseOut);
     this.container.removeEventListener("click", this._onClick);
-    while( this.container.firstChild ) {
-      this.container.removeChild( this.container.firstChild );
+    while (this.container.firstChild) {
+      this.container.removeChild(this.container.firstChild);
     }
   }
 
@@ -101,7 +101,7 @@ export class Ui {
     clearTimeout(this.hideTimer);
 
     this.hideTimer = setTimeout(() => {
-      this.hideControls(true)
+      this.hideControls(true);
     }, 2000);
   }
 

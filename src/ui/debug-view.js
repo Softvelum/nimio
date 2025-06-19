@@ -1,6 +1,6 @@
 export class DebugView {
   constructor(parent, state, vBuffer) {
-    this._inst = document.createElement('div');
+    this._inst = document.createElement("div");
     this._inst.classList.add("debug-overlay");
     parent.appendChild(this._inst);
     this._state = state;

@@ -1,14 +1,15 @@
-import { SharedAudioBuffer } from './shared-audio-buffer.js';
+import { SharedAudioBuffer } from "./shared-audio-buffer.js";
 
 export class ReadableAudioBuffer extends SharedAudioBuffer {
-
   read(startTsNs, endTsNs, outputChannels, step = 1.0) {
     if (outputChannels.length !== this.numChannels) {
       throw new Error("outputChannels must match numChannels");
     }
 
-    let readStartIdx = null, readEndIdx = null;
-    let readStartOffset = null, readEndOffset = null;
+    let readStartIdx = null;
+    let readEndIdx = null;
+    let readStartOffset = null;
+    let readEndOffset = null;
     let skipIdx = null;
     this.forEach((frameStartTs, data, idx, left) => {
       let frameStartTsNs = frameStartTs * 1000;
@@ -18,15 +19,18 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       }
 
       if (
-        (frameStartTsNs - this.sampleNs / 4 <= startTsNs) &&
-        (startTsNs < frameEndTsNs)
+        frameStartTsNs - this.sampleNs / 4 <= startTsNs &&
+        startTsNs < frameEndTsNs
       ) {
         readStartIdx = idx;
         readStartOffset = (startTsNs - frameStartTsNs) * this.sampleRate;
         if (readStartOffset < 0) readStartOffset = 0;
         readStartOffset = (readStartOffset / 1e9 + 0.5) >>> 0;
       }
-      if (frameStartTsNs < endTsNs && endTsNs <= frameEndTsNs + this.sampleNs / 4) {
+      if (
+        frameStartTsNs < endTsNs &&
+        endTsNs <= frameEndTsNs + this.sampleNs / 4
+      ) {
         readEndIdx = idx;
         readEndOffset = (endTsNs - frameStartTsNs) * this.sampleRate;
         readEndOffset = (readEndOffset / 1e9 + 0.5) >>> 0;
@@ -38,12 +42,14 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       skipIdx = idx;
     });
     if (readEndIdx !== null) {
-      this.setReadIdx(readEndOffset === this.sampleCount ? readEndIdx + 1 : readEndIdx);
+      this.setReadIdx(
+        readEndOffset === this.sampleCount ? readEndIdx + 1 : readEndIdx,
+      );
     } else if (readStartIdx !== null) {
       this.setReadIdx(readStartIdx + 1);
     } else if (skipIdx !== null) {
       this.setReadIdx(skipIdx);
-      console.log('No frames found in the requested range');
+      console.warn("No frames found in the requested range");
     }
 
     return this._fillOutput(
@@ -52,7 +58,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       readEndIdx,
       readStartOffset,
       readEndOffset,
-      step
+      step,
     );
   }
 
@@ -102,25 +108,34 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         -1,
         step,
       );
-      processed += endOffset
+      processed += endOffset;
     }
 
     if (startCount === null) {
-      console.log('Fill silence at the start', outputChannels[0].length - endCount);
+      console.warn(
+        "Fill silence at the start",
+        outputChannels[0].length - endCount,
+      );
       this._fillSilence(outputChannels, 0, outputChannels[0].length - endCount);
     } else if (endCount === null) {
-      console.log('Fill silence at the end', outputChannels[0].length - startCount);
+      console.warn(
+        "Fill silence at the end",
+        outputChannels[0].length - startCount,
+      );
       this._fillSilence(
         outputChannels,
         startCount,
-        outputChannels[0].length - startCount
+        outputChannels[0].length - startCount,
       );
     } else if (startCount + endCount < outputChannels[0].length) {
-      console.log('Fill silence in the middle', outputChannels[0].length - startCount - endCount);
+      console.warn(
+        "Fill silence in the middle",
+        outputChannels[0].length - startCount - endCount,
+      );
       this._fillSilence(
         outputChannels,
         startCount,
-        outputChannels[0].length - startCount - endCount
+        outputChannels[0].length - startCount - endCount,
       );
     }
 
@@ -169,5 +184,4 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
 
     return copiedCount;
   }
-
 }
