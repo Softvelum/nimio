@@ -1,7 +1,5 @@
 import { SharedAudioBuffer } from './shared-audio-buffer.js';
 
-let interruptions = 0;
-
 export class ReadableAudioBuffer extends SharedAudioBuffer {
 
   read(startTsNs, endTsNs, outputChannels, step = 1.0) {
@@ -39,15 +37,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       }
       skipIdx = idx;
     });
-    interruptions++;
-    if (interruptions % 10 === 0 && readStartIdx === readEndIdx) {
-      // this.timestamps[readEndIdx] -= (endTsNs - startTsNs) / 1000;
-      this.setReadIdx(readEndIdx);
-      for (let c = 0; c < this.numChannels; c++) {
-        outputChannels[c].fill(0);
-      }
-      return 0;
-    }
     if (readEndIdx !== null) {
       this.setReadIdx(readEndOffset === this.sampleCount ? readEndIdx + 1 : readEndIdx);
     } else if (readStartIdx !== null) {

@@ -6,6 +6,7 @@ import { VideoBuffer } from "./media/buffers/video-buffer.js";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
 import { createConfig } from "./player-config.js";
 import { AudioService } from "./audio-service.js";
+import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor.js";
 import LoggersFactory from "./shared/logger.js";
 
 export default class Nimio {
@@ -243,6 +244,12 @@ export default class Nimio {
           config.sampleRate,
           config.numberOfChannels,
           config.sampleCount
+        );
+        this._audioBuffer.addPreprocessor(
+          new AudioGapsProcessor(
+            this._audioService.sampleCount,
+            this._audioService.sampleRate
+          )
         );
         break;
       case "videoChunk":

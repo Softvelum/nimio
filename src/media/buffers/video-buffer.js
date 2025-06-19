@@ -5,7 +5,7 @@ export class VideoBuffer {
 
   constructor(instName, maxFrames = 100) {
     // TODO: length in uSec?
-    this._frames = new RingBuffer(instName, maxFrames);
+    this._frames = new RingBuffer(`${instName} Video`, maxFrames);
     this._logger = LoggersFactory.create(instName, "Video Buffer");
     this._firstFrameTs = this._lastFrameTs = 0;
   }

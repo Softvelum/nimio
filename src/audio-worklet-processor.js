@@ -33,7 +33,7 @@ class NimioProcessor extends AudioWorkletProcessor {
 
     this.available = 0;
     this.startThreshold = this.targetLatencyMs * 1000;
-    this.minThreshold = 0.75 * this.startThreshold;
+    this.minThreshold = 0.25 * this.startThreshold;
     this.speedFactor = 1.0;
   }
 
