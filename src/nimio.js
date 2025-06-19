@@ -57,7 +57,7 @@ export default class Nimio {
 
     this._initWorkers();
     this._audioWorkletReady = null;
-    this._audioService = new AudioService(this._state);
+    this._audioService = new AudioService(48000, 1, 1024); // default values
 
     if (this._config.autoplay) {
       this.play(true);
@@ -191,9 +191,9 @@ export default class Nimio {
         );
         frame.close();
 
-        this._state.setAvailableVideoMs(
-          ((this._videoBuffer.lastFrameTs - frame.timestamp) / 1000) >>> 0
-        );
+        let availableMs = (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
+        if (availableMs < 0) availableMs = 0;
+        this._state.setAvailableVideoMs(availableMs);
       }
     }
   }

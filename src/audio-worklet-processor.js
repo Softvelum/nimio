@@ -14,7 +14,6 @@ class NimioProcessor extends AudioWorkletProcessor {
       this.channelCount,
       this.fSampleCount
     );
-    // this.totalSampleRate = this.sampleRate * this.channelCount;
 
     this.targetLatencyMs = options.processorOptions.latency;
     this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1.2;
