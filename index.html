@@ -11,8 +11,8 @@
       type="text"
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
-      placeholder="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
-      value="ws://172.16.80.128:8081/test/test"
+      placeholder="ws:// or wss:// URL of the stream"
+      value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
     />
     <button
       id="initNimioButton"
@@ -37,7 +37,7 @@
           autoplay: true,
           width: 476,
           height: 268,
-          latency: 1000,
+          latency: 500,
           startOffset: 500,
           metricsOverlay: true,
           logLevel: "debug",
