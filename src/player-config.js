@@ -3,6 +3,7 @@ import LoggersFactory from "./shared/logger";
 const DEFAULTS = {
   streamUrl: null,
   container: null,
+  autoplay: false,
   width: 476,
   height: 268,
   latency: 200,
@@ -11,6 +12,7 @@ const DEFAULTS = {
   metricsOverlay: false,
   instanceName: null,
   logLevel: "warn",
+  fullBufferMs: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -44,6 +46,9 @@ export function createConfig(overrides = {}) {
   for (let i = 0; i < unknown.length; i++) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);
   }
+
+  target.fullBufferMs =
+    target.latency + target.startOffset + target.pauseTimeout;
 
   return new Proxy(target, {
     get(obj, prop) {

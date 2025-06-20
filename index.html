@@ -11,7 +11,7 @@
       type="text"
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
-      placeholder="wss URL..."
+      placeholder="ws:// or wss:// URL of the stream"
       value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
     />
     <button
@@ -28,20 +28,20 @@
       import Nimio from "/src/nimio.js";
 
       function initNimio() {
-        const streamUrl = document.getElementById("streamURL").value;
+        if (window.nimio) window.nimio.destroy();
 
-        if (undefined === window.nimio) {
-          window.nimio = new Nimio({
-            streamUrl: streamUrl,
-            container: "video",
-            width: 476,
-            height: 268,
-            latency: 500,
-            startOffset: 500,
-            metricsOverlay: true,
-            logLevel: "debug",
-          });
-        }
+        const streamUrl = document.getElementById("streamURL").value;
+        window.nimio = new Nimio({
+          streamUrl: streamUrl,
+          container: "video",
+          autoplay: true,
+          width: 476,
+          height: 268,
+          latency: 500,
+          startOffset: 500,
+          metricsOverlay: true,
+          logLevel: "debug",
+        });
       }
 
       document
