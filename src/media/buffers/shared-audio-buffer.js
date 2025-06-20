@@ -30,6 +30,7 @@ export class SharedAudioBuffer {
       this.frames[i] = new Float32Array(sharedBuffer, offset, this.frameSize);
       offset += this.frameBytes;
     }
+    this.temp = new Float32Array(this.frameSize);
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {

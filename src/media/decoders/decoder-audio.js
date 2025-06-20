@@ -2,16 +2,26 @@ import { RingBuffer } from "../../shared/ring-buffer.js";
 
 let audioDecoder;
 let timestampBuffer = new RingBuffer("Audio Decoder", 10_000);
+let lastTimestampUs = undefined;
+let frameDurationUs = undefined;
 
 let config = {};
 
 function processDecodedFrame(audioFrame) {
+  let rawTimestamp = timestampBuffer.pop();
+  let decTimestamp = audioFrame.timestamp;
+  if (decTimestamp === rawTimestamp && lastTimestampUs !== undefined) {
+    decTimestamp = lastTimestampUs + frameDurationUs;
+  }
+  lastTimestampUs = decTimestamp;
+
   self.postMessage(
     {
       type: "audioFrame",
       audioFrame: audioFrame,
       decoderQueue: audioDecoder.decodeQueueSize,
-      rawTimestamp: timestampBuffer.pop(),
+      rawTimestamp: rawTimestamp,
+      decTimestamp: decTimestamp,
     },
     [audioFrame],
   );
@@ -44,6 +54,7 @@ self.addEventListener("message", async function (e) {
         numberOfChannels: config.numberOfChannels,
         description: e.data.codecData,
       });
+      frameDurationUs = (1e6 * config.sampleCount) / config.sampleRate;
     } catch (error) {
       handleDecoderError(error.message);
     }

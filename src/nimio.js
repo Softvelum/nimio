@@ -305,6 +305,7 @@ export default class Nimio {
         break;
       case "audioFrame":
         e.data.audioFrame.rawTimestamp = e.data.rawTimestamp;
+        e.data.audioFrame.decTimestamp = e.data.decTimestamp;
         this._handleAudioFrame(e.data.audioFrame);
         this._state.setAudioDecoderQueue(e.data.decoderQueue);
         break;

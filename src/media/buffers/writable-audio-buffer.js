@@ -31,19 +31,35 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = audioFrame.rawTimestamp;
+    this.timestamps[writeIdx] = audioFrame.decTimestamp;
 
     if (audioFrame.format.endsWith("-planar")) {
       let offset = 0;
       for (let ch = 0; ch < this.numChannels; ch++) {
         audioFrame.copyTo(
           this.frames[writeIdx].subarray(offset, offset + this.sampleCount),
-          { planeIndex: ch },
+          { layout: "planar", planeIndex: ch },
         );
         offset += this.sampleCount;
       }
     } else {
-      audioFrame.copyTo(this.frames[writeIdx], { planeIndex: 0 });
+      if (this.numChannels === 1) {
+        audioFrame.copyTo(this.frames[writeIdx], {
+          layout: "planar",
+          planeIndex: 0,
+        });
+      } else {
+        audioFrame.copyTo(this.temp, { layout: "interleaved", planeIndex: 0 });
+        let channelOffset = 0;
+        for (let ch = 0; ch < this.numChannels; ch++) {
+          let elOffset = ch;
+          for (let i = 0; i < this.sampleCount; i++) {
+            this.frames[writeIdx][channelOffset + i] = this.temp[elOffset];
+            elOffset += this.numChannels;
+          }
+          channelOffset += this.sampleCount;
+        }
+      }
     }
 
     this.setWriteIdx(writeIdx + 1);
@@ -53,7 +69,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   pushSilence(timestamp) {
     const writeIdx = this.getWriteIdx();
     this.timestamps[writeIdx] = timestamp;
-    this.frames[writeIdx].fill(0);
+    this.frames[writeIdx].fill(0.0);
     this.setWriteIdx(writeIdx + 1);
     return true;
   }
