@@ -1,4 +1,4 @@
-import { StateManager } from "../state-manager";
+import { StateManager } from "@/state-manager";
 import { WEB } from "./data-types"
 
 const CONN_CLOSE_CODES = {
