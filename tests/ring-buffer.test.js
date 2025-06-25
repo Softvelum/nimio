@@ -1,15 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RingBuffer } from "../src/shared/ring-buffer";
-
-const mockLogger = {
-  error: vi.fn(),
-  warn: vi.fn(),
-};
-
-// Global mock of LoggersFactory
-globalThis.LoggersFactory = {
-  create: vi.fn(() => mockLogger),
-};
+import { mockLogger } from "./mocks/logger-mock";
+import { RingBuffer } from "@/shared/ring-buffer";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,8 +20,18 @@ describe("RingBuffer", () => {
     expect(rb.pop()).toBe(1);
     expect(rb.pop()).toBe(2);
     expect(rb.pop()).toBe(null); // empty now
-    console.log("Buffer after popping all items:", rb.toArray());
     expect(mockLogger.warn).toHaveBeenCalledWith("Can't pop from empty ring buffer");
+  });
+
+  it("puhes and pops sequentially", () => {
+    const rb = new RingBuffer("test", 2);
+    rb.push("a");
+    rb.push("b");
+    expect(rb.pop()).toBe("a");
+    rb.push("c");
+    expect(rb.pop()).toBe("b");
+    expect(rb.pop()).toBe("c");
+    expect(rb.pop()).toBe(null); // empty now
   });
 
   it("respects isEmpty and isFull", () => {
@@ -62,12 +63,32 @@ describe("RingBuffer", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith("Ring buffer is full. Overwriting the first item.");
   });
 
+  it("works correctly for edge case with force=true", () => {
+    const rb = new RingBuffer("test", 3);
+    rb.push("a");
+    rb.push("b");
+    rb.push("c");
+    expect(rb.pop()).toBe("a");
+    expect(rb.pop()).toBe("b");
+    rb.push("d");
+    rb.push("e");
+    rb.push("f", true); // should overwrite "c"
+    expect(mockLogger.warn).toHaveBeenCalledWith("Ring buffer is full. Overwriting the first item.");
+  });
+
   it("get returns correct item", () => {
     const rb = new RingBuffer("test", 3);
     rb.push("x");
     rb.push("y");
     expect(rb.get(0)).toBe("x");
     expect(rb.get(1)).toBe("y");
+    rb.push("z");
+    expect(rb.pop()).toBe("x");
+    expect(rb.pop()).toBe("y");
+    rb.push("a");
+    rb.push("b");
+    expect(rb.get(0)).toBe("z");
+    expect(rb.get(2)).toBe("b");
   });
 
   it("get handles empty or invalid indices", () => {
@@ -100,10 +121,36 @@ describe("RingBuffer", () => {
     expect(out).toEqual(["a", "b"]);
   });
 
+  it("forEach iterates in order circulary", () => {
+    const rb = new RingBuffer("test", 3);
+    rb.push("a");
+    rb.push("b");
+    rb.push("c");
+    rb.pop();
+    rb.pop();
+    rb.push("d");
+    rb.push("e");
+    const out = [];
+    rb.forEach((x) => out.push(x));
+    expect(out).toEqual(["c", "d", "e"]);
+  });
+
   it("toArray returns items in insertion order", () => {
     const rb = new RingBuffer("test", 3);
     rb.push(5);
     rb.push(6);
     expect(rb.toArray()).toEqual([5, 6]);
+  });
+
+  it("toArray returns items in insertion order circulary", () => {
+    const rb = new RingBuffer("test", 3);
+    rb.push(5);
+    rb.push(6);
+    rb.push(7);
+    rb.pop();
+    rb.pop();
+    rb.push(70);
+    rb.push(80);
+    expect(rb.toArray()).toEqual([7, 70, 80]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAACConfig } from '../src/media/parsers/aac-config-parser';
+import { parseAACConfig } from '@/media/parsers/aac-config-parser';
 
 describe('parseAACConfig', () => {
   it('throw if codecData length is less than 2', () => {
@@ -37,7 +37,7 @@ describe('parseAACConfig', () => {
       0x88,       // 10001000 => freqIndex low + sampleRate
       0x00,       // sampleRate
       0x80,       // sampleRate
-      0x78        // channel = (0x78 & 0x78) >> 3 = 2, sampleCount = 1024
+      0x78        // channel = (0x78 & 0x78) >> 3 = 15, sampleCount = 1024
     ]);
   
     const config = parseAACConfig(codecData);
@@ -46,6 +46,17 @@ describe('parseAACConfig', () => {
       sampleRate: 1048832,
       numberOfChannels: 15,
       sampleCount: 1024
+    });
+  });
+
+  it('config with freqIndex = 15 (explicit frequency) and audioObjectType = 31', () => {
+    const codecData = new Uint8Array([0xFF, 0xFE, 0x00, 0x80, 0x70, 0xF0]);
+    const config = parseAACConfig(codecData);
+    expect(config).toEqual({
+      audioObjectType: 31,
+      sampleRate: 16440,
+      numberOfChannels: 7,
+      sampleCount: 960,
     });
   });
 

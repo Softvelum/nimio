@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { resolve } from "path";
+import { resolve, path } from "path";
 import { execSync } from "child_process";
 import copy from "rollup-plugin-copy";
 
@@ -9,6 +9,11 @@ export default defineConfig({
   base: "./",
   define: {
     __NIMIO_VERSION__: JSON.stringify(version),
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+    },
   },
   build: {
     lib: {
@@ -36,6 +41,10 @@ export default defineConfig({
         }),
       ],
     },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
   },
   server: {
     host: "0.0.0.0",
