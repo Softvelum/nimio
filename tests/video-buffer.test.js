@@ -23,8 +23,21 @@ describe("VideoBuffer", () => {
     buffer.addFrame(f2, 2000);
     buffer.addFrame(f3, 3000);
 
-    const result = buffer.popFrameForTime(2500);
+    let result = buffer.popFrameForTime(2500);
     expect(result).toBe(f2);
+    result = buffer.popFrameForTime(3500);
+    expect(result).toBe(f3);
+  });
+
+  it("retrieves null if no frame is available for the requested time", () => {
+    const f1 = createMockFrame(1);
+    const f2 = createMockFrame(2);
+
+    buffer.addFrame(f1, 1000);
+    buffer.addFrame(f2, 2000);
+
+    const result = buffer.popFrameForTime(0);
+    expect(result).toBe(null);
   });
 
   it("disposes of older frames when overflowing", () => {
@@ -40,6 +53,18 @@ describe("VideoBuffer", () => {
 
     expect(f1.close).toHaveBeenCalled();
     expect(buffer.length).toBe(3);
+  });
+
+  it("gets proper last timestamp", () => {
+    const f1 = createMockFrame(1);
+    const f2 = createMockFrame(2);
+
+    buffer.addFrame(f1, 1000);
+    buffer.addFrame(f2, 2000);
+
+    const result = buffer.popFrameForTime(1000);
+    expect(result).toBe(f1);
+    expect(buffer.lastFrameTs).toBe(2000);
   });
 
   it("clears and disposes all frames", () => {

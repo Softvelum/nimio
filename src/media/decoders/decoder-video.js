@@ -6,6 +6,7 @@ const decodeTimings = new Map();
 const buffered = [];
 
 function processDecodedFrame(videoFrame) {
+  console.log('processDecodedFrame');
   const t0 = decodeTimings.get(videoFrame.timestamp);
   let latencyMs = 0;
   if (t0 != null) {
@@ -13,6 +14,7 @@ function processDecodedFrame(videoFrame) {
     decodeTimings.delete(videoFrame.timestamp);
   }
 
+  console.log('latency', latencyMs, t0);
   if (latencyMs > 600) {
     console.warn(
       `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`,
@@ -28,6 +30,7 @@ function processDecodedFrame(videoFrame) {
     },
     [videoFrame],
   );
+  console.log('post message video frame done');
 }
 
 function handleDecoderError(error) {
@@ -38,6 +41,7 @@ function handleDecoderError(error) {
 function pushChunk(data, ts) {
   const encodedChunk = new EncodedVideoChunk(data);
   videoDecoder.decode(encodedChunk);
+  console.log('pushChunk', encodedChunk.timestamp, ts);
   decodeTimings.set(encodedChunk.timestamp, ts || performance.now());
 }
 
@@ -95,11 +99,12 @@ self.addEventListener("message", async function (e) {
     if (!support || !support.supported) {
       // Buffer the chunk until the decoder is ready
       buffered.push({
-        ts: this.performance.now(),
+        ts: performance.now(),
         chunk: chunkData,
       });
       return;
     }
+
     if (buffered.length > 0) {
       // Process buffered chunks before the new one
       for (let i = 0; i < buffered.length; i++) {
