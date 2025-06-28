@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, vi, expect } from "vitest";
+import { describe, it, beforeEach, vi, expect, afterEach } from "vitest";
 
 let postMessageMock;
 let nowMock;
@@ -7,6 +7,9 @@ let configureMock;
 let isConfigSupportedMock;
 let VideoDecoderMock;
 let EncodedVideoChunkMock;
+let outputTimeout;
+let skipOutput;
+let errorCallback;
 
 function setupWorkerGlobals() {
   const eventTarget = new EventTarget();
@@ -26,8 +29,15 @@ function setupWorkerGlobals() {
   });
 
   VideoDecoderMock = vi.fn(({ output, error }) => {
+    errorCallback = error;
+    if (outputTimeout) {
+      clearTimeout(outputTimeout);
+      outputTimeout = null;
+    }
+
     setTimeout(() => {
-      console.log('run output mock', output);
+      outputTimeout = null;
+      if (skipOutput) return;
       output({ timestamp: 1234, close: vi.fn() });
     }, 0);
 
@@ -41,16 +51,22 @@ function setupWorkerGlobals() {
 
   globalThis.VideoDecoder = VideoDecoderMock;
   globalThis.EncodedVideoChunk = EncodedVideoChunkMock;
+
+  skipOutput = false;
 }
 
-describe("decoderVideo worker", () => {
+describe("decoder-video", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.resetModules();
     vi.clearAllMocks();
     setupWorkerGlobals();
   });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-  it("should configure the decoder and process codecData", async () => {
+  it("configures the decoder and processes codecData", async () => {
     await import("@/media/decoders/decoder-video.js");
 
     globalThis.dispatchEvent(
@@ -76,7 +92,7 @@ describe("decoderVideo worker", () => {
     expect(configureMock).toHaveBeenCalled();
   });
 
-  it.only("should buffer and decode video frames when ready", async () => {
+  it("buffers and decode video frames when ready", async () => {
     await import("@/media/decoders/decoder-video.js");
 
     globalThis.dispatchEvent(
@@ -98,7 +114,6 @@ describe("decoderVideo worker", () => {
     );
 
     await Promise.resolve();
-
     const frameWithHeader = new Uint8Array([10, 20, 30, 40]);
     globalThis.dispatchEvent(
       new MessageEvent("message", {
@@ -114,13 +129,15 @@ describe("decoderVideo worker", () => {
 
     expect(decodeMock).toHaveBeenCalled();
     await Promise.resolve(); // wait for async decode
+
+    vi.runAllTimers();
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({ type: "videoFrame" }),
       expect.any(Array)
     );
   });
 
-  it("should warn on high latency frames", async () => {
+  it("warns on high latency frames", async () => {
     nowMock
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(1000 + 700); // latency = 700ms
@@ -160,9 +177,10 @@ describe("decoderVideo worker", () => {
         },
       })
     );
+    vi.runAllTimers();
   });
   
-  it("should fallback to software decoding if hardware is not supported", async () => {
+  it("fallbacks to software decoding if hardware is not supported", async () => {
     isConfigSupportedMock
       .mockResolvedValueOnce({ supported: false }) // hardware not supported
       .mockResolvedValueOnce({ supported: true }); // software supported
@@ -193,7 +211,8 @@ describe("decoderVideo worker", () => {
     expect(configureMock).toHaveBeenCalled();
   });
   
-  it("should report decoderError if codec unsupported", async () => {
+  it("reports decoderError if codec unsupported", async () => {
+    skipOutput = true;
     isConfigSupportedMock
       .mockResolvedValueOnce({ supported: false })
       .mockResolvedValueOnce({ supported: false });
@@ -226,7 +245,7 @@ describe("decoderVideo worker", () => {
     });
   });
   
-  it("should buffer frames before decoder is ready", async () => {
+  it("buffers frames before decoder is ready", async () => {
     await import("@/media/decoders/decoder-video.js");
 
     // Setup and trigger decoder
@@ -245,7 +264,7 @@ describe("decoderVideo worker", () => {
       new MessageEvent("message", {
         data: {
           type: "videoChunk",
-          timestamp: 111,
+          timestamp: null,
           chunkType: "key",
           frameWithHeader,
           framePos: 0,
@@ -276,8 +295,38 @@ describe("decoderVideo worker", () => {
         },
       })
     );
-  
-    // Buffered frames should now be decoded
+
+    vi.runAllTimers();
     expect(decodeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles decoder error", async () => {
+    await import("@/media/decoders/decoder-video.js");
+  
+    globalThis.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "videoConfig",
+          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+        },
+      })
+    );
+
+    globalThis.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "codecData",
+          codecData: new Uint8Array([1, 2, 3]),
+        },
+      })
+    );
+  
+    // Simulate decoder error
+    errorCallback(new Error("Something went wrong"));
+  
+    expect(globalThis.postMessage).toHaveBeenCalledWith({
+      type: "decoderError",
+      kind: "video",
+    });
   });
 });
