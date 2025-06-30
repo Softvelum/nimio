@@ -1,4 +1,4 @@
-import { StateManager } from "../state_manager.js";
+import { StateManager } from "../state-manager.js";
 
 const WEB_AAC_SEQUENCE_HEADER = 0;
 const WEB_AAC_FRAME = 1;
@@ -107,8 +107,8 @@ function processFrame(event) {
         dataPos += 8;
       }
 
-      tsSec = timestamp / timescale.audio;
-      tsUs = 1_000_000 * tsSec;
+      tsSec = timestamp / (timescale.audio / 1000);
+      tsUs = 1000 * tsSec;
 
       self.postMessage({
         type: "audioChunk",
@@ -137,8 +137,8 @@ function processFrame(event) {
         dataPos += 4;
       }
 
-      tsSec = (timestamp + compositionOffset) / timescale.video;
-      tsUs = 1_000_000 * tsSec;
+      tsSec = (timestamp + compositionOffset) / (timescale.video / 1000);
+      tsUs = 1000 * tsSec;
 
       self.postMessage(
         {
@@ -168,16 +168,14 @@ function processStatus(e) {
   const [width, height] = resolution.split("x").map(Number);
 
   streams = [];
+  let vconfig = null;
   if (status.info[0].stream_info.vcodec) {
+    vconfig = {
+      width: width,
+      height: height,
+      codec: status.info[0].stream_info.vcodec,
+    };
     timescale.video = +status.info[0].stream_info.vtimescale;
-    self.postMessage({
-      type: "videoConfig",
-      videoConfig: {
-        width: width,
-        height: height,
-        codec: status.info[0].stream_info.vcodec,
-      },
-    });
 
     streams.push({
       type: "video",
@@ -187,6 +185,10 @@ function processStatus(e) {
       sn: 0,
     });
   }
+  self.postMessage({
+    type: "videoConfig",
+    videoConfig: vconfig,
+  });
 
   let aconfig = null;
   if (status.info[0].stream_info.acodec) {
@@ -235,12 +237,17 @@ self.onmessage = (e) => {
         processStatus(ws_event);
       }
     };
-  } else if (type === "stop" && streams.length > 0) {
-    socket.send(
-      JSON.stringify({
-        command: "Cancel",
-        streams: streams.map((s) => s.sn),
-      }),
-    );
+  } else if (type === "stop") {
+    if (streams.length > 0) {
+      socket.send(
+        JSON.stringify({
+          command: "Cancel",
+          streams: streams.map((s) => s.sn),
+        }),
+      );
+    }
+    if (e.data.close) {
+      socket.close();
+    }
   }
 };
