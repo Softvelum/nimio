@@ -240,7 +240,7 @@ self.onmessage = (e) => {
         }),
       );
     }
-    if (e.data.closeSocket) {
+    if (e.data.close) {
       socket.close();
     }
   }
