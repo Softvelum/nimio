@@ -1,4 +1,4 @@
-import { SharedAudioBuffer } from "./shared-audio-buffer.js";
+import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class ReadableAudioBuffer extends SharedAudioBuffer {
   read(startTsNs, endTsNs, outputChannels, step = 1.0) {
