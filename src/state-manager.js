@@ -168,8 +168,9 @@ export class StateManager {
 
       if (newLow >= U32POWER) {
         newLow = newLow >>> 0;
-        newHigh = (high + 1) >>> 0;
+        newHigh = high + 1;
       }
+
       if (newHigh >= U32POWER) {
         throw new Error("Resulting value exceeds 64 bits");
       }
