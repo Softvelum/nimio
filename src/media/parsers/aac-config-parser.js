@@ -12,16 +12,15 @@ export function parseAACConfig(codecData) {
 
   let objectType = data[0] >> 3;
   let freqIndex = 0;
-  if (31 == objectType) {
+  if (31 === objectType) {
     freqIndex = (data[1] >> 1) & 0x0f;
   } else {
     freqIndex = ((data[0] & 0x07) << 1) | (data[1] >> 7);
   }
 
   let config = { audioObjectType: objectType };
-
-  if (15 == freqIndex) {
-    if (31 == objectType) {
+  if (15 === freqIndex) {
+    if (31 === objectType) {
       config.sampleRate =
         ((((data[1] & 0x01) << 7) | (data[2] >> 1)) << 16) |
         ((((data[2] & 0x01) << 7) | (data[3] >> 1)) << 8) |
@@ -38,7 +37,7 @@ export function parseAACConfig(codecData) {
     }
   } else {
     config.sampleRate = samplingFrequencies[freqIndex];
-    if (31 == objectType) {
+    if (31 === objectType) {
       config.numberOfChannels = ((data[1] & 0x01) << 3) | (data[2] >> 5);
       config.sampleCount = samplesPerFrames[(data[2] & 0x10) >> 4];
     } else {

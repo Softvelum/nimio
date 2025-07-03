@@ -1,9 +1,9 @@
-import { RingBuffer } from "../../shared/ring-buffer.js";
+import { RingBuffer } from "@/shared/ring-buffer.js";
 
 let audioDecoder;
+let lastTimestampUs;
+let frameDurationUs;
 let timestampBuffer = new RingBuffer("Audio Decoder", 10_000);
-let lastTimestampUs = undefined;
-let frameDurationUs = undefined;
 
 let config = {};
 

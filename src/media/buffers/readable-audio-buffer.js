@@ -1,4 +1,4 @@
-import { SharedAudioBuffer } from "./shared-audio-buffer.js";
+import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class ReadableAudioBuffer extends SharedAudioBuffer {
   read(startTsNs, endTsNs, outputChannels, step = 1.0) {
@@ -34,7 +34,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         readEndIdx = idx;
         readEndOffset = (endTsNs - frameStartTsNs) * this.sampleRate;
         readEndOffset = (readEndOffset / 1e9 + 0.5) >>> 0;
+        // TODO: this seems like never happens, but need some time to check
+        // Double-check this later if this situation is possible
         if (readEndOffset > this.sampleCount) {
+          console.error("readEndOffset exceeds sampleCount, capping it");
           readEndOffset = this.sampleCount;
         }
         return false; // range found, stop iterating
@@ -112,13 +115,13 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     }
 
     if (startCount === null) {
-      console.warn(
+      console.error(
         "Fill silence at the start",
         outputChannels[0].length - endCount,
       );
       this._fillSilence(outputChannels, 0, outputChannels[0].length - endCount);
     } else if (endCount === null) {
-      console.warn(
+      console.error(
         "Fill silence at the end",
         outputChannels[0].length - startCount,
       );
@@ -128,7 +131,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         outputChannels[0].length - startCount,
       );
     } else if (startCount + endCount < outputChannels[0].length) {
-      console.warn(
+      console.error(
         "Fill silence in the middle",
         outputChannels[0].length - startCount - endCount,
       );

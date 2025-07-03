@@ -1,4 +1,4 @@
-import LoggersFactory from "./logger.js";
+import LoggersFactory from "./logger";
 
 export class RingBuffer {
   constructor(instName, capacity) {

@@ -1,4 +1,4 @@
-import { SharedAudioBuffer } from "./shared-audio-buffer.js";
+import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class WritableAudioBuffer extends SharedAudioBuffer {
   constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
