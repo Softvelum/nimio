@@ -22,7 +22,7 @@ describe("decoderAudio worker", () => {
 
     postMessageMock = vi.fn();
     globalThis.postMessage = postMessageMock;
-    globalThis.performance = { now: nowMock = vi.fn(() => 1000) };
+    globalThis.performance = { now: (nowMock = vi.fn(() => 1000)) };
 
     decodeMock = vi.fn();
     configureMock = vi.fn();
@@ -62,7 +62,7 @@ describe("decoderAudio worker", () => {
           type: "audioConfig",
           audioConfig: { codec: "mp4a.40.2" },
         },
-      })
+      }),
     );
 
     globalThis.dispatchEvent(
@@ -77,7 +77,7 @@ describe("decoderAudio worker", () => {
             sampleCount: 1024,
           },
         },
-      })
+      }),
     );
 
     await Promise.resolve();
@@ -94,7 +94,7 @@ describe("decoderAudio worker", () => {
           type: "audioConfig",
           audioConfig: { codec: "mp4a.40.2" },
         },
-      })
+      }),
     );
 
     globalThis.dispatchEvent(
@@ -109,7 +109,7 @@ describe("decoderAudio worker", () => {
             sampleCount: 1024,
           },
         },
-      })
+      }),
     );
 
     await Promise.resolve();
@@ -124,7 +124,7 @@ describe("decoderAudio worker", () => {
           frameWithHeader,
           framePos: 1,
         },
-      })
+      }),
     );
 
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -135,12 +135,13 @@ describe("decoderAudio worker", () => {
         rawTimestamp: 1000,
         decTimestamp: 1000,
       }),
-      expect.any(Array)
+      expect.any(Array),
     );
   });
 
   it("passes computed timestamp if decoded one is different", async () => {
-    timestampBufferMock.pop = vi.fn()
+    timestampBufferMock.pop = vi
+      .fn()
       .mockReturnValueOnce(999)
       .mockReturnValueOnce(1000);
 
@@ -152,7 +153,7 @@ describe("decoderAudio worker", () => {
           type: "audioConfig",
           audioConfig: { codec: "mp4a.40.2" },
         },
-      })
+      }),
     );
 
     globalThis.dispatchEvent(
@@ -167,7 +168,7 @@ describe("decoderAudio worker", () => {
             sampleCount: 1024,
           },
         },
-      })
+      }),
     );
 
     await Promise.resolve();
@@ -180,7 +181,7 @@ describe("decoderAudio worker", () => {
           frameWithHeader: new Uint8Array([1, 2, 3]),
           framePos: 0,
         },
-      })
+      }),
     );
 
     globalThis.dispatchEvent(
@@ -191,7 +192,7 @@ describe("decoderAudio worker", () => {
           frameWithHeader: new Uint8Array([1, 2, 3]),
           framePos: 0,
         },
-      })
+      }),
     );
 
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -201,7 +202,7 @@ describe("decoderAudio worker", () => {
         rawTimestamp: 1000,
         decTimestamp: expect.any(Number),
       }),
-      expect.any(Array)
+      expect.any(Array),
     );
   });
 
@@ -218,7 +219,7 @@ describe("decoderAudio worker", () => {
           type: "audioConfig",
           audioConfig: { codec: "mp4a.40.2" },
         },
-      })
+      }),
     );
 
     globalThis.dispatchEvent(
@@ -233,7 +234,7 @@ describe("decoderAudio worker", () => {
             sampleCount: 1024,
           },
         },
-      })
+      }),
     );
 
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -245,16 +246,16 @@ describe("decoderAudio worker", () => {
 
   it("handles decoder error", async () => {
     await import("@/media/decoders/decoder-audio.js");
-  
+
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
           type: "audioConfig",
           audioConfig: { codec: "aac" },
         },
-      })
+      }),
     );
-  
+
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
@@ -267,12 +268,12 @@ describe("decoderAudio worker", () => {
             sampleCount: 1024,
           },
         },
-      })
+      }),
     );
-  
+
     // Simulate decoder error
     errorCallback(new Error("Something went wrong"));
-  
+
     expect(globalThis.postMessage).toHaveBeenCalledWith({
       type: "decoderError",
       kind: "audio",

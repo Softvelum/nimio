@@ -30,7 +30,12 @@ function createTestBuffer(options = {}) {
     numChannels = 2,
     sampleCount = 960,
   } = options;
-  return WritableAudioBuffer.allocate(bufferSec, sampleRate, numChannels, sampleCount);
+  return WritableAudioBuffer.allocate(
+    bufferSec,
+    sampleRate,
+    numChannels,
+    sampleCount,
+  );
 }
 
 describe("WritableAudioBuffer", () => {
@@ -67,7 +72,9 @@ describe("WritableAudioBuffer", () => {
   });
 
   it("pushFrame throws if audioFrame.numberOfFrames mismatch", () => {
-    const badFrame = createMockAudioFrame({ numberOfFrames: wab.sampleCount - 1 });
+    const badFrame = createMockAudioFrame({
+      numberOfFrames: wab.sampleCount - 1,
+    });
     expect(() => wab.pushFrame(badFrame)).toThrow(
       `audioFrame must contain ${wab.sampleCount} samples, got ${badFrame.numberOfFrames}`,
     );
@@ -127,12 +134,7 @@ describe("WritableAudioBuffer", () => {
   });
 
   it("pushFrame copies interleaved data correctly when numChannels == 1 and format is not planar", () => {
-    const singleChannelBuffer = WritableAudioBuffer.allocate(
-      1,
-      48000,
-      1,
-      960,
-    );
+    const singleChannelBuffer = WritableAudioBuffer.allocate(1, 48000, 1, 960);
     singleChannelBuffer.reset();
 
     const frame = createMockAudioFrame({
@@ -144,10 +146,13 @@ describe("WritableAudioBuffer", () => {
 
     singleChannelBuffer.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(singleChannelBuffer.frames[singleChannelBuffer.getWriteIdx() - 1], {
-      layout: "planar",
-      planeIndex: 0,
-    });
+    expect(spyCopyTo).toHaveBeenCalledWith(
+      singleChannelBuffer.frames[singleChannelBuffer.getWriteIdx() - 1],
+      {
+        layout: "planar",
+        planeIndex: 0,
+      },
+    );
   });
 
   it("pushFrame sets timestamp correctly and increments write index", () => {

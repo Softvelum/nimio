@@ -10,10 +10,10 @@ describe("createConfig", () => {
 
   it("throws if required config keys are missing", () => {
     expect(() => createConfig({})).toThrow(
-      'Config key "streamUrl" is required'
+      'Config key "streamUrl" is required',
     );
     expect(() => createConfig({ streamUrl: "x" })).toThrow(
-      'Config key "container" is required'
+      'Config key "container" is required',
     );
   });
 
@@ -40,10 +40,10 @@ describe("createConfig", () => {
     });
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Config key "wrong" is unknown'
+      'Config key "wrong" is unknown',
     );
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Config key "anotherWrong" is unknown'
+      'Config key "anotherWrong" is unknown',
     );
   });
 
@@ -64,7 +64,10 @@ describe("createConfig", () => {
       instanceName: "testPlayer",
     });
 
-    expect(LoggersFactory.create).toHaveBeenCalledWith("testPlayer", "Player config");
+    expect(LoggersFactory.create).toHaveBeenCalledWith(
+      "testPlayer",
+      "Player config",
+    );
   });
 
   it("proxy get warns when unknown key is accessed", () => {
@@ -76,7 +79,7 @@ describe("createConfig", () => {
     const unknownKey = config.nonExistent;
     expect(unknownKey).toBeUndefined();
     expect(mockLogger.error).toHaveBeenCalledWith(
-      'Config get unknown key "nonExistent"'
+      'Config get unknown key "nonExistent"',
     );
   });
 
@@ -91,7 +94,7 @@ describe("createConfig", () => {
     }).toThrow(TypeError);
 
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Config set unknown key "nonValidKey"'
+      'Config set unknown key "nonValidKey"',
     );
   });
 

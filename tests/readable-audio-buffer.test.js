@@ -10,12 +10,17 @@ function createTestBuffer(options = {}) {
   } = options;
 
   const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
-  const frameSize = (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
-  const sharedBuffer = new SharedArrayBuffer(
-    8 + frameSize * capacity,
-  );
+  const frameSize =
+    (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
+  const sharedBuffer = new SharedArrayBuffer(8 + frameSize * capacity);
 
-  return new ReadableAudioBuffer(sharedBuffer, capacity, sampleRate, numChannels, sampleCount);
+  return new ReadableAudioBuffer(
+    sharedBuffer,
+    capacity,
+    sampleRate,
+    numChannels,
+    sampleCount,
+  );
 }
 
 describe("ReadableAudioBuffer", () => {
@@ -66,7 +71,11 @@ describe("ReadableAudioBuffer", () => {
     rab.setWriteIdx(2);
 
     const out = [new Float32Array(960), new Float32Array(960)];
-    const result = rab.read(1000000 + frameNs / 2, 1000000 + 1.5 * frameNs, out);
+    const result = rab.read(
+      1000000 + frameNs / 2,
+      1000000 + 1.5 * frameNs,
+      out,
+    );
 
     expect(result).toBe(960);
     expect(out[0].slice(0, 480).every((x) => isClose(x, 0.3))).toBe(true);
@@ -101,18 +110,20 @@ describe("ReadableAudioBuffer", () => {
     rab.timestamps[0] = 0;
     rab.frames[0].fill(0.2);
     rab.setWriteIdx(1);
-  
+
     const out = [new Float32Array(1920), new Float32Array(1920)]; // 2 frames
     const result = rab.read(0, frameNs * 2 - 1, out);
-  
+
     expect(result).toBeGreaterThan(0);
-    expect(out[0].slice(0, 960).every((x) => Math.abs(x - 0.2) < 1e-6)).toBe(true);
+    expect(out[0].slice(0, 960).every((x) => Math.abs(x - 0.2) < 1e-6)).toBe(
+      true,
+    );
     // Expect the second half to be silence
     expect(out[0].slice(960).every((x) => x === 0)).toBe(true);
   });
 
   it("fills silence if no frame matched but skips index", () => {
-    rab.timestamps[0] = frameNs * 5 / 1000;
+    rab.timestamps[0] = (frameNs * 5) / 1000;
     rab.frames[0].fill(0.2);
     rab.setWriteIdx(1);
 
@@ -126,23 +137,28 @@ describe("ReadableAudioBuffer", () => {
     rab.timestamps[0] = 1000;
     rab.frames[0].fill(0.5);
     rab.setWriteIdx(1);
-  
+
     // startTsNs after the frame end, so no readStartIdx or readEndIdx
     const startTsNs = 1000_000 + frameNs + 1;
     const endTsNs = 1000_000 + 2 * frameNs;
-    const out = [new Float32Array(rab.sampleCount), new Float32Array(rab.sampleCount)];
+    const out = [
+      new Float32Array(rab.sampleCount),
+      new Float32Array(rab.sampleCount),
+    ];
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const processed = rab.read(startTsNs, endTsNs, out);
-  
+
     expect(processed).toBe(0);
     expect(rab.getReadIdx()).toBe(0);
-    expect(warnSpy).toHaveBeenCalledWith("No frames found in the requested range");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "No frames found in the requested range",
+    );
     warnSpy.mockRestore();
   });
 
   it("logs errors when filling silence partially (start, end, or middle)", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  
+
     // Setup 2 frames with timestamps so partial overlap occurs
     rab.timestamps[0] = 0;
     rab.timestamps[1] = frameNs / 1000;
@@ -163,26 +179,29 @@ describe("ReadableAudioBuffer", () => {
 
     const startTsNs = 0;
     const endTsNs = 1000 * 1000 + 1;
-    const out = [new Float32Array(rab.sampleCount), new Float32Array(rab.sampleCount)];
+    const out = [
+      new Float32Array(rab.sampleCount),
+      new Float32Array(rab.sampleCount),
+    ];
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  
+
     const processed = rab.read(startTsNs, endTsNs, out);
     expect(processed).toBe(0);
     expect(out[0].some((v) => v === 0)).toBe(true); // Some silence at start
     expect(errSpy).toHaveBeenCalledWith(
       "Fill silence at the start",
-      expect.any(Number)
+      expect.any(Number),
     );
     errSpy.mockRestore();
   });
-  
+
   it("fills silence in the middle when startCount + endCount < output length", () => {
     rab.timestamps[0] = 0;
     rab.timestamps[1] = (frameNs / 1000) * 10; // a gap
     rab.frames[0].fill(0.4);
     rab.frames[1].fill(0.6);
     rab.setWriteIdx(2);
-  
+
     const outLength = rab.sampleCount;
     const out = [new Float32Array(outLength), new Float32Array(outLength)];
     const step = 4;
@@ -192,12 +211,12 @@ describe("ReadableAudioBuffer", () => {
       0,
       rab.timestamps[1] * 1000 + frameNs / 2,
       out,
-      step
+      step,
     );
     expect(processed).toBeGreaterThan(0);
     expect(errSpy).toHaveBeenCalledWith(
       "Fill silence in the middle",
-      expect.any(Number)
+      expect.any(Number),
     );
     const hasSilence = out[0].some((v, i) => i > 0 && i < outLength && v === 0);
     expect(hasSilence).toBe(true);

@@ -82,14 +82,16 @@ describe("StateManager", () => {
 
   it("throws if 64-bit add overflows", () => {
     const idx = IDX.CURRENT_TS[0];
-    flags[idx] = 0xFFFFFFFF;
-    flags[idx + 1] = 0xFFFFFFFF;
-    expect(() => manager.incCurrentTsSmp(1)).toThrow("Resulting value exceeds 64 bits");
+    flags[idx] = 0xffffffff;
+    flags[idx + 1] = 0xffffffff;
+    expect(() => manager.incCurrentTsSmp(1)).toThrow(
+      "Resulting value exceeds 64 bits",
+    );
   });
 
   it("throws if added value >= 2^32", () => {
     expect(() => manager.incCurrentTsSmp(0x0100000000)).toThrow(
-      "Added value must be less than 2^32"
+      "Added value must be less than 2^32",
     );
   });
 
@@ -113,7 +115,7 @@ describe("StateManager", () => {
   it("increments currentTs correctly with overflow carry", () => {
     const idx = IDX.CURRENT_TS[0];
 
-    flags[idx] = 0xFFFFFFFE; // near max low 32-bits
+    flags[idx] = 0xfffffffe; // near max low 32-bits
     flags[idx + 1] = 0;
 
     manager.incCurrentTsSmp(3); // this should overflow low and add 1 to high
@@ -219,5 +221,4 @@ describe("StateManager", () => {
 
     Atomics.load = origLoad;
   });
-
 });

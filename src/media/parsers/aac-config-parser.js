@@ -13,7 +13,7 @@ export function parseAACConfig(codecData) {
   let objectType = data[0] >> 3;
   let freqIndex = 0;
   if (31 === objectType) {
-    freqIndex = (data[1] >> 1) & 0x0F;
+    freqIndex = (data[1] >> 1) & 0x0f;
   } else {
     freqIndex = ((data[0] & 0x07) << 1) | (data[1] >> 7);
   }
