@@ -13,6 +13,7 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "vitest",
+    "test:ci": "vitest run",
     "coverage": "npx vitest run --coverage tests"
   },
   "devDependencies": {
