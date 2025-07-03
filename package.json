@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
-    "test": "vitest"
+    "test": "vitest",
+    "coverage": "npx vitest run --coverage tests"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",
