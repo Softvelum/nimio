@@ -1,22 +1,24 @@
-import { StateManager } from "@/state-manager";
-import { WEB } from "./data-types"
+import { StateManager } from "../state-manager.js";
 
-const CONN_CLOSE_CODES = {
-  1000: 'CLOSE_NORMAL',
-  1001: 'CLOSE_GOING_AWAY',
-  1002: 'CLOSE_PROTOCOL_ERROR',
-  1003: 'CLOSE_UNSUPPORTED',
-  1005: 'CLOSE_NO_STATUS',
-  1006: 'CLOSE_ABNORMAL',
-  1007: 'Unsupported Data',
-  1008: 'Policy Violation',
-  1009: 'CLOSE_TOO_LARGE',
-  1010: 'Missing Extension',
-  1011: 'Internal Error',
-  1012: 'Service Restart',
-  1013: 'Try Again Later',
-  1015: 'TLS Handshake',
-};
+const WEB_AAC_SEQUENCE_HEADER = 0;
+const WEB_AAC_FRAME = 1;
+const WEB_AVC_SEQUENCE_HEADER = 2;
+const WEB_AVC_KEY_FRAME = 3;
+const WEB_AVC_FRAME = 4;
+const WEB_HEVC_SEQUENCE_HEADER = 5;
+const WEB_HEVC_KEY_FRAME = 6;
+const WEB_HEVC_FRAME = 7;
+const WEB_VP6_KEY_FRAME = 8;
+const WEB_VP6_FRAME = 9;
+const WEB_VP8_KEY_FRAME = 10;
+const WEB_VP8_FRAME = 11;
+const WEB_VP9_KEY_FRAME = 12;
+const WEB_VP9_FRAME = 13;
+const WEB_MP3 = 14;
+const WEB_OPUS_FRAME = 15;
+const WEB_AV1_SEQUENCE_HEADER = 16;
+const WEB_AV1_KEY_FRAME = 17;
+const WEB_AV1_FRAME = 18;
 
 let socket;
 
@@ -39,6 +41,40 @@ function logbin(bin) {
   );
 }
 
+function readInt(buffer, offset, length) {
+  if (length === 4) {
+    // Read a 32-bit unsigned int (big-endian)
+    return (
+      ((buffer[offset] << 24) |
+        (buffer[offset + 1] << 16) |
+        (buffer[offset + 2] << 8) |
+        buffer[offset + 3]) >>>
+      0
+    ); // Ensure unsigned 32-bit
+  } else if (length === 8) {
+    // Read a 64-bit unsigned int (big-endian)
+    const high =
+      ((buffer[offset] << 24) |
+        (buffer[offset + 1] << 16) |
+        (buffer[offset + 2] << 8) |
+        buffer[offset + 3]) >>>
+      0; // High part (32 bit)
+    const low =
+      ((buffer[offset + 4] << 24) |
+        (buffer[offset + 5] << 16) |
+        (buffer[offset + 6] << 8) |
+        buffer[offset + 7]) >>>
+      0; // Low part (32 bit)
+    // Mask high part to fit within 53-bit safe integer range
+    const maskedHigh = high & 0x001fffff;
+    // Combine high and low parts
+    return maskedHigh * 2 ** 32 + low;
+  } else {
+    console.error("Unsupported length!");
+    return null;
+  }
+}
+
 function processFrame(event) {
   let frameWithHeader = new Uint8Array(event.data);
   let trackId = frameWithHeader[0];
@@ -52,24 +88,22 @@ function processFrame(event) {
     tsUs,
     isKey = false;
   switch (frameType) {
-    case WEB.AAC_SEQUENCE_HEADER:
-    case WEB.AVC_SEQUENCE_HEADER:
-    case WEB.HEVC_SEQUENCE_HEADER:
-    case WEB.AV1_SEQUENCE_HEADER:
+    case WEB_AAC_SEQUENCE_HEADER:
+    case WEB_AVC_SEQUENCE_HEADER:
+    case WEB_HEVC_SEQUENCE_HEADER:
+    case WEB_AV1_SEQUENCE_HEADER:
       let codecData = frameWithHeader.subarray(2, frameSize);
       let type =
-        frameType === WEB.AAC_SEQUENCE_HEADER
+        frameType === WEB_AAC_SEQUENCE_HEADER
           ? "audioCodecData"
           : "videoCodecData";
       self.postMessage({ type: type, codecData: codecData });
       break;
-    case WEB.MP3:
-    case WEB.OPUS_FRAME:
-    case WEB.AAC_FRAME:
-      timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
+    case WEB_AAC_FRAME:
+      timestamp = readInt(frameWithHeader, 2, 8);
 
       if (steady) {
-        showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
+        showTime = readInt(frameWithHeader, dataPos, 8);
         dataPos += 8;
       }
 
@@ -83,23 +117,23 @@ function processFrame(event) {
         framePos: dataPos,
       });
       break;
-    case WEB.AVC_KEY_FRAME:
-    case WEB.HEVC_KEY_FRAME:
-    case WEB.AV1_KEY_FRAME:
+    case WEB_AVC_KEY_FRAME:
+    case WEB_HEVC_KEY_FRAME:
+    case WEB_AV1_KEY_FRAME:
       isKey = true;
-    case WEB.AVC_FRAME:
-    case WEB.HEVC_FRAME:
-    case WEB.AV1_FRAME:
-      timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
+    case WEB_AVC_FRAME:
+    case WEB_HEVC_FRAME:
+    case WEB_AV1_FRAME:
+      timestamp = readInt(frameWithHeader, 2, 8);
 
       if (steady) {
-        showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
+        showTime = readInt(frameWithHeader, dataPos, 8);
         dataPos += 8;
       }
 
       let compositionOffset = 0;
-      if (frameType !== WEB.AV1_KEY_FRAME && frameType !== WEB.AV1_FRAME) {
-        compositionOffset = ByteReader.readUint(frameWithHeader, dataPos, 4);
+      if (frameType !== WEB_AV1_KEY_FRAME && frameType !== WEB_AV1_FRAME) {
+        compositionOffset = readInt(frameWithHeader, dataPos, 4);
         dataPos += 4;
       }
 
@@ -182,7 +216,7 @@ function processStatus(e) {
 }
 
 let stateManager;
-let curSocketId = 0;
+
 self.onmessage = (e) => {
   var type = e.data.type;
 
@@ -193,44 +227,16 @@ self.onmessage = (e) => {
 
     socket = new WebSocket(e.data.url, e.data.protocols);
     socket.binaryType = "arraybuffer";
-    socket.id = ++curSocketId;
 
-    socket.onmessage = (wsEv) => {
+    socket.onmessage = (ws_event) => {
       if (stateManager.isStopped()) return;
 
-      if (wsEv.data instanceof ArrayBuffer) {
-        processFrame(wsEv);
+      if (ws_event.data instanceof ArrayBuffer) {
+        processFrame(ws_event);
       } else {
-        processStatus(wsEv);
+        processStatus(ws_event);
       }
     };
-
-    socket.onopen = () => {
-      console.debug(`Connection established for socket id = ${this.id}`);
-    };
-    
-    socket.onclose = (wsEv) => {
-      let act = wsEv.wasClean ? 'closed' : 'dropped';
-      console.debug(`Connection was ${act} for socket id ${this.id}`);
-      let codeHuman = CONN_CLOSE_CODES[wsEv.code] || '';
-      console.debug(
-        `Close code ${wsEv.code} (${codeHuman}), reason: ${wsEv.reason}`
-      );
-
-      if (this.id === curSocketId) {
-        // TODO: check if it's necessary verify readyState
-        if( 3 === socket.readyState ) {
-          socket = undefined;
-        }
-      }
-
-      if (!wsEv.wasClean) {
-        self.postMessage({
-          type: 'disconnect'
-        });
-      }
-    };
-
   } else if (type === "stop") {
     if (streams.length > 0) {
       socket.send(
