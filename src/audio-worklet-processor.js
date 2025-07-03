@@ -1,9 +1,14 @@
 import { StateManager } from "./state-manager.js";
 import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer.js";
 import { AudioService } from "./audio-service.js";
+import LoggersFactory from "./shared/logger.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
+    this._logger = LoggersFactory.create(
+      options.processorOptions.instanceName, "Audio worklet"
+    );
+
     super(options);
     this.stateManager = new StateManager(options.processorOptions.stateSab);
     this.sampleRate = options.processorOptions.sampleRate;
@@ -67,7 +72,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     ) {
       this._insertSilence(out, chCnt);
       const durationMs = ((1e6 * sampleCount) / this.sampleRate + 0.5) >>> 0;
-      console.debug("Insert silence: ", durationMs);
+      this._logger.debug("Insert silence: ", durationMs);
       // TODO: use 64-bit value for storing silence duration
       this.stateManager.incSilenceUs(durationMs);
     } else {

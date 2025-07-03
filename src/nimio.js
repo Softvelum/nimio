@@ -1,6 +1,7 @@
 import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import { IDX } from "./shared/values.js";
 import { StateManager } from "./state-manager.js";
+import { SLDPAgent } from "./sldp/agent.js";
 import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./media/buffers/video-buffer.js";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
@@ -58,6 +59,7 @@ export default class Nimio {
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
+    this._sldpAgent = new SLDPAgent(this._sab);
     this._initWorkers();
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values
@@ -83,12 +85,7 @@ export default class Nimio {
     requestAnimationFrame(this._renderVideoFrame);
 
     if (!resumeFromPause) {
-      this._webSocketWorker.postMessage({
-        type: "initWebSocket",
-        url: this._config.streamUrl,
-        protocols: ["sldp.softvelum.com"],
-        startOffset: this._config.startOffset,
-      });
+      this._sldpAgent.start(this._config.streamUrl, this._config.startOffset);
       if (this._debugView) {
         this._debugView.start();
       }
@@ -107,10 +104,7 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
-    this._webSocketWorker.postMessage({
-      type: "stop",
-      close: !!closeConnection,
-    });
+    this._sldpAgent.stop(!!closeConnection);
     if (this._debugView) {
       this._debugView.stop();
     }
@@ -165,15 +159,6 @@ export default class Nimio {
     this._audioDecoderWorker.addEventListener("message", (e) => {
       this._processWorkerMessage(e);
     });
-
-    this._webSocketWorker = new Worker(
-      new URL("./transport/web-socket.js", import.meta.url),
-      { type: "module" },
-    );
-    this._webSocketWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-    this._webSocketWorker.postMessage({ type: "initShared", sab: this._sab });
   }
 
   _renderVideoFrame() {
