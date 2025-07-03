@@ -3,7 +3,12 @@ import { resolve } from "path";
 import { execSync } from "child_process";
 import copy from "rollup-plugin-copy";
 
-const version = execSync("git describe --tags").toString().trim();
+let version = 'unknown'
+try {
+  version = execSync("git describe --tags").toString().trim();
+} catch (e) {
+  console.error('No git tags found, using version = unknown')
+}
 
 export default defineConfig({
   base: "./",
