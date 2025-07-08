@@ -1,5 +1,15 @@
+import { WEB } from "./data-types"
+
 export class SLDPAgent {
   constructor(sab) {
+    this._streams = [];
+    this._timescale = {
+      audio: null,
+      video: null,
+    };
+    this._steady = false;
+    this._startOffset = 0;
+
     this._webSocketWorker = new Worker(
       new URL("@/transport/web-socket.js", import.meta.url),
       { type: "module" },
@@ -26,119 +36,137 @@ export class SLDPAgent {
     });
   }
 
-  _processWorkerMessage(e) {
-    const type = e.data.type;
-    switch (type) {
-      case "videoConfig":
-        if (!e.data.videoConfig) {
-          this._noVideo = true;
-          break;
+  _processFrame(event) {
+    let frameWithHeader = new Uint8Array(event.data);
+    let trackId = frameWithHeader[0];
+    let frameType = frameWithHeader[1];
+    let showTime = 0;
+    let dataPos = 10;
+    let frameSize = frameWithHeader.byteLength;
+    let timestamp;
+  
+    let tsSec,
+      tsUs,
+      isKey = false;
+    switch (frameType) {
+      case WEB.AAC_SEQUENCE_HEADER:
+      case WEB.AVC_SEQUENCE_HEADER:
+      case WEB.HEVC_SEQUENCE_HEADER:
+      case WEB.AV1_SEQUENCE_HEADER:
+        let codecData = frameWithHeader.subarray(2, frameSize);
+        let type =
+          frameType === WEB.AAC_SEQUENCE_HEADER
+            ? "audioCodecData"
+            : "videoCodecData";
+        self.postMessage({ type: type, codecData: codecData });
+        break;
+      case WEB.MP3:
+      case WEB.OPUS_FRAME:
+      case WEB.AAC_FRAME:
+        timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
+  
+        if (steady) {
+          showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
+          dataPos += 8;
         }
-        this._videoDecoderWorker.postMessage({
-          type: "videoConfig",
-          videoConfig: e.data.videoConfig,
+  
+        tsSec = timestamp / (timescale.audio / 1000);
+        tsUs = 1000 * tsSec;
+  
+        self.postMessage({
+          type: "audioChunk",
+          timestamp: tsUs,
+          frameWithHeader: frameWithHeader.buffer,
+          framePos: dataPos,
         });
         break;
-      case "audioConfig":
-        if (!e.data.audioConfig) {
-          this._startNoAudioMode();
-          break;
+      case WEB.AVC_KEY_FRAME:
+      case WEB.HEVC_KEY_FRAME:
+      case WEB.AV1_KEY_FRAME:
+        isKey = true;
+      case WEB.AVC_FRAME:
+      case WEB.HEVC_FRAME:
+      case WEB.AV1_FRAME:
+        timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
+  
+        if (steady) {
+          showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
+          dataPos += 8;
         }
-        this._audioDecoderWorker.postMessage({
-          type: "audioConfig",
-          audioConfig: e.data.audioConfig,
-        });
-        break;
-      case "videoCodecData":
-        this._videoDecoderWorker.postMessage({
-          type: "codecData",
-          codecData: e.data.codecData,
-        });
-        break;
-      case "audioCodecData":
-        if (this._noAudio) {
-          this._stopAudio();
+  
+        let compositionOffset = 0;
+        if (frameType !== WEB.AV1_KEY_FRAME && frameType !== WEB.AV1_FRAME) {
+          compositionOffset = ByteReader.readUint(frameWithHeader, dataPos, 4);
+          dataPos += 4;
         }
 
-        let config = this._audioService.parseAudioConfig(e.data.codecData);
-        this._audioDecoderWorker.postMessage({
-          type: "codecData",
-          codecData: e.data.codecData,
-          aacConfig: config,
-        });
-
-        this._audioBuffer = WritableAudioBuffer.allocate(
-          this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
-          config.sampleRate,
-          config.numberOfChannels,
-          config.sampleCount,
-        );
-        this._audioBuffer.addPreprocessor(
-          new AudioGapsProcessor(
-            this._audioService.sampleCount,
-            this._audioService.sampleRate,
-          ),
-        );
-        break;
-      case "videoChunk":
-        this._videoDecoderWorker.postMessage(
+        tsSec = (timestamp + compositionOffset) / (timescale.video / 1000);
+        tsUs = 1000 * tsSec;
+  
+        self.postMessage(
           {
             type: "videoChunk",
-            timestamp: e.data.timestamp,
-            chunkType: e.data.chunkType,
-            frameWithHeader: e.data.frameWithHeader,
-            framePos: e.data.framePos,
+            timestamp: tsUs,
+            chunkType: isKey ? "key" : "delta",
+            frameWithHeader: frameWithHeader.buffer,
+            framePos: dataPos,
           },
-          [e.data.frameWithHeader],
+          [frameWithHeader.buffer],
         );
-        break;
-      case "audioChunk":
-        this._audioDecoderWorker.postMessage(
-          {
-            type: "audioChunk",
-            timestamp: e.data.timestamp,
-            frameWithHeader: e.data.frameWithHeader,
-            framePos: e.data.framePos,
-          },
-          [e.data.frameWithHeader],
-        );
-        break;
-      case "videoFrame":
-        let frame = e.data.videoFrame;
-        let frameTsUs = frame.timestamp;
-        if (
-          null === this._firstFrameTsUs &&
-          (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5)
-        ) {
-          this._firstFrameTsUs = frameTsUs;
-          this._state.setPlaybackStartTsUs(frameTsUs);
-
-          if (!this._noAudio) {
-            this._startNoAudioMode();
-          }
-        }
-        this._videoBuffer.addFrame(frame, frameTsUs);
-        this._state.setVideoLatestTsUs(frameTsUs);
-        this._state.setVideoDecoderQueue(e.data.decoderQueue);
-        this._state.setVideoDecoderLatency(e.data.decoderLatency);
-        break;
-      case "audioFrame":
-        e.data.audioFrame.rawTimestamp = e.data.rawTimestamp;
-        e.data.audioFrame.decTimestamp = e.data.decTimestamp;
-        this._handleAudioFrame(e.data.audioFrame);
-        this._state.setAudioDecoderQueue(e.data.decoderQueue);
-        break;
-      case "decoderError":
-        // TODO: show error message in UI
-        if (e.data.kind === "video") this._noVideo = true;
-        if (e.data.kind === "audio") this._noAudio = true;
-
-        if (this._noVideo && this._noAudio) {
-          this.stop(true);
-        }
         break;
       default:
         break;
     }
+  }
+
+  _processStatus(e) {
+    console.log("Command received", e.data);
+    const status = JSON.parse(e.data);
+    if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
+      console.error("Invalid status received:", status);
+      return;
+    }
+
+    const resolution = status.info[0].stream_info.resolution;
+    const [width, height] = resolution.split("x").map(Number);
+
+    let vconfig = null;
+    if (status.info[0].stream_info.vcodec) {
+      vconfig = {
+        width: width,
+        height: height,
+        codec: status.info[0].stream_info.vcodec,
+      };
+      timescale.video = +status.info[0].stream_info.vtimescale;
+
+      streams.push({
+        type: "video",
+        offset: `${startOffset}`,
+        steady: steady,
+        stream: status.info[0].stream,
+        sn: 0,
+      });
+    }
+    self.postMessage({
+      type: "videoConfig",
+      videoConfig: vconfig,
+    });
+
+    let aconfig = null;
+    if (status.info[0].stream_info.acodec) {
+      aconfig = { codec: status.info[0].stream_info.acodec };
+      timescale.audio = +status.info[0].stream_info.atimescale;
+      streams.push({
+        type: "audio",
+        offset: `${startOffset}`,
+        steady: steady,
+        stream: status.info[0].stream,
+        sn: 1,
+      });
+    }
+    self.postMessage({
+      type: "audioConfig",
+      audioConfig: aconfig,
+    });
   }
 }
