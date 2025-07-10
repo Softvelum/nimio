@@ -1,7 +1,7 @@
 import { WEB } from "./data-types"
 
 export class SLDPAgent {
-  constructor(sab) {
+  constructor() {
     this._streams = [];
     this._timescale = {
       audio: null,
@@ -10,30 +10,7 @@ export class SLDPAgent {
     this._steady = false;
     this._startOffset = 0;
 
-    this._webSocketWorker = new Worker(
-      new URL("@/transport/web-socket.js", import.meta.url),
-      { type: "module" },
-    );
-    this._webSocketWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-    this._webSocketWorker.postMessage({ type: "initShared", sab });
-  }
-
-  start (url, offset) {
-    this._webSocketWorker.postMessage({
-      type: "initWebSocket",
-      url: url,
-      protocols: ["sldp.softvelum.com"],
-      startOffset: offset,
-    });
-  }
-
-  stop (closeConnection) {
-    this._webSocketWorker.postMessage({
-      type: "stop",
-      close: closeConnection,
-    });
+    this._transport = transport;
   }
 
   _processFrame(event) {

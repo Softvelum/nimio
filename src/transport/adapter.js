@@ -1,29 +1,48 @@
 export class TransportAdapter {
-  constructor(workerScript) {
-    this.worker = new Worker(workerScript, { type: "module" });
-    this.callbacks = {};
-    this.worker.onmessage = (e) => this._handleMessage(e.data);
+  constructor(workerUrl) {
+    this._worker = new Worker(
+      new URL(workerUrl, import.meta.url),
+      { type: "module" }
+    );
+    this._callbacks = {};
+    this._worker.onmessage = (e) => this._handleMessage(e.data);
   }
 
-  init() {
-    this.worker.postMessage({ type: "INIT" });
+  start(url, offset) {
+    this._worker.postMessage({
+      type: "start",
+      url: url,
+      protocols: ["sldp.softvelum.com"],
+      startOffset: offset,
+    });
   }
 
-  onFrame(callback) {
-    this.callbacks["FRAME"] = callback;
+  stop (closeConnection) {
+    this._worker.postMessage({
+      type: "stop",
+      close: closeConnection,
+    });
   }
 
-  start() {
-    this.worker.postMessage({ type: "START" });
+  onVideoConfig(callback) {
+    this._callbacks["VIDEO_CONFIG"] = callback;
   }
 
-  stop() {
-    this.worker.postMessage({ type: "STOP" });
+  onVideoCodecData(callback) {
+    this._callbacks["VIDEO_CODEC"] = callback;
+  }
+
+  onAudioConfig(callback) {
+    this._callbacks["AUDIO_CONFIG"] = callback;
+  }
+
+  onAudioCodecData(callback) {
+    this._callbacks["AUDIO_CODEC"] = callback;
   }
 
   _handleMessage(msg) {
-    if (msg.type === "FRAME" && this.callbacks["FRAME"]) {
-      this.callbacks["FRAME"](msg.payload);
+    if (msg.type && this._callbacks[msg.type]) {
+      this._callbacks[msg.type](msg.data);
     }
   }
 }

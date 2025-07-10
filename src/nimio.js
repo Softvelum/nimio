@@ -59,6 +59,7 @@ export default class Nimio {
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
+    this._transport = new TransportAdapter("@/transport/web-socket.js");
     this._sldpAgent = new SLDPAgent(this._sab);
     this._initWorkers();
     this._audioWorkletReady = null;
@@ -200,26 +201,12 @@ export default class Nimio {
           this._noVideo = true;
           break;
         }
-        this._videoDecoderWorker.postMessage({
-          type: "videoConfig",
-          videoConfig: e.data.videoConfig,
-        });
         break;
       case "audioConfig":
         if (!e.data.audioConfig) {
           this._startNoAudioMode();
           break;
         }
-        this._audioDecoderWorker.postMessage({
-          type: "audioConfig",
-          audioConfig: e.data.audioConfig,
-        });
-        break;
-      case "videoCodecData":
-        this._videoDecoderWorker.postMessage({
-          type: "codecData",
-          codecData: e.data.codecData,
-        });
         break;
       case "audioCodecData":
         if (this._noAudio) {
@@ -244,29 +231,6 @@ export default class Nimio {
             this._audioService.sampleCount,
             this._audioService.sampleRate,
           ),
-        );
-        break;
-      case "videoChunk":
-        this._videoDecoderWorker.postMessage(
-          {
-            type: "videoChunk",
-            timestamp: e.data.timestamp,
-            chunkType: e.data.chunkType,
-            frameWithHeader: e.data.frameWithHeader,
-            framePos: e.data.framePos,
-          },
-          [e.data.frameWithHeader],
-        );
-        break;
-      case "audioChunk":
-        this._audioDecoderWorker.postMessage(
-          {
-            type: "audioChunk",
-            timestamp: e.data.timestamp,
-            frameWithHeader: e.data.frameWithHeader,
-            framePos: e.data.framePos,
-          },
-          [e.data.frameWithHeader],
         );
         break;
       case "videoFrame":

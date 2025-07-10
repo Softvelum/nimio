@@ -1,78 +1,132 @@
+const META = {
+  READ_OFFSET: 0,
+  WRITE_OFFSET: 1,
+  FRAME_COUNT: 2,
+  NOTIFY_FLAG: 3,
+  UNRELEASED_OFFSET: 4,
+  LAST_FRAME_START: 5,
+};
+
 export class SharedTransportBuffer {
-  constructor(sharedBuffer, metaBuffer, capacity) {
-    this.data = new Uint8Array(sharedBuffer);
-    this.meta = new Int32Array(metaBuffer); // readOffset, writeOffset, frameCount, notify
-    this.capacity = capacity; // size in bytes
-    this.offsets = []; // [{ offset, length }]
+  constructor(dataBuffer, metaBuffer, capacity) {
+    this._data = new Uint8Array(dataBuffer);
+    this._meta = new Uint32Array(metaBuffer); // META
+    this._view = new DataView(this._data.buffer);
+    this._capacity = capacity;
+    this._pending = [];
+  }
+
+  static allocate(bufferSec, frameSize, frameRate) {
+    if (!bufferSec || !frameSize || !frameRate) {
+      throw new Error("Invalid parameters for SharedTransportBuffer allocation");
+    }
+    
+    const capacity = Math.ceil(bufferSec * frameSize * frameRate);
+    const dataBuffer = new SharedArrayBuffer(capacity * Uint8Array.BYTES_PER_ELEMENT);
+    const metaCnt = Object.keys(META).length;
+    const metaBuffer = new SharedArrayBuffer(metaCnt * Uint32Array.BYTES_PER_ELEMENT);
+
+    return new this(
+      dataBuffer,
+      metaBuffer,
+      capacity,
+    );
   }
 
   write(frame) {
     const frameLength = frame.length;
-    if (frameLength + 4 > this.capacity) return false;
+    const totalSize = 4 + frameLength;
+    if (totalSize > this._capacity) return false;
 
-    const readOffset = Atomics.load(this.meta, 0);
-    const writeOffset = Atomics.load(this.meta, 1);
+    let readOffset = Atomics.load(this._meta, META.READ_OFFSET);
+    let writeOffset = Atomics.load(this._meta, META.WRITE_OFFSET);
+    let firstUnreleasedOffset = Atomics.load(this._meta, META.UNRELEASED_OFFSET);
+    const limitOffset = firstUnreleasedOffset || readOffset;
 
-    const available =
-      writeOffset >= readOffset
-        ? this.capacity - (writeOffset - readOffset)
-        : readOffset - writeOffset;
-
-    if (frameLength + 4 > available) return false;
-
-    const lengthView = new DataView(this.data.buffer);
-    const headerOffset = writeOffset;
-    lengthView.setUint32(headerOffset, frameLength);
-
-    const frameOffset = (writeOffset + 4) % this.capacity;
-    const endOffset = (frameOffset + frameLength) % this.capacity;
-
-    if (frameOffset + frameLength <= this.capacity) {
-      this.data.set(frame, frameOffset);
+    let available;
+    if (writeOffset >= limitOffset) {
+      available = this._capacity - writeOffset + limitOffset;
     } else {
-      const firstChunk = this.capacity - frameOffset;
-      this.data.set(frame.subarray(0, firstChunk), frameOffset);
-      this.data.set(frame.subarray(firstChunk), 0);
+      available = limitOffset - writeOffset;
     }
 
-    const newWriteOffset = (writeOffset + 4 + frameLength) % this.capacity;
-    Atomics.store(this.meta, 1, newWriteOffset);
-    Atomics.add(this.meta, 2, 1); // increment frame count
-    Atomics.notify(this.meta, 3, 1);
+    if (totalSize > available) return false;
+
+    if (writeOffset + totalSize > this._capacity) {
+      writeOffset = 0;
+      if (totalSize > limitOffset) return false;
+    }
+
+    Atomics.store(this._meta, META.LAST_FRAME_START, writeOffset);
+    this._view.setUint32(writeOffset, frameLength);
+    this._data.set(frame, writeOffset + 4);
+
+    const newWriteOffset = (writeOffset + totalSize) % this._capacity;
+    Atomics.store(this._meta, META.WRITE_OFFSET, newWriteOffset);
+    Atomics.add(this._meta, META.FRAME_COUNT, 1);
+    Atomics.notify(this._meta, META.NOTIFY_FLAG, 1);
     return true;
   }
 
-  read() {
-    let frameCount = Atomics.load(this.meta, 2);
+  acquire() {
+    const frameCount = Atomics.load(this._meta, META.FRAME_COUNT);
     if (frameCount === 0) return null;
 
-    const readOffset = Atomics.load(this.meta, 0);
-    const lengthView = new DataView(this.data.buffer);
-    const frameLength = lengthView.getUint32(readOffset);
+    let readOffset = Atomics.load(this._meta, META.READ_OFFSET);
+    const frameLength = this._view.getUint32(readOffset);
 
-    const frameOffset = (readOffset + 4) % this.capacity;
-    const frame = new Uint8Array(frameLength);
+    const frameOffset = readOffset + 4;
+    const frame = this._data.subarray(frameOffset, frameOffset + frameLength);
 
-    if (frameOffset + frameLength <= this.capacity) {
-      frame.set(this.data.subarray(frameOffset, frameOffset + frameLength));
-    } else {
-      const firstChunk = this.capacity - frameOffset;
-      frame.set(this.data.subarray(frameOffset, this.capacity), 0);
-      frame.set(this.data.subarray(0, frameLength - firstChunk), firstChunk);
+    const handle = { readOffset, totalSize: 4 + frameLength };
+    this._pending.push(handle);
+
+    if (this._pending.length === 1) {
+      Atomics.store(this._meta, META.UNRELEASED_OFFSET, readOffset);
     }
 
-    const newReadOffset = (readOffset + 4 + frameLength) % this.capacity;
-    Atomics.store(this.meta, 0, newReadOffset);
-    Atomics.sub(this.meta, 2, 1);
-    return frame;
+    const newReadOffset = (readOffset + 4 + frameLength) % this._capacity;
+    Atomics.store(this._meta, META.READ_OFFSET, newReadOffset);
+    return { frame, handle };
+  }
+
+  release(handle) {
+    const index = this._pending.findIndex(h => h === handle);
+    if (index === -1) throw new Error("Invalid handle to release");
+
+    this._pending.splice(0, index + 1);
+
+    if (this._pending.length > 0) {
+      Atomics.store(this._meta, META.UNRELEASED_OFFSET, this._pending[0].readOffset);
+    } else {
+      Atomics.store(this._meta, META.UNRELEASED_OFFSET, 0);
+      const writeOffset = Atomics.load(this._meta, META.WRITE_OFFSET);
+      Atomics.store(this._meta, META.READ_OFFSET, writeOffset);
+    }
+
+    Atomics.sub(this._meta, META.FRAME_COUNT, index + 1);
   }
 
   async readAsync() {
-    let frame = this.read();
-    while (!frame) {
-      Atomics.wait(this.meta, 3, 0);
-      frame = this.read();
+    let result = this.acquire();
+    while (!result) {
+      Atomics.wait(this._meta, META.NOTIFY_FLAG, 0);
+      result = this.acquire();
     }
-    return frame;
+    return result;
+  }
+
+  reset() {
+    Atomics.store(this._meta, META.READ_OFFSET, 0);
+    Atomics.store(this._meta, META.WRITE_OFFSET, 0);
+    Atomics.store(this._meta, META.FRAME_COUNT, 0);
+    Atomics.store(this._meta, META.NOTIFY_FLAG, 0);
+    Atomics.store(this._meta, META.UNRELEASED_OFFSET, 0);
+    Atomics.store(this._meta, META.LAST_FRAME_START, 0);
+    this._pending = [];
+  }
+
+  transferrable() {
+    return [this._data.buffer, this._meta.buffer, this._capacity];
   }
 }
