@@ -59,8 +59,8 @@ describe("decoderAudio worker", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "audioConfig",
-          audioConfig: { codec: "mp4a.40.2" },
+          type: "config",
+          config: { codec: "mp4a.40.2" },
         },
       }),
     );
@@ -91,8 +91,8 @@ describe("decoderAudio worker", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "audioConfig",
-          audioConfig: { codec: "mp4a.40.2" },
+          type: "config",
+          config: { codec: "mp4a.40.2" },
         },
       }),
     );
@@ -150,8 +150,8 @@ describe("decoderAudio worker", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "audioConfig",
-          audioConfig: { codec: "mp4a.40.2" },
+          type: "config",
+          config: { codec: "mp4a.40.2" },
         },
       }),
     );
@@ -216,8 +216,8 @@ describe("decoderAudio worker", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "audioConfig",
-          audioConfig: { codec: "mp4a.40.2" },
+          type: "config",
+          config: { codec: "mp4a.40.2" },
         },
       }),
     );
@@ -250,8 +250,8 @@ describe("decoderAudio worker", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "audioConfig",
-          audioConfig: { codec: "aac" },
+          type: "config",
+          config: { codec: "aac" },
         },
       }),
     );

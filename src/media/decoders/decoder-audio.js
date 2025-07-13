@@ -3,7 +3,7 @@ import { RingBuffer } from "@/shared/ring-buffer.js";
 let audioDecoder;
 let lastTimestampUs;
 let frameDurationUs;
-let timestampBuffer = new RingBuffer("Audio Decoder", 10_000);
+let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
 
 let config = {};
 
@@ -35,8 +35,8 @@ function handleDecoderError(error) {
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
-  if (type === "audioConfig") {
-    config.codec = e.data.audioConfig.codec;
+  if (type === "config") {
+    config.codec = e.data.config.codec;
     timestampBuffer.reset();
   } else if (type === "codecData") {
     audioDecoder = new AudioDecoder({

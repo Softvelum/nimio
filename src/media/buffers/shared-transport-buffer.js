@@ -4,14 +4,20 @@ const META = {
   FRAME_COUNT: 2,
   NOTIFY_FLAG: 3,
   UNRELEASED_OFFSET: 4,
-  LAST_FRAME_START: 5,
+  LAST_FRAME_END: 5,
+  PRMS_READ_OFFSET: 6,
+  PRMS_WRITE_OFFSET: 7,
 };
+const PARAM_SIZE = 10; // 10 bytes for each parameter
 
 export class SharedTransportBuffer {
-  constructor(dataBuffer, metaBuffer, capacity) {
+  constructor(dataBuffer, metaBuffer, prmsBuffer, capacity) {
     this._data = new Uint8Array(dataBuffer);
-    this._meta = new Uint32Array(metaBuffer); // META
+    this._prms = new Uint8Array(prmsBuffer); // parameters
+    this._meta = new Int32Array(metaBuffer); // META
     this._view = new DataView(this._data.buffer);
+    this._prmsView = new DataView(this._prms.buffer);
+    this._prmsLength = this._prms.length;
     this._capacity = capacity;
     this._pending = [];
   }
@@ -23,25 +29,32 @@ export class SharedTransportBuffer {
     
     const capacity = Math.ceil(bufferSec * frameSize * frameRate);
     const dataBuffer = new SharedArrayBuffer(capacity * Uint8Array.BYTES_PER_ELEMENT);
+    const prmsCount = 8 * bufferSec * frameRate; // 8x parameters per frame
+    const prmsBuffer = new SharedArrayBuffer(
+      prmsCount * PARAM_SIZE * Uint8Array.BYTES_PER_ELEMENT
+    );
     const metaCnt = Object.keys(META).length;
-    const metaBuffer = new SharedArrayBuffer(metaCnt * Uint32Array.BYTES_PER_ELEMENT);
+    const metaBuffer = new SharedArrayBuffer(metaCnt * Int32Array.BYTES_PER_ELEMENT);
+    const metaView = new Int32Array(metaBuffer);
+    metaView[META.UNRELEASED_OFFSET] = -1; // no frames released initially
 
     return new this(
       dataBuffer,
       metaBuffer,
+      prmsBuffer,
       capacity,
     );
   }
 
-  write(frame) {
+  write(frame, ts, type) {
     const frameLength = frame.length;
     const totalSize = 4 + frameLength;
     if (totalSize > this._capacity) return false;
 
     let readOffset = Atomics.load(this._meta, META.READ_OFFSET);
     let writeOffset = Atomics.load(this._meta, META.WRITE_OFFSET);
-    let firstUnreleasedOffset = Atomics.load(this._meta, META.UNRELEASED_OFFSET);
-    const limitOffset = firstUnreleasedOffset || readOffset;
+    let unreleasedOffset = Atomics.load(this._meta, META.UNRELEASED_OFFSET);
+    let limitOffset = unreleasedOffset >= 0 ? unreleasedOffset : readOffset;
 
     let available;
     if (writeOffset >= limitOffset) {
@@ -53,18 +66,32 @@ export class SharedTransportBuffer {
     if (totalSize > available) return false;
 
     if (writeOffset + totalSize > this._capacity) {
+      Atomics.store(this._meta, META.LAST_FRAME_END, writeOffset);
       writeOffset = 0;
       if (totalSize > limitOffset) return false;
     }
 
-    Atomics.store(this._meta, META.LAST_FRAME_START, writeOffset);
     this._view.setUint32(writeOffset, frameLength);
     this._data.set(frame, writeOffset + 4);
 
-    const newWriteOffset = (writeOffset + totalSize) % this._capacity;
-    Atomics.store(this._meta, META.WRITE_OFFSET, newWriteOffset);
+    const prmsWriteOffset = Atomics.load(this._meta, META.PRMS_WRITE_OFFSET);
+    this._prmsView.setFloat64(prmsWriteOffset, ts);
+    if (type !== undefined) {
+      this._prmsView.setUint8(prmsWriteOffset + 8, type);
+    }
+    Atomics.store(
+      this._meta,
+      META.PRMS_WRITE_OFFSET,
+      (prmsWriteOffset + PARAM_SIZE) % this._prmsLength,
+    );
+    Atomics.store(
+      this._meta,
+      META.WRITE_OFFSET,
+      (writeOffset + totalSize) % this._capacity,
+    );
     Atomics.add(this._meta, META.FRAME_COUNT, 1);
     Atomics.notify(this._meta, META.NOTIFY_FLAG, 1);
+
     return true;
   }
 
@@ -84,10 +111,24 @@ export class SharedTransportBuffer {
     if (this._pending.length === 1) {
       Atomics.store(this._meta, META.UNRELEASED_OFFSET, readOffset);
     }
+    const prmsReadOffset = Atomics.load(this._meta, META.PRMS_READ_OFFSET);
+    const ts = this._prmsView.getFloat64(prmsReadOffset);
+    const type = this._prmsView.getUint8(prmsReadOffset + 8);
+    Atomics.store(
+      this._meta,
+      META.PRMS_READ_OFFSET,
+      (prmsReadOffset + PARAM_SIZE) % this._prmsLength,
+    );
 
-    const newReadOffset = (readOffset + 4 + frameLength) % this._capacity;
+    let newReadOffset = (readOffset + 4 + frameLength) % this._capacity;
+    const lastFrameEnd = Atomics.load(this._meta, META.LAST_FRAME_END);
+    if (newReadOffset === lastFrameEnd) {
+      newReadOffset = 0;
+      Atomics.store(this._meta, META.LAST_FRAME_END, 0);
+    }
     Atomics.store(this._meta, META.READ_OFFSET, newReadOffset);
-    return { frame, handle };
+    Atomics.sub(this._meta, META.FRAME_COUNT, 1);
+    return { frame, handle, ts, type };
   }
 
   release(handle) {
@@ -95,16 +136,9 @@ export class SharedTransportBuffer {
     if (index === -1) throw new Error("Invalid handle to release");
 
     this._pending.splice(0, index + 1);
-
-    if (this._pending.length > 0) {
-      Atomics.store(this._meta, META.UNRELEASED_OFFSET, this._pending[0].readOffset);
-    } else {
-      Atomics.store(this._meta, META.UNRELEASED_OFFSET, 0);
-      const writeOffset = Atomics.load(this._meta, META.WRITE_OFFSET);
-      Atomics.store(this._meta, META.READ_OFFSET, writeOffset);
-    }
-
-    Atomics.sub(this._meta, META.FRAME_COUNT, index + 1);
+    const newUnreleasedOffset =
+      this._pending.length > 0 ? this._pending[0].readOffset : -1;
+    Atomics.store(this._meta, META.UNRELEASED_OFFSET, newUnreleasedOffset);
   }
 
   async readAsync() {
@@ -121,12 +155,19 @@ export class SharedTransportBuffer {
     Atomics.store(this._meta, META.WRITE_OFFSET, 0);
     Atomics.store(this._meta, META.FRAME_COUNT, 0);
     Atomics.store(this._meta, META.NOTIFY_FLAG, 0);
-    Atomics.store(this._meta, META.UNRELEASED_OFFSET, 0);
-    Atomics.store(this._meta, META.LAST_FRAME_START, 0);
+    Atomics.store(this._meta, META.UNRELEASED_OFFSET, -1);
+    Atomics.store(this._meta, META.LAST_FRAME_END, 0);
+    Atomics.store(this._meta, META.PRMS_READ_OFFSET, 0);
+    Atomics.store(this._meta, META.PRMS_WRITE_OFFSET, 0);
     this._pending = [];
   }
 
   transferrable() {
-    return [this._data.buffer, this._meta.buffer, this._capacity];
+    return [
+      this._data.buffer,
+      this._meta.buffer,
+      this._prms.buffer,
+      this._capacity,
+    ];
   }
 }

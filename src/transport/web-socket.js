@@ -1,3 +1,5 @@
+import { createProtocolAgent } from "@/protocol-agent-factory";
+
 const CONN_CLOSE_CODES = {
   1000: 'CLOSE_NORMAL',
   1001: 'CLOSE_GOING_AWAY',
@@ -23,48 +25,41 @@ function logbin(bin) {
   );
 }
 
+let protocolAgent;
+
 let socket;
 let curSocketId = 0;
 self.onmessage = (e) => {
   var type = e.data.type;
 
-  if (type === "init") {
+  if (type === "start") {
     socket = new WebSocket(e.data.url, e.data.protocols);
     socket.binaryType = "arraybuffer";
     socket.id = ++curSocketId;
 
+    protocolAgent = createProtocolAgent(e.data.protocols[0]);
+    protocolAgent.useSteady = e.data.steady;
     socket.onmessage = (wsEv) => {
       if (wsEv.data instanceof ArrayBuffer) {
-        processFrame(wsEv);
+        protocolAgent.processFrame(wsEv.data);
       } else {
-        processStatus(wsEv);
+        protocolAgent.processStatus(wsEv.data);
       }
     };
 
     socket.onopen = () => {
-      console.debug(`Connection established for socket id = ${this.id}`);
+      console.debug(`Connection established for socket id = ${socket.id}`);
     };
     
     socket.onclose = (wsEv) => {
-      let act = wsEv.wasClean ? 'closed' : 'dropped';
-      console.debug(`Connection was ${act} for socket id ${this.id}`);
+      console.debug(`Connection was dropped for socket id ${socket.id}`);
       let codeHuman = CONN_CLOSE_CODES[wsEv.code] || '';
       console.debug(
         `Close code ${wsEv.code} (${codeHuman}), reason: ${wsEv.reason}`
       );
 
-      if (this.id === curSocketId) {
-        // TODO: check if it's necessary verify readyState
-        if( 3 === socket.readyState ) {
-          socket = undefined;
-        }
-      }
-
-      if (!wsEv.wasClean) {
-        self.postMessage({
-          type: 'disconnect'
-        });
-      }
+      socket = undefined;
+      self.postMessage({type: 'disconnect'});
     };
   } else if (type === "play") {
     socket.send(
@@ -78,12 +73,18 @@ self.onmessage = (e) => {
       socket.send(
         JSON.stringify({
           command: "Cancel",
-          streams: streams.map((s) => s.sn),
+          streams: e.data.sns,
         }),
       );
     }
     if (e.data.close) {
+      console.debug(`Close connection for socket id ${socket.id}`);
+      socket.onclose = undefined;
       socket.close();
+      socket = undefined;
     }
+  } else {
+    if (protocolAgent) protocolAgent.handleMessage(type, e.data);
   }
+
 };

@@ -8,36 +8,35 @@ export class TransportAdapter {
     this._worker.onmessage = (e) => this._handleMessage(e.data);
   }
 
-  start(url, offset) {
+  send(cmd, data) {
+    data.type = cmd;
+    this._worker.postMessage(data);
+  }
+
+  setVideoBuffer(buffer) {
     this._worker.postMessage({
-      type: "start",
-      url: url,
-      protocols: ["sldp.softvelum.com"],
-      startOffset: offset,
+      type: "videoBuffer",
+      buffer: buffer,
     });
   }
 
-  stop (closeConnection) {
+  setAudioBuffer(buffer) {
     this._worker.postMessage({
-      type: "stop",
-      close: closeConnection,
+      type: "audioBuffer",
+      buffer: buffer,
     });
   }
 
-  onVideoConfig(callback) {
-    this._callbacks["VIDEO_CONFIG"] = callback;
+  get callbacks() {
+    return this._callbacks;
   }
 
-  onVideoCodecData(callback) {
-    this._callbacks["VIDEO_CODEC"] = callback;
+  set callbacks(cbs) {
+    this._callbacks = cbs;
   }
 
-  onAudioConfig(callback) {
-    this._callbacks["AUDIO_CONFIG"] = callback;
-  }
-
-  onAudioCodecData(callback) {
-    this._callbacks["AUDIO_CODEC"] = callback;
+  setCallback(type, callback) {
+    this._callbacks[type] = callback;
   }
 
   _handleMessage(msg) {

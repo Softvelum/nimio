@@ -1,10 +1,12 @@
 import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import { IDX } from "./shared/values.js";
 import { StateManager } from "./state-manager.js";
-import { SLDPAgent } from "./sldp/agent.js";
+import { SLDPManager } from "./sldp/manager";
 import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./media/buffers/video-buffer.js";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
+import { SharedTransportBuffer } from "./media/buffers/shared-transport-buffer";
+import { TransportAdapter } from "./transport/adapter.js";
 import { createConfig } from "./player-config.js";
 import { AudioService } from "./audio-service.js";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor.js";
@@ -59,21 +61,21 @@ export default class Nimio {
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
-    this._transport = new TransportAdapter("@/transport/web-socket.js");
-    this._sldpAgent = new SLDPAgent(this._sab);
-    this._initWorkers();
+    this._initTransport("./web-socket.js");
+    this._sldpManager = new SLDPManager(this._transport);
+    this._initDecoders();
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values
 
     if (this._config.autoplay) {
-      this.play(true);
+      this.play();
       setTimeout(() => {
         this._ui.hideControls(true);
       }, 1000);
     }
   }
 
-  play(auto) {
+  play() {
     const resumeFromPause = this._state.isPaused();
 
     if (this._pauseTimeoutId !== null) {
@@ -86,7 +88,7 @@ export default class Nimio {
     requestAnimationFrame(this._renderVideoFrame);
 
     if (!resumeFromPause) {
-      this._sldpAgent.start(this._config.streamUrl, this._config.startOffset);
+      this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
       if (this._debugView) {
         this._debugView.start();
       }
@@ -105,7 +107,7 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
-    this._sldpAgent.stop(!!closeConnection);
+    this._sldpManager.stop(!!closeConnection);
     if (this._debugView) {
       this._debugView.stop();
     }
@@ -144,7 +146,7 @@ export default class Nimio {
     isPlayClicked ? this.play() : this.pause();
   }
 
-  _initWorkers() {
+  _initDecoders() {
     this._videoDecoderWorker = new Worker(
       new URL("./media/decoders/decoder-video.js", import.meta.url),
       { type: "module" },
@@ -160,6 +162,16 @@ export default class Nimio {
     this._audioDecoderWorker.addEventListener("message", (e) => {
       this._processWorkerMessage(e);
     });
+  }
+
+  _initTransport(url) {
+    this._transport = new TransportAdapter(url);
+    this._transport.callbacks = {
+      videoConfig: this._onVideoConfigReceived.bind(this),
+      videoCodec: this._onVideoCodecDataReceived.bind(this),
+      audioConfig: this._onAudioConfigReceived.bind(this),
+      audioCodec: this._onAudioCodecDataReceived.bind(this),
+    };
   }
 
   _renderVideoFrame() {
@@ -193,46 +205,84 @@ export default class Nimio {
     }
   }
 
+  _onVideoConfigReceived(config) {
+    if (!config) {
+      this._noVideo = true;
+      return;
+    }
+
+    if (!this._vTransBuffer) {
+      this._vTransBuffer = SharedTransportBuffer.allocate(
+        1, 2_000_000, 30 // 60Mb buffer for video
+      );
+    }
+
+    const buffer = this._vTransBuffer.transferrable();
+    this._videoDecoderWorker.postMessage({
+      type: "config",
+      config: config,
+      buffer: buffer,
+    });
+    this._transport.setVideoBuffer(buffer);
+  }
+
+  _onAudioConfigReceived(config) {
+    if (!config) {
+      this._startNoAudioMode();
+      return;
+    }
+
+    if (!this._aTransBuffer) {
+      this._aTransBuffer = SharedTransportBuffer.allocate(
+        1, 300_000, 30 // 9Mb buffer for audio
+      );
+    }
+
+    const buffer = this._aTransBuffer.transferrable();
+    this._audioDecoderWorker.postMessage({
+      type: "config",
+      config: config,
+      buffer: buffer,
+    });
+    this._transport.setAudioBuffer(buffer);
+  }
+
+  _onVideoCodecDataReceived(data) {
+    this._videoDecoderWorker.postMessage({
+      type: "codecData",
+      codecData: data,
+    });
+  }
+
+  _onAudioCodecDataReceived(data) {
+    if (this._noAudio) {
+      this._stopAudio();
+    }
+
+    let config = this._audioService.parseAudioConfig(data);
+    this._audioDecoderWorker.postMessage({
+      type: "codecData",
+      codecData: data,
+      aacConfig: config,
+    });
+
+    this._audioBuffer = WritableAudioBuffer.allocate(
+      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
+      config.sampleRate,
+      config.numberOfChannels,
+      config.sampleCount,
+    );
+    this._audioBuffer.addPreprocessor(
+      new AudioGapsProcessor(
+        this._audioService.sampleCount,
+        this._audioService.sampleRate,
+      ),
+    );
+  }
+
   _processWorkerMessage(e) {
     const type = e.data.type;
     switch (type) {
-      case "videoConfig":
-        if (!e.data.videoConfig) {
-          this._noVideo = true;
-          break;
-        }
-        break;
-      case "audioConfig":
-        if (!e.data.audioConfig) {
-          this._startNoAudioMode();
-          break;
-        }
-        break;
-      case "audioCodecData":
-        if (this._noAudio) {
-          this._stopAudio();
-        }
-
-        let config = this._audioService.parseAudioConfig(e.data.codecData);
-        this._audioDecoderWorker.postMessage({
-          type: "codecData",
-          codecData: e.data.codecData,
-          aacConfig: config,
-        });
-
-        this._audioBuffer = WritableAudioBuffer.allocate(
-          this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
-          config.sampleRate,
-          config.numberOfChannels,
-          config.sampleCount,
-        );
-        this._audioBuffer.addPreprocessor(
-          new AudioGapsProcessor(
-            this._audioService.sampleCount,
-            this._audioService.sampleRate,
-          ),
-        );
-        break;
       case "videoFrame":
         let frame = e.data.videoFrame;
         let frameTsUs = frame.timestamp;
