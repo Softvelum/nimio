@@ -44,8 +44,8 @@ function pushChunk(data, ts) {
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
-  if (type === "videoConfig") {
-    config = e.data.videoConfig;
+  if (type === "config") {
+    config = e.data.config;
     buffered.length = 0;
     support = null;
   } else if (type === "codecData") {
@@ -80,7 +80,7 @@ self.addEventListener("message", async function (e) {
       // handle unsupported codec
       handleDecoderError(`Video codec not supported: ${config.codec}`);
     }
-  } else if (type === "videoChunk") {
+  } else if (type === "chunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
     const frame = frameWithHeader.subarray(
       e.data.framePos,

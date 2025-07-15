@@ -45,10 +45,7 @@ export class RingBuffer {
     }
 
     const item = this.buffer[this.head];
-    this.buffer[this.head] = undefined;
-    this.length--;
-    this.head++;
-    if (this.head === this.capacity) this.head = 0;
+    this.skip();
 
     return item;
   }
@@ -66,6 +63,13 @@ export class RingBuffer {
     let index = this.head + i;
     if (index >= this.capacity) index -= this.capacity;
     return this.buffer[index];
+  }
+
+  skip() {
+    this.buffer[this.head] = undefined;
+    this.length--;
+    this.head++;
+    if (this.head === this.capacity) this.head = 0;
   }
 
   reset() {

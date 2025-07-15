@@ -1,37 +1,21 @@
-import { StateManager } from "../state-manager.js";
+import { createProtocolAgent } from "@/protocol-agent-factory";
 
-const WEB_AAC_SEQUENCE_HEADER = 0;
-const WEB_AAC_FRAME = 1;
-const WEB_AVC_SEQUENCE_HEADER = 2;
-const WEB_AVC_KEY_FRAME = 3;
-const WEB_AVC_FRAME = 4;
-const WEB_HEVC_SEQUENCE_HEADER = 5;
-const WEB_HEVC_KEY_FRAME = 6;
-const WEB_HEVC_FRAME = 7;
-const WEB_VP6_KEY_FRAME = 8;
-const WEB_VP6_FRAME = 9;
-const WEB_VP8_KEY_FRAME = 10;
-const WEB_VP8_FRAME = 11;
-const WEB_VP9_KEY_FRAME = 12;
-const WEB_VP9_FRAME = 13;
-const WEB_MP3 = 14;
-const WEB_OPUS_FRAME = 15;
-const WEB_AV1_SEQUENCE_HEADER = 16;
-const WEB_AV1_KEY_FRAME = 17;
-const WEB_AV1_FRAME = 18;
-
-let socket;
-
-let streams = [];
-
-let timescale = {
-  audio: null,
-  video: null,
+const CONN_CLOSE_CODES = {
+  1000: 'CLOSE_NORMAL',
+  1001: 'CLOSE_GOING_AWAY',
+  1002: 'CLOSE_PROTOCOL_ERROR',
+  1003: 'CLOSE_UNSUPPORTED',
+  1005: 'CLOSE_NO_STATUS',
+  1006: 'CLOSE_ABNORMAL',
+  1007: 'Unsupported Data',
+  1008: 'Policy Violation',
+  1009: 'CLOSE_TOO_LARGE',
+  1010: 'Missing Extension',
+  1011: 'Internal Error',
+  1012: 'Service Restart',
+  1013: 'Try Again Later',
+  1015: 'TLS Handshake',
 };
-
-let steady = false;
-
-let startOffset = 0;
 
 function logbin(bin) {
   console.log(
@@ -41,213 +25,66 @@ function logbin(bin) {
   );
 }
 
-function readInt(buffer, offset, length) {
-  if (length === 4) {
-    // Read a 32-bit unsigned int (big-endian)
-    return (
-      ((buffer[offset] << 24) |
-        (buffer[offset + 1] << 16) |
-        (buffer[offset + 2] << 8) |
-        buffer[offset + 3]) >>>
-      0
-    ); // Ensure unsigned 32-bit
-  } else if (length === 8) {
-    // Read a 64-bit unsigned int (big-endian)
-    const high =
-      ((buffer[offset] << 24) |
-        (buffer[offset + 1] << 16) |
-        (buffer[offset + 2] << 8) |
-        buffer[offset + 3]) >>>
-      0; // High part (32 bit)
-    const low =
-      ((buffer[offset + 4] << 24) |
-        (buffer[offset + 5] << 16) |
-        (buffer[offset + 6] << 8) |
-        buffer[offset + 7]) >>>
-      0; // Low part (32 bit)
-    // Mask high part to fit within 53-bit safe integer range
-    const maskedHigh = high & 0x001fffff;
-    // Combine high and low parts
-    return maskedHigh * 2 ** 32 + low;
-  } else {
-    console.error("Unsupported length!");
-    return null;
-  }
-}
+let protocolAgent;
 
-function processFrame(event) {
-  let frameWithHeader = new Uint8Array(event.data);
-  let trackId = frameWithHeader[0];
-  let frameType = frameWithHeader[1];
-  let showTime = 0;
-  let dataPos = 10;
-  let frameSize = frameWithHeader.byteLength;
-  let timestamp;
-
-  let tsSec,
-    tsUs,
-    isKey = false;
-  switch (frameType) {
-    case WEB_AAC_SEQUENCE_HEADER:
-    case WEB_AVC_SEQUENCE_HEADER:
-    case WEB_HEVC_SEQUENCE_HEADER:
-    case WEB_AV1_SEQUENCE_HEADER:
-      let codecData = frameWithHeader.subarray(2, frameSize);
-      let type =
-        frameType === WEB_AAC_SEQUENCE_HEADER
-          ? "audioCodecData"
-          : "videoCodecData";
-      self.postMessage({ type: type, codecData: codecData });
-      break;
-    case WEB_AAC_FRAME:
-      timestamp = readInt(frameWithHeader, 2, 8);
-
-      if (steady) {
-        showTime = readInt(frameWithHeader, dataPos, 8);
-        dataPos += 8;
-      }
-
-      tsSec = timestamp / (timescale.audio / 1000);
-      tsUs = 1000 * tsSec;
-
-      self.postMessage({
-        type: "audioChunk",
-        timestamp: tsUs,
-        frameWithHeader: frameWithHeader.buffer,
-        framePos: dataPos,
-      });
-      break;
-    case WEB_AVC_KEY_FRAME:
-    case WEB_HEVC_KEY_FRAME:
-    case WEB_AV1_KEY_FRAME:
-      isKey = true;
-    case WEB_AVC_FRAME:
-    case WEB_HEVC_FRAME:
-    case WEB_AV1_FRAME:
-      timestamp = readInt(frameWithHeader, 2, 8);
-
-      if (steady) {
-        showTime = readInt(frameWithHeader, dataPos, 8);
-        dataPos += 8;
-      }
-
-      let compositionOffset = 0;
-      if (frameType !== WEB_AV1_KEY_FRAME && frameType !== WEB_AV1_FRAME) {
-        compositionOffset = readInt(frameWithHeader, dataPos, 4);
-        dataPos += 4;
-      }
-
-      tsSec = (timestamp + compositionOffset) / (timescale.video / 1000);
-      tsUs = 1000 * tsSec;
-
-      self.postMessage(
-        {
-          type: "videoChunk",
-          timestamp: tsUs,
-          chunkType: isKey ? "key" : "delta",
-          frameWithHeader: frameWithHeader.buffer,
-          framePos: dataPos,
-        },
-        [frameWithHeader.buffer],
-      );
-      break;
-    default:
-      break;
-  }
-}
-
-function processStatus(e) {
-  console.log("Command received", e.data);
-  const status = JSON.parse(e.data);
-  if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
-    console.error("Invalid status received:", status);
-    return;
-  }
-
-  const resolution = status.info[0].stream_info.resolution;
-  const [width, height] = resolution.split("x").map(Number);
-
-  streams = [];
-  let vconfig = null;
-  if (status.info[0].stream_info.vcodec) {
-    vconfig = {
-      width: width,
-      height: height,
-      codec: status.info[0].stream_info.vcodec,
-    };
-    timescale.video = +status.info[0].stream_info.vtimescale;
-
-    streams.push({
-      type: "video",
-      offset: `${startOffset}`,
-      steady: steady,
-      stream: status.info[0].stream,
-      sn: 0,
-    });
-  }
-  self.postMessage({
-    type: "videoConfig",
-    videoConfig: vconfig,
-  });
-
-  let aconfig = null;
-  if (status.info[0].stream_info.acodec) {
-    aconfig = { codec: status.info[0].stream_info.acodec };
-    timescale.audio = +status.info[0].stream_info.atimescale;
-    streams.push({
-      type: "audio",
-      offset: `${startOffset}`,
-      steady: steady,
-      stream: status.info[0].stream,
-      sn: 1,
-    });
-  }
-  self.postMessage({
-    type: "audioConfig",
-    audioConfig: aconfig,
-  });
-
-  socket.send(
-    JSON.stringify({
-      command: "Play",
-      streams: streams,
-    }),
-  );
-}
-
-let stateManager;
-
+let socket;
+let curSocketId = 0;
 self.onmessage = (e) => {
   var type = e.data.type;
 
-  if (type === "initShared") {
-    stateManager = new StateManager(e.data.sab);
-  } else if (type === "initWebSocket") {
-    startOffset = e.data.startOffset;
-
+  if (type === "start") {
     socket = new WebSocket(e.data.url, e.data.protocols);
     socket.binaryType = "arraybuffer";
+    socket.id = ++curSocketId;
 
-    socket.onmessage = (ws_event) => {
-      if (stateManager.isStopped()) return;
-
-      if (ws_event.data instanceof ArrayBuffer) {
-        processFrame(ws_event);
+    protocolAgent = createProtocolAgent(e.data.protocols[0]);
+    protocolAgent.useSteady = e.data.steady;
+    socket.onmessage = (wsEv) => {
+      if (wsEv.data instanceof ArrayBuffer) {
+        protocolAgent.processFrame(wsEv.data);
       } else {
-        processStatus(ws_event);
+        protocolAgent.processStatus(wsEv.data);
       }
     };
+
+    socket.onopen = () => {
+      console.debug(`Connection established for socket id = ${socket.id}`);
+    };
+    
+    socket.onclose = (wsEv) => {
+      console.debug(`Connection was dropped for socket id ${socket.id}`);
+      let codeHuman = CONN_CLOSE_CODES[wsEv.code] || '';
+      console.debug(
+        `Close code ${wsEv.code} (${codeHuman}), reason: ${wsEv.reason}`
+      );
+
+      socket = undefined;
+      self.postMessage({type: 'disconnect'});
+    };
+  } else if (type === "play") {
+  socket.send(
+    JSON.stringify({
+      command: "Play",
+        streams: e.data.streams,
+    }),
+  );
   } else if (type === "stop") {
     if (streams.length > 0) {
       socket.send(
         JSON.stringify({
           command: "Cancel",
-          streams: streams.map((s) => s.sn),
+          streams: e.data.sns,
         }),
       );
     }
     if (e.data.close) {
+      console.debug(`Close connection for socket id ${socket.id}`);
+      socket.onclose = undefined;
       socket.close();
+      socket = undefined;
     }
+  } else {
+    if (protocolAgent) protocolAgent.handleMessage(type, e.data);
   }
+
 };
