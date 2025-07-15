@@ -1,19 +1,25 @@
+import { SharedTransportBuffer } from "@/media/buffers/shared-transport-buffer";
 import { RingBuffer } from "@/shared/ring-buffer.js";
 
 let audioDecoder;
 let lastTimestampUs;
 let frameDurationUs;
-let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
+
+let transBuffer;
+let handleBuffer = new RingBuffer("Audio Decoder", 3000);
 
 let config = {};
 
 function processDecodedFrame(audioFrame) {
-  let rawTimestamp = timestampBuffer.pop();
+  let handle = handleBuffer.pop();
+  let rawTimestamp = handle.ts;
   let decTimestamp = audioFrame.timestamp;
   if (decTimestamp === rawTimestamp && lastTimestampUs !== undefined) {
     decTimestamp = lastTimestampUs + frameDurationUs;
   }
   lastTimestampUs = decTimestamp;
+
+  transBuffer.release(handle.handle);
 
   self.postMessage(
     {
@@ -32,12 +38,34 @@ function handleDecoderError(error) {
   self.postMessage({ type: "decoderError", kind: "audio" });
 }
 
+async function pushNextFrame() {
+  let counter = 0;
+  while (true) {
+    let frame = await transBuffer.readAsync();
+    if (!frame) {
+      setTimeout(async function () {
+        await pushNextFrame();
+      }, 10);
+      return;
+    }
+
+    handleBuffer.push({ts: frame.ts, handle: frame.handle});
+    const encodedAudioChunk = new EncodedAudioChunk({
+      timestamp: frame.ts,
+      type: "key",
+      data: frame.frame,
+    });
+    audioDecoder.decode(encodedAudioChunk);
+  }
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "config") {
     config.codec = e.data.config.codec;
-    timestampBuffer.reset();
+    handleBuffer.reset();
+    transBuffer = new SharedTransportBuffer(...e.data.buffer);
   } else if (type === "codecData") {
     audioDecoder = new AudioDecoder({
       output: (audioFrame) => {
@@ -58,20 +86,6 @@ self.addEventListener("message", async function (e) {
     } catch (error) {
       handleDecoderError(error.message);
     }
-  } else if (type === "audioChunk") {
-    const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-    const frame = frameWithHeader.subarray(
-      e.data.framePos,
-      frameWithHeader.byteLength,
-    );
-
-    timestampBuffer.push(e.data.timestamp);
-    const encodedAudioChunk = new EncodedAudioChunk({
-      timestamp: e.data.timestamp,
-      type: "key",
-      data: frame,
-    });
-
-    audioDecoder.decode(encodedAudioChunk);
+    await pushNextFrame();
   }
 });

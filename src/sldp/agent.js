@@ -46,7 +46,7 @@ export class SLDPAgent {
         }
   
         tsSec = timestamp / (this._timescale.audio / 1000);
-        tsUs = 1000 * tsSec;
+        tsUs = Math.round(1000 * tsSec);
   
         if (!this._aTransBuffer) {
           this._stashFrame("audio", frameWithHeader, dataPos, frameSize, tsUs);
@@ -55,6 +55,7 @@ export class SLDPAgent {
             this._unstashFrames("audio");
           }
           if (this._aTempBuffer.length === 0) {
+            // console.log('audio frame', tsUs, frameSize);
             this._aTransBuffer.write(frameWithHeader.subarray(dataPos, frameSize), tsUs);
           } else {
             this._stashFrame("audio", frameWithHeader, dataPos, frameSize, tsUs);
@@ -63,9 +64,11 @@ export class SLDPAgent {
 
         // self.postMessage({
         //   type: "audioChunk",
-        //   timestamp: tsUs,
-        //   frameWithHeader: frameWithHeader.buffer,
-        //   framePos: dataPos,
+        //   data: {
+        //     timestamp: tsUs,
+        //     frameWithHeader: frameWithHeader.buffer,
+        //     framePos: dataPos,
+        //   }
         // });
         break;
       case WEB.AVC_KEY_FRAME:
@@ -89,7 +92,7 @@ export class SLDPAgent {
         }
 
         tsSec = (timestamp + compositionOffset) / (this._timescale.video / 1000);
-        tsUs = 1000 * tsSec;
+        tsUs = Math.round(1000 * tsSec);
 
         let key = isKey ? 1 : 0;
         if (!this._vTransBuffer) {
@@ -104,13 +107,16 @@ export class SLDPAgent {
             this._stashFrame("video", frameWithHeader, dataPos, frameSize, tsUs, key);
           }
         }
+
         // self.postMessage(
         //   {
         //     type: "videoChunk",
-        //     timestamp: tsUs,
-        //     chunkType: isKey ? "key" : "delta",
-        //     frameWithHeader: frameWithHeader.buffer,
-        //     framePos: dataPos,
+        //     data: {
+        //       timestamp: tsUs,
+        //       chunkType: isKey ? "key" : "delta",
+        //       frameWithHeader: frameWithHeader.buffer,
+        //       framePos: dataPos,
+        //     }
         //   },
         //   [frameWithHeader.buffer],
         // );
@@ -187,9 +193,8 @@ export class SLDPAgent {
     let bufName;
     switch (type) {
       case "videoBuffer":
-        bufName = "_vTransBuffer";
       case "audioBuffer":
-        bufName = "_aTransBuffer";
+        bufName = type === "videoBuffer" ? "_vTransBuffer" : "_aTransBuffer";
         this[bufName] = new SharedTransportBuffer(...data.buffer);
         break;
       default:

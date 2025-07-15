@@ -1,9 +1,14 @@
+import { SharedTransportBuffer } from "@/media/buffers/shared-transport-buffer";
+import { RingBuffer } from "@/shared/ring-buffer.js";
+
 let videoDecoder;
 let support;
 
 let config = {};
 const decodeTimings = new Map();
 const buffered = [];
+let transBuffer;
+let handleBuffer = new RingBuffer("Video Decoder", 1000);
 
 function processDecodedFrame(videoFrame) {
   const t0 = decodeTimings.get(videoFrame.timestamp);
@@ -18,6 +23,8 @@ function processDecodedFrame(videoFrame) {
       `Video frame latency is too high: ${latencyMs} ms for timestamp ${videoFrame.timestamp}`,
     );
   }
+  let handle = handleBuffer.pop();
+  transBuffer.release(handle);
 
   self.postMessage(
     {
@@ -41,6 +48,26 @@ function pushChunk(data, ts) {
   decodeTimings.set(encodedChunk.timestamp, ts);
 }
 
+async function pushNextFrame() {
+  while (true) {
+    let frame = await transBuffer.readAsync();
+    if (!frame) {
+      setTimeout(async function () {
+        await pushNextFrame();
+      }, 10);
+      return;
+    }
+    const chunkData = {
+      timestamp: frame.ts,
+      type: frame.type === 1 ? "key" : "delta",
+      data: frame.frame,
+    };
+    handleBuffer.push(frame.handle);
+
+    pushChunk(chunkData, performance.now());
+  }
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
@@ -48,6 +75,8 @@ self.addEventListener("message", async function (e) {
     config = e.data.config;
     buffered.length = 0;
     support = null;
+    handleBuffer.reset();
+    transBuffer = new SharedTransportBuffer(...e.data.buffer);
   } else if (type === "codecData") {
     videoDecoder = new VideoDecoder({
       output: (frame) => {
@@ -76,39 +105,10 @@ self.addEventListener("message", async function (e) {
 
     if (support.supported) {
       videoDecoder.configure(params);
+      await pushNextFrame();
     } else {
       // handle unsupported codec
       handleDecoderError(`Video codec not supported: ${config.codec}`);
     }
-  } else if (type === "videoChunk") {
-    const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-    const frame = frameWithHeader.subarray(
-      e.data.framePos,
-      frameWithHeader.byteLength,
-    );
-
-    const chunkData = {
-      timestamp: e.data.timestamp,
-      type: e.data.chunkType,
-      data: frame,
-    };
-    if (!support || !support.supported) {
-      // Buffer the chunk until the decoder is ready
-      buffered.push({
-        ts: performance.now(),
-        chunk: chunkData,
-      });
-      return;
-    }
-
-    if (buffered.length > 0) {
-      // Process buffered chunks before the new one
-      for (let i = 0; i < buffered.length; i++) {
-        pushChunk(buffered[i].chunk, buffered[i].ts);
-      }
-      buffered.length = 0;
-    }
-
-    pushChunk(chunkData, performance.now());
   }
 });

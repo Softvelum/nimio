@@ -47,6 +47,7 @@ export class SharedTransportBuffer {
   }
 
   write(frame, ts, type) {
+    // debugger;
     const frameLength = frame.length;
     const totalSize = 4 + frameLength;
     if (totalSize > this._capacity) return false;
@@ -96,6 +97,7 @@ export class SharedTransportBuffer {
   }
 
   acquire() {
+    // debugger;
     const frameCount = Atomics.load(this._meta, META.FRAME_COUNT);
     if (frameCount === 0) return null;
 
@@ -143,10 +145,11 @@ export class SharedTransportBuffer {
 
   async readAsync() {
     let result = this.acquire();
-    while (!result) {
-      Atomics.wait(this._meta, META.NOTIFY_FLAG, 0);
+    if (!result) {
+      Atomics.waitAsync(this._meta, META.NOTIFY_FLAG, 0);
       result = this.acquire();
     }
+
     return result;
   }
 

@@ -5,11 +5,12 @@ import LoggersFactory from "./shared/logger.js";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
+    super(options);
+
     this._logger = LoggersFactory.create(
       options.processorOptions.instanceName, "Audio worklet"
     );
 
-    super(options);
     this.stateManager = new StateManager(options.processorOptions.stateSab);
     this.sampleRate = options.processorOptions.sampleRate;
     this.channelCount = options.outputChannelCount[0];
