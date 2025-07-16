@@ -1,4 +1,4 @@
-import { WEB } from "./data-types"
+import { WEB } from "./data-types";
 import { ByteReader } from "@/shared/byte-reader";
 
 export class SLDPAgent {
@@ -19,7 +19,7 @@ export class SLDPAgent {
     let dataPos = 10;
     let frameSize = frameWithHeader.byteLength;
     let timestamp;
-  
+
     let tsSec,
       tsUs,
       isKey = false;
@@ -29,7 +29,8 @@ export class SLDPAgent {
       case WEB.HEVC_SEQUENCE_HEADER:
       case WEB.AV1_SEQUENCE_HEADER:
         self.postMessage({
-          type: frameType === WEB.AAC_SEQUENCE_HEADER ? "audioCodec" : "videoCodec",
+          type:
+            frameType === WEB.AAC_SEQUENCE_HEADER ? "audioCodec" : "videoCodec",
           data: frameWithHeader.subarray(2, frameSize),
         });
         break;
@@ -37,12 +38,12 @@ export class SLDPAgent {
       case WEB.OPUS_FRAME:
       case WEB.AAC_FRAME:
         timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
-  
+
         if (this._steady) {
           showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
           dataPos += 8;
         }
-  
+
         tsSec = timestamp / (this._timescale.audio / 1000);
         tsUs = Math.round(1000 * tsSec);
 
@@ -52,7 +53,7 @@ export class SLDPAgent {
             timestamp: tsUs,
             frameWithHeader: frameWithHeader.buffer,
             framePos: dataPos,
-          }
+          },
         });
         break;
       case WEB.AVC_KEY_FRAME:
@@ -63,19 +64,20 @@ export class SLDPAgent {
       case WEB.HEVC_FRAME:
       case WEB.AV1_FRAME:
         timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
-  
+
         if (this._steady) {
           showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
           dataPos += 8;
         }
-  
+
         let compositionOffset = 0;
         if (frameType !== WEB.AV1_KEY_FRAME && frameType !== WEB.AV1_FRAME) {
           compositionOffset = ByteReader.readUint(frameWithHeader, dataPos, 4);
           dataPos += 4;
         }
 
-        tsSec = (timestamp + compositionOffset) / (this._timescale.video / 1000);
+        tsSec =
+          (timestamp + compositionOffset) / (this._timescale.video / 1000);
         tsUs = Math.round(1000 * tsSec);
 
         self.postMessage(
@@ -86,7 +88,7 @@ export class SLDPAgent {
               chunkType: isKey ? "key" : "delta",
               frameWithHeader: frameWithHeader.buffer,
               framePos: dataPos,
-            }
+            },
           },
           [frameWithHeader.buffer],
         );
@@ -99,7 +101,11 @@ export class SLDPAgent {
   processStatus(msg) {
     console.log("Command received", msg);
     const status = JSON.parse(msg);
-    if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
+    if (
+      !status.info ||
+      status.info.length === 0 ||
+      !status.info[0].stream_info
+    ) {
       console.error("Invalid status received:", status);
       return;
     }
