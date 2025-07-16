@@ -36,7 +36,7 @@ self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "config") {
-    config.codec = e.data.config.codec;
+    config.codec = "mp3"; // e.data.config.codec;
     timestampBuffer.reset();
   } else if (type === "codecData") {
     audioDecoder = new AudioDecoder({
@@ -46,7 +46,7 @@ self.addEventListener("message", async function (e) {
       error: (e) => handleDecoderError(e.message),
     });
 
-    Object.assign(config, e.data.aacConfig);
+    Object.assign(config, e.data.config);
     try {
       audioDecoder.configure({
         codec: config.codec,

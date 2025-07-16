@@ -13,20 +13,6 @@ export class TransportAdapter {
     this._worker.postMessage(data);
   }
 
-  setVideoBuffer(buffer) {
-    this._worker.postMessage({
-      type: "videoBuffer",
-      buffer: buffer,
-    });
-  }
-
-  setAudioBuffer(buffer) {
-    this._worker.postMessage({
-      type: "audioBuffer",
-      buffer: buffer,
-    });
-  }
-
   get callbacks() {
     return this._callbacks;
   }

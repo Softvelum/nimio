@@ -17,3 +17,11 @@ export const WEB = {
   AV1_KEY_FRAME: 17,
   AV1_FRAME: 18,
 };
+
+export const CODEC_FAMILY_MAP = Object.fromEntries(
+  Object.keys(WEB).map(key => {
+    const dIdx = key.indexOf("_");
+    const fam = dIdx !== -1 ? key.slice(0, dIdx) : key;
+    return [WEB[key], fam];
+  })
+);

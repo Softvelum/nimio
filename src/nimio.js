@@ -234,7 +234,7 @@ export default class Nimio {
   _onVideoCodecDataReceived(data) {
     this._videoDecoderWorker.postMessage({
       type: "codecData",
-      codecData: data,
+      codecData: data.data,
     });
   }
 
@@ -243,11 +243,11 @@ export default class Nimio {
       this._stopAudio();
     }
 
-    let config = this._audioService.parseAudioConfig(data);
+    let config = this._audioService.parseAudioConfig(data.data, data.family);
     this._audioDecoderWorker.postMessage({
       type: "codecData",
-      codecData: data,
-      aacConfig: config,
+      codecData: data.data,
+      config: config,
     });
 
     this._audioBuffer = WritableAudioBuffer.allocate(
