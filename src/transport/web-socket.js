@@ -17,6 +17,18 @@ const CONN_CLOSE_CODES = {
   1015: 'TLS Handshake',
 };
 
+// Value     State         Description
+//   0     CONNECTING   Socket has been created. The connection is not yet open.
+//   1     OPEN         The connection is open and ready to communicate.
+//   2     CLOSING      The connection is in the process of closing.
+//   3     CLOSED       The connection is closed or couldn't be opened.
+const CONN_STATES = {
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3,
+};
+
 function logbin(bin) {
   console.log(
     [...bin.slice(0, 32)]
@@ -33,6 +45,11 @@ self.onmessage = (e) => {
   var type = e.data.type;
 
   if (type === "start") {
+    // TODO: check possibility to reuse socket after pause auto stop
+    // if (socket && socket.readyState === CONN_STATES.OPEN) {
+    //   return;
+    // }
+
     socket = new WebSocket(e.data.url, e.data.protocols);
     socket.binaryType = "arraybuffer";
     socket.id = ++curSocketId;
@@ -52,24 +69,34 @@ self.onmessage = (e) => {
     };
     
     socket.onclose = (wsEv) => {
-      console.debug(`Connection was dropped for socket id ${socket.id}`);
+      console.debug(`Connection was dropped for socket id ${wsEv.target.id}`);
       let codeHuman = CONN_CLOSE_CODES[wsEv.code] || '';
       console.debug(
         `Close code ${wsEv.code} (${codeHuman}), reason: ${wsEv.reason}`
       );
 
-      socket = undefined;
-      self.postMessage({type: 'disconnect'});
+      if (wsEv.target.id === curSocketId) {
+        socket = undefined;
+        self.postMessage({type: 'disconnect'});
+      }
     };
-  } else if (type === "play") {
-  socket.send(
-    JSON.stringify({
-      command: "Play",
+    return;
+  }
+  
+  if (!socket) {
+    console.warn(`Attempt to send ${type} command via closed socket`);
+    return;
+  }
+  
+  if (type === "play") {
+    socket.send(
+      JSON.stringify({
+        command: "Play",
         streams: e.data.streams,
-    }),
-  );
+      }),
+    );
   } else if (type === "stop") {
-    if (streams.length > 0) {
+    if (e.data.sns && e.data.sns.length > 0) {
       socket.send(
         JSON.stringify({
           command: "Cancel",

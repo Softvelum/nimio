@@ -100,8 +100,8 @@ export default class Nimio {
     this._state.pause();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
-      this.stop();
-    }, this._config.pauseTimeout); // TODO: monitor current latency and reduce pauseTimeout if low buffer capacity
+      this.stop(true); // TODO: check possibility to reuse socket
+    }, this._config.pauseTimeout);
   }
 
   stop(closeConnection) {
