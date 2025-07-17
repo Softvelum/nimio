@@ -73,8 +73,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
         },
       }),
     );
@@ -99,8 +99,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "hvc1.1.6.L150.B0", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "hvc1.1.6.L150.B0", width: 640, height: 480 },
         },
       }),
     );
@@ -119,7 +119,7 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoChunk",
+          type: "chunk",
           timestamp: 1234,
           chunkType: "key",
           frameWithHeader,
@@ -146,8 +146,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
         },
       }),
     );
@@ -168,7 +168,7 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoChunk",
+          type: "chunk",
           timestamp: 1234,
           chunkType: "key",
           frameWithHeader,
@@ -189,8 +189,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
         },
       }),
     );
@@ -221,8 +221,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "bogus", width: 1, height: 1 },
+          type: "config",
+          config: { codec: "bogus", width: 1, height: 1 },
         },
       }),
     );
@@ -251,8 +251,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
         },
       }),
     );
@@ -262,7 +262,7 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoChunk",
+          type: "chunk",
           timestamp: null,
           chunkType: "key",
           frameWithHeader,
@@ -286,7 +286,7 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoChunk",
+          type: "chunk",
           timestamp: 222,
           chunkType: "delta",
           frameWithHeader2,
@@ -305,8 +305,8 @@ describe("decoder-video", () => {
     globalThis.dispatchEvent(
       new MessageEvent("message", {
         data: {
-          type: "videoConfig",
-          videoConfig: { codec: "avc1.42e01e", width: 640, height: 480 },
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
         },
       }),
     );
