@@ -36,7 +36,7 @@ self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "config") {
-    config.codec = "mp3"; // e.data.config.codec;
+    config.codec = e.data.config.codec;
     timestampBuffer.reset();
   } else if (type === "codecData") {
     audioDecoder = new AudioDecoder({

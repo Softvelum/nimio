@@ -1,4 +1,4 @@
-import { WEB, CODEC_FAMILY_MAP } from "./data-types"
+import { WEB, CODEC_FAMILY_MAP } from "./data-types";
 import { ByteReader } from "@/shared/byte-reader";
 
 const IS_SEQUENCE_HEADER = [
@@ -6,7 +6,7 @@ const IS_SEQUENCE_HEADER = [
   WEB.AVC_SEQUENCE_HEADER,
   WEB.HEVC_SEQUENCE_HEADER,
   WEB.AV1_SEQUENCE_HEADER,
-].reduce((o, v) => (o[v] = true, o), {});
+].reduce((o, v) => ((o[v] = true), o), {});
 
 export class SLDPAgent {
   constructor() {
@@ -49,7 +49,7 @@ export class SLDPAgent {
         this._sendCodecData(
           frameWithHeader.subarray(dataPos, frameSize),
           frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
-          frameType
+          frameType,
         );
         break;
       case WEB.MP3:
@@ -77,7 +77,8 @@ export class SLDPAgent {
           dataPos += 4;
         }
 
-        tsSec = (timestamp + compositionOffset) / (this._timescale.video / 1000);
+        tsSec =
+          (timestamp + compositionOffset) / (this._timescale.video / 1000);
         tsUs = Math.round(1000 * tsSec);
         this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos);
         break;
@@ -102,7 +103,11 @@ export class SLDPAgent {
   processStatus(msg) {
     console.log("Command received", msg);
     const status = JSON.parse(msg);
-    if (!status.info || status.info.length === 0 || !status.info[0].stream_info) {
+    if (
+      !status.info ||
+      status.info.length === 0 ||
+      !status.info[0].stream_info
+    ) {
       console.error("Invalid status received:", status);
       return;
     }
@@ -183,8 +188,8 @@ export class SLDPAgent {
       type: type === "video" ? "videoCodec" : "audioCodec",
       data: {
         data: data,
-        family: CODEC_FAMILY_MAP[frameType]
-      }
+        family: CODEC_FAMILY_MAP[frameType],
+      },
     });
   }
 
@@ -197,7 +202,7 @@ export class SLDPAgent {
           chunkType: isKey ? "key" : "delta",
           frameWithHeader: frameWithHeader.buffer,
           framePos: dataPos,
-        }
+        },
       },
       [frameWithHeader.buffer],
     );
@@ -211,7 +216,7 @@ export class SLDPAgent {
           timestamp: tsUs,
           frameWithHeader: frameWithHeader.buffer,
           framePos: dataPos,
-        }
+        },
       },
       [frameWithHeader.buffer],
     );

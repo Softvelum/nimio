@@ -1,9 +1,8 @@
 export class TransportAdapter {
   constructor(workerUrl) {
-    this._worker = new Worker(
-      new URL(workerUrl, import.meta.url),
-      { type: "module" }
-    );
+    this._worker = new Worker(new URL(workerUrl, import.meta.url), {
+      type: "module",
+    });
     this._callbacks = {};
     this._worker.onmessage = (e) => this._handleMessage(e.data);
   }
