@@ -33,8 +33,8 @@ function handleDecoderError(error) {
 }
 
 function adjustCodec(codec) {
-  if ('mp4a.40.34' == codec || 'mp4a.69' == codec || 'mp4a.6B' == codec) {
-    return 'mp3'; // AudioDecoder doesn't recognize the above codec ids as mp3
+  if ("mp4a.40.34" == codec || "mp4a.69" == codec || "mp4a.6B" == codec) {
+    return "mp3"; // AudioDecoder doesn't recognize the above codec ids as mp3
   }
   return codec;
 }

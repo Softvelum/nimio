@@ -16,20 +16,20 @@ export function parseOpusConfig(opusPacket) {
   // s = Mono/Stereo (1 bit)
   // c = Frame count per packet (2 bits)
   const toc = opusPacket[0];
-  const config = toc >> 3;           // bits 3–7
+  const config = toc >> 3; // bits 3–7
   const frameCountCode = toc & 0x03; // bits 0–1
 
   const getSamplesPerFrame = (cfg) => {
     let durationMs = 0;
     if (cfg >= 0 && cfg <= 11) {
       // SILK: 10, 20, 40, 60 ms
-      durationMs = 10 * (1 << (cfg % 4));
+      durationMs = 10 * (1 << cfg % 4);
     } else if (cfg >= 12 && cfg <= 15) {
       // Hybrid: only 10 or 20 ms
-      durationMs = (cfg % 2 === 0) ? 10 : 20;
+      durationMs = cfg % 2 === 0 ? 10 : 20;
     } else if (cfg >= 16 && cfg <= 31) {
       // CELT: 2.5, 5, 10, 20 ms
-      durationMs = 2.5 * (1 << (cfg % 4));
+      durationMs = 2.5 * (1 << cfg % 4);
     }
     return durationMs * 48; // OPUS has constant sample rate 48Khz
   };

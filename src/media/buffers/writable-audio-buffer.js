@@ -33,8 +33,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     const writeIdx = this.getWriteIdx();
     this.timestamps[writeIdx] = audioFrame.decTimestamp;
 
-    const format = audioFrame.format.split('-');
-    if (format[format.length - 1] === 'planar') {
+    const format = audioFrame.format.split("-");
+    if (format[format.length - 1] === "planar") {
       let offset = 0;
       for (let ch = 0; ch < this.numChannels; ch++) {
         this._copyChannelPlanar(
@@ -72,25 +72,25 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _copyChannelPlanar(audioFrame, target, chIdx, format) {
     if (format === "s16") {
-      audioFrame.copyTo(this.tempI16, {layout: "planar", planeIndex: chIdx});
+      audioFrame.copyTo(this.tempI16, { layout: "planar", planeIndex: chIdx });
       for (let i = 0; i < this.sampleCount; i++) {
         target[i] = this.tempI16[i] / 32768;
       }
     } else {
-      audioFrame.copyTo(target, {layout: "planar", planeIndex: chIdx});
+      audioFrame.copyTo(target, { layout: "planar", planeIndex: chIdx });
     }
   }
 
   _copyInterleaved(audioFrame, target, format) {
     const isInt16 = format === "s16";
     let temp = isInt16 ? this.tempI16 : this.tempF32;
-    audioFrame.copyTo(temp, {layout: "interleaved", planeIndex: 0});
+    audioFrame.copyTo(temp, { layout: "interleaved", planeIndex: 0 });
 
     let channelOffset = 0;
     for (let ch = 0; ch < this.numChannels; ch++) {
       let elOffset = ch;
       for (let i = 0; i < this.sampleCount; i++) {
-        let val = isInt16 ? (temp[elOffset] / 32768) : temp[elOffset];
+        let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset];
         target[channelOffset + i] = val;
         elOffset += this.numChannels;
       }
