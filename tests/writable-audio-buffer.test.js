@@ -116,10 +116,10 @@ describe("WritableAudioBuffer", () => {
 
     expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(
-        wab.tempI16,
-        { layout: "planar", planeIndex: ch },
-      );
+      expect(spyCopyTo).toHaveBeenCalledWith(wab.tempI16, {
+        layout: "planar",
+        planeIndex: ch,
+      });
     }
 
     let lastChannel = wab.frames[wab.getWriteIdx() - 1].subarray(

@@ -15,7 +15,9 @@ function createTestBuffer(options = {}) {
   const tempSize =
     numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
     numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
-  const sharedBuffer = new SharedArrayBuffer(8 + frameSize * capacity + tempSize);
+  const sharedBuffer = new SharedArrayBuffer(
+    8 + frameSize * capacity + tempSize,
+  );
 
   return new ReadableAudioBuffer(
     sharedBuffer,
