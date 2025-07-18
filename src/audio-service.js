@@ -17,7 +17,7 @@ export class AudioService {
   parseAudioConfig(codecData, codecFamily) {
     let parserFn = this._parsers[codecFamily];
     if (!parserFn) {
-      console.error("No parser for the give codec", codecFamily);
+      console.error("No parser for the given codec", codecFamily);
       return null;
     }
     let config = parserFn(codecData);

@@ -9,24 +9,29 @@ export function parseOpusConfig(opusPacket) {
 
   // TOC Byte Structure (8 bits):
   // +-+-+-+-+-+-+-+-+
-  // |  M | B | C | F |
+  // | config | s | c |
   // +-+-+-+-+-+-+-+-+
   // Bits:
-  // M = Mode (2 bits)
-  // B = Bandwidth (3 bits)
-  // C = Channel config (1 bit)
-  // F = Frame count & padding info (2 bits)
+  // config (5 bits)
+  // s = Mono/Stereo (1 bit)
+  // c = Frame count per packet (2 bits)
   const toc = opusPacket[0];
-  const config = toc & 0x1f;
-  const frameCountCode = (toc >> 6) & 0x03;
+  const config = toc >> 3;           // bits 3–7
+  const frameCountCode = toc & 0x03; // bits 0–1
 
   const getSamplesPerFrame = (cfg) => {
-    if (cfg < 12) return 480; // SILK NB/MB
-    if (cfg < 16) return 960; // SILK WB
-    if (cfg < 20) return 1920; // Hybrid
-    if (cfg < 24) return 2880; // CELT-only, 60 ms
-    const mode = cfg & 3;
-    return [120, 240, 480, 960][mode]; // CELT-only
+    let durationMs = 0;
+    if (cfg >= 0 && cfg <= 11) {
+      // SILK: 10, 20, 40, 60 ms
+      durationMs = 10 * (1 << (cfg % 4));
+    } else if (cfg >= 12 && cfg <= 15) {
+      // Hybrid: only 10 or 20 ms
+      durationMs = (cfg % 2 === 0) ? 10 : 20;
+    } else if (cfg >= 16 && cfg <= 31) {
+      // CELT: 2.5, 5, 10, 20 ms
+      durationMs = 2.5 * (1 << (cfg % 4));
+    }
+    return durationMs * 48; // OPUS has constant sample rate 48Khz
   };
 
   const samplesPerFrame = getSamplesPerFrame(config);
