@@ -32,11 +32,18 @@ function handleDecoderError(error) {
   self.postMessage({ type: "decoderError", kind: "audio" });
 }
 
+function adjustCodec(codec) {
+  if ('mp4a.40.34' == codec || 'mp4a.69' == codec || 'mp4a.6B' == codec) {
+    return 'mp3'; // AudioDecoder doesn't recognize the above codec ids as mp3
+  }
+  return codec;
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
 
   if (type === "config") {
-    config.codec = e.data.config.codec;
+    config.codec = adjustCodec(e.data.config.codec);
     timestampBuffer.reset();
   } else if (type === "codecData") {
     audioDecoder = new AudioDecoder({
