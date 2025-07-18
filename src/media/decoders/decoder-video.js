@@ -62,8 +62,10 @@ self.addEventListener("message", async function (e) {
       codedHeight: config.height,
       // optimizeForLatency: true,
       hardwareAcceleration: "prefer-hardware",
-      description: e.data.codecData,
     };
+    if (e.data.codecData) {
+      params.description = e.data.codecData;
+    }
 
     support = await VideoDecoder.isConfigSupported(params);
     if (!support.supported) {

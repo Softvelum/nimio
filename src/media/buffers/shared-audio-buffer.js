@@ -30,7 +30,9 @@ export class SharedAudioBuffer {
       this.frames[i] = new Float32Array(sharedBuffer, offset, this.frameSize);
       offset += this.frameBytes;
     }
-    this.temp = new Float32Array(this.frameSize);
+    this.tempF32 = new Float32Array(sharedBuffer, offset, this.frameSize);
+    offset += this.frameBytes;
+    this.tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
@@ -38,8 +40,12 @@ export class SharedAudioBuffer {
     // timestamp = 2 Float32 elements + frame size
     const frameSize =
       (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
+    // add 2 temp buffers for s16 and f32 data
+    const tempSize =
+      numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
+      numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
     const sharedBuffer = new SharedArrayBuffer(
-      SharedAudioBuffer.HEADER_BYTES + frameSize * capacity,
+      SharedAudioBuffer.HEADER_BYTES + frameSize * capacity + tempSize,
     );
 
     return new this(

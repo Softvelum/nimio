@@ -108,13 +108,36 @@ describe("WritableAudioBuffer", () => {
     }
   });
 
-  it("pushFrame copies interleaved data correctly when numChannels > 1 and format is not planar", () => {
+  it("pushFrame copies s16-planar data per channel", () => {
+    const frame = createMockAudioFrame({ format: "s16-planar" });
+    const spyCopyTo = vi.spyOn(frame, "copyTo");
+
+    wab.pushFrame(frame);
+
+    expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
+    for (let ch = 0; ch < wab.numChannels; ch++) {
+      expect(spyCopyTo).toHaveBeenCalledWith(wab.tempI16, {
+        layout: "planar",
+        planeIndex: ch,
+      });
+    }
+
+    let lastChannel = wab.frames[wab.getWriteIdx() - 1].subarray(
+      wab.sampleCount,
+      2 * wab.sampleCount,
+    );
+    for (let i = 0; i < wab.sampleCount; i++) {
+      expect(lastChannel[i]).toBe(wab.tempI16[i] / 32768);
+    }
+  });
+
+  it("pushFrame copies f32-interleaved data correctly when numChannels > 1 and format is not planar", () => {
     const frame = createMockAudioFrame({ format: "f32-interleaved" });
     const spyCopyTo = vi.spyOn(frame, "copyTo");
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(wab.temp, {
+    expect(spyCopyTo).toHaveBeenCalledWith(wab.tempF32, {
       layout: "interleaved",
       planeIndex: 0,
     });
@@ -127,7 +150,32 @@ describe("WritableAudioBuffer", () => {
         // frameBuffer is arranged by channels, so
         // frameBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
         expect(frameBuffer[ch * wab.sampleCount + i]).toBe(
-          wab.temp[i * wab.numChannels + ch],
+          wab.tempF32[i * wab.numChannels + ch],
+        );
+      }
+    }
+  });
+
+  it("pushFrame copies s16-interleaved data correctly when numChannels > 1 and format is not planar", () => {
+    const frame = createMockAudioFrame({ format: "s16-interleaved" });
+    const spyCopyTo = vi.spyOn(frame, "copyTo");
+
+    wab.pushFrame(frame);
+
+    expect(spyCopyTo).toHaveBeenCalledWith(wab.tempI16, {
+      layout: "interleaved",
+      planeIndex: 0,
+    });
+
+    const lastWriteIdx = wab.getWriteIdx() - 1;
+    const frameBuffer = wab.frames[lastWriteIdx];
+
+    for (let ch = 0; ch < wab.numChannels; ch++) {
+      for (let i = 0; i < wab.sampleCount; i++) {
+        // frameBuffer is arranged by channels, so
+        // frameBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
+        expect(frameBuffer[ch * wab.sampleCount + i]).toBe(
+          wab.tempI16[i * wab.numChannels + ch] / 32768,
         );
       }
     }

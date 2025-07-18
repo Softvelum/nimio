@@ -217,7 +217,7 @@ describe("decoderAudio worker", () => {
       new MessageEvent("message", {
         data: {
           type: "config",
-          config: { codec: "mp4a.40.2" },
+          config: { codec: "mp4a.40.34" },
         },
       }),
     );
@@ -228,7 +228,7 @@ describe("decoderAudio worker", () => {
           type: "codecData",
           codecData: new Uint8Array([1, 2, 3]),
           aacConfig: {
-            codec: "mp4a.40.2",
+            codec: "mp4a.40.34",
             sampleRate: 48000,
             numberOfChannels: 2,
             sampleCount: 1024,
