@@ -77,7 +77,11 @@ self.addEventListener("message", async function (e) {
     }
 
     if (support.supported) {
-      videoDecoder.configure(params);
+      try {
+        videoDecoder.configure(params);
+      } catch (error) {
+        handleDecoderError(error.message);
+      }
     } else {
       // handle unsupported codec
       handleDecoderError(`Video codec not supported: ${config.codec}`);
