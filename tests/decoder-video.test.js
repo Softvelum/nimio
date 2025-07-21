@@ -7,7 +7,6 @@ let configureMock;
 let isConfigSupportedMock;
 let VideoDecoderMock;
 let EncodedVideoChunkMock;
-let outputTimeout;
 let skipOutput;
 let errorCallback;
 
@@ -31,13 +30,8 @@ function setupWorkerGlobals() {
 
   VideoDecoderMock = vi.fn(({ output, error }) => {
     errorCallback = error;
-    if (outputTimeout) {
-      clearTimeout(outputTimeout);
-      outputTimeout = null;
-    }
 
     setTimeout(() => {
-      outputTimeout = null;
       if (skipOutput) return;
       output({ timestamp: 1234, close: vi.fn() });
     }, 0);
@@ -324,6 +318,40 @@ describe("decoder-video", () => {
     errorCallback(new Error("Something went wrong"));
 
     expect(globalThis.postMessage).toHaveBeenCalledWith({
+      type: "decoderError",
+      kind: "video",
+    });
+  });
+
+  it("emits decoderError message if decoder fails during configure", async () => {
+    skipOutput = true;
+    configureMock.mockImplementationOnce(() => {
+      throw new Error("Configuration failed");
+    });
+
+    await import("@/media/decoders/decoder-video.js");
+
+    globalThis.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "config",
+          config: { codec: "avc1.42e01e", width: 640, height: 480 },
+        },
+      }),
+    );
+
+    globalThis.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "codecData",
+          codecData: new Uint8Array([1, 2, 3]),
+        },
+      }),
+    );
+
+    await Promise.resolve();
+    vi.runAllTimers();
+    expect(postMessageMock).toHaveBeenCalledWith({
       type: "decoderError",
       kind: "video",
     });
