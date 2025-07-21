@@ -80,7 +80,7 @@ self.addEventListener("message", async function (e) {
         handleDecoderError(error.message);
       }
     } else {
-      handleDecoderError(`Audio codec not supported: ${config.codec}`)
+      handleDecoderError(`Audio codec not supported: ${config.codec}`);
     }
   } else if (type === "chunk") {
     const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
