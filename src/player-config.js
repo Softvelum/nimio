@@ -13,6 +13,8 @@ const DEFAULTS = {
   instanceName: null,
   logLevel: "warn",
   fullBufferMs: null,
+  videoOnly: false,
+  audioOnly: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
