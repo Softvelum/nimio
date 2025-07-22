@@ -139,7 +139,7 @@ export function parseMp3Config(codecData) {
     let layerIndex = (codecData[1] >> 1) & 0x03;
     if (layerIndex != 0) {
       config.sampleCount = MPEG_SAMPLES_PER_FRAME[mpegVersionIndex][layerIndex];
-      let bitrateIndex = (codecData[2] >> 4) & 0xff;
+      let bitrateIndex = (codecData[2] >> 4) & 0x0f;
       config.bitrate =
         MPEG_BIT_RATE[bitrateIndex][mpegVersionIndex][layerIndex];
       let sampleRateIndex = (codecData[2] >> 2) & 0x03;
