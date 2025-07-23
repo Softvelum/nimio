@@ -1,15 +1,26 @@
-import { parseAACConfig } from "./media/parsers/aac-config-parser.js";
+import { parseAACConfig } from "./media/parsers/aac-config-parser";
+import { parseMp3Config } from "./media/parsers/mp3-config-parser";
+import { parseOpusConfig } from "./media/parsers/opus-config-parser";
 
 export class AudioService {
   constructor(sampleRate = 0, numberOfChannels = 0, sampleCount = 0) {
     this._sampleRate = sampleRate;
     this._numberOfChannels = numberOfChannels;
     this._sampleCount = sampleCount;
+    this._parsers = {
+      AAC: parseAACConfig,
+      MP3: parseMp3Config,
+      OPUS: parseOpusConfig,
+    };
   }
 
-  parseAudioConfig(codecData) {
-    // TODO: handle all audio codecs besides AAC
-    let config = parseAACConfig(codecData);
+  parseAudioConfig(codecData, codecFamily) {
+    let parserFn = this._parsers[codecFamily];
+    if (!parserFn) {
+      console.error("No parser for the given codec", codecFamily);
+      return null;
+    }
+    let config = parserFn(codecData);
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount;

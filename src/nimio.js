@@ -234,20 +234,27 @@ export default class Nimio {
   _onVideoCodecDataReceived(data) {
     this._videoDecoderWorker.postMessage({
       type: "codecData",
-      codecData: data,
+      codecData: data.data,
     });
   }
 
   _onAudioCodecDataReceived(data) {
+    let config = this._audioService.parseAudioConfig(data.data, data.family);
+    if (!config) {
+      if (!this._noAudio) {
+        this._startNoAudioMode();
+      }
+      return;
+    }
+
     if (this._noAudio) {
       this._stopAudio();
     }
 
-    let config = this._audioService.parseAudioConfig(data);
     this._audioDecoderWorker.postMessage({
       type: "codecData",
-      codecData: data,
-      aacConfig: config,
+      codecData: data.data,
+      config: config,
     });
 
     this._audioBuffer = WritableAudioBuffer.allocate(
@@ -415,6 +422,7 @@ export default class Nimio {
   _startNoAudioMode() {
     this._initAudioContext(48000, 1, true);
     this._noAudio = true;
+    this._logger.debug("No audio mode started");
   }
 
   _stopAudio() {

@@ -1,5 +1,12 @@
-import { WEB } from "./data-types";
+import { WEB, CODEC_FAMILY_MAP } from "./data-types";
 import { ByteReader } from "@/shared/byte-reader";
+
+const IS_SEQUENCE_HEADER = [
+  WEB.AAC_SEQUENCE_HEADER,
+  WEB.AVC_SEQUENCE_HEADER,
+  WEB.HEVC_SEQUENCE_HEADER,
+  WEB.AV1_SEQUENCE_HEADER,
+].reduce((o, v) => ((o[v] = true), o), {});
 
 export class SLDPAgent {
   constructor() {
@@ -9,6 +16,7 @@ export class SLDPAgent {
     };
     this._useSteady = false;
     this._steady = false;
+    this._codecDataStatus = {};
   }
 
   processFrame(data) {
@@ -16,45 +24,45 @@ export class SLDPAgent {
     let trackId = frameWithHeader[0];
     let frameType = frameWithHeader[1];
     let showTime = 0;
-    let dataPos = 10;
     let frameSize = frameWithHeader.byteLength;
-    let timestamp;
 
-    let tsSec,
-      tsUs,
-      isKey = false;
+    let timestamp;
+    let dataPos = 2;
+    if (!IS_SEQUENCE_HEADER[frameType]) {
+      timestamp = ByteReader.readUint(frameWithHeader, dataPos, 8);
+      dataPos += 8;
+
+      if (this._steady) {
+        showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
+        dataPos += 8;
+      }
+    }
+
+    let tsSec;
+    let tsUs;
+    let isKey = false;
     switch (frameType) {
       case WEB.AAC_SEQUENCE_HEADER:
       case WEB.AVC_SEQUENCE_HEADER:
       case WEB.HEVC_SEQUENCE_HEADER:
       case WEB.AV1_SEQUENCE_HEADER:
-        self.postMessage({
-          type:
-            frameType === WEB.AAC_SEQUENCE_HEADER ? "audioCodec" : "videoCodec",
-          data: frameWithHeader.subarray(2, frameSize),
-        });
+        this._sendCodecData(
+          frameWithHeader.subarray(dataPos, frameSize),
+          frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
+          frameType,
+        );
         break;
       case WEB.MP3:
       case WEB.OPUS_FRAME:
-      case WEB.AAC_FRAME:
-        timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
-
-        if (this._steady) {
-          showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
-          dataPos += 8;
+        if (!this._codecDataStatus[trackId]) {
+          let codecData = frameWithHeader.subarray(dataPos, dataPos + 4);
+          this._codecDataStatus[trackId] = true;
+          this._sendCodecData(codecData, "audio", frameType);
         }
-
+      case WEB.AAC_FRAME:
         tsSec = timestamp / (this._timescale.audio / 1000);
         tsUs = Math.round(1000 * tsSec);
-
-        self.postMessage({
-          type: "audioChunk",
-          data: {
-            timestamp: tsUs,
-            frameWithHeader: frameWithHeader.buffer,
-            framePos: dataPos,
-          },
-        });
+        this._sendAudioFrame(frameWithHeader, tsUs, dataPos);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:
@@ -63,13 +71,6 @@ export class SLDPAgent {
       case WEB.AVC_FRAME:
       case WEB.HEVC_FRAME:
       case WEB.AV1_FRAME:
-        timestamp = ByteReader.readUint(frameWithHeader, 2, 8);
-
-        if (this._steady) {
-          showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
-          dataPos += 8;
-        }
-
         let compositionOffset = 0;
         if (frameType !== WEB.AV1_KEY_FRAME && frameType !== WEB.AV1_FRAME) {
           compositionOffset = ByteReader.readUint(frameWithHeader, dataPos, 4);
@@ -79,19 +80,20 @@ export class SLDPAgent {
         tsSec =
           (timestamp + compositionOffset) / (this._timescale.video / 1000);
         tsUs = Math.round(1000 * tsSec);
-
-        self.postMessage(
-          {
-            type: "videoChunk",
-            data: {
-              timestamp: tsUs,
-              chunkType: isKey ? "key" : "delta",
-              frameWithHeader: frameWithHeader.buffer,
-              framePos: dataPos,
-            },
-          },
-          [frameWithHeader.buffer],
-        );
+        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos);
+        break;
+      case WEB.VP8_KEY_FRAME:
+      case WEB.VP9_KEY_FRAME:
+        if (!this._codecDataStatus[trackId]) {
+          this._codecDataStatus[trackId] = true;
+          this._sendCodecData(null, "video", frameType);
+        }
+        isKey = true;
+      case WEB.VP8_FRAME:
+      case WEB.VP9_FRAME:
+        tsSec = timestamp / (this._timescale.video / 1000);
+        tsUs = Math.round(1000 * tsSec);
+        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos);
         break;
       default:
         break;
@@ -161,6 +163,8 @@ export class SLDPAgent {
       type: "status",
       data: streams,
     });
+
+    this._codecDataStatus = {};
   }
 
   handleMessage(type, data) {
@@ -177,5 +181,44 @@ export class SLDPAgent {
 
   set useSteady(value) {
     this._useSteady = value;
+  }
+
+  _sendCodecData(data, type, frameType) {
+    self.postMessage({
+      type: type === "video" ? "videoCodec" : "audioCodec",
+      data: {
+        data: data,
+        family: CODEC_FAMILY_MAP[frameType],
+      },
+    });
+  }
+
+  _sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos) {
+    self.postMessage(
+      {
+        type: "videoChunk",
+        data: {
+          timestamp: tsUs,
+          chunkType: isKey ? "key" : "delta",
+          frameWithHeader: frameWithHeader.buffer,
+          framePos: dataPos,
+        },
+      },
+      [frameWithHeader.buffer],
+    );
+  }
+
+  _sendAudioFrame(frameWithHeader, tsUs, dataPos) {
+    self.postMessage(
+      {
+        type: "audioChunk",
+        data: {
+          timestamp: tsUs,
+          frameWithHeader: frameWithHeader.buffer,
+          framePos: dataPos,
+        },
+      },
+      [frameWithHeader.buffer],
+    );
   }
 }
