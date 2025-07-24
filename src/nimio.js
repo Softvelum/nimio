@@ -65,7 +65,11 @@ export default class Nimio {
     this._ctx = this._ui.getCanvas().getContext("2d");
 
     this._initTransport(options.instanceName, "./web-socket.js");
-    this._sldpManager = new SLDPManager(this._transport);
+    this._sldpManager = new SLDPManager(
+      options.instanceName,
+      this._transport,
+      this._config,
+    );
     this._initDecoders();
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values

@@ -1,4 +1,5 @@
 import LoggersFactory from "@/shared/logger";
+import { checkSupportedCodecs } from "@/media/decoders/checker";
 
 export class SLDPManager {
   constructor(instName, transport, config) {
@@ -10,8 +11,8 @@ export class SLDPManager {
     this._useSteady = false;
 
     this._transport = transport;
-    this._transport.setCallback("status", (msg) => {
-      this._processStatus(msg);
+    this._transport.setCallback("status", async (msg) => {
+      await this._processStatus(msg);
       this._play();
     });
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
@@ -38,9 +39,15 @@ export class SLDPManager {
     });
   }
 
-  _processStatus(streams) {
+  async _processStatus(streams) {
     this._streams = streams;
 
+    const supported = {
+      video: await checkSupportedCodecs("video", this._streams.map(v => v.stream_info.vcodec)),
+      audio: await checkSupportedCodecs("audio", this._streams.map(v => v.stream_info.acodec)),
+    };
+
+    debugger;
     const resolution = this._streams[0].stream_info.resolution;
     const [width, height] = resolution.split("x").map(Number);
 
