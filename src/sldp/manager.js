@@ -1,11 +1,13 @@
 import LoggersFactory from "@/shared/logger";
-import { checkSupportedCodecs } from "@/media/decoders/checker";
 
 export class SLDPManager {
-  constructor(instName, transport, config) {
-    this._streams = [];
+  constructor(instName, transport, context, config) {
     this._curStreams = [];
+    this._nextSN = 1;
+
     this._startOffset = config.startOffset || 0;
+    this._hasVideo = !config.audioOnly;
+    this._hasAudio = !config.videoOnly;
 
     // TODO: set from config.syncBuffer
     this._useSteady = false;
@@ -15,6 +17,8 @@ export class SLDPManager {
       await this._processStatus(msg);
       this._play();
     });
+
+    this._context = context;
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
   }
 
@@ -40,48 +44,51 @@ export class SLDPManager {
   }
 
   async _processStatus(streams) {
-    this._streams = streams;
+    await this._context.setStreams(streams);
 
-    const supported = {
-      video: await checkSupportedCodecs("video", this._streams.map(v => v.stream_info.vcodec)),
-      audio: await checkSupportedCodecs("audio", this._streams.map(v => v.stream_info.acodec)),
-    };
+    let gotVideo = !this._hasVideo;
+    let vconfig = null;
 
-    debugger;
-    const resolution = this._streams[0].stream_info.resolution;
-    const [width, height] = resolution.split("x").map(Number);
+    let gotAudio = !this._hasAudio;
+    let aconfig = null;
 
     this._curStreams = [];
     let timescale = {};
-    let vconfig = null;
-    if (this._streams[0].stream_info.vcodec) {
-      vconfig = {
-        width: width,
-        height: height,
-        codec: this._streams[0].stream_info.vcodec,
-      };
-      timescale.video = +this._streams[0].stream_info.vtimescale;
+    let ordStreams = this._context.orderedStreams;
+    for (let i = 0; i < ordStreams.length; i++) {
+      if (!gotVideo && ordStreams[i].stream_info.vcodecSupported) {
+        vconfig = {
+          width: width,
+          height: height,
+          codec: ordStreams[i].stream_info.vcodec,
+        };
+        timescale.video = ordStreams[i].stream_info.vtimescale;
+  
+        this._curStreams.push({
+          type: "video",
+          stream: ordStreams[i].stream,
+          offset: this._startOffset,
+          sn: this._nextSN++,
+        });
+        gotVideo = true;
+      }
 
-      this._curStreams.push({
-        type: "video",
-        stream: this._streams[0].stream,
-        offset: this._startOffset,
-        sn: 0,
-      });
+      if (!gotAudio && ordStreams[i].stream_info.acodecSupported) {
+        aconfig = { codec: ordStreams[i].stream_info.acodec };
+        timescale.audio = ordStreams[i].stream_info.atimescale;
+        this._curStreams.push({
+          type: "audio",
+          stream: ordStreams[i].stream,
+          offset: this._startOffset,
+          sn: this._nextSN++,
+        });
+        gotAudio = true;
+      }
+
+      if (gotVideo && gotAudio) break;
     }
+
     this._transport.runCallback("videoConfig", vconfig);
-
-    let aconfig = null;
-    if (this._streams[0].stream_info.acodec) {
-      aconfig = { codec: this._streams[0].stream_info.acodec };
-      timescale.audio = +this._streams[0].stream_info.atimescale;
-      this._curStreams.push({
-        type: "audio",
-        stream: this._streams[0].stream,
-        offset: this._startOffset,
-        sn: 1,
-      });
-    }
     this._transport.runCallback("audioConfig", aconfig);
     this._transport.send("timescale", timescale);
   }

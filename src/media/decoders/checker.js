@@ -20,13 +20,16 @@ export async function isCodecSupported(type, codec) {
 export async function checkSupportedCodecs(type, codecs) {
   const support = {};
   const decoder = type === "video" ? VideoDecoder : AudioDecoder;
-  const checks = codecs.map(codec => {
+  const checks = codecs.map((codec) => {
     const codecParams = makeCodecParams(type, codec);
-    decoder.isConfigSupported(codecParams).then(result => {
-      support[codec] = result.supported;
-    }).catch((error) => {
-      support[codec] = false;
-    });
+    decoder
+      .isConfigSupported(codecParams)
+      .then((result) => {
+        support[codec] = result.supported;
+      })
+      .catch((error) => {
+        support[codec] = false;
+      });
   });
   await Promise.all(checks);
 

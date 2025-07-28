@@ -1,15 +1,16 @@
-import workletUrl from "./audio-worklet-processor.js?worker&url"; // ?worker&url - Vite initiate new Rollup build
-import { IDX } from "./shared/values.js";
-import { StateManager } from "./state-manager.js";
+import workletUrl from "./audio-worklet-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
+import { IDX } from "./shared/values";
+import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
+import { SLDPContext } from "./sldp/context";
 import { Ui } from "./ui/ui.js";
-import { VideoBuffer } from "./media/buffers/video-buffer.js";
-import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer.js";
-import { TransportAdapter } from "./transport/adapter.js";
-import { createConfig } from "./player-config.js";
-import { AudioService } from "./audio-service.js";
-import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor.js";
-import LoggersFactory from "./shared/logger.js";
+import { VideoBuffer } from "./media/buffers/video-buffer";
+import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
+import { TransportAdapter } from "./transport/adapter";
+import { createConfig } from "./player-config";
+import { AudioService } from "./audio-service";
+import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
+import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
   constructor(options) {
@@ -37,6 +38,7 @@ export default class Nimio {
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
+      this._config.videoOnly = this._config.audioOnly = false;
       this._noVideo = this._noAudio = false;
     }
 
@@ -65,9 +67,11 @@ export default class Nimio {
     this._ctx = this._ui.getCanvas().getContext("2d");
 
     this._initTransport(options.instanceName, "./web-socket.js");
+    this._context = new SLDPContext(options.instanceName);
     this._sldpManager = new SLDPManager(
       options.instanceName,
       this._transport,
+      this._context,
       this._config,
     );
     this._initDecoders();
@@ -185,7 +189,7 @@ export default class Nimio {
   }
 
   _renderVideoFrame() {
-    if (this._state.isPlaying()) {
+    if (!this._noVideo && this._state.isPlaying()) {
       requestAnimationFrame(this._renderVideoFrame);
       if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
         return true;

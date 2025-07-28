@@ -129,7 +129,6 @@ export class SLDPAgent {
       case "timescale":
         this._timescale.video = data.video;
         this._timescale.audio = data.audio;
-        debugger;
         break;
       default:
         console.warn("Unknown message type:", type, data);
