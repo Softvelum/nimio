@@ -22,7 +22,7 @@ export async function checkSupportedCodecs(type, codecs) {
   const decoder = type === "video" ? VideoDecoder : AudioDecoder;
   const checks = codecs.map((codec) => {
     const codecParams = makeCodecParams(type, codec);
-    decoder
+    return decoder
       .isConfigSupported(codecParams)
       .then((result) => {
         support[codec] = result.supported;
