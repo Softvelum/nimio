@@ -54,42 +54,55 @@ export class SLDPManager {
 
     this._curStreams = [];
     let timescale = {};
-    let ordStreams = this._context.orderedStreams;
-    for (let i = 0; i < ordStreams.length; i++) {
-      if (!gotVideo && ordStreams[i].stream_info.vcodecSupported) {
-        vconfig = {
-          width: width,
-          height: height,
-          codec: ordStreams[i].stream_info.vcodec,
-        };
-        timescale.video = ordStreams[i].stream_info.vtimescale;
-  
-        this._curStreams.push({
-          type: "video",
-          stream: ordStreams[i].stream,
-          offset: this._startOffset,
-          sn: this._nextSN++,
-        });
+    let vRenditions = this._context.videoRenditions;
+    for (let i = 0; i < vRenditions.length; i++) {
+      let stream = this._context.streams[vRenditions[i].idx];
+      if (!gotVideo) {
+        vconfig = this._pushCurStream("video", stream);
+        timescale.video = stream.stream_info.vtimescale;
         gotVideo = true;
       }
 
-      if (!gotAudio && ordStreams[i].stream_info.acodecSupported) {
-        aconfig = { codec: ordStreams[i].stream_info.acodec };
-        timescale.audio = ordStreams[i].stream_info.atimescale;
-        this._curStreams.push({
-          type: "audio",
-          stream: ordStreams[i].stream,
-          offset: this._startOffset,
-          sn: this._nextSN++,
-        });
+      if (!gotAudio && stream.stream_info.acodecSupported) {
+        aconfig = this._pushCurStream("audio", stream);
+        timescale.audio = stream.stream_info.atimescale;
         gotAudio = true;
       }
 
       if (gotVideo && gotAudio) break;
     }
 
+    if (!gotAudio) {
+      // If no audio in the video renditions, take the first audio rendition
+      let aRenditions = this._context.audioRenditions;
+      if (aRenditions.length > 0) {
+        let stream = this._context.streams[aRenditions[0].idx];
+        aconfig = this._pushCurStream("audio", stream);
+        timescale.audio = stream.stream_info.atimescale;
+      }
+    }
+
     this._transport.runCallback("videoConfig", vconfig);
     this._transport.runCallback("audioConfig", aconfig);
     this._transport.send("timescale", timescale);
+  }
+
+  _pushCurStream(type, stream) {
+    let config = (type === "video") ? {
+      width: stream.stream_info.width,
+      height: stream.stream_info.height,
+      codec: stream.stream_info.vcodec,
+    } : {
+      codec: stream.stream_info.acodec,
+    };
+
+    this._curStreams.push({
+      type: type,
+      stream: stream.stream,
+      offset: this._startOffset,
+      sn: this._nextSN++,
+    });
+
+    return config;
   }
 }

@@ -6,25 +6,19 @@ export class SLDPContext {
 
     this._streams = [];
     this._streamsMap = {};
-    this._orderedStreams = [];
+    this._ordVideoRenditions = [];
+    this._ordAudioRenditions = [];
   }
 
   async setStreams(streams) {
     this._streams = streams;
     this._streamsMap = {};
-    this._orderedStreams = [];
+    this._ordVideoRenditions = [];
+    this._ordAudioRenditions = [];
 
-    this._cSupport = {
-      video: await checkSupportedCodecs(
-        "video",
-        streams.map((v) => v.stream_info.vcodec),
-      ),
-      audio: await checkSupportedCodecs(
-        "audio",
-        streams.map((v) => v.stream_info.acodec),
-      ),
-    };
+    this._cSupport = await this._checkSupportedCodecs(streams);
 
+    let noVideoStreams = [];
     for (let i = 0; i < streams.length; i++) {
       this._streamsMap[streams[i].stream] = i;
 
@@ -49,9 +43,9 @@ export class SLDPContext {
           }
 
           let j = 0;
-          for (; j < this._orderedStreams.length; j++) {
+          for (; j < this._ordVideoRenditions.length; j++) {
             let ordStreamInfo =
-              this._streams[this._orderedStreams[j].idx].stream_info;
+              this._streams[this._ordVideoRenditions[j].idx].stream_info;
             if (
               ordStreamInfo.height > streamInfo.height ||
               (ordStreamInfo.height === streamInfo.height &&
@@ -61,7 +55,7 @@ export class SLDPContext {
             }
           }
 
-          this._orderedStreams.splice(j, 0, {
+          this._ordVideoRenditions.splice(j, 0, {
             idx: i,
             bandwidth: streamInfo.bandwidth,
             rendition: res[1],
@@ -69,13 +63,53 @@ export class SLDPContext {
         }
       }
 
+      if (!streamInfo.vcodecSupported) {
+        noVideoStreams.push({ idx: i });
+      }
+
       if (streamInfo.acodec) {
         streamInfo.acodecSupported = this._cSupport.audio[streamInfo.acodec];
       }
     }
+
+    this._fillAudioRenditions(this._ordVideoRenditions);
+    this._fillAudioRenditions(noVideoStreams);
   }
 
-  get orderedStreams() {
-    return this._orderedStreams;
+  async _checkSupportedCodecs(streams) {
+    return {
+      video: await checkSupportedCodecs(
+        "video",
+        streams.map((v) => v.stream_info.vcodec),
+      ),
+      audio: await checkSupportedCodecs(
+        "audio",
+        streams.map((v) => v.stream_info.acodec),
+      ),
+    };
+  }
+
+  get streams() {
+    return this._streams;
+  }
+
+  get videoRenditions() {
+    return this._ordVideoRenditions;
+  }
+
+  get audioRenditions() {
+    return this._ordAudioRenditions;
+  }
+
+  _fillAudioRenditions (source) {
+    for (let i = 0; i < source.length; i++) {
+      let streamInfo = this._streams[source[i].idx].stream_info;
+      if (streamInfo.acodecSupported) {
+        this._ordAudioRenditions.push({
+          idx: source[i].idx,
+          bandwidth: streamInfo.bandwidth,
+        })
+      }
+    }
   }
 }
