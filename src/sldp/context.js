@@ -30,6 +30,7 @@ export class SLDPContext {
         streamInfo.atimescale = parseInt(streamInfo.atimescale);
       }
 
+      let vIdx = null;
       if (streamInfo.resolution && streamInfo.vcodec) {
         let res = streamInfo.resolution.split("x");
         streamInfo.width = parseInt(res[0]);
@@ -42,10 +43,9 @@ export class SLDPContext {
             streamInfo.bandwidth = parseInt(streamInfo.bandwidth) / 1024;
           }
 
-          let j = 0;
-          for (; j < this._ordVideoRenditions.length; j++) {
+          for (vIdx = 0; vIdx < this._ordVideoRenditions.length; vIdx++) {
             let ordStreamInfo =
-              this._streams[this._ordVideoRenditions[j].idx].stream_info;
+              this._streams[this._ordVideoRenditions[vIdx].idx].stream_info;
             if (
               ordStreamInfo.height > streamInfo.height ||
               (ordStreamInfo.height === streamInfo.height &&
@@ -55,7 +55,7 @@ export class SLDPContext {
             }
           }
 
-          this._ordVideoRenditions.splice(j, 0, {
+          this._ordVideoRenditions.splice(vIdx, 0, {
             idx: i,
             bandwidth: streamInfo.bandwidth,
             rendition: res[1],
@@ -69,6 +69,7 @@ export class SLDPContext {
 
       if (streamInfo.acodec) {
         streamInfo.acodecSupported = this._cSupport.audio[streamInfo.acodec];
+        this._ordVideoRenditions[vIdx].hasAudio = streamInfo.acodecSupported;
       }
     }
 

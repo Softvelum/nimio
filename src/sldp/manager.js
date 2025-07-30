@@ -8,6 +8,7 @@ export class SLDPManager {
     this._startOffset = config.startOffset || 0;
     this._hasVideo = !config.audioOnly;
     this._hasAudio = !config.videoOnly;
+    this._initRend = config.adaptiveBitrate.initialRendition;
 
     // TODO: set from config.syncBuffer
     this._useSteady = false;
@@ -47,39 +48,61 @@ export class SLDPManager {
     await this._context.setStreams(streams);
 
     let gotVideo = !this._hasVideo;
+    let vIdx = null;
     let vconfig = null;
 
     let gotAudio = !this._hasAudio;
+    let aIdx = null;
     let aconfig = null;
 
     this._curStreams = [];
     let timescale = {};
+
     let vRenditions = this._context.videoRenditions;
+    if (this._initRend && !gotVideo) {
+      for (let i = 0; i < vRenditions.length; i++) {
+        if (vRenditions[i].rendition + 'p' === this._initRend) {
+          vIdx = vRenditions[i].idx;
+          gotVideo = true;
+
+          if (!gotAudio && vRenditions[i].hasAudio) {
+            aIdx = vRenditions[i].idx;
+            gotAudio = true;
+          }
+          break;
+        }
+      }
+    }
+
     for (let i = 0; i < vRenditions.length; i++) {
-      let stream = this._context.streams[vRenditions[i].idx];
+      if (gotVideo && gotAudio) break;
+
       if (!gotVideo) {
-        vconfig = this._pushCurStream("video", stream);
-        timescale.video = stream.stream_info.vtimescale;
+        vIdx = vRenditions[i].idx;
         gotVideo = true;
       }
-
-      if (!gotAudio && stream.stream_info.acodecSupported) {
-        aconfig = this._pushCurStream("audio", stream);
-        timescale.audio = stream.stream_info.atimescale;
+      if (!gotAudio && vRenditions[i].hasAudio) {
+        aIdx = vRenditions[i].idx;
         gotAudio = true;
       }
-
-      if (gotVideo && gotAudio) break;
     }
 
     if (!gotAudio) {
       // If no audio in the video renditions, take the first audio rendition
-      let aRenditions = this._context.audioRenditions;
-      if (aRenditions.length > 0) {
-        let stream = this._context.streams[aRenditions[0].idx];
-        aconfig = this._pushCurStream("audio", stream);
-        timescale.audio = stream.stream_info.atimescale;
+      if (this._context.audioRenditions.length > 0) {
+        aIdx = this._context.audioRenditions[0].idx;
       }
+    }
+
+    if (gotVideo && vIdx >= 0) {
+      let stream = this._context.streams[vIdx];
+      vconfig = this._pushCurStream("video", stream);
+      timescale.video = stream.stream_info.vtimescale;
+    }
+    if (gotAudio && aIdx >= 0) {
+      let stream = this._context.streams[aIdx];
+      aconfig = this._pushCurStream("audio", stream);
+      timescale.audio = stream.stream_info.atimescale;
     }
 
     this._transport.runCallback("videoConfig", vconfig);
