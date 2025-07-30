@@ -13,6 +13,9 @@ const DEFAULTS = {
   instanceName: null,
   logLevel: "warn",
   fullBufferMs: null,
+  videoOnly: false,
+  audioOnly: false,
+  adaptiveBitrate: {},
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -24,6 +27,40 @@ function validateRequired(cfg) {
       throw new Error(`Config key "${key}" is required`);
     }
   });
+}
+
+function initAbrSettings(settings, logger) {
+  let abrSettings = settings.adaptiveBitrate;
+  if (abrSettings instanceof Object) {
+    if (abrSettings.initialRendition) {
+      if (!abrSettings.initialRendition.endsWith("p")) {
+        logger.error(
+          "Parameter adaptiveBitrate.initialRendition is ignored. It must be a name of a rendition, i. e. '240p', '480p' or '720p'",
+        );
+      } else {
+        abrSettings.initialHeight =
+          parseInt(abrSettings.initialRendition) || undefined;
+      }
+    }
+    if (abrSettings.maxRendition) {
+      if (!abrSettings.maxRendition.endsWith("p")) {
+        logger.error(
+          "Parameter adaptiveBitrate.maxRendition is ignored. It must be a name of a rendition, i. e. '240p', '480p' or '720p'",
+        );
+      } else {
+        abrSettings.maxHeight = parseInt(abrSettings.maxRendition) || undefined;
+        if (abrSettings.initialHeight > abrSettings.maxHeight) {
+          logger.error(
+            "Parameter adaptiveBitrate.maxRendition is ignored. It must be greater or equal to adaptiveBitrate.initialRendition",
+          );
+          abrSettings.maxHeight = abrSettings.maxRendition = undefined;
+        }
+      }
+    }
+    abrSettings.sizeConstrained = !!abrSettings.sizeConstrained;
+  } else if (abrSettings === true) {
+    settings.adaptiveBitrate = {};
+  }
 }
 
 export function createConfig(overrides = {}) {
@@ -49,6 +86,8 @@ export function createConfig(overrides = {}) {
 
   target.fullBufferMs =
     target.latency + target.startOffset + target.pauseTimeout;
+
+  initAbrSettings(target, logger);
 
   return new Proxy(target, {
     get(obj, prop) {

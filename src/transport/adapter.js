@@ -1,5 +1,9 @@
+import LoggersFactory from "@/shared/logger";
+
 export class TransportAdapter {
-  constructor(workerUrl) {
+  constructor(instName, workerUrl) {
+    this._logger = LoggersFactory.create(instName, "Transport");
+
     this._worker = new Worker(new URL(workerUrl, import.meta.url), {
       type: "module",
     });
@@ -22,6 +26,13 @@ export class TransportAdapter {
 
   setCallback(type, callback) {
     this._callbacks[type] = callback;
+  }
+
+  runCallback(type, data) {
+    if (!this._callbacks[type]) {
+      this._logger.error(`No callback set for type: ${type}`);
+    }
+    return this._callbacks[type](data);
   }
 
   _handleMessage(msg) {

@@ -55,7 +55,7 @@ self.onmessage = (e) => {
     socket.id = ++curSocketId;
 
     protocolAgent = createProtocolAgent(e.data.protocols[0]);
-    protocolAgent.useSteady = e.data.steady;
+    protocolAgent.useSteady = e.data.useSteady;
     socket.onmessage = (wsEv) => {
       if (wsEv.data instanceof ArrayBuffer) {
         protocolAgent.processFrame(wsEv.data);
