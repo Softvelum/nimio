@@ -39,6 +39,8 @@ export async function checkSupportedCodecs(type, codecs) {
 function makeCodecParams(type, codec) {
   const params = { codec: adjustCodecId(codec) };
   if (type === "audio") {
+    // AudioDecoder requires sample rate and channel count to be specified
+    // for the isConfigSupported check
     params.sampleRate = 48000; // Default sample rate
     params.numberOfChannels = 2; // Default number of channels
   }
