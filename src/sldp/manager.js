@@ -61,7 +61,7 @@ export class SLDPManager {
     let vRenditions = this._context.videoRenditions;
     if (this._initRend && !gotVideo) {
       for (let i = 0; i < vRenditions.length; i++) {
-        if (vRenditions[i].rendition + 'p' === this._initRend) {
+        if (vRenditions[i].rendition + "p" === this._initRend) {
           vIdx = vRenditions[i].idx;
           gotVideo = true;
 
@@ -111,13 +111,16 @@ export class SLDPManager {
   }
 
   _pushCurStream(type, stream) {
-    let config = (type === "video") ? {
-      width: stream.stream_info.width,
-      height: stream.stream_info.height,
-      codec: stream.stream_info.vcodec,
-    } : {
-      codec: stream.stream_info.acodec,
-    };
+    let config =
+      type === "video"
+        ? {
+            width: stream.stream_info.width,
+            height: stream.stream_info.height,
+            codec: stream.stream_info.vcodec,
+          }
+        : {
+            codec: stream.stream_info.acodec,
+          };
 
     this._curStreams.push({
       type: type,

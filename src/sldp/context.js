@@ -102,14 +102,14 @@ export class SLDPContext {
     return this._ordAudioRenditions;
   }
 
-  _fillAudioRenditions (source) {
+  _fillAudioRenditions(source) {
     for (let i = 0; i < source.length; i++) {
       let streamInfo = this._streams[source[i].idx].stream_info;
       if (streamInfo.acodecSupported) {
         this._ordAudioRenditions.push({
           idx: source[i].idx,
           bandwidth: streamInfo.bandwidth,
-        })
+        });
       }
     }
   }
