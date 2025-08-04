@@ -116,52 +116,9 @@ export class SLDPAgent {
       this._steady = !!status.steady;
     }
 
-    // TODO: move all this logic to the manager
-    const resolution = status.info[0].stream_info.resolution;
-    const [width, height] = resolution.split("x").map(Number);
-
-    let streams = [];
-    let vconfig = null;
-    if (status.info[0].stream_info.vcodec) {
-      vconfig = {
-        width: width,
-        height: height,
-        codec: status.info[0].stream_info.vcodec,
-      };
-      this._timescale.video = +status.info[0].stream_info.vtimescale;
-
-      streams.push({
-        type: "video",
-        steady: this._steady,
-        stream: status.info[0].stream,
-        sn: 0,
-      });
-    }
-    self.postMessage({
-      type: "videoConfig",
-      data: vconfig,
-    });
-
-    let aconfig = null;
-    if (status.info[0].stream_info.acodec) {
-      aconfig = { codec: status.info[0].stream_info.acodec };
-      this._timescale.audio = +status.info[0].stream_info.atimescale;
-      streams.push({
-        type: "audio",
-        steady: this._steady,
-        stream: status.info[0].stream,
-        sn: 1,
-      });
-    }
-
-    self.postMessage({
-      type: "audioConfig",
-      data: aconfig,
-    });
-
     self.postMessage({
       type: "status",
-      data: streams,
+      data: status.info,
     });
 
     this._codecDataStatus = {};
@@ -169,6 +126,10 @@ export class SLDPAgent {
 
   handleMessage(type, data) {
     switch (type) {
+      case "timescale":
+        this._timescale.video = data.video;
+        this._timescale.audio = data.audio;
+        break;
       default:
         console.warn("Unknown message type:", type, data);
         break;
