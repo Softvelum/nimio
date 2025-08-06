@@ -19,9 +19,9 @@ describe("VideoBuffer", () => {
     const f2 = createMockFrame(2);
     const f3 = createMockFrame(3);
 
-    buffer.addFrame(f1, 1000);
-    buffer.addFrame(f2, 2000);
-    buffer.addFrame(f3, 3000);
+    buffer.pushFrame(f1, 1000);
+    buffer.pushFrame(f2, 2000);
+    buffer.pushFrame(f3, 3000);
 
     let result = buffer.popFrameForTime(2500);
     expect(result).toBe(f2);
@@ -33,8 +33,8 @@ describe("VideoBuffer", () => {
     const f1 = createMockFrame(1);
     const f2 = createMockFrame(2);
 
-    buffer.addFrame(f1, 1000);
-    buffer.addFrame(f2, 2000);
+    buffer.pushFrame(f1, 1000);
+    buffer.pushFrame(f2, 2000);
 
     const result = buffer.popFrameForTime(0);
     expect(result).toBe(null);
@@ -46,10 +46,10 @@ describe("VideoBuffer", () => {
     const f3 = createMockFrame(3);
     const f4 = createMockFrame(4);
 
-    buffer.addFrame(f1, 1000);
-    buffer.addFrame(f2, 2000);
-    buffer.addFrame(f3, 3000);
-    buffer.addFrame(f4, 4000); // should pop f1
+    buffer.pushFrame(f1, 1000);
+    buffer.pushFrame(f2, 2000);
+    buffer.pushFrame(f3, 3000);
+    buffer.pushFrame(f4, 4000); // should pop f1
 
     expect(f1.close).toHaveBeenCalled();
     expect(buffer.length).toBe(3);
@@ -59,8 +59,8 @@ describe("VideoBuffer", () => {
     const f1 = createMockFrame(1);
     const f2 = createMockFrame(2);
 
-    buffer.addFrame(f1, 1000);
-    buffer.addFrame(f2, 2000);
+    buffer.pushFrame(f1, 1000);
+    buffer.pushFrame(f2, 2000);
 
     const result = buffer.popFrameForTime(1000);
     expect(result).toBe(f1);
@@ -71,8 +71,8 @@ describe("VideoBuffer", () => {
     const f1 = createMockFrame(1);
     const f2 = createMockFrame(2);
 
-    buffer.addFrame(f1, 1000);
-    buffer.addFrame(f2, 2000);
+    buffer.pushFrame(f1, 1000);
+    buffer.pushFrame(f2, 2000);
 
     buffer.clear();
 
@@ -91,8 +91,8 @@ describe("VideoBuffer", () => {
   });
 
   it("computes time capacity correctly", () => {
-    buffer.addFrame(createMockFrame(), 1_000_000);
-    buffer.addFrame(createMockFrame(), 3_000_000);
+    buffer.pushFrame(createMockFrame(), 1_000_000);
+    buffer.pushFrame(createMockFrame(), 3_000_000);
     expect(buffer.getTimeCapacity()).toBe(2);
   });
 });

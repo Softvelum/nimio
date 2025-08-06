@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
+      value="ws://172.16.80.128:8081/live/stream"
     />
     <button
       id="initNimioButton"
@@ -38,9 +38,12 @@
           width: 476,
           height: 268,
           latency: 500,
-          startOffset: 500,
+          // startOffset: 500,
           metricsOverlay: true,
           logLevel: "debug",
+          adaptiveBitrate: {
+            initialRendition: "720p",
+          },
         });
       }
 

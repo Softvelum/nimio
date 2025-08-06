@@ -9,7 +9,7 @@ export class VideoBuffer {
     this._firstFrameTs = this._lastFrameTs = 0;
   }
 
-  addFrame(frame, timestamp) {
+  pushFrame(frame, timestamp) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
       this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);

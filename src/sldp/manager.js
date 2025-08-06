@@ -49,11 +49,11 @@ export class SLDPManager {
 
     let gotVideo = !this._hasVideo;
     let vIdx = null;
-    let vconfig = null;
+    let vsetup = {};
 
     let gotAudio = !this._hasAudio;
     let aIdx = null;
-    let aconfig = null;
+    let asetup = {};
 
     this._curStreams = [];
     let timescale = {};
@@ -96,39 +96,44 @@ export class SLDPManager {
 
     if (gotVideo && vIdx >= 0) {
       let stream = this._context.streams[vIdx];
-      vconfig = this._pushCurStream("video", stream);
+      vsetup.trackId = this._pushCurStream("video", stream);
       timescale.video = stream.stream_info.vtimescale;
-    }
-    if (gotAudio && aIdx >= 0) {
-      let stream = this._context.streams[aIdx];
-      aconfig = this._pushCurStream("audio", stream);
-      timescale.audio = stream.stream_info.atimescale;
+      vsetup.config = {
+        width: stream.stream_info.width,
+        height: stream.stream_info.height,
+        codec: stream.stream_info.vcodec,
+      };
+      vsetup.timescale = timescale.video;
     }
 
-    this._transport.runCallback("videoConfig", vconfig);
-    this._transport.runCallback("audioConfig", aconfig);
+    if (gotAudio && aIdx >= 0) {
+      let stream = this._context.streams[aIdx];
+      asetup.trackId = this._pushCurStream("audio", stream);
+      timescale.audio = stream.stream_info.atimescale;
+      asetup.config = { codec: stream.stream_info.acodec };
+      asetup.timescale = timescale.audio;
+    }
+
+    this._transport.runCallback("videoSetup", vsetup);
+    this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
   }
 
   _pushCurStream(type, stream) {
-    let config =
-      type === "video"
-        ? {
-            width: stream.stream_info.width,
-            height: stream.stream_info.height,
-            codec: stream.stream_info.vcodec,
-          }
-        : {
-            codec: stream.stream_info.acodec,
-          };
-
+    let sn = this._streamNumber();
     this._curStreams.push({
       type: type,
       stream: stream.stream,
       offset: this._startOffset,
-      sn: this._nextSN++,
+      sn: sn,
     });
 
-    return config;
+    return sn;
+  }
+
+  _streamNumber() {
+    let sn = this._nextSN % parseInt('F0', 16);
+    this._nextSN++;
+    return sn;
   }
 }

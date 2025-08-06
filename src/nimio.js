@@ -7,6 +7,8 @@ import { Ui } from "./ui/ui.js";
 import { VideoBuffer } from "./media/buffers/video-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { TransportAdapter } from "./transport/adapter";
+import { DecoderFlowVideo } from "./media/decoders/flow-video";
+import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioService } from "./audio-service";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
@@ -74,7 +76,7 @@ export default class Nimio {
       this._context,
       this._config,
     );
-    this._initDecoders();
+
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values
 
@@ -157,32 +159,14 @@ export default class Nimio {
     isPlayClicked ? this.play() : this.pause();
   }
 
-  _initDecoders() {
-    this._videoDecoderWorker = new Worker(
-      new URL("./media/decoders/decoder-video.js", import.meta.url),
-      { type: "module" },
-    );
-    this._videoDecoderWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-
-    this._audioDecoderWorker = new Worker(
-      new URL("./media/decoders/decoder-audio.js", import.meta.url),
-      { type: "module" },
-    );
-    this._audioDecoderWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-  }
-
   _initTransport(instName, url) {
     this._transport = new TransportAdapter(instName, url);
     this._transport.callbacks = {
-      videoConfig: this._onVideoConfigReceived.bind(this),
+      videoSetup: this._onVideoSetupReceived.bind(this),
       videoCodec: this._onVideoCodecDataReceived.bind(this),
       videoChunk: this._onVideoChunkReceived.bind(this),
 
-      audioConfig: this._onAudioConfigReceived.bind(this),
+      audioSetup: this._onAudioSetupReceived.bind(this),
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
     };
@@ -219,35 +203,29 @@ export default class Nimio {
     }
   }
 
-  _onVideoConfigReceived(config) {
-    if (!config) {
+  _onVideoSetupReceived(data) {
+    if (!data || !data.config) {
       this._noVideo = true;
       return;
     }
 
-    this._videoDecoderWorker.postMessage({
-      type: "config",
-      config: config,
-    });
+    this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
+    this._vDecoderFlow.setConfig(data.config);
   }
 
-  _onAudioConfigReceived(config) {
-    if (!config) {
+  _onAudioSetupReceived(data) {
+    if (!data || !data.config) {
       this._startNoAudioMode();
       return;
     }
 
-    this._audioDecoderWorker.postMessage({
-      type: "config",
-      config: config,
-    });
+    this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
+    this._aDecoderFlow.setConfig(data.config);
   }
 
   _onVideoCodecDataReceived(data) {
-    this._videoDecoderWorker.postMessage({
-      type: "codecData",
-      codecData: data.data,
-    });
+    this._vDecoderFlow.setCodecData({ codecData: data.data });
+    this._vDecoderFlow.setBuffer(this._videoBuffer);
   }
 
   _onAudioCodecDataReceived(data) {
@@ -260,14 +238,9 @@ export default class Nimio {
     }
 
     if (this._noAudio) {
+      // Stop no audio mode if it was started previously
       this._stopAudio();
     }
-
-    this._audioDecoderWorker.postMessage({
-      type: "codecData",
-      codecData: data.data,
-      config: config,
-    });
 
     this._audioBuffer = WritableAudioBuffer.allocate(
       this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
@@ -275,6 +248,9 @@ export default class Nimio {
       config.numberOfChannels,
       config.sampleCount,
     );
+    this._aDecoderFlow.setCodecData({ codecData: data.data, config: config });
+    this._aDecoderFlow.setBuffer(this._audioBuffer);
+    
     this._audioBuffer.addPreprocessor(
       new AudioGapsProcessor(
         this._audioService.sampleCount,
@@ -284,28 +260,11 @@ export default class Nimio {
   }
 
   _onVideoChunkReceived(data) {
-    this._videoDecoderWorker.postMessage(
-      {
-        type: "chunk",
-        timestamp: data.timestamp,
-        chunkType: data.chunkType,
-        frameWithHeader: data.frameWithHeader,
-        framePos: data.framePos,
-      },
-      [data.frameWithHeader],
-    );
+    this._vDecoderFlow.pushChunk(data);
   }
 
   _onAudioChunkReceived(data) {
-    this._audioDecoderWorker.postMessage(
-      {
-        type: "chunk",
-        timestamp: data.timestamp,
-        frameWithHeader: data.frameWithHeader,
-        framePos: data.framePos,
-      },
-      [data.frameWithHeader],
-    );
+    this._aDecoderFlow.pushChunk(data);
   }
 
   _processWorkerMessage(e) {
@@ -325,7 +284,7 @@ export default class Nimio {
             this._startNoAudioMode();
           }
         }
-        this._videoBuffer.addFrame(frame, frameTsUs);
+        this._videoBuffer.pushFrame(frame, frameTsUs);
         this._state.setVideoLatestTsUs(frameTsUs);
         this._state.setVideoDecoderQueue(e.data.decoderQueue);
         this._state.setVideoDecoderLatency(e.data.decoderLatency);
