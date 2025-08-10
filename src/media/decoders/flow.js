@@ -110,27 +110,30 @@ export class DecoderFlow {
     return result;
   }
 
-  _processFrameInternal( isSAP , data, timestamp, compositionOffset ) {
-    if( _sapSet ) {
-      _pushFrame( isSAP, data, timestamp, compositionOffset );
-    } else if( isSAP ) {
-      if( _initSegmentSwitch && (TRACK_STATE.CLOSED !== _state) ) {
+  _processFrameInternal(isSAP, data, timestamp, compositionOffset) {
+    if (_sapSet) {
+      _pushFrame(isSAP, data, timestamp, compositionOffset);
+    } else if (isSAP) {
+      if (_initSegmentSwitch && TRACK_STATE.CLOSED !== _state) {
         let opts = { codec: _codec };
-        if( _initSegmentData ) {
+        if (_initSegmentData) {
           opts.codecData = _initSegmentData;
-          if ('v' === _type[0]) {
+          if ("v" === _type[0]) {
             _processNalUnit(null, _initSegmentData);
           }
         }
-        _composer.setTrackParams( _cTrackId, opts );
-        _sourceBuffer.pushInit( _composer.initSegment(), _isFrameContinual(timestamp)[0] );
+        _composer.setTrackParams(_cTrackId, opts);
+        _sourceBuffer.pushInit(
+          _composer.initSegment(),
+          _isFrameContinual(timestamp)[0],
+        );
         _initSegmentSwitch = false;
 
-        if ('a' === _type[0] && _initSegmentData) {
+        if ("a" === _type[0] && _initSegmentData) {
           _updateRelatedAudioInfo();
         }
       }
-      _processFirstFrame( data, timestamp, compositionOffset );
+      _processFirstFrame(data, timestamp, compositionOffset);
     }
   }
 

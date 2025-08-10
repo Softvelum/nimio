@@ -274,9 +274,10 @@ export default class Nimio {
 
   async _onVideoStartTsNotSet(frame) {
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      this._firstFrameTsUs = this._videoBuffer.length > 0
-        ? this._videoBuffer.firstFrameTs
-        : frame.timestamp;
+      this._firstFrameTsUs =
+        this._videoBuffer.length > 0
+          ? this._videoBuffer.firstFrameTs
+          : frame.timestamp;
       this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
       if (!this._noAudio) {
@@ -289,10 +290,7 @@ export default class Nimio {
 
   async _onAudioStartTsNotSet(frame) {
     // create AudioContext with correct sampleRate on first frame
-    await this._initAudioContext(
-      frame.sampleRate,
-      frame.numberOfChannels,
-    );
+    await this._initAudioContext(frame.sampleRate, frame.numberOfChannels);
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
