@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { VideoBuffer } from "@/media/buffers/video-buffer.js";
 
-const createMockFrame = (id = 0) => ({
+const createMockFrame = (id = 0, timestamp) => ({
   id,
+  timestamp,
   close: vi.fn(),
 });
 
@@ -15,13 +16,13 @@ describe("VideoBuffer", () => {
   });
 
   it("adds frames and retrieves the correct one by time", () => {
-    const f1 = createMockFrame(1);
-    const f2 = createMockFrame(2);
-    const f3 = createMockFrame(3);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
+    const f3 = createMockFrame(3, 3000);
 
-    buffer.pushFrame(f1, 1000);
-    buffer.pushFrame(f2, 2000);
-    buffer.pushFrame(f3, 3000);
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+    buffer.pushFrame(f3);
 
     let result = buffer.popFrameForTime(2500);
     expect(result).toBe(f2);
@@ -30,37 +31,37 @@ describe("VideoBuffer", () => {
   });
 
   it("retrieves null if no frame is available for the requested time", () => {
-    const f1 = createMockFrame(1);
-    const f2 = createMockFrame(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
 
-    buffer.pushFrame(f1, 1000);
-    buffer.pushFrame(f2, 2000);
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
 
     const result = buffer.popFrameForTime(0);
     expect(result).toBe(null);
   });
 
   it("disposes of older frames when overflowing", () => {
-    const f1 = createMockFrame(1);
-    const f2 = createMockFrame(2);
-    const f3 = createMockFrame(3);
-    const f4 = createMockFrame(4);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
+    const f3 = createMockFrame(3, 3000);
+    const f4 = createMockFrame(4, 4000);
 
-    buffer.pushFrame(f1, 1000);
-    buffer.pushFrame(f2, 2000);
-    buffer.pushFrame(f3, 3000);
-    buffer.pushFrame(f4, 4000); // should pop f1
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+    buffer.pushFrame(f3);
+    buffer.pushFrame(f4); // should pop f1
 
     expect(f1.close).toHaveBeenCalled();
     expect(buffer.length).toBe(3);
   });
 
   it("gets proper last timestamp", () => {
-    const f1 = createMockFrame(1);
-    const f2 = createMockFrame(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
 
-    buffer.pushFrame(f1, 1000);
-    buffer.pushFrame(f2, 2000);
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
 
     const result = buffer.popFrameForTime(1000);
     expect(result).toBe(f1);
@@ -68,11 +69,11 @@ describe("VideoBuffer", () => {
   });
 
   it("clears and disposes all frames", () => {
-    const f1 = createMockFrame(1);
-    const f2 = createMockFrame(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
 
-    buffer.pushFrame(f1, 1000);
-    buffer.pushFrame(f2, 2000);
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
 
     buffer.clear();
 
@@ -91,8 +92,8 @@ describe("VideoBuffer", () => {
   });
 
   it("computes time capacity correctly", () => {
-    buffer.pushFrame(createMockFrame(), 1_000_000);
-    buffer.pushFrame(createMockFrame(), 3_000_000);
+    buffer.pushFrame(createMockFrame(1, 1_000_000));
+    buffer.pushFrame(createMockFrame(2, 3_000_000));
     expect(buffer.getTimeCapacity()).toBe(2);
   });
 });

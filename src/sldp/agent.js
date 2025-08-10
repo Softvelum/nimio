@@ -62,7 +62,7 @@ export class SLDPAgent {
       case WEB.AAC_FRAME:
         tsSec = timestamp / (this._timescale.audio / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendAudioFrame(frameWithHeader, tsUs, dataPos);
+        this._sendAudioFrame(frameWithHeader, tsUs, dataPos, showTime);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:
@@ -80,7 +80,7 @@ export class SLDPAgent {
         tsSec =
           (timestamp + compositionOffset) / (this._timescale.video / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos);
+        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
       case WEB.VP9_KEY_FRAME:
@@ -93,7 +93,7 @@ export class SLDPAgent {
       case WEB.VP9_FRAME:
         tsSec = timestamp / (this._timescale.video / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos);
+        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       default:
         break;
@@ -101,7 +101,7 @@ export class SLDPAgent {
   }
 
   processStatus(msg) {
-    console.log("Command received", msg);
+    console.debug("Command received", msg);
     const status = JSON.parse(msg);
     if (
       !status.info ||
@@ -154,30 +154,42 @@ export class SLDPAgent {
     });
   }
 
-  _sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos) {
+  _sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime) {
+    let payload = {
+      trackId: frameWithHeader[0],
+      timestamp: tsUs,
+      chunkType: isKey ? "key" : "delta",
+      frameWithHeader: frameWithHeader.buffer,
+      framePos: dataPos,
+    };
+    if (showTime > 0) {
+      payload.showTime = showTime;
+    }
+
     self.postMessage(
       {
         type: "videoChunk",
-        data: {
-          timestamp: tsUs,
-          chunkType: isKey ? "key" : "delta",
-          frameWithHeader: frameWithHeader.buffer,
-          framePos: dataPos,
-        },
+        data: payload,
       },
       [frameWithHeader.buffer],
     );
   }
 
-  _sendAudioFrame(frameWithHeader, tsUs, dataPos) {
+  _sendAudioFrame(frameWithHeader, tsUs, dataPos, showTime) {
+    let payload = {
+      trackId: frameWithHeader[0],
+      timestamp: tsUs,
+      frameWithHeader: frameWithHeader.buffer,
+      framePos: dataPos,
+    };
+    if (showTime > 0) {
+      payload.showTime = showTime;
+    }
+
     self.postMessage(
       {
         type: "audioChunk",
-        data: {
-          timestamp: tsUs,
-          frameWithHeader: frameWithHeader.buffer,
-          framePos: dataPos,
-        },
+        data: payload,
       },
       [frameWithHeader.buffer],
     );

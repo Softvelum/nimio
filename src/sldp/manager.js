@@ -94,7 +94,7 @@ export class SLDPManager {
       }
     }
 
-    if (gotVideo && vIdx >= 0) {
+    if (gotVideo && vIdx !== null) {
       let stream = this._context.streams[vIdx];
       vsetup.trackId = this._pushCurStream("video", stream);
       timescale.video = stream.stream_info.vtimescale;
@@ -106,7 +106,7 @@ export class SLDPManager {
       vsetup.timescale = timescale.video;
     }
 
-    if (gotAudio && aIdx >= 0) {
+    if (gotAudio && aIdx !== null) {
       let stream = this._context.streams[aIdx];
       asetup.trackId = this._pushCurStream("audio", stream);
       timescale.audio = stream.stream_info.atimescale;
@@ -132,7 +132,7 @@ export class SLDPManager {
   }
 
   _streamNumber() {
-    let sn = this._nextSN % parseInt('F0', 16);
+    let sn = this._nextSN % parseInt("F0", 16);
     this._nextSN++;
     return sn;
   }

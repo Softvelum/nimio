@@ -64,7 +64,7 @@ export default class Nimio {
     }
 
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
-    this._firstFrameTsUs = null;
+    this._firstFrameTsUs = 0;
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
@@ -135,7 +135,7 @@ export default class Nimio {
 
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
-    this._firstFrameTsUs = null;
+    this._firstFrameTsUs = 0;
 
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
@@ -175,8 +175,9 @@ export default class Nimio {
   _renderVideoFrame() {
     if (!this._noVideo && this._state.isPlaying()) {
       requestAnimationFrame(this._renderVideoFrame);
-      if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
+      if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
         return true;
+      }
 
       let curTsUs = this._audioService.smpCntToTsUs(
         this._state.getCurrentTsSmp(),
@@ -210,6 +211,8 @@ export default class Nimio {
     }
 
     this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
+    this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
+    this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
     this._vDecoderFlow.setConfig(data.config);
   }
 
@@ -220,12 +223,14 @@ export default class Nimio {
     }
 
     this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
+    this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
+    this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
     this._aDecoderFlow.setConfig(data.config);
   }
 
   _onVideoCodecDataReceived(data) {
     this._vDecoderFlow.setCodecData({ codecData: data.data });
-    this._vDecoderFlow.setBuffer(this._videoBuffer);
+    this._vDecoderFlow.setBuffer(this._videoBuffer, this._state);
   }
 
   _onAudioCodecDataReceived(data) {
@@ -249,8 +254,8 @@ export default class Nimio {
       config.sampleCount,
     );
     this._aDecoderFlow.setCodecData({ codecData: data.data, config: config });
-    this._aDecoderFlow.setBuffer(this._audioBuffer);
-    
+    this._aDecoderFlow.setBuffer(this._audioBuffer, this._state);
+
     this._audioBuffer.addPreprocessor(
       new AudioGapsProcessor(
         this._audioService.sampleCount,
@@ -260,79 +265,55 @@ export default class Nimio {
   }
 
   _onVideoChunkReceived(data) {
-    this._vDecoderFlow.pushChunk(data);
+    this._vDecoderFlow.processChunk(data);
   }
 
   _onAudioChunkReceived(data) {
-    this._aDecoderFlow.pushChunk(data);
+    this._aDecoderFlow.processChunk(data);
   }
 
-  _processWorkerMessage(e) {
-    const type = e.data.type;
-    switch (type) {
-      case "videoFrame":
-        let frame = e.data.videoFrame;
-        let frameTsUs = frame.timestamp;
-        if (
-          null === this._firstFrameTsUs &&
-          (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5)
-        ) {
-          this._firstFrameTsUs = frameTsUs;
-          this._state.setPlaybackStartTsUs(frameTsUs);
+  async _onVideoStartTsNotSet(frame) {
+    if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
+      this._firstFrameTsUs = this._videoBuffer.length > 0
+        ? this._videoBuffer.firstFrameTs
+        : frame.timestamp;
+      this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
-          if (!this._noAudio) {
-            this._startNoAudioMode();
-          }
-        }
-        this._videoBuffer.pushFrame(frame, frameTsUs);
-        this._state.setVideoLatestTsUs(frameTsUs);
-        this._state.setVideoDecoderQueue(e.data.decoderQueue);
-        this._state.setVideoDecoderLatency(e.data.decoderLatency);
-        break;
-      case "audioFrame":
-        e.data.audioFrame.rawTimestamp = e.data.rawTimestamp;
-        e.data.audioFrame.decTimestamp = e.data.decTimestamp;
-        this._handleAudioFrame(e.data.audioFrame);
-        this._state.setAudioDecoderQueue(e.data.decoderQueue);
-        break;
-      case "decoderError":
-        // TODO: show error message in UI
-        if (e.data.kind === "video") this._noVideo = true;
-        if (e.data.kind === "audio") this._noAudio = true;
-
-        if (this._noVideo && this._noAudio) {
-          this.stop(true);
-        }
-        break;
-      default:
-        break;
+      if (!this._noAudio) {
+        await this._startNoAudioMode();
+      }
     }
+
+    return true;
   }
 
-  async _handleAudioFrame(audioFrame) {
-    if (this._state.isStopped()) {
-      audioFrame.close();
-      return true;
-    }
-
+  async _onAudioStartTsNotSet(frame) {
     // create AudioContext with correct sampleRate on first frame
     await this._initAudioContext(
-      audioFrame.sampleRate,
-      audioFrame.numberOfChannels,
+      frame.sampleRate,
+      frame.numberOfChannels,
     );
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
-      audioFrame.close();
       return false;
     }
 
-    this._audioBuffer.pushFrame(audioFrame);
-    audioFrame.close();
+    if (this._firstFrameTsUs === 0) {
+      this._firstFrameTsUs = frame.rawTimestamp;
+      this._state.setPlaybackStartTsUs(frame.rawTimestamp);
+    }
 
-    if (null === this._firstFrameTsUs) {
-      this._firstFrameTsUs = audioFrame.rawTimestamp;
-      this._state.setPlaybackStartTsUs(audioFrame.rawTimestamp);
+    return true;
+  }
+
+  _onDecodingError(kind) {
+    // TODO: show error message in UI
+    if (kind === "video") this._noVideo = true;
+    if (kind === "audio") this._noAudio = true;
+
+    if (this._noVideo && this._noAudio) {
+      this.stop(true);
     }
   }
 
@@ -390,8 +371,8 @@ export default class Nimio {
     this._audioNode.connect(this._audioContext.destination);
   }
 
-  _startNoAudioMode() {
-    this._initAudioContext(48000, 1, true);
+  async _startNoAudioMode() {
+    await this._initAudioContext(48000, 1, true);
     this._noAudio = true;
     this._logger.debug("No audio mode started");
   }
