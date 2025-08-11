@@ -273,6 +273,8 @@ export default class Nimio {
   }
 
   async _onVideoStartTsNotSet(frame) {
+    if (this._firstFrameTsUs !== 0) return true;
+
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
       this._firstFrameTsUs =
         this._videoBuffer.length > 0

@@ -9,15 +9,8 @@ export class DecoderFlowVideo extends DecoderFlow {
     const type = e.data.type;
     switch (type) {
       case "videoFrame":
-        let frame = e.data.videoFrame;
-        if (this._startTsUs === 0) {
-          this._startTsUs = this._state.getPlaybackStartTsUs();
-          if (this._startTsUs === 0) {
-            await this._onStartTsNotSet(frame);
-          }
-        }
-        this._buffer.pushFrame(frame);
-        this._state.setVideoLatestTsUs(frame.timestamp);
+        await this._handleFrame(e.data.videoFrame);
+        this._state.setVideoLatestTsUs(e.data.videoFrame.timestamp);
         this._state.setVideoDecoderQueue(e.data.decoderQueue);
         this._state.setVideoDecoderLatency(e.data.decoderLatency);
         break;

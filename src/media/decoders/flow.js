@@ -69,6 +69,24 @@ export class DecoderFlow {
     this._onDecodingError = callback;
   }
 
+  async _handleFrame(frame) {
+    if (this._state.isStopped()) {
+      return true;
+    }
+
+    if (this._startTsUs === 0) {
+      let res = await this._onStartTsNotSet(frame);
+      if (!res) return false; // flow output failed
+
+      // check _startTsUs to avoid multiple assignments when all promises are resolved
+      if (this._startTsUs === 0) {
+        this._startTsUs = this._state.getPlaybackStartTsUs();
+      }
+    }
+
+    this._buffer.pushFrame(frame);
+  }
+
   processFrame(isSAP, data, timestamp, compositionOffset) {
     let result = { done: true };
     this._lastBufferedTimestamp = timestamp;
