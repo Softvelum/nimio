@@ -21,7 +21,7 @@ function processDecodedFrame(videoFrame) {
 
   self.postMessage(
     {
-      type: "videoFrame",
+      type: "decodedFrame",
       videoFrame: videoFrame,
       decoderQueue: videoDecoder.decodeQueueSize,
       decoderLatency: latencyMs,

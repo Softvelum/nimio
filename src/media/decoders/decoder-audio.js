@@ -21,7 +21,7 @@ function processDecodedFrame(audioFrame) {
 
   self.postMessage(
     {
-      type: "audioFrame",
+      type: "decodedFrame",
       audioFrame: audioFrame,
       decoderQueue: audioDecoder.decodeQueueSize,
       rawTimestamp: rawTimestamp,

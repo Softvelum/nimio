@@ -7,7 +7,7 @@ export class DecoderFlow {
     const workerUrl = new URL(url, import.meta.url);
     this._decoder = new Worker(workerUrl, { type: "module" });
     this._decoder.addEventListener("message", async (e) => {
-      await this._processDecoderMessage(e);
+      await this._handleDecoderMessage(e);
     });
   }
 
@@ -48,6 +48,46 @@ export class DecoderFlow {
     );
   }
 
+  async _handleDecoderMessage(e) {
+    switch (e.data.type) {
+      case "decodedFrame":
+        await this._handleDecodedData(e.data);
+        break;
+      case "decoderError":
+        this._onDecodingError(this._type);
+        break;
+      default:
+        console.warn(`Unknown message DecoderFlow ${this._type}: ${e.data.type}`);
+        break;
+    }
+  }
+
+  async _handleDecodedFrame(frame) {
+    if (this._state.isStopped()) {
+      frame.close();
+      return true;
+    }
+
+    if (this._startTsUs === 0) {
+      let res = await this._onStartTsNotSet(frame);
+      if (!res) {
+        frame.close();
+        return false; // flow output failed
+      }
+
+      // check _startTsUs to avoid multiple assignments when all promises are resolved
+      if (this._startTsUs === 0) {
+        this._startTsUs = this._state.getPlaybackStartTsUs();
+      }
+    }
+
+    this._buffer.pushFrame(frame);
+    if (this._buffer.isShareable) {
+      frame.close();
+    }
+    return true;
+  }
+
   get trackId() {
     return this._trackId;
   }
@@ -67,24 +107,6 @@ export class DecoderFlow {
   }
   set onDecodingError(callback) {
     this._onDecodingError = callback;
-  }
-
-  async _handleFrame(frame) {
-    if (this._state.isStopped()) {
-      return true;
-    }
-
-    if (this._startTsUs === 0) {
-      let res = await this._onStartTsNotSet(frame);
-      if (!res) return false; // flow output failed
-
-      // check _startTsUs to avoid multiple assignments when all promises are resolved
-      if (this._startTsUs === 0) {
-        this._startTsUs = this._state.getPlaybackStartTsUs();
-      }
-    }
-
-    this._buffer.pushFrame(frame);
   }
 
   processFrame(isSAP, data, timestamp, compositionOffset) {

@@ -110,6 +110,10 @@ export class SharedAudioBuffer {
     return this.capacity;
   }
 
+  get isShareable() {
+    return true;
+  }
+
   _getIdx(idx) {
     return Atomics.load(this.header, idx);
   }
@@ -120,4 +124,5 @@ export class SharedAudioBuffer {
     }
     Atomics.store(this.header, idx, value);
   }
+
 }
