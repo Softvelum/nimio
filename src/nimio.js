@@ -12,6 +12,7 @@ import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioService } from "./audio-service";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
+import { NimioApi } from "./nimio-api";
 import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
@@ -385,3 +386,5 @@ export default class Nimio {
     this._noAudio = false;
   }
 }
+
+Object.assign(Nimio.prototype, NimioApi);

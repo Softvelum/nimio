@@ -58,7 +58,9 @@ export class SLDPContext {
           this._ordVideoRenditions.splice(vIdx, 0, {
             idx: i,
             bandwidth: streamInfo.bandwidth,
-            rendition: res[1],
+            width: streamInfo.width,
+            height: streamInfo.height,
+            rendition: res[1] + "p",
           });
         }
       }
@@ -90,6 +92,32 @@ export class SLDPContext {
     };
   }
 
+  getCurrentVideoStream() {
+    return this._getCurrentStream(this._curVideoIdx);
+  }
+
+  getCurrentAudioStream() {
+    return this._getCurrentStream(this._curAudioIdx);
+  }
+
+  setCurrentVideoStream(idx) {
+    let strm = this._streams[idx];
+    if (strm) this._curVideoIdx = idx;
+
+    return strm;
+  }
+
+  setCurrentAudioStream(idx) {
+    let strm = this._streams[idx];
+    if (strm) this._curAudioIdx = idx;
+
+    return strm;
+  }
+
+  isCurrentVideoStream(idx) {
+    return idx === this._curVideoIdx;
+  }
+
   get streams() {
     return this._streams;
   }
@@ -100,6 +128,12 @@ export class SLDPContext {
 
   get audioRenditions() {
     return this._ordAudioRenditions;
+  }
+
+  _getCurrentStream(idx) {
+    let strm;
+    if (idx >= 0) strm = this._streams[idx];
+    return strm;
   }
 
   _fillAudioRenditions(source) {
@@ -113,4 +147,5 @@ export class SLDPContext {
       }
     }
   }
+
 }

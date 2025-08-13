@@ -69,10 +69,12 @@ export class DecoderFlow {
     }
 
     if (this._startTsUs === 0) {
-      let res = await this._onStartTsNotSet(frame);
-      if (!res) {
-        frame.close();
-        return false; // flow output failed
+      if (this._onStartTsNotSet) {
+        let res = await this._onStartTsNotSet(frame);
+        if (!res) {
+          frame.close();
+          return false; // flow output failed
+        }
       }
 
       // check _startTsUs to avoid multiple assignments when all promises are resolved
