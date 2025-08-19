@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { VideoBuffer } from "@/media/buffers/video-buffer.js";
+import { FrameBuffer } from "@/media/buffers/frame-buffer.js";
 
 const createMockFrame = (id = 0, timestamp) => ({
   id,
@@ -8,11 +8,11 @@ const createMockFrame = (id = 0, timestamp) => ({
   close: vi.fn(),
 });
 
-describe("VideoBuffer", () => {
+describe("FrameBuffer", () => {
   let buffer;
 
   beforeEach(() => {
-    buffer = new VideoBuffer("test", 3);
+    buffer = new FrameBuffer("Test", "Video", 3);
   });
 
   it("adds frames and retrieves the correct one by time", () => {

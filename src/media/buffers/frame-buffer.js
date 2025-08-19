@@ -1,11 +1,11 @@
 import LoggersFactory from "@/shared/logger.js";
 import { RingBuffer } from "@/shared/ring-buffer.js";
 
-export class VideoBuffer {
-  constructor(instName, maxFrames = 100) {
+export class FrameBuffer {
+  constructor(instName, type, maxFrames = 100) {
     // TODO: length in uSec?
-    this._frames = new RingBuffer(`${instName} Video`, maxFrames);
-    this._logger = LoggersFactory.create(instName, "Video Buffer");
+    this._frames = new RingBuffer(`${instName} ${type}`, maxFrames);
+    this._logger = LoggersFactory.create(instName, "${type} Buffer");
     this._firstFrameTs = this._lastFrameTs = 0;
   }
 
@@ -59,13 +59,29 @@ export class VideoBuffer {
     return frame;
   }
 
-  clear() {
-    this._frames.forEach((frame) => {
-      this._disposeFrame(frame);
+  absorb(frameBuffer) {
+    frameBuffer.forEach((frame) => {
+      if (frame.timestamp > this._lastFrameTs) {
+        this.pushFrame(frame);
+      }
     });
+
+    frameBuffer.clear({keepFrames: true});
+  }
+
+  clear(opts = {}) {
+    if (!opts.keepFrames) {
+      this._frames.forEach((frame) => {
+        this._disposeFrame(frame);
+      });
+    }
 
     this._frames.reset();
     this._firstFrameTs = this._lastFrameTs = 0;
+  }
+
+  forEach(callback) {
+    this._frames.forEach(callback);
   }
 
   get length() {

@@ -10,10 +10,7 @@ const IS_SEQUENCE_HEADER = [
 
 export class SLDPAgent {
   constructor() {
-    this._timescale = {
-      audio: null,
-      video: null,
-    };
+    this._timescale = {};
     this._useSteady = false;
     this._steady = false;
     this._codecDataStatus = {};
@@ -26,8 +23,8 @@ export class SLDPAgent {
     let showTime = 0;
     let frameSize = frameWithHeader.byteLength;
 
-    let timestamp;
     let dataPos = 2;
+    let timestamp;
     if (!IS_SEQUENCE_HEADER[frameType]) {
       timestamp = ByteReader.readUint(frameWithHeader, dataPos, 8);
       dataPos += 8;
@@ -36,6 +33,13 @@ export class SLDPAgent {
         showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
         dataPos += 8;
       }
+    }
+    let timescale = this._timescale[trackId];
+    if (!timescale) {
+      console.warn(
+        `Timescale for track ${trackId} not found, cannot process frame`,
+      );
+      return;
     }
 
     let tsSec;
@@ -60,9 +64,9 @@ export class SLDPAgent {
           this._sendCodecData(codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
-        tsSec = timestamp / (this._timescale.audio / 1000);
+        tsSec = timestamp / (timescale / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendAudioFrame(frameWithHeader, tsUs, dataPos, showTime);
+        this._sendAudioChunk(frameWithHeader, tsUs, dataPos, showTime);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:
@@ -77,10 +81,10 @@ export class SLDPAgent {
           dataPos += 4;
         }
 
-        tsSec =
-          (timestamp + compositionOffset) / (this._timescale.video / 1000);
+        tsSec = (timestamp + compositionOffset) / (timescale / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime);
+        console.log(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
+        this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
       case WEB.VP9_KEY_FRAME:
@@ -91,9 +95,9 @@ export class SLDPAgent {
         isKey = true;
       case WEB.VP8_FRAME:
       case WEB.VP9_FRAME:
-        tsSec = timestamp / (this._timescale.video / 1000);
+        tsSec = timestamp / (timescale / 1000);
         tsUs = Math.round(1000 * tsSec);
-        this._sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime);
+        this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       default:
         break;
@@ -127,8 +131,14 @@ export class SLDPAgent {
   handleMessage(type, data) {
     switch (type) {
       case "timescale":
-        this._timescale.video = data.video;
-        this._timescale.audio = data.audio;
+        for (let tId in data) {
+          this._timescale[tId] = data[tId];
+        }
+        break;
+      case "removeTimescale":
+        for (let i = 0; i < data.length; i++) {
+          delete this._timescale[data[i]];
+        }
         break;
       default:
         console.warn("Unknown message type:", type, data);
@@ -154,7 +164,7 @@ export class SLDPAgent {
     });
   }
 
-  _sendVideoFrame(frameWithHeader, tsUs, isKey, dataPos, showTime) {
+  _sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime) {
     let payload = {
       trackId: frameWithHeader[0],
       timestamp: tsUs,
@@ -175,7 +185,7 @@ export class SLDPAgent {
     );
   }
 
-  _sendAudioFrame(frameWithHeader, tsUs, dataPos, showTime) {
+  _sendAudioChunk(frameWithHeader, tsUs, dataPos, showTime) {
     let payload = {
       trackId: frameWithHeader[0],
       timestamp: tsUs,

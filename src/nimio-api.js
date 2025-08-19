@@ -18,10 +18,22 @@ export const NimioApi = {
 
     let stream = this._context.streams[rIdx];
     if (!stream || !stream.stream_info || !stream.stream_info.vcodecSupported) {
-      this._logger.error(`Video rendition with index ${rIdx} not found or not supported`);
+      this._logger.error(
+        `Video rendition with index ${rIdx} is not found or not supported`
+      );
       return false;
     }
-    this._sldpManager.requestStream("video", rIdx);
+    if (this._switchRenditionData) {
+      this._logger.warn(
+        `Can't switch to rendition ${rIdx} while a switch to ${this._switchRenditionData.idx} is in progress`
+      );
+      return false;
+    }
+
+    this._switchRenditionData = {
+      idx: rIdx,
+      trackId: this._sldpManager.requestStream("video", rIdx),
+    };
 
     return true;
   },

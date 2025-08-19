@@ -33,10 +33,12 @@ export class SLDPManager {
   }
 
   stop(closeConnection) {
+    let sns = this._curStreams.map((s) => s.sn);
     this._transport.send("stop", {
       close: !!closeConnection,
-      sns: this._curStreams.map((s) => s.sn),
+      sns: sns,
     });
+    this._transport.send("removeTimescale", sns);
   }
 
   requestStream(type, idx) {
@@ -46,9 +48,15 @@ export class SLDPManager {
       return;
     }
 
-    let ss =  this._serializeStream(type, stream, 0);
+    let ss = this._serializeStream(type, stream, 0);
+    let setup = this._setupObject(type, ss.sn, stream.stream_info);
+    this._transport.runCallback(`${type}Setup`, setup);
+    this._transport.send("timescale", { [ss.sn]: setup.timescale });
+
     this._reqStreams[idx] = ss.sn;
     this._play([ss]);
+
+    return ss.sn;
   }
 
   cancelStream(idx) {
@@ -59,7 +67,8 @@ export class SLDPManager {
     }
 
     delete this._reqStreams[idx];
-    this._transport.send("cancel", { sns: [sn] });
+    this._transport.send("stop", { sns: [sn] });
+    this._transport.send("removeTimescale", [sn]);
   }
 
   _play(streams) {
@@ -119,22 +128,16 @@ export class SLDPManager {
 
     if (gotVideo && vIdx !== null) {
       let stream = this._context.setCurrentVideoStream(vIdx);
-      vsetup.trackId = this._pushCurStream("video", stream);
-      timescale.video = stream.stream_info.vtimescale;
-      vsetup.config = {
-        width: stream.stream_info.width,
-        height: stream.stream_info.height,
-        codec: stream.stream_info.vcodec,
-      };
-      vsetup.timescale = timescale.video;
+      let trackId = this._pushCurStream("video", stream);
+      vsetup = this._setupObject("video", trackId, stream.stream_info);
+      timescale[trackId] = vsetup.timescale;
     }
 
     if (gotAudio && aIdx !== null) {
       let stream = this._context.setCurrentAudioStream(aIdx);
-      asetup.trackId = this._pushCurStream("audio", stream);
-      timescale.audio = stream.stream_info.atimescale;
-      asetup.config = { codec: stream.stream_info.acodec };
-      asetup.timescale = timescale.audio;
+      let trackId = this._pushCurStream("audio", stream);
+      asetup = this._setupObject("audio", trackId, stream.stream_info);
+      timescale[trackId] = asetup.timescale;
     }
 
     this._transport.runCallback("videoSetup", vsetup);
@@ -167,5 +170,22 @@ export class SLDPManager {
     let sn = this._nextSN % parseInt("F0", 16);
     this._nextSN++;
     return sn;
+  }
+
+  _setupObject(type, trackId, streamInfo) {
+    let res = { trackId };
+    if (type === "video") {
+      res.config = {
+        width: streamInfo.width,
+        height: streamInfo.height,
+        codec: streamInfo.vcodec,
+      };
+      res.timescale = streamInfo.vtimescale;
+    } else {
+      res.config = { codec: streamInfo.acodec };
+      res.timescale = streamInfo.atimescale;
+    }
+
+    return res;
   }
 }

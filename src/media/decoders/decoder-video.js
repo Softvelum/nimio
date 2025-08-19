@@ -19,6 +19,7 @@ function processDecodedFrame(videoFrame) {
     );
   }
 
+  console.log(`Dec V frame ts: ${videoFrame.timestamp}`);
   self.postMessage(
     {
       type: "decodedFrame",
@@ -41,80 +42,103 @@ function pushChunk(data, ts) {
   decodeTimings.set(encodedChunk.timestamp, ts);
 }
 
+function shutdownDecoder() {
+  try {
+    if (typeof videoDecoder.close === "function") {
+      videoDecoder.close();
+    }
+  } catch (e) {}
+  videoDecoder = null;
+}
+
 self.addEventListener("message", async function (e) {
   var type = e.data.type;
-
-  if (type === "config") {
-    config = e.data.config;
-    buffered.length = 0;
-    support = null;
-  } else if (type === "codecData") {
-    videoDecoder = new VideoDecoder({
-      output: (frame) => {
-        processDecodedFrame(frame);
-      },
-      error: (e) => handleDecoderError(e.message),
-    });
-
-    let params = {
-      codec: config.codec,
-      codedWidth: config.width,
-      codedHeight: config.height,
-      // optimizeForLatency: true,
-      hardwareAcceleration: "prefer-hardware",
-    };
-    if (e.data.codecData) {
-      params.description = e.data.codecData;
-    }
-
-    support = await VideoDecoder.isConfigSupported(params);
-    if (!support.supported) {
-      console.warn(
-        "Hardware acceleration not supported, falling back to software decoding",
-      );
-      params.hardwareAcceleration = "prefer-software";
-      support = await VideoDecoder.isConfigSupported(params);
-    }
-
-    if (support.supported) {
-      try {
-        videoDecoder.configure(params);
-      } catch (error) {
-        handleDecoderError(error.message);
-      }
-    } else {
-      // handle unsupported codec
-      handleDecoderError(`Video codec not supported: ${config.codec}`);
-    }
-  } else if (type === "chunk") {
-    const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-    const frame = frameWithHeader.subarray(
-      e.data.framePos,
-      frameWithHeader.byteLength,
-    );
-
-    const chunkData = {
-      timestamp: e.data.timestamp,
-      type: e.data.chunkType,
-      data: frame,
-    };
-    if (!support || !support.supported) {
-      // Buffer the chunk until the decoder is ready
-      buffered.push({
-        ts: performance.now(),
-        chunk: chunkData,
-      });
-      return;
-    }
-
-    if (buffered.length > 0) {
-      // Process buffered chunks before the new one
-      for (let i = 0; i < buffered.length; i++) {
-        pushChunk(buffered[i].chunk, buffered[i].ts);
-      }
+  switch (e.data.type) {
+    case "config":
+      config = e.data.config;
       buffered.length = 0;
-    }
-
-    pushChunk(chunkData, performance.now());
+      support = null;
+      break;
+    case "codecData":
+      videoDecoder = new VideoDecoder({
+        output: (frame) => {
+          processDecodedFrame(frame);
+        },
+        error: (e) => handleDecoderError(e.message),
+      });
+  
+      let params = {
+        codec: config.codec,
+        codedWidth: config.width,
+        codedHeight: config.height,
+        // optimizeForLatency: true,
+        hardwareAcceleration: "prefer-hardware",
+      };
+      if (e.data.codecData) {
+        params.description = e.data.codecData;
+      }
+  
+      support = await VideoDecoder.isConfigSupported(params);
+      if (!support.supported) {
+        console.warn(
+          "Hardware acceleration not supported, falling back to software decoding",
+        );
+        params.hardwareAcceleration = "prefer-software";
+        support = await VideoDecoder.isConfigSupported(params);
+      }
+  
+      if (support.supported) {
+        try {
+          videoDecoder.configure(params);
+        } catch (error) {
+          handleDecoderError(error.message);
+        }
+      } else {
+        // handle unsupported codec
+        handleDecoderError(`Video codec not supported: ${config.codec}`);
+      }
+      break;
+    case "chunk":
+      const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
+      const frame = frameWithHeader.subarray(
+        e.data.framePos,
+        frameWithHeader.byteLength,
+      );
+  
+      const chunkData = {
+        timestamp: e.data.timestamp,
+        type: e.data.chunkType,
+        data: frame,
+      };
+      if (!support || !support.supported) {
+        // Buffer the chunk until the decoder is ready
+        buffered.push({
+          ts: performance.now(),
+          chunk: chunkData,
+        });
+        return;
+      }
+  
+      if (buffered.length > 0) {
+        // Process buffered chunks before the new one
+        for (let i = 0; i < buffered.length; i++) {
+          pushChunk(buffered[i].chunk, buffered[i].ts);
+        }
+        buffered.length = 0;
+      }
+  
+      pushChunk(chunkData, performance.now());
+      break;
+    case "shutdown":
+      if (videoDecoder) {
+        buffered.length = 0;
+        shutdownDecoder();
+        self.postMessage({ type: "shutdownComplete" });
+        self.close();
+      }
+      break;
+    default:
+      console.warn("DecoderVideo: unknown message type", type);
+      break;
   }
 });

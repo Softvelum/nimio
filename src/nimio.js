@@ -4,7 +4,7 @@ import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { SLDPContext } from "./sldp/context";
 import { Ui } from "./ui/ui.js";
-import { VideoBuffer } from "./media/buffers/video-buffer";
+import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { TransportAdapter } from "./transport/adapter";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
@@ -36,8 +36,8 @@ export default class Nimio {
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
-
-    this._videoBuffer = new VideoBuffer(options.instanceName, 1000);
+    this._videoBuffer = new FrameBuffer(options.instanceName, "Video", 1000);
+    this._tempBuffer = new FrameBuffer(options.instanceName, "Temp", 1000);
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
@@ -211,6 +211,10 @@ export default class Nimio {
       return;
     }
 
+    if (this._isNextRenditionTrack(data.trackId)) {
+      return this._createNextRenditionFlow("video", data);
+    }
+
     this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
     this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
     this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
@@ -223,15 +227,38 @@ export default class Nimio {
       return;
     }
 
+    if (this._isNextRenditionTrack(data.trackId)) {
+      return this._createNextRenditionFlow("audio", data);
+    }
+
     this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
     this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
     this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
     this._aDecoderFlow.setConfig(data.config);
   }
 
+  _isNextRenditionTrack(trackId) {
+    return this._nextRenditionData && this._nextRenditionData.trackId === trackId;
+  }
+
+  _createNextRenditionFlow(type, data) {
+    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
+    this._nextRenditionData.decoderFlow =
+      new flowClass(data.trackId, data.timescale);
+    this._nextRenditionData.decoderFlow.setConfig(data.config);
+  }
+
   _onVideoCodecDataReceived(data) {
-    this._vDecoderFlow.setCodecData({ codecData: data.data });
-    this._vDecoderFlow.setBuffer(this._videoBuffer, this._state);
+    let decoderFlow = this._vDecoderFlow;
+    let buffer = this._videoBuffer;
+    if (this._isNextRenditionTrack(data.trackId)) {
+      decoderFlow = this._nextRenditionData.decoderFlow;
+      buffer = this._tempBuffer;
+      this._vDecoderFlow.merge(decoderFlow);
+    }
+
+    decoderFlow.setCodecData({ codecData: data.data });
+    decoderFlow.setBuffer(buffer, this._state);
   }
 
   _onAudioCodecDataReceived(data) {
@@ -254,6 +281,8 @@ export default class Nimio {
       config.numberOfChannels,
       config.sampleCount,
     );
+
+    // TODO: do audio rendition switch according to the video rendition switch approach
     this._aDecoderFlow.setCodecData({ codecData: data.data, config: config });
     this._aDecoderFlow.setBuffer(this._audioBuffer, this._state);
 
@@ -266,11 +295,18 @@ export default class Nimio {
   }
 
   _onVideoChunkReceived(data) {
-    this._vDecoderFlow.processChunk(data);
+    this._processChunk(this._vDecoderFlow, data);
   }
 
   _onAudioChunkReceived(data) {
-    this._aDecoderFlow.processChunk(data);
+    this._processChunk(this._aDecoderFlow, data);
+  }
+
+  _processChunk(flow, data) {
+    let res = flow.processChunk(data);
+    if (!res && this._isNextRenditionTrack(data.trackId)) {
+      this._nextRenditionData.decoderFlow.processChunk(data);
+    }
   }
 
   async _onVideoStartTsNotSet(frame) {
