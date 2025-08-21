@@ -23,14 +23,14 @@ export const NimioApi = {
       );
       return false;
     }
-    if (this._switchRenditionData) {
+    if (this._nextRenditionData) {
       this._logger.warn(
-        `Can't switch to rendition ${rIdx} while a switch to ${this._switchRenditionData.idx} is in progress`
+        `Can't switch to rendition ${rIdx} while a switch to ${this._nextRenditionData.idx} is in progress`
       );
       return false;
     }
 
-    this._switchRenditionData = {
+    this._nextRenditionData = {
       idx: rIdx,
       trackId: this._sldpManager.requestStream("video", rIdx),
     };

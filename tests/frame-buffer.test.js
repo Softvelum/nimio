@@ -75,7 +75,7 @@ describe("FrameBuffer", () => {
     buffer.pushFrame(f1);
     buffer.pushFrame(f2);
 
-    buffer.clear();
+    buffer.reset();
 
     expect(f1.close).toHaveBeenCalled();
     expect(f2.close).toHaveBeenCalled();

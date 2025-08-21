@@ -70,7 +70,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       }
     });
 
-    frameBuffer.clear({keepFrames: true});
+    frameBuffer.reset({keepFrames: true});
   }
 
   pushSilence(timestamp) {

@@ -6,10 +6,14 @@ export class DecoderFlowAudio extends DecoderFlow {
     this._type = "audio";
   }
 
-  async _handleDecodedData(data) {
+  _prepareFrame(data) {
     data.audioFrame.rawTimestamp = data.rawTimestamp;
     data.audioFrame.decTimestamp = data.decTimestamp;
-    await this._handleDecodedFrame(data.audioFrame);
+    return data.audioFrame;
+  }
+
+  async _handleDecoderOutput(frame, data) {
+    await this._handleDecodedFrame(frame);
     this._state.setAudioDecoderQueue(data.decoderQueue);
   }
 

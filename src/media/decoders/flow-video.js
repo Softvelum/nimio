@@ -6,9 +6,13 @@ export class DecoderFlowVideo extends DecoderFlow {
     this._type = "video";
   }
 
-  async _handleDecodedData(data) {
-    await this._handleDecodedFrame(data.videoFrame);
-    this._state.setVideoLatestTsUs(data.videoFrame.timestamp);
+  _prepareFrame(data) {
+    return data.videoFrame;
+  }
+
+  async _handleDecoderOutput(frame, data) {
+    await this._handleDecodedFrame(frame);
+    this._state.setVideoLatestTsUs(frame.timestamp);
     this._state.setVideoDecoderQueue(data.decoderQueue);
     this._state.setVideoDecoderLatency(data.decoderLatency);
   }

@@ -50,7 +50,10 @@ export class SLDPManager {
 
     let ss = this._serializeStream(type, stream, 0);
     let setup = this._setupObject(type, ss.sn, stream.stream_info);
-    this._transport.runCallback(`${type}Setup`, setup);
+
+    setTimeout(() => {
+      this._transport.runCallback(`${type}Setup`, setup);
+    }, 0);
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
     this._reqStreams[idx] = ss.sn;

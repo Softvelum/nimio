@@ -66,10 +66,10 @@ export class FrameBuffer {
       }
     });
 
-    frameBuffer.clear({keepFrames: true});
+    frameBuffer.reset({keepFrames: true});
   }
 
-  clear(opts = {}) {
+  reset(opts = {}) {
     if (!opts.keepFrames) {
       this._frames.forEach((frame) => {
         this._disposeFrame(frame);

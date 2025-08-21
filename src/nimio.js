@@ -126,7 +126,7 @@ export default class Nimio {
       this._debugView.stop();
     }
 
-    this._videoBuffer.clear();
+    this._videoBuffer.reset();
     this._noVideo = false;
 
     this._stopAudio();
@@ -215,9 +215,20 @@ export default class Nimio {
       return this._createNextRenditionFlow("video", data);
     }
 
+    if (this._vDecoderFlow) {
+      this._logger.warn("Received video setup while video flow already exist");
+      return;
+    }
+
     this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
     this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
     this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    if (this._config.adaptiveBitrate) {
+      this._vDecoderFlow.onSwitchResult = this._onVideoRenditionSwitchResult.bind(this);
+      this._vDecoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(this._vDecoderFlow.trackId);
+      };
+    }
     this._vDecoderFlow.setConfig(data.config);
   }
 
@@ -229,6 +240,11 @@ export default class Nimio {
 
     if (this._isNextRenditionTrack(data.trackId)) {
       return this._createNextRenditionFlow("audio", data);
+    }
+
+    if (this._aDecoderFlow) {
+      this._logger.warn("Received audio setup while audio flow already exist");
+      return;
     }
 
     this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
@@ -245,6 +261,9 @@ export default class Nimio {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
     this._nextRenditionData.decoderFlow =
       new flowClass(data.trackId, data.timescale);
+    this._nextRenditionData.decoderFlow.onInputCancel = () => {
+      this._sldpManager.cancelStream(data.trackId);
+    };
     this._nextRenditionData.decoderFlow.setConfig(data.config);
   }
 
@@ -254,7 +273,7 @@ export default class Nimio {
     if (this._isNextRenditionTrack(data.trackId)) {
       decoderFlow = this._nextRenditionData.decoderFlow;
       buffer = this._tempBuffer;
-      this._vDecoderFlow.merge(decoderFlow);
+      this._vDecoderFlow.switchTo(decoderFlow);
     }
 
     decoderFlow.setCodecData({ codecData: data.data });
@@ -307,6 +326,16 @@ export default class Nimio {
     if (!res && this._isNextRenditionTrack(data.trackId)) {
       this._nextRenditionData.decoderFlow.processChunk(data);
     }
+  }
+
+  _onVideoRenditionSwitchResult(done) {
+    if (done) {
+      this._context.setCurrentVideoStream(this._nextRenditionData.idx);
+    }
+    this._nextRenditionData = null;
+    this._logger.debug(
+      `Video rendition switch ${done ? "completed successfully" : "failed"}`
+    );
   }
 
   async _onVideoStartTsNotSet(frame) {

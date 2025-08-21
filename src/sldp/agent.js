@@ -51,6 +51,7 @@ export class SLDPAgent {
       case WEB.HEVC_SEQUENCE_HEADER:
       case WEB.AV1_SEQUENCE_HEADER:
         this._sendCodecData(
+          trackId,
           frameWithHeader.subarray(dataPos, frameSize),
           frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
           frameType,
@@ -61,7 +62,7 @@ export class SLDPAgent {
         if (!this._codecDataStatus[trackId]) {
           let codecData = frameWithHeader.subarray(dataPos, dataPos + 4);
           this._codecDataStatus[trackId] = true;
-          this._sendCodecData(codecData, "audio", frameType);
+          this._sendCodecData(trackId, codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
         tsSec = timestamp / (timescale / 1000);
@@ -83,14 +84,14 @@ export class SLDPAgent {
 
         tsSec = (timestamp + compositionOffset) / (timescale / 1000);
         tsUs = Math.round(1000 * tsSec);
-        console.log(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
+        // console.log(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
         this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
       case WEB.VP9_KEY_FRAME:
         if (!this._codecDataStatus[trackId]) {
           this._codecDataStatus[trackId] = true;
-          this._sendCodecData(null, "video", frameType);
+          this._sendCodecData(trackId, null, "video", frameType);
         }
         isKey = true;
       case WEB.VP8_FRAME:
@@ -154,10 +155,11 @@ export class SLDPAgent {
     this._useSteady = value;
   }
 
-  _sendCodecData(data, type, frameType) {
+  _sendCodecData(trackId, data, type, frameType) {
     self.postMessage({
       type: type === "video" ? "videoCodec" : "audioCodec",
       data: {
+        trackId: trackId,
         data: data,
         family: CODEC_FAMILY_MAP[frameType],
       },

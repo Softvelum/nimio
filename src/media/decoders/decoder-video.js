@@ -19,7 +19,6 @@ function processDecodedFrame(videoFrame) {
     );
   }
 
-  console.log(`Dec V frame ts: ${videoFrame.timestamp}`);
   self.postMessage(
     {
       type: "decodedFrame",
