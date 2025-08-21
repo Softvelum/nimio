@@ -38,6 +38,12 @@ export class SLDPManager {
       close: !!closeConnection,
       sns: sns,
     });
+
+    for (let i = 0; i < sns.length; i++) {
+      delete this._reqStreams[sns[i]];
+    }
+    this._curStreams = [];
+
     this._transport.send("removeTimescale", sns);
   }
 
@@ -56,20 +62,20 @@ export class SLDPManager {
     }, 0);
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
-    this._reqStreams[idx] = ss.sn;
+    this._reqStreams[ss.sn] = idx;
     this._play([ss]);
 
     return ss.sn;
   }
 
-  cancelStream(idx) {
-    let sn = this._reqStreams[idx];
-    if (sn === undefined) {
-      this._logger.error(`Stream with index ${idx} was not requested`);
+  cancelStream(sn) {
+    let idx = this._reqStreams[sn];
+    if (idx === undefined) {
+      this._logger.error(`Stream with sn ${sn} was not requested`);
       return;
     }
 
-    delete this._reqStreams[idx];
+    delete this._reqStreams[sn];
     this._transport.send("stop", { sns: [sn] });
     this._transport.send("removeTimescale", [sn]);
   }
@@ -134,6 +140,7 @@ export class SLDPManager {
       let trackId = this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
       timescale[trackId] = vsetup.timescale;
+      this._reqStreams[trackId] = vIdx;
     }
 
     if (gotAudio && aIdx !== null) {
@@ -141,6 +148,7 @@ export class SLDPManager {
       let trackId = this._pushCurStream("audio", stream);
       asetup = this._setupObject("audio", trackId, stream.stream_info);
       timescale[trackId] = asetup.timescale;
+      this._reqStreams[trackId] = aIdx;
     }
 
     this._transport.runCallback("videoSetup", vsetup);

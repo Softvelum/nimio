@@ -41,13 +41,15 @@ export class DecoderFlow {
       if (this._switchContext.inputCancelled) return false;
 
       if (this._switchContext.dst && data.chunkType === "key") {
-        let srcFirstTsUs = this._switchContext.firstTsUs;
+        let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
         if (
           srcFirstTsUs !== null && 
           Math.abs(data.timestamp - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
           data.timestamp >= srcFirstTsUs
         ) {
           // Source flow already has a frame with this timestamp, cancel input
+          console.log("Cancel input for dst flow from pushChunk", data.timestamp);
+          this._updateSwitchTimestamps(data.timestamp);
           this._cancelInput();
           return false;
         }
@@ -103,7 +105,7 @@ export class DecoderFlow {
 
     this._switchContext = {
       [type]: true,
-      handleFrame: type === "dst" ? this._handleDstSwitchFrame : this._handleSrcSwitchFrame,
+      handleFrame: type === "dst" ? this._handleDstSwitchFrame.bind(this) : this._handleSrcSwitchFrame.bind(this),
     }
     return true;
   }
@@ -127,7 +129,6 @@ export class DecoderFlow {
       case "decodedFrame":
         let frame = this._prepareFrame(e.data);
         if (this._switchContext) {
-          console.log("Handle decoded frame in switch context");
           this._updateSwitchTimestamps(frame.timestamp);
           this._switchContext.handleFrame(frame);
           if (this._switchContext.src) break;
@@ -143,7 +144,6 @@ export class DecoderFlow {
         this._onDecodingError(this._type);
         break;
       case "shutdownComplete":
-        debugger;
         this._isShuttingDown = null;
         if (this._decoder) {
           this._removeDecoderListener();
@@ -192,18 +192,20 @@ export class DecoderFlow {
   _handleSrcSwitchFrame(frame) {
     if (this._isShuttingDown) return;
 
-    console.log("Handle src switch frame", frame.timestamp, this._switchPeerFlow.lastSwitchTsUs);
+    let firstTsUs = this._switchContext.firstTsUs;
     let dstLastTsUs = this._switchPeerFlow.lastSwitchTsUs;
+
+    console.log("Handle src switch frame", firstTsUs, dstLastTsUs, dstLastTsUs - firstTsUs);
     if (dstLastTsUs !== null && !this._switchPeerFlow.isShuttingDown) {
-      if (Math.abs(frame.timestamp - dstLastTsUs) >= SWITCH_THRESHOLD_US) {
+      if (Math.abs(firstTsUs - dstLastTsUs) >= SWITCH_THRESHOLD_US) {
+        frame.close();
         this.destroy();
         return;
       }
 
-      if (frame.timestamp <= dstLastTsUs) {
+      if (firstTsUs <= dstLastTsUs) {
         console.log("Finilize switch for src flow")
         this._switchPeerFlow.finalizeSwitch();
-        return;
       }
     }
     this._pushToBuffer(frame);
@@ -213,7 +215,9 @@ export class DecoderFlow {
     if (!this._switchContext.firstTsUs) {
       this._switchContext.firstTsUs = ts;
     }
-    this._switchContext.lastTsUs = ts;
+    if (!this._switchContext.lastTsUs || ts > this._switchContext.lastTsUs) {
+      this._switchContext.lastTsUs = ts;
+    }
   }
 
   async _handleDecodedFrame(frame) {

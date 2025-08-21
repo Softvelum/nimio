@@ -63,6 +63,8 @@ export class FrameBuffer {
     frameBuffer.forEach((frame) => {
       if (frame.timestamp > this._lastFrameTs) {
         this.pushFrame(frame);
+      } else {
+        this._disposeFrame(frame);
       }
     });
 
