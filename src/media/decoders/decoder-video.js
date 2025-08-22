@@ -51,7 +51,6 @@ function shutdownDecoder() {
 }
 
 self.addEventListener("message", async function (e) {
-  var type = e.data.type;
   switch (e.data.type) {
     case "config":
       config = e.data.config;
@@ -137,7 +136,7 @@ self.addEventListener("message", async function (e) {
       }
       break;
     default:
-      console.warn("DecoderVideo: unknown message type", type);
+      console.warn("DecoderVideo: unknown message type", e.data.type);
       break;
   }
 });
