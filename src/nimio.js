@@ -224,7 +224,9 @@ export default class Nimio {
     this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
     this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
     if (this._config.adaptiveBitrate) {
-      this._vDecoderFlow.onSwitchResult = this._onVideoRenditionSwitchResult.bind(this);
+      this._vDecoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult("video", done);
+      };
       this._vDecoderFlow.onInputCancel = () => {
         this._sldpManager.cancelStream(this._vDecoderFlow.trackId);
       };
@@ -250,6 +252,14 @@ export default class Nimio {
     this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
     this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
     this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    if (this._config.adaptiveBitrate) {
+      this._aDecoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult("audio", done);
+      };
+      this._aDecoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(this._aDecoderFlow.trackId);
+      };
+    }
     this._aDecoderFlow.setConfig(data.config);
   }
 
@@ -281,12 +291,32 @@ export default class Nimio {
   }
 
   _onAudioCodecDataReceived(data) {
+    let audioAvailable = true;
     let config = this._audioService.parseAudioConfig(data.data, data.family);
+    let decoderFlow, buffer;
+    if (this._isNextRenditionTrack(data.trackId)) {
+      // TODO: check config match with current audio
+      decoderFlow = this._nextRenditionData.decoderFlow;
+      buffer = this._tempBuffer;
+      this._aDecoderFlow.switchTo(decoderFlow);
+    } else {
+      audioAvailable = this._prepareAudioOutput(config);
+      decoderFlow = this._aDecoderFlow;
+      buffer = this._audioBuffer;
+    }
+
+    if (audioAvailable) {
+      decoderFlow.setCodecData({ codecData: data.data, config: config });
+      decoderFlow.setBuffer(buffer, this._state);
+    }
+  }
+
+  _prepareAudioOutput(config) {
     if (!config) {
       if (!this._noAudio) {
         this._startNoAudioMode();
       }
-      return;
+      return false;
     }
 
     if (this._noAudio) {
@@ -301,16 +331,14 @@ export default class Nimio {
       config.sampleCount,
     );
 
-    // TODO: do audio rendition switch according to the video rendition switch approach
-    this._aDecoderFlow.setCodecData({ codecData: data.data, config: config });
-    this._aDecoderFlow.setBuffer(this._audioBuffer, this._state);
-
     this._audioBuffer.addPreprocessor(
       new AudioGapsProcessor(
         this._audioService.sampleCount,
         this._audioService.sampleRate,
       ),
     );
+
+    return true;
   }
 
   _onVideoChunkReceived(data) {
@@ -328,13 +356,13 @@ export default class Nimio {
     }
   }
 
-  _onVideoRenditionSwitchResult(done) {
+  _onRenditionSwitchResult(type, done) {
     if (done) {
-      this._context.setCurrentVideoStream(this._nextRenditionData.idx);
+      this._context.setCurrentStream(type, this._nextRenditionData.idx);
     }
     this._nextRenditionData = null;
     this._logger.debug(
-      `Video rendition switch ${done ? "completed successfully" : "failed"}`
+      `${type} rendition switch ${done ? "completed successfully" : "failed"}`
     );
   }
 

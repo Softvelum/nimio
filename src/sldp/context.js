@@ -4,6 +4,7 @@ export class SLDPContext {
   constructor(instName) {
     this._instName = instName;
 
+    this._curIdxs = [];
     this._streams = [];
     this._streamsMap = {};
     this._ordVideoRenditions = [];
@@ -60,6 +61,7 @@ export class SLDPContext {
             bandwidth: streamInfo.bandwidth,
             width: streamInfo.width,
             height: streamInfo.height,
+            vcodec: streamInfo.vcodec,
             rendition: res[1] + "p",
           });
         }
@@ -92,30 +94,19 @@ export class SLDPContext {
     };
   }
 
-  getCurrentVideoStream() {
-    return this._getCurrentStream(this._curVideoIdx);
+  getCurrentStream(type) {
+    return this._getCurrentStream(this._curIdxs[type]);
   }
 
-  getCurrentAudioStream() {
-    return this._getCurrentStream(this._curAudioIdx);
-  }
-
-  setCurrentVideoStream(idx) {
+  setCurrentStream(type, idx) {
     let strm = this._streams[idx];
-    if (strm) this._curVideoIdx = idx;
+    if (strm) this._curIdxs[type] = idx;
 
     return strm;
   }
 
-  setCurrentAudioStream(idx) {
-    let strm = this._streams[idx];
-    if (strm) this._curAudioIdx = idx;
-
-    return strm;
-  }
-
-  isCurrentVideoStream(idx) {
-    return idx === this._curVideoIdx;
+  isCurrentStream(type, idx) {
+    return idx === this._curIdxs[type];
   }
 
   get streams() {
@@ -143,6 +134,7 @@ export class SLDPContext {
         this._ordAudioRenditions.push({
           idx: source[i].idx,
           bandwidth: streamInfo.bandwidth,
+          acodec: streamInfo.acodec,
         });
       }
     }

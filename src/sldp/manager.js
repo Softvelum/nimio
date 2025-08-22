@@ -136,7 +136,7 @@ export class SLDPManager {
     }
 
     if (gotVideo && vIdx !== null) {
-      let stream = this._context.setCurrentVideoStream(vIdx);
+      let stream = this._context.setCurrentStream("video", vIdx);
       let trackId = this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
       timescale[trackId] = vsetup.timescale;
@@ -144,7 +144,7 @@ export class SLDPManager {
     }
 
     if (gotAudio && aIdx !== null) {
-      let stream = this._context.setCurrentAudioStream(aIdx);
+      let stream = this._context.setCurrentStream("audio", aIdx);
       let trackId = this._pushCurStream("audio", stream);
       asetup = this._setupObject("audio", trackId, stream.stream_info);
       timescale[trackId] = asetup.timescale;
