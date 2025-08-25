@@ -22,6 +22,7 @@ export const NimioApi = {
   setRendition(type, rIdx) {
     if (!this._context) return false;
     if (!this._checkRenditionType(type)) return false;
+    if (!this._isSwitchPossible(type)) return false;
 
     if (this._context.isCurrentStream(type, rIdx)) {
       return true;
@@ -76,5 +77,26 @@ export const NimioApi = {
           bandwidth: rendition.bandwidth,
           acodec: rendition.acodec,
         };
+  },
+
+  _isSwitchPossible(type) {
+    if (!this._config.adaptiveBitrate) {
+      this._logger.warn(
+        `Can't switch ${type} rendition, adaptive bitrate is disabled`,
+      );
+      return false;
+    }
+
+    if (
+      (type === "video" && this._noVideo) ||
+      (type === "audio" && this._noAudio)
+    ) {
+      this._logger.warn(
+        `Can't switch ${type} rendition, ${type} streams are not avaialble or disabled`,
+      );
+      return false;
+    }
+
+    return true;
   },
 };
