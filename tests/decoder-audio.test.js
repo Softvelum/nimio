@@ -152,7 +152,7 @@ describe("decoder-audio", () => {
     expect(decodeMock).toHaveBeenCalled();
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "audioFrame",
+        type: "decodedFrame",
         rawTimestamp: 1000,
         decTimestamp: 1000,
       }),
@@ -208,7 +208,7 @@ describe("decoder-audio", () => {
     vi.runAllTimers();
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "audioFrame",
+        type: "decodedFrame",
         rawTimestamp: 999,
         decTimestamp: 1000,
       }),
@@ -265,7 +265,7 @@ describe("decoder-audio", () => {
     vi.runAllTimers();
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "audioFrame",
+        type: "decodedFrame",
         rawTimestamp: 1000,
         decTimestamp: 1000,
       }),
@@ -285,7 +285,7 @@ describe("decoder-audio", () => {
 
     expect(postMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "audioFrame",
+        type: "decodedFrame",
         rawTimestamp: 2000,
         decTimestamp: 22333.333333333332,
       }),

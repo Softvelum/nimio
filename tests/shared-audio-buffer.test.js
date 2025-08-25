@@ -147,4 +147,8 @@ describe("SharedAudioBuffer", () => {
   it("returns correct buffer capacity", () => {
     expect(sab.bufferCapacity).toBe(sab.capacity);
   });
+
+  it("returns the buffer is shareable", () => {
+    expect(sab.isShareable).toBe(true);
+  });
 });

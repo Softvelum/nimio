@@ -68,6 +68,16 @@ describe("FrameBuffer", () => {
     expect(buffer.lastFrameTs).toBe(2000);
   });
 
+  it("gets proper first timestamp", () => {
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
+
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+
+    expect(buffer.firstFrameTs).toBe(1000);
+  });
+
   it("clears and disposes all frames", () => {
     const f1 = createMockFrame(1, 1000);
     const f2 = createMockFrame(2, 2000);
@@ -95,5 +105,18 @@ describe("FrameBuffer", () => {
     buffer.pushFrame(createMockFrame(1, 1_000_000));
     buffer.pushFrame(createMockFrame(2, 3_000_000));
     expect(buffer.getTimeCapacity()).toBe(2);
+  });
+
+  it("forEach iterates in order", () => {
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
+    const f3 = createMockFrame(3, 3000);
+
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+    buffer.pushFrame(f3);
+    const out = [];
+    buffer.forEach((x) => out.push(x));
+    expect(out).toEqual([f1, f2, f3]);
   });
 });
