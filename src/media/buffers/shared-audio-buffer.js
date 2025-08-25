@@ -124,5 +124,4 @@ export class SharedAudioBuffer {
     }
     Atomics.store(this.header, idx, value);
   }
-
 }

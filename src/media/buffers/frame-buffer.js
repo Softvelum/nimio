@@ -68,7 +68,7 @@ export class FrameBuffer {
       }
     });
 
-    frameBuffer.reset({keepFrames: true});
+    frameBuffer.reset({ keepFrames: true });
   }
 
   reset(opts = {}) {

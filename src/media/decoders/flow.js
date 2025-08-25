@@ -42,12 +42,15 @@ export class DecoderFlow {
       if (this._switchContext.dst && data.chunkType === "key") {
         let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
         if (
-          srcFirstTsUs !== null && 
+          srcFirstTsUs !== null &&
           Math.abs(data.timestamp - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
           data.timestamp >= srcFirstTsUs
         ) {
           // Source flow already has a frame with this timestamp, cancel input
-          console.log("Cancel input for dst flow from pushChunk", data.timestamp);
+          console.log(
+            "Cancel input for dst flow from pushChunk",
+            data.timestamp,
+          );
           this._updateSwitchTimestamps(data.timestamp);
           this._cancelInput();
           return false;
@@ -104,8 +107,11 @@ export class DecoderFlow {
 
     this._switchContext = {
       [type]: true,
-      handleFrame: type === "dst" ? this._handleDstSwitchFrame.bind(this) : this._handleSrcSwitchFrame.bind(this),
-    }
+      handleFrame:
+        type === "dst"
+          ? this._handleDstSwitchFrame.bind(this)
+          : this._handleSrcSwitchFrame.bind(this),
+    };
     return true;
   }
 
@@ -164,7 +170,9 @@ export class DecoderFlow {
         }
         break;
       default:
-        console.warn(`Unknown message DecoderFlow ${this._type}: ${e.data.type}`);
+        console.warn(
+          `Unknown message DecoderFlow ${this._type}: ${e.data.type}`,
+        );
         break;
     }
   }
@@ -175,7 +183,11 @@ export class DecoderFlow {
     let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
     if (srcFirstTsUs !== null) {
       if (Math.abs(frame.timestamp - srcFirstTsUs) >= SWITCH_THRESHOLD_US) {
-        console.log("Handle dst switch frame: excessive diff", frame.timestamp, srcFirstTsUs);
+        console.log(
+          "Handle dst switch frame: excessive diff",
+          frame.timestamp,
+          srcFirstTsUs,
+        );
         this._switchContext = null;
         this._switchPeerFlow.destroy();
         this._switchPeerFlow = null;
@@ -184,7 +196,11 @@ export class DecoderFlow {
       }
 
       if (frame.timestamp >= this._switchPeerFlow.firstSwitchTsUs) {
-        console.log("Finilize switch for dst flow", frame.timestamp, this._switchPeerFlow.firstSwitchTsUs);
+        console.log(
+          "Finilize switch for dst flow",
+          frame.timestamp,
+          this._switchPeerFlow.firstSwitchTsUs,
+        );
         this.finalizeSwitch();
       }
     }
@@ -198,7 +214,11 @@ export class DecoderFlow {
 
     if (dstLastTsUs !== null && !this._switchPeerFlow.isShuttingDown) {
       if (Math.abs(firstTsUs - dstLastTsUs) >= SWITCH_THRESHOLD_US) {
-        console.log("Handle src switch frame: excessive diff", firstTsUs, dstLastTsUs);
+        console.log(
+          "Handle src switch frame: excessive diff",
+          firstTsUs,
+          dstLastTsUs,
+        );
         frame.close();
         this.destroy();
         return;
@@ -320,5 +340,4 @@ export class DecoderFlow {
   get isShuttingDown() {
     return !!this._isShuttingDown;
   }
-
 }

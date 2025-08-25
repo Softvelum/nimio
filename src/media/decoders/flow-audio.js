@@ -16,5 +16,4 @@ export class DecoderFlowAudio extends DecoderFlow {
     await this._handleDecodedFrame(frame);
     this._state.setAudioDecoderQueue(data.decoderQueue);
   }
-
 }

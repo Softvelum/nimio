@@ -1,11 +1,13 @@
 export const NimioApi = {
-
   getRenditions(type) {
     if (!this._context) return [];
     if (!type) type = "video";
     if (!this._checkRenditionType(type)) return [];
 
-    let renditions = type === "video" ? this._context.videoRenditions : this._context.audioRenditions;
+    let renditions =
+      type === "video"
+        ? this._context.videoRenditions
+        : this._context.audioRenditions;
     return renditions.map((r) => this._renditionParams(type, r));
   },
 
@@ -26,15 +28,19 @@ export const NimioApi = {
     }
 
     let stream = this._context.streams[rIdx];
-    if (!stream || !stream.stream_info || !stream.stream_info[`${type[0]}codecSupported`]) {
+    if (
+      !stream ||
+      !stream.stream_info ||
+      !stream.stream_info[`${type[0]}codecSupported`]
+    ) {
       this._logger.error(
-        `${type} rendition with index ${rIdx} is not found or not supported`
+        `${type} rendition with index ${rIdx} is not found or not supported`,
       );
       return false;
     }
     if (this._nextRenditionData) {
       this._logger.warn(
-        `Can't switch to ${type} rendition ${rIdx} while a switch to ${this._nextRenditionData.idx} is in progress`
+        `Can't switch to ${type} rendition ${rIdx} while a switch to ${this._nextRenditionData.idx} is in progress`,
       );
       return false;
     }
@@ -56,18 +62,19 @@ export const NimioApi = {
   },
 
   _renditionParams(type, rendition) {
-    return type === "video" ? {
-      index: rendition.idx,
-      width: rendition.width,
-      height: rendition.height,
-      rendition: rendition.rendition,
-      bandwidth: rendition.bandwidth,
-      vcodec: rendition.vcodec,
-    } : {
-      index: rendition.idx,
-      bandwidth: rendition.bandwidth,
-      acodec: rendition.acodec,
-    };
+    return type === "video"
+      ? {
+          index: rendition.idx,
+          width: rendition.width,
+          height: rendition.height,
+          rendition: rendition.rendition,
+          bandwidth: rendition.bandwidth,
+          vcodec: rendition.vcodec,
+        }
+      : {
+          index: rendition.idx,
+          bandwidth: rendition.bandwidth,
+          acodec: rendition.acodec,
+        };
   },
-
 };

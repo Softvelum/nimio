@@ -64,7 +64,7 @@ self.addEventListener("message", async function (e) {
         },
         error: (e) => handleDecoderError(e.message),
       });
-  
+
       let params = {
         codec: config.codec,
         codedWidth: config.width,
@@ -75,7 +75,7 @@ self.addEventListener("message", async function (e) {
       if (e.data.codecData) {
         params.description = e.data.codecData;
       }
-  
+
       support = await VideoDecoder.isConfigSupported(params);
       if (!support.supported) {
         console.warn(
@@ -84,7 +84,7 @@ self.addEventListener("message", async function (e) {
         params.hardwareAcceleration = "prefer-software";
         support = await VideoDecoder.isConfigSupported(params);
       }
-  
+
       if (support.supported) {
         try {
           videoDecoder.configure(params);
@@ -102,7 +102,7 @@ self.addEventListener("message", async function (e) {
         e.data.framePos,
         frameWithHeader.byteLength,
       );
-  
+
       const chunkData = {
         timestamp: e.data.timestamp,
         type: e.data.chunkType,
@@ -116,7 +116,7 @@ self.addEventListener("message", async function (e) {
         });
         return;
       }
-  
+
       if (buffered.length > 0) {
         // Process buffered chunks before the new one
         for (let i = 0; i < buffered.length; i++) {
@@ -124,7 +124,7 @@ self.addEventListener("message", async function (e) {
         }
         buffered.length = 0;
       }
-  
+
       pushChunk(chunkData, performance.now());
       break;
     case "shutdown":

@@ -279,13 +279,17 @@ export default class Nimio {
   }
 
   _isNextRenditionTrack(trackId) {
-    return this._nextRenditionData && this._nextRenditionData.trackId === trackId;
+    return (
+      this._nextRenditionData && this._nextRenditionData.trackId === trackId
+    );
   }
 
   _createNextRenditionFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
-    this._nextRenditionData.decoderFlow =
-      new flowClass(data.trackId, data.timescale);
+    this._nextRenditionData.decoderFlow = new flowClass(
+      data.trackId,
+      data.timescale,
+    );
     this._nextRenditionData.decoderFlow.onInputCancel = () => {
       this._sldpManager.cancelStream(data.trackId);
     };
@@ -390,7 +394,7 @@ export default class Nimio {
     }
     this._nextRenditionData = null;
     this._logger.debug(
-      `${type} rendition switch ${done ? "completed successfully" : "failed"}`
+      `${type} rendition switch ${done ? "completed successfully" : "failed"}`,
     );
   }
 

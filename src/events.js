@@ -18,5 +18,5 @@ export const EventMixin = {
   dispatchEvent(...args) {
     this._initEventTarget();
     return this._eventTarget.dispatchEvent(...args);
-  }
+  },
 };
