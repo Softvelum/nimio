@@ -2,7 +2,6 @@ const SWITCH_THRESHOLD_US = 10_000_000;
 
 export class DecoderFlow {
   constructor(trackId, timescale, url) {
-    console.log(`Creating DecoderFlow for track ${trackId} with timescale ${timescale}`);
     this._trackId = trackId;
     this._timescale = timescale;
     this._startTsUs = 0;
@@ -118,6 +117,7 @@ export class DecoderFlow {
   }
 
   _shutdown() {
+    console.log("Shutdown start", this._isShuttingDown);
     if (this._isShuttingDown) return;
 
     this._isShuttingDown = true;
@@ -144,6 +144,7 @@ export class DecoderFlow {
         this._onDecodingError(this._type);
         break;
       case "shutdownComplete":
+        console.log("Shutdown completed for DecoderFlow", this._type);
         this._isShuttingDown = null;
         if (this._decoder) {
           this._removeDecoderListener();
@@ -171,10 +172,10 @@ export class DecoderFlow {
   _handleDstSwitchFrame(frame) {
     if (this._isShuttingDown) return;
 
-    console.log("Handle dst switch frame", frame.timestamp, this._switchPeerFlow.firstSwitchTsUs);
     let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
     if (srcFirstTsUs !== null) {
       if (Math.abs(frame.timestamp - srcFirstTsUs) >= SWITCH_THRESHOLD_US) {
+        console.log("Handle dst switch frame: excessive diff", frame.timestamp, srcFirstTsUs);
         this._switchContext = null;
         this._switchPeerFlow.destroy();
         this._switchPeerFlow = null;
@@ -183,7 +184,7 @@ export class DecoderFlow {
       }
 
       if (frame.timestamp >= this._switchPeerFlow.firstSwitchTsUs) {
-        console.log("Finilize switch for dst flow")
+        console.log("Finilize switch for dst flow", frame.timestamp, this._switchPeerFlow.firstSwitchTsUs);
         this.finalizeSwitch();
       }
     }
@@ -195,16 +196,16 @@ export class DecoderFlow {
     let firstTsUs = this._switchContext.firstTsUs;
     let dstLastTsUs = this._switchPeerFlow.lastSwitchTsUs;
 
-    console.log("Handle src switch frame", firstTsUs, dstLastTsUs, dstLastTsUs - firstTsUs);
     if (dstLastTsUs !== null && !this._switchPeerFlow.isShuttingDown) {
       if (Math.abs(firstTsUs - dstLastTsUs) >= SWITCH_THRESHOLD_US) {
+        console.log("Handle src switch frame: excessive diff", firstTsUs, dstLastTsUs);
         frame.close();
         this.destroy();
         return;
       }
 
       if (firstTsUs <= dstLastTsUs) {
-        console.log("Finilize switch for src flow")
+        console.log("Finilize switch for src flow", firstTsUs, dstLastTsUs);
         this._switchPeerFlow.finalizeSwitch();
       }
     }

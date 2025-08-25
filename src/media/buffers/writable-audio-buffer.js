@@ -65,7 +65,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   absorb(frameBuffer) {
     let lastTs = this.getLastTimestampUs();
     frameBuffer.forEach((frame) => {
-      if (frame.timestamp > lastTs) {
+      if (frame.decTimestamp > lastTs) {
         this.pushFrame(frame);
       }
     });

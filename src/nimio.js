@@ -134,6 +134,21 @@ export default class Nimio {
       this._audioBuffer.reset();
     }
 
+    if (this._nextRenditionData) {
+      if (this._nextRenditionData.decoderFlow) {
+        this._nextRenditionData.decoderFlow.destroy();
+      }
+      this._nextRenditionData = null;
+    }
+    if (this._vDecoderFlow) {
+      this._vDecoderFlow.destroy();
+      this._vDecoderFlow = null;
+    }
+    if (this._aDecoderFlow) {
+      this._aDecoderFlow.destroy();
+      this._aDecoderFlow = null;
+    }
+
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
     this._firstFrameTsUs = 0;
@@ -292,10 +307,23 @@ export default class Nimio {
 
   _onAudioCodecDataReceived(data) {
     let audioAvailable = true;
+    let prevConfig = this._audioService.currentConfig;
     let config = this._audioService.parseAudioConfig(data.data, data.family);
     let decoderFlow, buffer;
     if (this._isNextRenditionTrack(data.trackId)) {
-      // TODO: check config match with current audio
+      if (!config || !this._audioService.isConfigCompatible(prevConfig)) {
+        this._logger.warn(
+          "Received incompatible audio config for next rendition",
+          data.trackId,
+          prevConfig,
+          config,
+        );
+        this._audioService.setConfig(prevConfig);
+        this._nextRenditionData.decoderFlow.destroy();
+        this._onRenditionSwitchResult("audio", false);
+        return;
+      }
+
       decoderFlow = this._nextRenditionData.decoderFlow;
       buffer = this._tempBuffer;
       this._aDecoderFlow.switchTo(decoderFlow);

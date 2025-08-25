@@ -11,6 +11,12 @@ export class SLDPContext {
     this._ordAudioRenditions = [];
   }
 
+  setSourceUrl(url) {
+    if (this._sourceUrl === url) return;
+    this._sourceUrl = url;
+    this._curIdxs = [];
+  }
+
   async setStreams(streams) {
     this._streams = streams;
     this._streamsMap = {};
@@ -92,6 +98,10 @@ export class SLDPContext {
         streams.map((v) => v.stream_info.acodec),
       ),
     };
+  }
+
+  getCurrentIdx(type) {
+    return this._curIdxs[type];
   }
 
   getCurrentStream(type) {

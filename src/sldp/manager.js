@@ -25,6 +25,7 @@ export class SLDPManager {
   }
 
   start(url) {
+    this._context.setSourceUrl(url);
     this._transport.send("start", {
       url: url,
       protocols: ["sldp.softvelum.com"],
@@ -88,11 +89,19 @@ export class SLDPManager {
     await this._context.setStreams(streams);
 
     let gotVideo = !this._hasVideo;
-    let vIdx = null;
+    let vIdx;
+    if (!gotVideo) {
+      vIdx = this._context.getCurrentIdx("video");
+      gotVideo = vIdx !== undefined;
+    }
     let vsetup = {};
 
     let gotAudio = !this._hasAudio;
-    let aIdx = null;
+    let aIdx;
+    if (!gotAudio) {
+      aIdx = this._context.getCurrentIdx("audio");
+      gotAudio = aIdx !== undefined;
+    }
     let asetup = {};
 
     this._curStreams = [];
@@ -135,7 +144,7 @@ export class SLDPManager {
       }
     }
 
-    if (gotVideo && vIdx !== null) {
+    if (gotVideo && vIdx !== undefined) {
       let stream = this._context.setCurrentStream("video", vIdx);
       let trackId = this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
@@ -143,7 +152,7 @@ export class SLDPManager {
       this._reqStreams[trackId] = vIdx;
     }
 
-    if (gotAudio && aIdx !== null) {
+    if (gotAudio && aIdx !== undefined) {
       let stream = this._context.setCurrentStream("audio", aIdx);
       let trackId = this._pushCurStream("audio", stream);
       asetup = this._setupObject("audio", trackId, stream.stream_info);

@@ -33,6 +33,28 @@ export class AudioService {
     return (smpCnt * 1000) / (this._sampleRate / 1000);
   }
 
+  isConfigCompatible(config) {
+    return (
+      this._sampleRate === config.sampleRate &&
+      this._numberOfChannels === config.numberOfChannels &&
+      this._sampleCount === config.sampleCount
+    );
+  }
+
+  setConfig(config) {
+    this._sampleRate = config.sampleRate;
+    this._numberOfChannels = config.numberOfChannels;
+    this._sampleCount = config.sampleCount;
+  }
+
+  get currentConfig() {
+    return {
+      sampleRate: this._sampleRate,
+      numberOfChannels: this._numberOfChannels,
+      sampleCount: this._sampleCount,
+    };
+  }
+
   get sampleRate() {
     return this._sampleRate;
   }
