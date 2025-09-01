@@ -2,10 +2,9 @@ import { RingBuffer } from "@/shared/ring-buffer";
 import LoggersFactory from "@/shared/logger.js";
 
 export class MetricsStore {
-  constructor(instanceName, id, type, timescale) {
+  constructor(instanceName, id, type) {
     this.id = id;
     this.type = type;
-    this.timescale = timescale;
     this._logger = LoggersFactory.create(instanceName, `MetricsStore ${id}`);
 
     this.pickCustom = false;
@@ -25,11 +24,11 @@ export class MetricsStore {
     this.bufferLevel = 0;
     this.bufferEnd = 0;
 
-    this.bw1sec = new RingBuffer(instanceName, BUFFER_SIZE);
-    this.rate1sec = new RingBuffer(instanceName, BUFFER_SIZE);
-    this.lb1sec = new RingBuffer(instanceName, BUFFER_SIZE);
-    this.buf1sec = new RingBuffer(instanceName, BUFFER_SIZE);
-    this.buf500msec = new RingBuffer(instanceName, BUFFER_SIZE);
+    this.bw1sec = new RingBuffer(`${instanceName} bw`, BUFFER_SIZE);
+    this.rate1sec = new RingBuffer(`${instanceName} rate`, BUFFER_SIZE);
+    this.lb1sec = new RingBuffer(`${instanceName} lb`, BUFFER_SIZE);
+    this.buf1sec = new RingBuffer(`${instanceName} buf`, BUFFER_SIZE);
+    this.buf500msec = new RingBuffer(`${instanceName} buf500`, BUFFER_SIZE);
 
     this.buf1secSum = 0;
     this.buf1secCnt = 0;
@@ -86,11 +85,11 @@ export class MetricsStore {
   destroy() {
     this._clear500msecInterval();
 
-    this.bw1sec.clear();
-    this.rate1sec.clear();
-    this.lb1sec.clear();
-    this.buf1sec.clear();
-    this.buf500msec.clear();
+    this.bw1sec.reset();
+    this.rate1sec.reset();
+    this.lb1sec.reset();
+    this.buf1sec.reset();
+    this.buf500msec.reset();
   }
 
   stop() {
@@ -153,16 +152,16 @@ export class MetricsStore {
     let tsInterval =
       this.rateCustomTs2 - this.rateCustomTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = (this.timescale * this.bytesCustom) / (tsInterval * 128);
+      result = this.bytesCustom / (tsInterval * 128);
     }
     return result;
   }
 
   reportBandwidth(bytes, timestamp) {
     if (this.isStarted()) {
-      let curTime = performance.now();
+      let curTime = performance.now() * 1000;
       if (undefined !== timestamp) {
-        let subt = curTime / 1000 - timestamp / this.timescale;
+        let subt = curTime - timestamp;
         if (undefined == this.latencySubt || subt < this.latencySubt) {
           this.latencySubt = subt;
         }
@@ -223,16 +222,18 @@ export class MetricsStore {
     let result = 0;
     let endTime;
     if (fromNow) {
-      endTime = performance.now();
+      endTime = performance.now() * 1000;
     } else {
       endTime = undefined !== this.stopTime ? this.stopTime : this.lastRepTime;
       if (endTime === this.startTime) {
-        endTime = performance.now();
+        endTime = performance.now() * 1000;
       }
     }
     let timeInterval = endTime - this.startTime;
     if (timeInterval > 0) {
       result = (1000 * this.bytesTotal) / (timeInterval * 128);
+
+      // 8 / 1024 == 1 / 128
     }
     return result;
   }
@@ -240,8 +241,8 @@ export class MetricsStore {
   avgRate() {
     let result = 0;
     let tsInterval = this.rateTotalTs2 - this.rateTotalTs1 + this.rateAdditive;
-    if (tsInterval > 0) {
-      result = (this.timescale * this.bytesTotal) / (tsInterval * 128);
+    if (tsInterval > 0) {å
+      result = this.bytesTotal / (tsInterval * 128 / 1_000_000);
     }
     return result;
   }
@@ -250,7 +251,7 @@ export class MetricsStore {
     let result = 0;
     let tsInterval = this.rate1secTs2 - this.rate1secTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = (this.timescale * this.bytes1sec) / (tsInterval * 128);
+      result = this.bytes1sec / (tsInterval * 128 / 1_000_000);
     }
     return result;
   }
@@ -260,7 +261,7 @@ export class MetricsStore {
     let tsInterval =
       this.rate500msecTs2 - this.rate500msecTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = (this.timescale * this.bytes500msec) / (tsInterval * 128);
+      result = this.bytes500msec / (tsInterval * 128 / 1_000_000);
     }
     return result;
   }
@@ -402,5 +403,77 @@ export class MetricsStore {
       this.interval500msec = undefined;
     }
     this.timerCounter = 0;
+  }
+
+  _percentile(sortedArr, q) {
+    if (!sortedArr.length) return 0;
+    const pos = q * (sortedArr.length - 1);
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    if ((sortedArr[base + 1] !== undefined)) {
+      return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base]);
+    }
+    return sortedArr[base];
+  }
+
+  _computeMetricsForWindow(buckets, windowMs) {
+    const totalBytes = buckets.reduce((a, b) => a + b.bytes, 0);
+    const spanMs = (buckets[buckets.length - 1].startMs - buckets[0].startMs) || 1;
+    const bandwidthBps = (totalBytes * 1000) / spanMs;
+
+    const allTs = buckets.flatMap(b => b.timestampsUs);
+    let rateBps = 0;
+    if (allTs.length > 1) {
+      const sortedTs = [...allTs].sort((a, b) => a - b);
+      const firstTs = sortedTs[0];
+      const lastTs = sortedTs[sortedTs.length - 1];
+      const estLastDur = sortedTs.length > 1 ? (sortedTs[sortedTs.length - 1] - sortedTs[sortedTs.length - 2]) : 0;
+      const effectiveSpanUs = (lastTs - firstTs) + estLastDur;
+      rateBps = (totalBytes * 1e6) / effectiveSpanUs;
+    }
+
+    const sustainability = (bandwidthBps > 0 && rateBps > 0) ? (bandwidthBps / rateBps) : 0;
+
+    const bufNorm = buckets.flatMap(b => b.bufferLevelsSec.map(v => v / this.targetBufferSec));
+    bufNorm.sort((a, b) => a - b);
+    const p10 = this._percentile(bufNorm, 0.10);
+    const p50 = this._percentile(bufNorm, 0.50);
+    const p95 = this._percentile(bufNorm, 0.95);
+
+    const lowEvents = buckets.reduce((a, b) => a + b.lowBufferCount, 0);
+    const lowBufferEventsPerSec = lowEvents / (windowMs / 1000);
+
+    const arrTimes = buckets.flatMap(b => b.arrivalTimes);
+    let jitterMs = 0;
+    if (arrTimes.length > 1) {
+      const diffs = [];
+      for (let i = 1; i < arrTimes.length; i++) diffs.push(arrTimes[i] - arrTimes[i - 1]);
+      const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+      const varSum = diffs.reduce((a, b) => a + (b - mean) ** 2, 0);
+      jitterMs = Math.sqrt(varSum / diffs.length);
+    }
+
+    // Stall risk
+    const risk = Math.min(1, Math.max(0, 1 - p10)) * Math.min(1, jitterMs / (0.5 * this.targetBufferSec * 1000));
+
+    let bufferHealth = "stable";
+    if (sustainability < 0.9 || p50 < 0.5 || risk > 0.7) {
+      bufferHealth = "weak";
+    } else if (risk > 0.4 || (p95 - p50) > 1.5) {
+      bufferHealth = "unstable";
+    } else if (sustainability > 1.2 && p50 > 0.8 && risk < 0.3) {
+      bufferHealth = "strong";
+    }
+
+    return {
+      bandwidthBps,
+      rateBps,
+      sustainability,
+      bufferPercentiles: { p10, p50, p95 },
+      lowBufferEventsPerSec,
+      jitterMs,
+      stallRisk: risk,
+      bufferHealth,
+    };
   }
 }

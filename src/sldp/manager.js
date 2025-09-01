@@ -187,7 +187,7 @@ export class SLDPManager {
   }
 
   _streamNumber() {
-    let sn = this._nextSN % parseInt("F0", 16);
+    let sn = this._nextSN % parseInt("80", 16);
     this._nextSN++;
     return sn;
   }
