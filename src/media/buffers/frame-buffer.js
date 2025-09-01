@@ -12,7 +12,7 @@ export class FrameBuffer {
   pushFrame(frame) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
-      this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
+      // this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
       this._disposeFrame(removed);
       this._updateFirstFrameTs();
     }
