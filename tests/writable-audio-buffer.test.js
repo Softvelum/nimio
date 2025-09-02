@@ -143,13 +143,13 @@ describe("WritableAudioBuffer", () => {
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
-    const frameBuffer = wab.frames[lastWriteIdx];
+    const fBuffer = wab.frames[lastWriteIdx];
 
     for (let ch = 0; ch < wab.numChannels; ch++) {
       for (let i = 0; i < wab.sampleCount; i++) {
-        // frameBuffer is arranged by channels, so
-        // frameBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
-        expect(frameBuffer[ch * wab.sampleCount + i]).toBe(
+        // fBuffer is arranged by channels, so
+        // fBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
+        expect(fBuffer[ch * wab.sampleCount + i]).toBe(
           wab.tempF32[i * wab.numChannels + ch],
         );
       }
@@ -168,13 +168,13 @@ describe("WritableAudioBuffer", () => {
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
-    const frameBuffer = wab.frames[lastWriteIdx];
+    const fBuffer = wab.frames[lastWriteIdx];
 
     for (let ch = 0; ch < wab.numChannels; ch++) {
       for (let i = 0; i < wab.sampleCount; i++) {
-        // frameBuffer is arranged by channels, so
-        // frameBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
-        expect(frameBuffer[ch * wab.sampleCount + i]).toBe(
+        // fBuffer is arranged by channels, so
+        // fBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
+        expect(fBuffer[ch * wab.sampleCount + i]).toBe(
           wab.tempI16[i * wab.numChannels + ch] / 32768,
         );
       }

@@ -1,15 +1,15 @@
 import LoggersFactory from "@/shared/logger.js";
 import { RingBuffer } from "@/shared/ring-buffer.js";
 
-export class VideoBuffer {
-  constructor(instName, maxFrames = 100) {
+export class FrameBuffer {
+  constructor(instName, type, maxFrames = 100) {
     // TODO: length in uSec?
-    this._frames = new RingBuffer(`${instName} Video`, maxFrames);
-    this._logger = LoggersFactory.create(instName, "Video Buffer");
+    this._frames = new RingBuffer(`${instName} ${type}`, maxFrames);
+    this._logger = LoggersFactory.create(instName, "${type} Buffer");
     this._firstFrameTs = this._lastFrameTs = 0;
   }
 
-  addFrame(frame, timestamp) {
+  pushFrame(frame) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
       this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
@@ -17,12 +17,12 @@ export class VideoBuffer {
       this._updateFirstFrameTs();
     }
 
-    this._frames.push({ frame, timestamp });
-    if (timestamp > this._lastFrameTs) {
-      this._lastFrameTs = timestamp;
+    this._frames.push(frame);
+    if (frame.timestamp > this._lastFrameTs) {
+      this._lastFrameTs = frame.timestamp;
     }
     if (this._firstFrameTs === 0) {
-      this._firstFrameTs = timestamp;
+      this._firstFrameTs = frame.timestamp;
     }
   }
 
@@ -48,8 +48,7 @@ export class VideoBuffer {
     }
 
     for (let i = 0; i < lastIdx; i++) {
-      let frame = this._frames.pop();
-      this._disposeFrame(frame);
+      this._disposeFrame(this._frames.pop());
     }
 
     const frame = this._frames.pop();
@@ -57,20 +56,42 @@ export class VideoBuffer {
     if (this._frames.isEmpty()) this._lastFrameTs = 0;
 
     // return the last frame earlier than currentTime
-    return frame.frame;
+    return frame;
   }
 
-  clear() {
-    this._frames.forEach((frame) => {
-      this._disposeFrame(frame);
+  absorb(frameBuffer) {
+    frameBuffer.forEach((frame) => {
+      if (frame.timestamp > this._lastFrameTs) {
+        this.pushFrame(frame);
+      } else {
+        this._disposeFrame(frame);
+      }
     });
+
+    frameBuffer.reset({ keepFrames: true });
+  }
+
+  reset(opts = {}) {
+    if (!opts.keepFrames) {
+      this._frames.forEach((frame) => {
+        this._disposeFrame(frame);
+      });
+    }
 
     this._frames.reset();
     this._firstFrameTs = this._lastFrameTs = 0;
   }
 
+  forEach(callback) {
+    this._frames.forEach(callback);
+  }
+
   get length() {
     return this._frames.length;
+  }
+
+  get firstFrameTs() {
+    return this._firstFrameTs;
   }
 
   get lastFrameTs() {
@@ -92,9 +113,7 @@ export class VideoBuffer {
     this._firstFrameTs = this._frames.get(0).timestamp;
   }
 
-  _disposeFrame(data) {
-    if (data && data.frame) {
-      data.frame.close();
-    }
+  _disposeFrame(frame) {
+    if (frame) frame.close();
   }
 }

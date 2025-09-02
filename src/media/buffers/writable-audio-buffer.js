@@ -62,6 +62,17 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     return true;
   }
 
+  absorb(frameBuffer) {
+    let lastTs = this.getLastTimestampUs();
+    frameBuffer.forEach((frame) => {
+      if (frame.decTimestamp > lastTs) {
+        this.pushFrame(frame);
+      }
+    });
+
+    frameBuffer.reset({ keepFrames: true });
+  }
+
   pushSilence(timestamp) {
     const writeIdx = this.getWriteIdx();
     this.timestamps[writeIdx] = timestamp;

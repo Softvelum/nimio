@@ -97,9 +97,9 @@ export class SharedAudioBuffer {
   }
 
   getLastTimestampUs() {
-    let writeIdx = this.getWriteIdx() - 1;
-    if (writeIdx < 0) writeIdx += this.capacity;
-    return this.timestamps[writeIdx] || 0;
+    let lastIdx = this.getWriteIdx() - 1;
+    if (lastIdx < 0) lastIdx += this.capacity;
+    return this.timestamps[lastIdx] || 0;
   }
 
   get buffer() {
@@ -108,6 +108,10 @@ export class SharedAudioBuffer {
 
   get bufferCapacity() {
     return this.capacity;
+  }
+
+  get isShareable() {
+    return true;
   }
 
   _getIdx(idx) {

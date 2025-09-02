@@ -4,15 +4,25 @@ export class SLDPContext {
   constructor(instName) {
     this._instName = instName;
 
+    this._curIdxs = [];
     this._streams = [];
     this._streamsMap = {};
+    this._ordRenditions = [];
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
+  }
+
+  setSourceUrl(url) {
+    if (this._sourceUrl === url) return;
+    this._sourceUrl = url;
+    this._curIdxs = [];
   }
 
   async setStreams(streams) {
     this._streams = streams;
     this._streamsMap = {};
+
+    this._ordRenditions = [];
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
 
@@ -40,7 +50,7 @@ export class SLDPContext {
           streamInfo.vcodecSupported = true;
           streamInfo.bwStr = streamInfo.bandwidth;
           if (streamInfo.bandwidth) {
-            streamInfo.bandwidth = parseInt(streamInfo.bandwidth) / 1024;
+            streamInfo.bandwidth = parseInt(streamInfo.bandwidth);
           }
 
           for (vIdx = 0; vIdx < this._ordVideoRenditions.length; vIdx++) {
@@ -58,7 +68,10 @@ export class SLDPContext {
           this._ordVideoRenditions.splice(vIdx, 0, {
             idx: i,
             bandwidth: streamInfo.bandwidth,
-            rendition: res[1],
+            width: streamInfo.width,
+            height: streamInfo.height,
+            vcodec: streamInfo.vcodec,
+            rendition: res[1] + "p",
           });
         }
       }
@@ -73,8 +86,18 @@ export class SLDPContext {
       }
     }
 
-    this._fillAudioRenditions(this._ordVideoRenditions);
-    this._fillAudioRenditions(noVideoStreams);
+    for (let i = 0; i < this._ordVideoRenditions.length; i++) {
+      let r = { ...this._ordVideoRenditions[i] };
+      if (r.hasAudio) {
+        r.acodec = this._streams[r.idx].stream_info.acodec;
+        delete r.hasAudio;
+      }
+      this._ordRenditions.push(r);
+    }
+
+    this._cpAudioRenditions(this._ordAudioRenditions, this._ordVideoRenditions);
+    this._cpAudioRenditions(this._ordAudioRenditions, noVideoStreams);
+    this._cpAudioRenditions(this._ordRenditions, noVideoStreams);
   }
 
   async _checkSupportedCodecs(streams) {
@@ -90,8 +113,39 @@ export class SLDPContext {
     };
   }
 
+  getCurrentIdx(type) {
+    return this._curIdxs[type];
+  }
+
+  getCurrentStream(type) {
+    return this._getCurrentStream(this._curIdxs[type]);
+  }
+
+  setCurrentStream(type, idx) {
+    let strm = this._streams[idx];
+    if (strm) this._curIdxs[type] = idx;
+
+    return strm;
+  }
+
+  getCurrentRendition(type) {
+    let idx = this._curIdxs[type];
+    for (let i = 0; i < this._ordRenditions.length; i++) {
+      if (this._ordRenditions[i].idx === idx) return this._ordRenditions[i];
+    }
+    return null;
+  }
+
+  isCurrentStream(type, idx) {
+    return idx === this._curIdxs[type];
+  }
+
   get streams() {
     return this._streams;
+  }
+
+  get allRenditions() {
+    return this._ordRenditions;
   }
 
   get videoRenditions() {
@@ -102,13 +156,20 @@ export class SLDPContext {
     return this._ordAudioRenditions;
   }
 
-  _fillAudioRenditions(source) {
+  _getCurrentStream(idx) {
+    let strm;
+    if (idx >= 0) strm = this._streams[idx];
+    return strm;
+  }
+
+  _cpAudioRenditions(target, source) {
     for (let i = 0; i < source.length; i++) {
       let streamInfo = this._streams[source[i].idx].stream_info;
       if (streamInfo.acodecSupported) {
-        this._ordAudioRenditions.push({
+        target.push({
           idx: source[i].idx,
           bandwidth: streamInfo.bandwidth,
+          acodec: streamInfo.acodec,
         });
       }
     }

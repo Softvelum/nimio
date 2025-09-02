@@ -4,12 +4,15 @@ import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { SLDPContext } from "./sldp/context";
 import { Ui } from "./ui/ui.js";
-import { VideoBuffer } from "./media/buffers/video-buffer";
+import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { TransportAdapter } from "./transport/adapter";
+import { DecoderFlowVideo } from "./media/decoders/flow-video";
+import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioService } from "./audio-service";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
+import { NimioApi } from "./nimio-api";
 import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
@@ -33,8 +36,8 @@ export default class Nimio {
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
-
-    this._videoBuffer = new VideoBuffer(options.instanceName, 1000);
+    this._videoBuffer = new FrameBuffer(options.instanceName, "Video", 1000);
+    this._tempBuffer = new FrameBuffer(options.instanceName, "Temp", 1000);
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
@@ -62,7 +65,7 @@ export default class Nimio {
     }
 
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
-    this._firstFrameTsUs = null;
+    this._firstFrameTsUs = 0;
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
@@ -74,7 +77,7 @@ export default class Nimio {
       this._context,
       this._config,
     );
-    this._initDecoders();
+
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values
 
@@ -123,7 +126,7 @@ export default class Nimio {
       this._debugView.stop();
     }
 
-    this._videoBuffer.clear();
+    this._videoBuffer.reset();
     this._noVideo = false;
 
     this._stopAudio();
@@ -131,9 +134,24 @@ export default class Nimio {
       this._audioBuffer.reset();
     }
 
+    if (this._nextRenditionData) {
+      if (this._nextRenditionData.decoderFlow) {
+        this._nextRenditionData.decoderFlow.destroy();
+      }
+      this._nextRenditionData = null;
+    }
+    if (this._vDecoderFlow) {
+      this._vDecoderFlow.destroy();
+      this._vDecoderFlow = null;
+    }
+    if (this._aDecoderFlow) {
+      this._aDecoderFlow.destroy();
+      this._aDecoderFlow = null;
+    }
+
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
-    this._firstFrameTsUs = null;
+    this._firstFrameTsUs = 0;
 
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
@@ -157,32 +175,14 @@ export default class Nimio {
     isPlayClicked ? this.play() : this.pause();
   }
 
-  _initDecoders() {
-    this._videoDecoderWorker = new Worker(
-      new URL("./media/decoders/decoder-video.js", import.meta.url),
-      { type: "module" },
-    );
-    this._videoDecoderWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-
-    this._audioDecoderWorker = new Worker(
-      new URL("./media/decoders/decoder-audio.js", import.meta.url),
-      { type: "module" },
-    );
-    this._audioDecoderWorker.addEventListener("message", (e) => {
-      this._processWorkerMessage(e);
-    });
-  }
-
   _initTransport(instName, url) {
     this._transport = new TransportAdapter(instName, url);
     this._transport.callbacks = {
-      videoConfig: this._onVideoConfigReceived.bind(this),
+      videoSetup: this._onVideoSetupReceived.bind(this),
       videoCodec: this._onVideoCodecDataReceived.bind(this),
       videoChunk: this._onVideoChunkReceived.bind(this),
 
-      audioConfig: this._onAudioConfigReceived.bind(this),
+      audioSetup: this._onAudioSetupReceived.bind(this),
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
     };
@@ -191,8 +191,9 @@ export default class Nimio {
   _renderVideoFrame() {
     if (!this._noVideo && this._state.isPlaying()) {
       requestAnimationFrame(this._renderVideoFrame);
-      if (null === this._audioWorkletReady || null === this._firstFrameTsUs)
+      if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
         return true;
+      }
 
       let curTsUs = this._audioService.smpCntToTsUs(
         this._state.getCurrentTsSmp(),
@@ -219,55 +220,141 @@ export default class Nimio {
     }
   }
 
-  _onVideoConfigReceived(config) {
-    if (!config) {
+  _onVideoSetupReceived(data) {
+    if (!data || !data.config) {
       this._noVideo = true;
       return;
     }
 
-    this._videoDecoderWorker.postMessage({
-      type: "config",
-      config: config,
-    });
+    if (this._isNextRenditionTrack(data.trackId)) {
+      return this._createNextRenditionFlow("video", data);
+    }
+
+    if (this._vDecoderFlow) {
+      this._logger.warn("Received video setup while video flow already exist");
+      return;
+    }
+
+    this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
+    this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
+    this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    if (this._config.adaptiveBitrate) {
+      this._vDecoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult("video", done);
+      };
+      this._vDecoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(this._vDecoderFlow.trackId);
+      };
+    }
+    this._vDecoderFlow.setConfig(data.config);
   }
 
-  _onAudioConfigReceived(config) {
-    if (!config) {
+  _onAudioSetupReceived(data) {
+    if (!data || !data.config) {
       this._startNoAudioMode();
       return;
     }
 
-    this._audioDecoderWorker.postMessage({
-      type: "config",
-      config: config,
-    });
+    if (this._isNextRenditionTrack(data.trackId)) {
+      return this._createNextRenditionFlow("audio", data);
+    }
+
+    if (this._aDecoderFlow) {
+      this._logger.warn("Received audio setup while audio flow already exist");
+      return;
+    }
+
+    this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
+    this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
+    this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    if (this._config.adaptiveBitrate) {
+      this._aDecoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult("audio", done);
+      };
+      this._aDecoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(this._aDecoderFlow.trackId);
+      };
+    }
+    this._aDecoderFlow.setConfig(data.config);
+  }
+
+  _isNextRenditionTrack(trackId) {
+    return (
+      this._nextRenditionData && this._nextRenditionData.trackId === trackId
+    );
+  }
+
+  _createNextRenditionFlow(type, data) {
+    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
+    this._nextRenditionData.decoderFlow = new flowClass(
+      data.trackId,
+      data.timescale,
+    );
+    this._nextRenditionData.decoderFlow.onInputCancel = () => {
+      this._sldpManager.cancelStream(data.trackId);
+    };
+    this._nextRenditionData.decoderFlow.setConfig(data.config);
   }
 
   _onVideoCodecDataReceived(data) {
-    this._videoDecoderWorker.postMessage({
-      type: "codecData",
-      codecData: data.data,
-    });
+    let decoderFlow = this._vDecoderFlow;
+    let buffer = this._videoBuffer;
+    if (this._isNextRenditionTrack(data.trackId)) {
+      decoderFlow = this._nextRenditionData.decoderFlow;
+      buffer = this._tempBuffer;
+      this._vDecoderFlow.switchTo(decoderFlow);
+    }
+
+    decoderFlow.setCodecData({ codecData: data.data });
+    decoderFlow.setBuffer(buffer, this._state);
   }
 
   _onAudioCodecDataReceived(data) {
+    let audioAvailable = true;
+    let prevConfig = this._audioService.currentConfig;
     let config = this._audioService.parseAudioConfig(data.data, data.family);
+    let decoderFlow, buffer;
+    if (this._isNextRenditionTrack(data.trackId)) {
+      if (!config || !this._audioService.isConfigCompatible(prevConfig)) {
+        this._logger.warn(
+          "Received incompatible audio config for next rendition",
+          data.trackId,
+          prevConfig,
+          config,
+        );
+        this._audioService.setConfig(prevConfig);
+        this._nextRenditionData.decoderFlow.destroy();
+        this._onRenditionSwitchResult("audio", false);
+        return;
+      }
+
+      decoderFlow = this._nextRenditionData.decoderFlow;
+      buffer = this._tempBuffer;
+      this._aDecoderFlow.switchTo(decoderFlow);
+    } else {
+      audioAvailable = this._prepareAudioOutput(config);
+      decoderFlow = this._aDecoderFlow;
+      buffer = this._audioBuffer;
+    }
+
+    if (audioAvailable) {
+      decoderFlow.setCodecData({ codecData: data.data, config: config });
+      decoderFlow.setBuffer(buffer, this._state);
+    }
+  }
+
+  _prepareAudioOutput(config) {
     if (!config) {
       if (!this._noAudio) {
         this._startNoAudioMode();
       }
-      return;
+      return false;
     }
 
     if (this._noAudio) {
+      // Stop no audio mode if it was started previously
       this._stopAudio();
     }
-
-    this._audioDecoderWorker.postMessage({
-      type: "codecData",
-      codecData: data.data,
-      config: config,
-    });
 
     this._audioBuffer = WritableAudioBuffer.allocate(
       this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
@@ -275,105 +362,85 @@ export default class Nimio {
       config.numberOfChannels,
       config.sampleCount,
     );
+
     this._audioBuffer.addPreprocessor(
       new AudioGapsProcessor(
         this._audioService.sampleCount,
         this._audioService.sampleRate,
       ),
     );
+
+    return true;
   }
 
   _onVideoChunkReceived(data) {
-    this._videoDecoderWorker.postMessage(
-      {
-        type: "chunk",
-        timestamp: data.timestamp,
-        chunkType: data.chunkType,
-        frameWithHeader: data.frameWithHeader,
-        framePos: data.framePos,
-      },
-      [data.frameWithHeader],
-    );
+    this._processChunk(this._vDecoderFlow, data);
   }
 
   _onAudioChunkReceived(data) {
-    this._audioDecoderWorker.postMessage(
-      {
-        type: "chunk",
-        timestamp: data.timestamp,
-        frameWithHeader: data.frameWithHeader,
-        framePos: data.framePos,
-      },
-      [data.frameWithHeader],
+    this._processChunk(this._aDecoderFlow, data);
+  }
+
+  _processChunk(flow, data) {
+    let res = flow.processChunk(data);
+    if (!res && this._isNextRenditionTrack(data.trackId)) {
+      this._nextRenditionData.decoderFlow.processChunk(data);
+    }
+  }
+
+  _onRenditionSwitchResult(type, done) {
+    if (done) {
+      this._context.setCurrentStream(type, this._nextRenditionData.idx);
+    }
+    let nextId = this._nextRenditionData.idx + 1;
+    this._nextRenditionData = null;
+    this._logger.debug(
+      `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
   }
 
-  _processWorkerMessage(e) {
-    const type = e.data.type;
-    switch (type) {
-      case "videoFrame":
-        let frame = e.data.videoFrame;
-        let frameTsUs = frame.timestamp;
-        if (
-          null === this._firstFrameTsUs &&
-          (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5)
-        ) {
-          this._firstFrameTsUs = frameTsUs;
-          this._state.setPlaybackStartTsUs(frameTsUs);
+  async _onVideoStartTsNotSet(frame) {
+    if (this._firstFrameTsUs !== 0) return true;
 
-          if (!this._noAudio) {
-            this._startNoAudioMode();
-          }
-        }
-        this._videoBuffer.addFrame(frame, frameTsUs);
-        this._state.setVideoLatestTsUs(frameTsUs);
-        this._state.setVideoDecoderQueue(e.data.decoderQueue);
-        this._state.setVideoDecoderLatency(e.data.decoderLatency);
-        break;
-      case "audioFrame":
-        e.data.audioFrame.rawTimestamp = e.data.rawTimestamp;
-        e.data.audioFrame.decTimestamp = e.data.decTimestamp;
-        this._handleAudioFrame(e.data.audioFrame);
-        this._state.setAudioDecoderQueue(e.data.decoderQueue);
-        break;
-      case "decoderError":
-        // TODO: show error message in UI
-        if (e.data.kind === "video") this._noVideo = true;
-        if (e.data.kind === "audio") this._noAudio = true;
+    if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
+      this._firstFrameTsUs =
+        this._videoBuffer.length > 0
+          ? this._videoBuffer.firstFrameTs
+          : frame.timestamp;
+      this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
-        if (this._noVideo && this._noAudio) {
-          this.stop(true);
-        }
-        break;
-      default:
-        break;
+      if (!this._noAudio) {
+        await this._startNoAudioMode();
+      }
     }
+
+    return true;
   }
 
-  async _handleAudioFrame(audioFrame) {
-    if (this._state.isStopped()) {
-      audioFrame.close();
-      return true;
-    }
-
+  async _onAudioStartTsNotSet(frame) {
     // create AudioContext with correct sampleRate on first frame
-    await this._initAudioContext(
-      audioFrame.sampleRate,
-      audioFrame.numberOfChannels,
-    );
+    await this._initAudioContext(frame.sampleRate, frame.numberOfChannels);
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
-      audioFrame.close();
       return false;
     }
 
-    this._audioBuffer.pushFrame(audioFrame);
-    audioFrame.close();
+    if (this._firstFrameTsUs === 0) {
+      this._firstFrameTsUs = frame.rawTimestamp;
+      this._state.setPlaybackStartTsUs(frame.rawTimestamp);
+    }
 
-    if (null === this._firstFrameTsUs) {
-      this._firstFrameTsUs = audioFrame.rawTimestamp;
-      this._state.setPlaybackStartTsUs(audioFrame.rawTimestamp);
+    return true;
+  }
+
+  _onDecodingError(kind) {
+    // TODO: show error message in UI
+    if (kind === "video") this._noVideo = true;
+    if (kind === "audio") this._noAudio = true;
+
+    if (this._noVideo && this._noAudio) {
+      this.stop(true);
     }
   }
 
@@ -431,8 +498,8 @@ export default class Nimio {
     this._audioNode.connect(this._audioContext.destination);
   }
 
-  _startNoAudioMode() {
-    this._initAudioContext(48000, 1, true);
+  async _startNoAudioMode() {
+    await this._initAudioContext(48000, 1, true);
     this._noAudio = true;
     this._logger.debug("No audio mode started");
   }
@@ -445,3 +512,5 @@ export default class Nimio {
     this._noAudio = false;
   }
 }
+
+Object.assign(Nimio.prototype, NimioApi);

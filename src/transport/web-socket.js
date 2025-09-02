@@ -83,7 +83,7 @@ self.onmessage = (e) => {
     return;
   }
 
-  if (!socket) {
+  if (!socket && ["play", "stop"].includes(type)) {
     console.warn(`Attempt to send ${type} command via closed socket`);
     return;
   }

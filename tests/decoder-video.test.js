@@ -127,7 +127,7 @@ describe("decoder-video", () => {
 
     vi.runAllTimers();
     expect(postMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "videoFrame" }),
+      expect.objectContaining({ type: "decodedFrame" }),
       expect.any(Array),
     );
   });
