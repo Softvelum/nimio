@@ -1,29 +1,44 @@
 export const NimioApi = {
   getRenditions(type) {
     if (!this._context) return [];
-    if (!type) type = "video";
-    if (!this._checkRenditionType(type)) return [];
+    if (type && !this._checkRenditionType(type)) return [];
 
-    let renditions =
-      type === "video"
-        ? this._context.videoRenditions
-        : this._context.audioRenditions;
+    // empty type means all renditions
+    let renditions = this._context.allRenditions;
+    if (type === "video") {
+      renditions = this._context.videoRenditions;
+    } else if (type === "audio") {
+      renditions = this._context.audioRenditions;
+    }
+
     return renditions.map((r) => this._renditionParams(type, r));
   },
 
-  setVideoRendition(rIdx) {
-    return this.setRendition("video", rIdx);
+  getCurrentRendition(type) {
+    if (!this._context) return null;
+    if (!type) type = "video";
+    if (!this._checkRenditionType(type)) return null;
+
+    let rendition = this._context.getCurrentRendition(type);
+    if (!rendition) return null;
+
+    return this._renditionParams(type, rendition);
   },
 
-  setAudioRendition(rIdx) {
-    return this.setRendition("audio", rIdx);
+  setVideoRendition(id) {
+    return this.setCurrentRendition("video", id);
   },
 
-  setRendition(type, rIdx) {
+  setAudioRendition(id) {
+    return this.setCurrentRendition("audio", id);
+  },
+
+  setCurrentRendition(type, id) {
     if (!this._context) return false;
     if (!this._checkRenditionType(type)) return false;
     if (!this._isSwitchPossible(type)) return false;
 
+    let rIdx = id - 1;
     if (this._context.isCurrentStream(type, rIdx)) {
       return true;
     }
@@ -35,13 +50,14 @@ export const NimioApi = {
       !stream.stream_info[`${type[0]}codecSupported`]
     ) {
       this._logger.error(
-        `${type} rendition with index ${rIdx} is not found or not supported`,
+        `${type} rendition with ID ${id} is not found or not supported`,
       );
       return false;
     }
     if (this._nextRenditionData) {
+      let nextId = this._nextRenditionData.idx + 1;
       this._logger.warn(
-        `Can't switch to ${type} rendition ${rIdx} while a switch to ${this._nextRenditionData.idx} is in progress`,
+        `Can't switch to ${type} rendition ${id} while a switch to ${nextId} is in progress`,
       );
       return false;
     }
@@ -63,20 +79,17 @@ export const NimioApi = {
   },
 
   _renditionParams(type, rendition) {
-    return type === "video"
-      ? {
-          index: rendition.idx,
-          width: rendition.width,
-          height: rendition.height,
-          rendition: rendition.rendition,
-          bandwidth: rendition.bandwidth,
-          vcodec: rendition.vcodec,
-        }
-      : {
-          index: rendition.idx,
-          bandwidth: rendition.bandwidth,
-          acodec: rendition.acodec,
-        };
+    let res = { id: rendition.idx + 1, bandwidth: rendition.bandwidth };
+    if (!type || type === "video") {
+      res.width = rendition.width;
+      res.height = rendition.height;
+      res.rendition = rendition.rendition;
+      res.vcodec = rendition.vcodec;
+    }
+    if (!type || type === "audio") {
+      res.acodec = rendition.acodec;
+    }
+    return res;
   },
 
   _isSwitchPossible(type) {

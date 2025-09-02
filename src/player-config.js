@@ -29,6 +29,8 @@ function validateRequired(cfg) {
   });
 }
 
+// TODO: make more friendly setting of initialRendition and maxRendition
+// Like "480p" or 480, "1280x720", "min", "max", etc.
 function initAbrSettings(settings, logger) {
   let abrSettings = settings.adaptiveBitrate;
   if (abrSettings instanceof Object) {

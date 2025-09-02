@@ -392,9 +392,10 @@ export default class Nimio {
     if (done) {
       this._context.setCurrentStream(type, this._nextRenditionData.idx);
     }
+    let nextId = this._nextRenditionData.idx + 1;
     this._nextRenditionData = null;
     this._logger.debug(
-      `${type} rendition switch ${done ? "completed successfully" : "failed"}`,
+      `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
   }
 
