@@ -95,9 +95,9 @@ export class SLDPContext {
       this._ordRenditions.push(r);
     }
 
-    this._copyAudioRenditions(this._ordAudioRenditions, this._ordVideoRenditions);
-    this._copyAudioRenditions(this._ordAudioRenditions, noVideoStreams);
-    this._copyAudioRenditions(this._ordRenditions, noVideoStreams);
+    this._cpAudioRenditions(this._ordAudioRenditions, this._ordVideoRenditions);
+    this._cpAudioRenditions(this._ordAudioRenditions, noVideoStreams);
+    this._cpAudioRenditions(this._ordRenditions, noVideoStreams);
   }
 
   async _checkSupportedCodecs(streams) {
@@ -162,7 +162,7 @@ export class SLDPContext {
     return strm;
   }
 
-  _copyAudioRenditions(target, source) {
+  _cpAudioRenditions(target, source) {
     for (let i = 0; i < source.length; i++) {
       let streamInfo = this._streams[source[i].idx].stream_info;
       if (streamInfo.acodecSupported) {
