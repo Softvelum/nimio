@@ -3,6 +3,7 @@ const SWITCH_THRESHOLD_US = 10_000_000;
 export class DecoderFlow {
   constructor(trackId, timescale, url) {
     this._trackId = trackId;
+    // TODO: check if timescale is needed further
     this._timescale = timescale;
     this._startTsUs = 0;
 

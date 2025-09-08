@@ -1,14 +1,17 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import LoggersFactory from "@/shared/logger.js";
 
+const STAT_SIZE = 60; // 1 minute
+const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 1 minute of 250ms buckets
+
 export class MetricsStore {
   constructor(instanceName, id, type) {
-    this.id = id;
-    this.type = type;
+    this._id = id;
+    this._type = type;
     this._logger = LoggersFactory.create(instanceName, `MetricsStore ${id}`);
 
-    this.pickCustom = false;
-    this.bytesCustom = 0;
+    this._pickCustom = false;
+    this._bytesCustom = 0;
 
     this.framesCount = 0;
     this.bytesTotal = 0;
@@ -24,11 +27,12 @@ export class MetricsStore {
     this.bufferLevel = 0;
     this.bufferEnd = 0;
 
-    this.bw1sec = new RingBuffer(`${instanceName} bw`, BUFFER_SIZE);
-    this.rate1sec = new RingBuffer(`${instanceName} rate`, BUFFER_SIZE);
-    this.lb1sec = new RingBuffer(`${instanceName} lb`, BUFFER_SIZE);
-    this.buf1sec = new RingBuffer(`${instanceName} buf`, BUFFER_SIZE);
-    this.buf500msec = new RingBuffer(`${instanceName} buf500`, BUFFER_SIZE);
+    this._buckets = new RingBuffer(`${instanceName} stats`, STAT_BUCKETS_COUNT);
+    this._bw1sec = new RingBuffer(`${instanceName} bw`, STAT_SIZE);
+    this.rate1sec = new RingBuffer(`${instanceName} rate`, STAT_SIZE);
+    this.lb1sec = new RingBuffer(`${instanceName} lb`, STAT_SIZE);
+    this.buf1sec = new RingBuffer(`${instanceName} buf`, STAT_SIZE);
+    this.buf500msec = new RingBuffer(`${instanceName} buf500`, STAT_SIZE);
 
     this.buf1secSum = 0;
     this.buf1secCnt = 0;
@@ -40,7 +44,7 @@ export class MetricsStore {
   }
 
   clearCounters() {
-    this.bytesCustom = 0;
+    this._bytesCustom = 0;
     this.customStart = undefined;
     this.customEnd = undefined;
     this.rateCustomTs1 = undefined;
@@ -85,7 +89,7 @@ export class MetricsStore {
   destroy() {
     this._clear500msecInterval();
 
-    this.bw1sec.reset();
+    this._bw1sec.reset();
     this.rate1sec.reset();
     this.lb1sec.reset();
     this.buf1sec.reset();
@@ -116,19 +120,19 @@ export class MetricsStore {
   }
 
   startCustom() {
-    if (!this.pickCustom) {
-      this.pickCustom = true;
+    if (!this._pickCustom) {
+      this._pickCustom = true;
       this.customStart = undefined;
       this.customStop = undefined;
-      this.bytesCustom = 0;
+      this._bytesCustom = 0;
       this.rateCustomTs1 = undefined;
       this.rateCustomTs2 = undefined;
     }
   }
 
   stopCustom() {
-    if (this.pickCustom) {
-      this.pickCustom = false;
+    if (this._pickCustom) {
+      this._pickCustom = false;
       this.customStop = this.lastRepTime;
     }
   }
@@ -141,7 +145,7 @@ export class MetricsStore {
       }
       let customRange = this.customStop - this.customStart;
       if (customRange > 0) {
-        result = (1000 * this.bytesCustom) / (customRange * 128);
+        result = (1000 * this._bytesCustom) / (customRange * 128);
       }
     }
     return result;
@@ -152,7 +156,7 @@ export class MetricsStore {
     let tsInterval =
       this.rateCustomTs2 - this.rateCustomTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = this.bytesCustom / (tsInterval * 128);
+      result = this._bytesCustom / (tsInterval * 128);
     }
     return result;
   }
@@ -186,9 +190,9 @@ export class MetricsStore {
       this.bytes500msec += bytes;
       this.bytes1sec += bytes;
       this.bytesTotal += bytes;
-      if (this.pickCustom) {
+      if (this._pickCustom) {
         if (undefined === this.customStart) this.customStart = curTime;
-        this.bytesCustom += bytes;
+        this._bytesCustom += bytes;
         if (undefined !== timestamp) {
           if (undefined === this.rateCustomTs1) this.rateCustomTs1 = timestamp;
           this.rateCustomTs2 = timestamp;
@@ -283,8 +287,8 @@ export class MetricsStore {
 
   latestBandwidth() {
     let result = this.curBw1sec();
-    if (this.bw1sec.length() > 0) {
-      let lastBw = this.bw1sec.get(-1);
+    if (this._bw1sec.length() > 0) {
+      let lastBw = this._bw1sec.get(-1);
       if (0 === result) {
         result = lastBw;
       } else {
@@ -351,7 +355,7 @@ export class MetricsStore {
 
   _updateBwRate1sec(curTime) {
     var curBw = this.curBw1sec();
-    this.bw1sec.push(curBw);
+    this._bw1sec.push(curBw);
     this.rate1sec.push(this.curRate1sec());
     if (undefined !== this.bwTime2 && curTime - this.bwTime2 <= 1000) {
       this.rate1secTs1 = this.rate1secTs2;

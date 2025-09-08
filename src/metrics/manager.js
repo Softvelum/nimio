@@ -1,7 +1,8 @@
 import LoggersFactory from "@/shared/logger";
-import { MetricsStore } from "./metric.js";
+import { MetricsStore } from "./store.js";
+import { multiInstanceService } from "@/shared/service.js";
 
-export class MetricsManager {
+class MetricsManager {
   constructor(instanceName) {
     this._instName = instanceName;
     this._logger = LoggersFactory.create(instanceName, "MetricsManager");
@@ -65,3 +66,6 @@ export class MetricsManager {
     return m;
   }
 }
+
+MetricsManager = multiInstanceService(MetricsManager);
+export { MetricsManager };

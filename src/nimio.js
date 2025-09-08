@@ -6,13 +6,13 @@ import { SLDPContext } from "./sldp/context";
 import { Ui } from "./ui/ui.js";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
-import { TransportAdapter } from "./transport/adapter";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioService } from "./audio-service";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
 import { NimioApi } from "./nimio-api";
+import { NimioTransport } from "./nimio-transport";
 import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
@@ -69,6 +69,7 @@ export default class Nimio {
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
+    this._decoderFlows = { video: null, audio: null };
     this._initTransport(options.instanceName, "./web-socket.js");
     this._context = new SLDPContext(options.instanceName);
     this._sldpManager = new SLDPManager(
@@ -140,14 +141,13 @@ export default class Nimio {
       }
       this._nextRenditionData = null;
     }
-    if (this._vDecoderFlow) {
-      this._vDecoderFlow.destroy();
-      this._vDecoderFlow = null;
-    }
-    if (this._aDecoderFlow) {
-      this._aDecoderFlow.destroy();
-      this._aDecoderFlow = null;
-    }
+
+    ["video", "audio"].forEach((type) => {
+      if (this._decoderFlows[type]) {
+        this._decoderFlows[type].destroy();
+        this._decoderFlows[type] = null;
+      }
+    });
 
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
@@ -173,19 +173,6 @@ export default class Nimio {
 
   _onPlayPauseClick(e, isPlayClicked) {
     isPlayClicked ? this.play() : this.pause();
-  }
-
-  _initTransport(instName, url) {
-    this._transport = new TransportAdapter(instName, url);
-    this._transport.callbacks = {
-      videoSetup: this._onVideoSetupReceived.bind(this),
-      videoCodec: this._onVideoCodecDataReceived.bind(this),
-      videoChunk: this._onVideoChunkReceived.bind(this),
-
-      audioSetup: this._onAudioSetupReceived.bind(this),
-      audioCodec: this._onAudioCodecDataReceived.bind(this),
-      audioChunk: this._onAudioChunkReceived.bind(this),
-    };
   }
 
   _renderVideoFrame() {
@@ -220,68 +207,24 @@ export default class Nimio {
     }
   }
 
-  _onVideoSetupReceived(data) {
-    if (!data || !data.config) {
-      this._noVideo = true;
-      return;
-    }
+  _createMainDecoderFlow(type, data) {
+    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
+    this._decoderFlows[type] = new flowClass(data.trackId, data.timescale);
 
-    if (this._isNextRenditionTrack(data.trackId)) {
-      return this._createNextRenditionFlow("video", data);
-    }
-
-    if (this._vDecoderFlow) {
-      this._logger.warn("Received video setup while video flow already exist");
-      return;
-    }
-
-    this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
-    this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
-    this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    let decoderFlow = this._decoderFlows[type];
+    decoderFlow.onStartTsNotSet = type === "video"
+      ? this._onVideoStartTsNotSet.bind(this)
+      : this._onAudioStartTsNotSet.bind(this);
+    decoderFlow.onDecodingError = this._onDecodingError.bind(this);
     if (this._config.adaptiveBitrate) {
-      this._vDecoderFlow.onSwitchResult = (done) => {
-        this._onRenditionSwitchResult("video", done);
+      decoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult(type, done);
       };
-      this._vDecoderFlow.onInputCancel = () => {
-        this._sldpManager.cancelStream(this._vDecoderFlow.trackId);
-      };
-    }
-    this._vDecoderFlow.setConfig(data.config);
-  }
-
-  _onAudioSetupReceived(data) {
-    if (!data || !data.config) {
-      this._startNoAudioMode();
-      return;
-    }
-
-    if (this._isNextRenditionTrack(data.trackId)) {
-      return this._createNextRenditionFlow("audio", data);
-    }
-
-    if (this._aDecoderFlow) {
-      this._logger.warn("Received audio setup while audio flow already exist");
-      return;
-    }
-
-    this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
-    this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
-    this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    if (this._config.adaptiveBitrate) {
-      this._aDecoderFlow.onSwitchResult = (done) => {
-        this._onRenditionSwitchResult("audio", done);
-      };
-      this._aDecoderFlow.onInputCancel = () => {
-        this._sldpManager.cancelStream(this._aDecoderFlow.trackId);
+      decoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(decoderFlow.trackId);
       };
     }
-    this._aDecoderFlow.setConfig(data.config);
-  }
-
-  _isNextRenditionTrack(trackId) {
-    return (
-      this._nextRenditionData && this._nextRenditionData.trackId === trackId
-    );
+    decoderFlow.setConfig(data.config);
   }
 
   _createNextRenditionFlow(type, data) {
@@ -296,96 +239,10 @@ export default class Nimio {
     this._nextRenditionData.decoderFlow.setConfig(data.config);
   }
 
-  _onVideoCodecDataReceived(data) {
-    let decoderFlow = this._vDecoderFlow;
-    let buffer = this._videoBuffer;
-    if (this._isNextRenditionTrack(data.trackId)) {
-      decoderFlow = this._nextRenditionData.decoderFlow;
-      buffer = this._tempBuffer;
-      this._vDecoderFlow.switchTo(decoderFlow);
-    }
-
-    decoderFlow.setCodecData({ codecData: data.data });
-    decoderFlow.setBuffer(buffer, this._state);
-  }
-
-  _onAudioCodecDataReceived(data) {
-    let audioAvailable = true;
-    let prevConfig = this._audioService.currentConfig;
-    let config = this._audioService.parseAudioConfig(data.data, data.family);
-    let decoderFlow, buffer;
-    if (this._isNextRenditionTrack(data.trackId)) {
-      if (!config || !this._audioService.isConfigCompatible(prevConfig)) {
-        this._logger.warn(
-          "Received incompatible audio config for next rendition",
-          data.trackId,
-          prevConfig,
-          config,
-        );
-        this._audioService.setConfig(prevConfig);
-        this._nextRenditionData.decoderFlow.destroy();
-        this._onRenditionSwitchResult("audio", false);
-        return;
-      }
-
-      decoderFlow = this._nextRenditionData.decoderFlow;
-      buffer = this._tempBuffer;
-      this._aDecoderFlow.switchTo(decoderFlow);
-    } else {
-      audioAvailable = this._prepareAudioOutput(config);
-      decoderFlow = this._aDecoderFlow;
-      buffer = this._audioBuffer;
-    }
-
-    if (audioAvailable) {
-      decoderFlow.setCodecData({ codecData: data.data, config: config });
-      decoderFlow.setBuffer(buffer, this._state);
-    }
-  }
-
-  _prepareAudioOutput(config) {
-    if (!config) {
-      if (!this._noAudio) {
-        this._startNoAudioMode();
-      }
-      return false;
-    }
-
-    if (this._noAudio) {
-      // Stop no audio mode if it was started previously
-      this._stopAudio();
-    }
-
-    this._audioBuffer = WritableAudioBuffer.allocate(
-      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
-      config.sampleRate,
-      config.numberOfChannels,
-      config.sampleCount,
+  _isNextRenditionTrack(trackId) {
+    return (
+      this._nextRenditionData && this._nextRenditionData.trackId === trackId
     );
-
-    this._audioBuffer.addPreprocessor(
-      new AudioGapsProcessor(
-        this._audioService.sampleCount,
-        this._audioService.sampleRate,
-      ),
-    );
-
-    return true;
-  }
-
-  _onVideoChunkReceived(data) {
-    this._processChunk(this._vDecoderFlow, data);
-  }
-
-  _onAudioChunkReceived(data) {
-    this._processChunk(this._aDecoderFlow, data);
-  }
-
-  _processChunk(flow, data) {
-    let res = flow.processChunk(data);
-    if (!res && this._isNextRenditionTrack(data.trackId)) {
-      this._nextRenditionData.decoderFlow.processChunk(data);
-    }
   }
 
   _onRenditionSwitchResult(type, done) {
@@ -441,6 +298,36 @@ export default class Nimio {
     if (this._noVideo && this._noAudio) {
       this.stop(true);
     }
+  }
+
+  _prepareAudioOutput(config) {
+    if (!config) {
+      if (!this._noAudio) {
+        this._startNoAudioMode();
+      }
+      return false;
+    }
+
+    if (this._noAudio) {
+      // Stop no audio mode if it was started previously
+      this._stopAudio();
+    }
+
+    this._audioBuffer = WritableAudioBuffer.allocate(
+      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
+      config.sampleRate,
+      config.numberOfChannels,
+      config.sampleCount,
+    );
+
+    this._audioBuffer.addPreprocessor(
+      new AudioGapsProcessor(
+        this._audioService.sampleCount,
+        this._audioService.sampleRate,
+      ),
+    );
+
+    return true;
   }
 
   async _initAudioContext(sampleRate, channels, idle) {
@@ -513,3 +400,4 @@ export default class Nimio {
 }
 
 Object.assign(Nimio.prototype, NimioApi);
+Object.assign(Nimio.prototype, NimioTransport);
