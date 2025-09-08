@@ -111,5 +111,4 @@ export const NimioTransport = {
       this._nextRenditionData.decoderFlow.processChunk(data);
     }
   },
-
 };

@@ -1,4 +1,4 @@
-export function singleInstanceService (Klass) {
+export function singleInstanceService(Klass) {
   let instance;
   return {
     getInstance: function () {
@@ -7,11 +7,11 @@ export function singleInstanceService (Klass) {
         instance.constructor = null;
       }
       return instance;
-    }
+    },
   };
 }
-  
-export function multiInstanceService (Klass) {
+
+export function multiInstanceService(Klass) {
   let instances = {};
   return {
     getInstance: function (instanceId) {
@@ -21,6 +21,6 @@ export function multiInstanceService (Klass) {
       }
 
       return instances[instanceId];
-    }
-  }
+    },
+  };
 }

@@ -245,8 +245,9 @@ export class MetricsStore {
   avgRate() {
     let result = 0;
     let tsInterval = this.rateTotalTs2 - this.rateTotalTs1 + this.rateAdditive;
-    if (tsInterval > 0) {å
-      result = this.bytesTotal / (tsInterval * 128 / 1_000_000);
+    if (tsInterval > 0) {
+      å;
+      result = this.bytesTotal / ((tsInterval * 128) / 1_000_000);
     }
     return result;
   }
@@ -255,7 +256,7 @@ export class MetricsStore {
     let result = 0;
     let tsInterval = this.rate1secTs2 - this.rate1secTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = this.bytes1sec / (tsInterval * 128 / 1_000_000);
+      result = this.bytes1sec / ((tsInterval * 128) / 1_000_000);
     }
     return result;
   }
@@ -265,7 +266,7 @@ export class MetricsStore {
     let tsInterval =
       this.rate500msecTs2 - this.rate500msecTs1 + this.rateAdditive;
     if (tsInterval > 0) {
-      result = this.bytes500msec / (tsInterval * 128 / 1_000_000);
+      result = this.bytes500msec / ((tsInterval * 128) / 1_000_000);
     }
     return result;
   }
@@ -414,7 +415,7 @@ export class MetricsStore {
     const pos = q * (sortedArr.length - 1);
     const base = Math.floor(pos);
     const rest = pos - base;
-    if ((sortedArr[base + 1] !== undefined)) {
+    if (sortedArr[base + 1] !== undefined) {
       return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base]);
     }
     return sortedArr[base];
@@ -422,48 +423,58 @@ export class MetricsStore {
 
   _computeMetricsForWindow(buckets, windowMs) {
     const totalBytes = buckets.reduce((a, b) => a + b.bytes, 0);
-    const spanMs = (buckets[buckets.length - 1].startMs - buckets[0].startMs) || 1;
+    const spanMs =
+      buckets[buckets.length - 1].startMs - buckets[0].startMs || 1;
     const bandwidthBps = (totalBytes * 1000) / spanMs;
 
-    const allTs = buckets.flatMap(b => b.timestampsUs);
+    const allTs = buckets.flatMap((b) => b.timestampsUs);
     let rateBps = 0;
     if (allTs.length > 1) {
       const sortedTs = [...allTs].sort((a, b) => a - b);
       const firstTs = sortedTs[0];
       const lastTs = sortedTs[sortedTs.length - 1];
-      const estLastDur = sortedTs.length > 1 ? (sortedTs[sortedTs.length - 1] - sortedTs[sortedTs.length - 2]) : 0;
-      const effectiveSpanUs = (lastTs - firstTs) + estLastDur;
+      const estLastDur =
+        sortedTs.length > 1
+          ? sortedTs[sortedTs.length - 1] - sortedTs[sortedTs.length - 2]
+          : 0;
+      const effectiveSpanUs = lastTs - firstTs + estLastDur;
       rateBps = (totalBytes * 1e6) / effectiveSpanUs;
     }
 
-    const sustainability = (bandwidthBps > 0 && rateBps > 0) ? (bandwidthBps / rateBps) : 0;
+    const sustainability =
+      bandwidthBps > 0 && rateBps > 0 ? bandwidthBps / rateBps : 0;
 
-    const bufNorm = buckets.flatMap(b => b.bufferLevelsSec.map(v => v / this.targetBufferSec));
+    const bufNorm = buckets.flatMap((b) =>
+      b.bufferLevelsSec.map((v) => v / this.targetBufferSec),
+    );
     bufNorm.sort((a, b) => a - b);
-    const p10 = this._percentile(bufNorm, 0.10);
-    const p50 = this._percentile(bufNorm, 0.50);
+    const p10 = this._percentile(bufNorm, 0.1);
+    const p50 = this._percentile(bufNorm, 0.5);
     const p95 = this._percentile(bufNorm, 0.95);
 
     const lowEvents = buckets.reduce((a, b) => a + b.lowBufferCount, 0);
     const lowBufferEventsPerSec = lowEvents / (windowMs / 1000);
 
-    const arrTimes = buckets.flatMap(b => b.arrivalTimes);
+    const arrTimes = buckets.flatMap((b) => b.arrivalTimes);
     let jitterMs = 0;
     if (arrTimes.length > 1) {
       const diffs = [];
-      for (let i = 1; i < arrTimes.length; i++) diffs.push(arrTimes[i] - arrTimes[i - 1]);
+      for (let i = 1; i < arrTimes.length; i++)
+        diffs.push(arrTimes[i] - arrTimes[i - 1]);
       const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       const varSum = diffs.reduce((a, b) => a + (b - mean) ** 2, 0);
       jitterMs = Math.sqrt(varSum / diffs.length);
     }
 
     // Stall risk
-    const risk = Math.min(1, Math.max(0, 1 - p10)) * Math.min(1, jitterMs / (0.5 * this.targetBufferSec * 1000));
+    const risk =
+      Math.min(1, Math.max(0, 1 - p10)) *
+      Math.min(1, jitterMs / (0.5 * this.targetBufferSec * 1000));
 
     let bufferHealth = "stable";
     if (sustainability < 0.9 || p50 < 0.5 || risk > 0.7) {
       bufferHealth = "weak";
-    } else if (risk > 0.4 || (p95 - p50) > 1.5) {
+    } else if (risk > 0.4 || p95 - p50 > 1.5) {
       bufferHealth = "unstable";
     } else if (sustainability > 1.2 && p50 > 0.8 && risk < 0.3) {
       bufferHealth = "strong";

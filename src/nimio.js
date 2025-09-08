@@ -212,9 +212,10 @@ export default class Nimio {
     this._decoderFlows[type] = new flowClass(data.trackId, data.timescale);
 
     let decoderFlow = this._decoderFlows[type];
-    decoderFlow.onStartTsNotSet = type === "video"
-      ? this._onVideoStartTsNotSet.bind(this)
-      : this._onAudioStartTsNotSet.bind(this);
+    decoderFlow.onStartTsNotSet =
+      type === "video"
+        ? this._onVideoStartTsNotSet.bind(this)
+        : this._onAudioStartTsNotSet.bind(this);
     decoderFlow.onDecodingError = this._onDecodingError.bind(this);
     if (this._config.adaptiveBitrate) {
       decoderFlow.onSwitchResult = (done) => {
