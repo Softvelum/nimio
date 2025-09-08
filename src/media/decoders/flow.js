@@ -1,4 +1,4 @@
-const SWITCH_THRESHOLD_US = 10_000_000;
+const SWITCH_THRESHOLD_US = 8_000_000;
 
 export class DecoderFlow {
   constructor(trackId, timescale, url) {
