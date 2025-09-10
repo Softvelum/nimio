@@ -39,8 +39,8 @@ class MetricsManager {
     this._exec("reportBandwidth", id, bytes, timestamp);
   }
 
-  reportBufLevel(id, lvl, bufEnd) {
-    this._exec("reportBufLevel", id, lvl, bufEnd);
+  reportBufLevel(id, lvl) {
+    this._exec("reportBufLevel", id, lvl);
   }
 
   reportLowBuffer(id) {

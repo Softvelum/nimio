@@ -13,6 +13,7 @@ import { AudioService } from "./audio-service";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
 import { NimioApi } from "./nimio-api";
 import { NimioTransport } from "./nimio-transport";
+import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
@@ -57,6 +58,7 @@ export default class Nimio {
     );
     this._pauseTimeoutId = null;
 
+    this._metricsManager = MetricsManager.getInstance(options.instanceName);
     if (this._config.metricsOverlay) {
       this._debugView = this._ui.appendDebugOverlay(
         this._state,
@@ -209,7 +211,11 @@ export default class Nimio {
 
   _createMainDecoderFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
-    this._decoderFlows[type] = new flowClass(data.trackId, data.timescale);
+    this._decoderFlows[type] = new flowClass(
+      this._config.instanceName,
+      data.trackId,
+      data.timescale,
+    );
 
     let decoderFlow = this._decoderFlows[type];
     decoderFlow.onStartTsNotSet =
@@ -231,6 +237,7 @@ export default class Nimio {
   _createNextRenditionFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
     this._nextRenditionData.decoderFlow = new flowClass(
+      this._config.instanceName,
       data.trackId,
       data.timescale,
     );

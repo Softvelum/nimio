@@ -106,6 +106,12 @@ export const NimioTransport = {
   },
 
   _processChunk(flow, data) {
+    this._metricsManager.reportBandwidth(
+      data.trackId,
+      data.frameWithHeader.byteLength,
+      data.timestamp,
+    );
+
     let res = flow.processChunk(data);
     if (!res && this._isNextRenditionTrack(data.trackId)) {
       this._nextRenditionData.decoderFlow.processChunk(data);

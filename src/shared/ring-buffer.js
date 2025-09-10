@@ -50,13 +50,16 @@ export class RingBuffer {
     return item;
   }
 
-  get(i) {
+  get(idx) {
     if (this.isEmpty()) {
       this._logger.warn("Can't get from empty ring buffer", i);
       return null;
     }
+
+    let i = idx;
+    if (i < 0) i += this.length;
     if (i < 0 || i >= this.length) {
-      this._logger.error("Invalid index for get", i, this.length);
+      this._logger.error("Invalid index for get", idx, this.length);
       return null;
     }
 

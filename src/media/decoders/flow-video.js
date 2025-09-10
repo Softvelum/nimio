@@ -1,9 +1,8 @@
 import { DecoderFlow } from "./flow";
 
 export class DecoderFlowVideo extends DecoderFlow {
-  constructor(trackId, timescale) {
-    super(trackId, timescale, "./decoder-video.js");
-    this._type = "video";
+  constructor(instanceName, trackId, timescale) {
+    super(instanceName, trackId, timescale, "video");
   }
 
   _prepareFrame(data) {
