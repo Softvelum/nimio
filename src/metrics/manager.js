@@ -1,6 +1,6 @@
+import { multiInstanceService } from "@/shared/service";
 import LoggersFactory from "@/shared/logger";
-import { MetricsStore } from "./store.js";
-import { multiInstanceService } from "@/shared/service.js";
+import { MetricsStore } from "./store";
 
 class MetricsManager {
   constructor(instanceName) {

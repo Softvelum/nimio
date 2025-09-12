@@ -19,8 +19,9 @@ export class DecoderFlow {
     this._metricsManager = MetricsManager.getInstance(instanceName);
     this._metricsManager.add(this._trackId, this._type);
 
-    let workerUrl = new URL(url, import.meta.url);
-    this._decoder = new Worker(workerUrl, { type: "module" });
+    this._decoder = new Worker(new URL(url, import.meta.url), {
+      type: "module",
+    });
     this._addDecoderListener();
   }
 

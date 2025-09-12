@@ -5,6 +5,7 @@ export class SLDPManager {
     this._curStreams = [];
     this._reqStreams = {};
     this._nextSN = 1;
+    this._snMod = parseInt("80", 16);
 
     this._startOffset = config.startOffset || 0;
     this._hasVideo = !config.audioOnly;
@@ -187,7 +188,7 @@ export class SLDPManager {
   }
 
   _streamNumber() {
-    let sn = this._nextSN % parseInt("80", 16);
+    let sn = this._nextSN % this._snMod;
     this._nextSN++;
     return sn;
   }
