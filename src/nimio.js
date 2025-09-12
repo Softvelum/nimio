@@ -1,4 +1,5 @@
 import workletUrl from "./audio-worklet-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
+import wsTransportUrl from "./transport/web-socket?worker&url";
 import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
@@ -72,7 +73,7 @@ export default class Nimio {
     this._ctx = this._ui.getCanvas().getContext("2d");
 
     this._decoderFlows = { video: null, audio: null };
-    this._initTransport(options.instanceName, "./web-socket.js");
+    this._initTransport(options.instanceName, wsTransportUrl);
     this._context = new SLDPContext(options.instanceName);
     this._sldpManager = new SLDPManager(
       options.instanceName,

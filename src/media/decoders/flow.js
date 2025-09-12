@@ -4,7 +4,7 @@ import LoggersFactory from "@/shared/logger";
 const SWITCH_THRESHOLD_US = 8_000_000;
 
 export class DecoderFlow {
-  constructor(instanceName, trackId, timescale, type) {
+  constructor(instanceName, trackId, timescale, type, url) {
     this._logger = LoggersFactory.create(
       instanceName,
       `${type} flow (${trackId})`,
@@ -19,7 +19,7 @@ export class DecoderFlow {
     this._metricsManager = MetricsManager.getInstance(instanceName);
     this._metricsManager.add(this._trackId, this._type);
 
-    let workerUrl = new URL(`./decoder-${type}.js`, import.meta.url);
+    let workerUrl = new URL(url, import.meta.url);
     this._decoder = new Worker(workerUrl, { type: "module" });
     this._addDecoderListener();
   }
