@@ -1,18 +1,19 @@
 import { AbrRenditionProvider } from "./rendition-provider";
 import { MetricsManager } from "@/metrics/manager";
+import LoggersFactory from "@/shared/logger";
 
 const RELIABLE_INTERVAL = 3000;
 
 export class AbrEvaluator {
-  constructor(instanceName, bufferingTime) {
+  constructor(instName, bufferTime) {
     this._running = false;
-    this._nextProberId = 0;
     this._runsCount = 0;
 
-    this._metricsManager = MetricsManager.getInstance(instanceName);
-    this._renditionProvider = AbrRenditionProvider.getInstance(instanceName);
+    this._metricsManager = MetricsManager.getInstance(instName);
+    this._renditionProvider = AbrRenditionProvider.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, "AbrEvaluator");
 
-    this.setBuffering(bufferingTime);
+    this.setBuffering(bufferTime);
   }
 
   init(curStream) {
@@ -54,10 +55,10 @@ export class AbrEvaluator {
     this._onResultCallback(this._curStreamIdx);
   }
 
-  setBuffering(bufferingTime) {
-    this._minBufferingTime = bufferingTime > 1000 ? 600 : bufferingTime / 2;
+  setBuffering(bufferTime) {
+    this._minBufferingTime = bufferTime > 1000 ? 600 : bufferTime / 2;
     this._enoughBufferToContinue =
-      bufferingTime > 1000 ? 1000 : bufferingTime * 0.8;
+      bufferTime > 1000 ? 1000 : bufferTime * 0.8;
   }
 
   doRun() {
@@ -102,8 +103,7 @@ export class AbrEvaluator {
         this._logger.debug(`doRun probe during ${probeTime}`);
 
         let stream = this._renditionProvider.getStream(streamToProbe.idx);
-        this._prober = ProbersMan.create(
-          this._nextProberId++,
+        this._prober = new Prober(
           stream.stream,
           stream.stream_info.vtimescale,
           probeTime,

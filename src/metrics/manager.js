@@ -3,9 +3,9 @@ import LoggersFactory from "@/shared/logger";
 import { MetricsStore } from "./store";
 
 class MetricsManager {
-  constructor(instanceName) {
-    this._instName = instanceName;
-    this._logger = LoggersFactory.create(instanceName, "MetricsManager");
+  constructor(instName) {
+    this._instName = instName;
+    this._logger = LoggersFactory.create(instName, "MetricsManager");
     this._metrics = new Map();
   }
 

@@ -1,33 +1,35 @@
 import LoggersFactory from "@/shared/logger";
 
 export class Prober {
-  constructor(instName, id, stream, period, metricsManager) {
+  constructor(instName, stream, period) {
     this._enabled = false;
     this._period = period;
     this._stream = stream;
-    this._streamId = parseInt("80", 16) + (id % 80);
 
-    this._metricsManager = metricsManager;
-    this._metricsManager.add(this._streamId, "probe");
-    this._logger = LoggersFactory.create(
-      instName,
-      `Prober (${this._streamId})`,
-    );
-    this._logger.debug(`constructor: ${stream}, period: ${period}`);
+    this._metricsManager = MetricsManager.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, "Prober");
   }
 
   destroy() {
-    this._metricsManager.remove(this._streamId);
+    if (this._streamId) {
+      this._metricsManager.remove(this._streamId);
+    }
     this._clearBufCheckInterval();
   }
 
   start() {
     this._enabled = true;
-    this.durations = [];
+    this._durations = [];
     this._firstTimestamp = undefined;
     this._lastTimestamp = undefined;
     this._expectedEndTimestamp = undefined;
-    this._startProbeCallback(this, this._period + 1);
+
+    this._streamId = this._startProbeCallback(this, this._period + 1);
+
+    this._logger.setPrefix(`Prober (${this._streamId})`);
+    this._logger.debug(`start: ${this._stream}, period: ${this._period}`);
+
+    this._metricsManager.add(this._streamId, "probe");
   }
 
   isEnabled() {
@@ -71,7 +73,7 @@ export class Prober {
       this._firstTimestamp = timestamp;
       this._expectedEndTimestamp = 1000 * this._period + timestamp;
     } else {
-      this.durations.push(timestamp - this._lastTimestamp);
+      this._durations.push(timestamp - this._lastTimestamp);
     }
     this._lastTimestamp = timestamp;
 
@@ -93,8 +95,8 @@ export class Prober {
     let result = 0;
     let i = 0;
     let durationCounts = {};
-    for (i = 0; i < this.durations.length; i++) {
-      let dur = this.durations[i];
+    for (i = 0; i < this._durations.length; i++) {
+      let dur = this._durations[i];
       durationCounts[dur] =
         durationCounts[dur] > 0 ? durationCounts[dur] + 1 : 1;
     }

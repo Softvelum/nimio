@@ -75,12 +75,8 @@ export default class Nimio {
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(options.instanceName, wsTransportUrl);
     this._context = new SLDPContext(options.instanceName);
-    this._sldpManager = new SLDPManager(
-      options.instanceName,
-      this._transport,
-      this._context,
-      this._config,
-    );
+    this._sldpManager = new SLDPManager(options.instanceName);
+    this._sldpManager.init(this._transport, this._context, this._config);
 
     this._audioWorkletReady = null;
     this._audioService = new AudioService(48000, 1, 1024); // default values

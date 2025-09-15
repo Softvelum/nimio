@@ -7,10 +7,10 @@ export class AbrController {
     this._trials = {};
     this._maxPhases = 3;
     this._trialsActive = false;
-    this._logger = LoggersFactory.create(instanceName, "ABR controller");
     this._evaluator = new AbrEvaluator(instanceName, bufferingTime);
-
     this._renditionProvider = AbrRenditionProvider.getInstance(instanceName);
+    this._logger = LoggersFactory.create(instanceName, "ABR controller");
+
     this._setBufferingTime(bufferingTime);
   }
 
