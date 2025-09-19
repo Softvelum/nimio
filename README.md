@@ -102,7 +102,6 @@ The following features are planned for upcoming releases:
 - Latency retention for asynchronous renditions
 - CEA-608 closed captions
 - VU meter
-- Support for multiple player instances
 - VOD playback (DVR support)
 - VOD thumbnail previews
 - SEI timecodes support
