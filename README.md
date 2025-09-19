@@ -115,6 +115,7 @@ The following features are planned for upcoming releases:
 - Muted autoplay
 - Dynamic latency adjustment
 - OffscreenCanvas rendering
+- Resume from pause in DVR mode (no auto-jump to live)
 
 ## Contributing
 
