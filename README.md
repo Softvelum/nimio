@@ -90,6 +90,33 @@ These methods are available directly on the `Nimio` class.
 - `Nimio.version()`  
   Return the current version string (identical to `instance.version()`).
 
+## Roadmap
+
+The following features are planned for upcoming releases:
+
+- Adaptive bitrate
+- Volume control
+- Automatic aspect ratio detection
+- Fullscreen playback
+- Picture-in-Picture (PiP)
+- Latency retention for asynchronous renditions
+- CEA-608 closed captions
+- VU meter
+- Support for multiple player instances
+- VOD playback (DVR support)
+- VOD thumbnail previews
+- SEI timecodes support
+- WebTransport protocol
+- Nimble Advertizer integration
+- Automatic reconnection
+- Sync mode
+- Screenshot capture
+- Splash/startup image
+- Extended Player API
+- Muted autoplay
+- Dynamic latency adjustment
+- OffscreenCanvas rendering
+
 ## Contributing
 
 Contributions are welcome! Please open an issue for discussion or submit a pull request.
