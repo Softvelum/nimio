@@ -1,5 +1,7 @@
 import {} from "./ui.css";
 import { DebugView } from "./debug-view";
+import controlsHtml from "./controls.html?raw";
+import controlsCss from "./controls.css?raw";
 
 export class Ui {
   constructor(container, opts, onPlayPause) {
@@ -29,10 +31,29 @@ export class Ui {
     this.btnPlayPause.appendChild(this.button);
     this.container.appendChild(this.btnPlayPause);
 
+    this._createControls();
+
     this._onClick = (e) => this._hanldleClick(e, onPlayPause);
     this.container.addEventListener("click", this._onClick);
 
     this.setupEasing();
+  }
+
+  _createControls() {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = controlsHtml.trim();
+
+    const frag = tpl.content.cloneNode(true);
+    this.controlsBar = frag.querySelector(".nimio-controls");
+
+    this.container.appendChild(frag);
+
+    this.playButton = this.controlsBar.querySelector(".btn-play");
+    // this.playButton.style.display = "none";
+
+    const style = document.createElement("style");
+    style.textContent = controlsCss;
+    document.head.appendChild(style);
   }
 
   destroy() {
