@@ -30,6 +30,9 @@ export const NimioTransport = {
     }
 
     this._createMainDecoderFlow("video", data);
+    if (this._config.adaptiveBitrate) {
+      this._abrController.start();
+    }
   },
 
   _onAudioSetupReceived(data) {
@@ -51,6 +54,10 @@ export const NimioTransport = {
   },
 
   _onVideoCodecDataReceived(data) {
+    if (this._abrController.isProbing(data.trackId)) {
+      return this._abrController.handleCodecData(data);
+    }
+
     let decoderFlow = this._decoderFlows["video"];
     let buffer = this._videoBuffer;
     if (this._isNextRenditionTrack(data.trackId)) {
@@ -65,18 +72,18 @@ export const NimioTransport = {
 
   _onAudioCodecDataReceived(data) {
     let audioAvailable = true;
-    let prevConfig = this._audioService.currentConfig;
-    let config = this._audioService.parseAudioConfig(data.data, data.family);
+    let curConfigVals = this._audioConfig.get();
+    let newConfigVals = this._audioConfig.parse(data.data, data.family);
     let decoderFlow, buffer;
     if (this._isNextRenditionTrack(data.trackId)) {
-      if (!config || !this._audioService.isConfigCompatible(prevConfig)) {
+      if (!newConfigVals || !this._audioConfig.isCompatible(curConfigVals)) {
         this._logger.warn(
           "Received incompatible audio config for next rendition",
           data.trackId,
-          prevConfig,
-          config,
+          curConfigVals,
+          newConfigVals,
         );
-        this._audioService.setConfig(prevConfig);
+        this._audioConfig.set(curConfigVals);
         this._nextRenditionData.decoderFlow.destroy();
         this._onRenditionSwitchResult("audio", false);
         return;
@@ -86,18 +93,21 @@ export const NimioTransport = {
       buffer = this._tempBuffer;
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
-      audioAvailable = this._prepareAudioOutput(config);
+      audioAvailable = this._prepareAudioOutput(newConfigVals);
       decoderFlow = this._decoderFlows["audio"];
       buffer = this._audioBuffer;
     }
 
     if (audioAvailable) {
-      decoderFlow.setCodecData({ codecData: data.data, config: config });
+      decoderFlow.setCodecData({ codecData: data.data, config: newConfigVals });
       decoderFlow.setBuffer(buffer, this._state);
     }
   },
 
   _onVideoChunkReceived(data) {
+    if (this._abrController.isProbing(data.trackId)) {
+      return this._abrController.handleChunk(data);
+    }
     this._processChunk(this._decoderFlows["video"], data);
   },
 
@@ -112,9 +122,12 @@ export const NimioTransport = {
       data.timestamp,
     );
 
-    let res = flow.processChunk(data);
-    if (!res && this._isNextRenditionTrack(data.trackId)) {
+    if (flow.processChunk(data)) return;
+
+    if (this._isNextRenditionTrack(data.trackId)) {
       this._nextRenditionData.decoderFlow.processChunk(data);
+    } else if (this._abr) {
+
     }
   },
 };

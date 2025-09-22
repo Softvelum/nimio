@@ -1,3 +1,4 @@
+import { PlaybackContext } from "@/playback/context";
 import LoggersFactory from "@/shared/logger";
 
 export class SLDPManager {
@@ -8,12 +9,13 @@ export class SLDPManager {
     this._nextPN = 1;
     this._snMod = parseInt("80", 16);
 
+    this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
     // TODO: set from config.syncBuffer
     this._useSteady = false;
   }
 
-  init(transport, context, config) {
+  init(transport, config) {
     if (this._transport) {
       this._logger.error("SLDP Manager already initialized");
       return;
@@ -29,8 +31,6 @@ export class SLDPManager {
       await this._processStatus(msg);
       this._play(this._curStreams);
     });
-
-    this._context = context;
   }
 
   start(url) {
@@ -172,16 +172,18 @@ export class SLDPManager {
     }
 
     if (gotVideo && vIdx !== undefined) {
-      let stream = this._context.setCurrentStream("video", vIdx);
-      let trackId = this._pushCurStream("video", stream);
+      let trackId = this._nextStreamNumber(true);
+      let stream = this._context.setCurrentStream("video", vIdx, trackId);
+      this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
       timescale[trackId] = vsetup.timescale;
       this._reqStreams[trackId] = vIdx;
     }
 
     if (gotAudio && aIdx !== undefined) {
-      let stream = this._context.setCurrentStream("audio", aIdx);
-      let trackId = this._pushCurStream("audio", stream);
+      let trackId = this._nextStreamNumber(true);
+      let stream = this._context.setCurrentStream("audio", aIdx, trackId);
+      this._pushCurStream("audio", stream);
       asetup = this._setupObject("audio", trackId, stream.stream_info);
       timescale[trackId] = asetup.timescale;
       this._reqStreams[trackId] = aIdx;
@@ -201,7 +203,7 @@ export class SLDPManager {
 
   _serializeProbe(type, stream, duration) {
     return {
-      sn: this._probeNumber(),
+      sn: this._nextProbeNumber(),
       stream: stream.stream,
       type: type,
       offset: 10_000,
@@ -221,7 +223,7 @@ export class SLDPManager {
     if (offset === undefined) offset = this._startOffset;
 
     let res = {
-      sn: this._streamNumber(),
+      sn: this._nextStreamNumber(),
       stream: stream.stream,
       type: type,
       offset: offset,
@@ -230,13 +232,13 @@ export class SLDPManager {
     return res;
   }
 
-  _streamNumber() {
+  _nextStreamNumber(omitIncrement) {
     let sn = this._nextSN % this._snMod;
-    this._nextSN++;
+    if (!omitIncrement) this._nextSN++;
     return sn;
   }
 
-  _probeNumber() {
+  _nextProbeNumber() {
     let pn = this._snMod + (this._nextPN % this._snMod);
     this._nextPN++;
     return pn;

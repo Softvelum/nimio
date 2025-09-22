@@ -67,7 +67,7 @@ export class Prober {
     }
   }
 
-  receiveFrame(isSAP, bytes, timestamp) {
+  receiveFrame(timestamp) {
     if (undefined === this._firstTimestamp) {
       this._logger.debug("receiveFrame: firstTimestamp " + timestamp);
       this._firstTimestamp = timestamp;

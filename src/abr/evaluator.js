@@ -62,7 +62,7 @@ export class AbrEvaluator {
   }
 
   doRun() {
-    let curRendition = this._curStream ? this._curStream.rendition + "p" : "";
+    let curRendition = this._curStream ? this._curStream.height + "p" : "";
     this._logger.debug(
       `doRun: cur rendition: ${curRendition}, idx: ${this._curStreamIdx}, bandwdith: ${this._curBandwidth}`,
     );
@@ -195,15 +195,15 @@ export class AbrEvaluator {
   }.bind(this);
 
   calculateCurVideoStreamMetric(metr) {
-    return this._metricsManager.getMetrics(this._curStream.vid)[metr]();
+    return this._metricsManager.getMetrics(this._curStream.vId)[metr]();
   }
 
   calculateCurStreamMetric(metr) {
-    let videoMetrics = this._metricsManager.getMetrics(this._curStream.vid);
+    let videoMetrics = this._metricsManager.getMetrics(this._curStream.vId);
     let result = videoMetrics[metr]();
     if (result < 0 || !(result >= 0)) result = 0;
-    if (undefined !== this._curStream.aid) {
-      let audioMetrics = this._metricsManager.getMetrics(this._curStream.aid);
+    if (undefined !== this._curStream.aId) {
+      let audioMetrics = this._metricsManager.getMetrics(this._curStream.aId);
       let aRes = audioMetrics[metr]();
       if (aRes > 0) result += aRes;
     }

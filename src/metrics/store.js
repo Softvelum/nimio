@@ -1,8 +1,8 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import LoggersFactory from "@/shared/logger.js";
 
-const STAT_SIZE = 30; // 30 seconds
-const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 30 seconds of 250ms buckets
+const STAT_SIZE = 6; // 6 seconds
+const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 6 seconds of 250ms buckets
 
 export class MetricsStore {
   constructor(instanceName, id, type) {
@@ -124,12 +124,10 @@ export class MetricsStore {
       }
       this._framesCount++;
 
-      if (undefined === this._rate500msecTs1) this._rate500msecTs1 = timestamp;
-      this._rate500msecTs2 = timestamp;
-      if (undefined === this._rate1secTs1) this._rate1secTs1 = timestamp;
-      this._rate1secTs2 = timestamp;
-      if (undefined === this._rateTotalTs1) this._rateTotalTs1 = timestamp;
-      this._rateTotalTs2 = timestamp;
+      this._updateTimestamps("_rate500msecTs1", "_rate500msecTs2", timestamp);
+      this._updateTimestamps("_rate1secTs1", "_rate1secTs2", timestamp);
+      this._updateTimestamps("_rateTotalTs1", "_rateTotalTs2", timestamp);
+
       if (undefined === this._startTime) this._startTime = curTime;
       if (undefined === this._bwTime1) {
         this._bwTime1 = this._effBwTime1 = curTime;
@@ -146,8 +144,7 @@ export class MetricsStore {
       if (undefined === this._customStart) this._customStart = curTime;
       this._bytesCustom += bytes;
       if (undefined !== timestamp) {
-        if (undefined === this._rateCustomTs1) this._rateCustomTs1 = timestamp;
-        this._rateCustomTs2 = timestamp;
+        this._updateTimestamps("_rateCustomTs1", "_rateCustomTs1", timestamp);
       }
     }
   }
@@ -284,6 +281,15 @@ export class MetricsStore {
 
   avg3secBufLevel() {
     return this._mean(this._buf500msec) || this._bufferLevel;
+  }
+
+  _updateTimestamps(lower, higher, val) {
+    if (!(this[lower] <= val)) {
+      this[lower] = val;
+    }
+    if (!(this[higher] >= val)) {
+      this[higher] = val;
+    }
   }
 
   _rateInBps(bytes, ms) {

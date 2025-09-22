@@ -1,44 +1,48 @@
 import { AbrEvaluator } from "./evaluator";
 import { AbrRenditionProvider } from "./rendition-provider";
+import { PlaybackContext } from "@/playback/context";
 import LoggersFactory from "@/shared/logger";
 
 export class AbrController {
-  constructor(instanceName, bufferingTime) {
+  constructor(instanceName, bufferSec) {
     this._trials = {};
     this._maxPhases = 3;
     this._trialsActive = false;
-    this._evaluator = new AbrEvaluator(instanceName, bufferingTime);
+    this._evaluator = new AbrEvaluator(instanceName, bufferSec * 1000);
     this._renditionProvider = AbrRenditionProvider.getInstance(instanceName);
+    this._context = PlaybackContext.getInstance(instanceName);
     this._logger = LoggersFactory.create(instanceName, "ABR controller");
 
-    this._setBufferingTime(bufferingTime);
+    this._setBufferingTime(bufferSec * 1000);
   }
 
   start() {
-    this._curStream = this._getCurStreamCallback();
+    this._curStream = this._context.getCurrentStreamInfo();
+    if (
+      this._curStream.vIdx == undefined ||
+      this._renditionProvider.streamsCount < 2
+    ) return;
 
-    if (this._curStream && this._renditionProvider.getStreamsCount() > 1) {
-      this._logger.debug("start");
-      this._initTrials();
-      this._phaseCount = 0;
-      this._trials[this._curStream.orderedIdx].timer = setTimeout(
-        this._trialComplete,
-        60000,
-      );
+    this._logger.debug("start");
+    this._initTrials();
+    this._phaseCount = 0;
+    this._trials[this._curStream.orderedIdx].timer = setTimeout(
+      this._trialComplete,
+      60000,
+    );
 
-      this._clearEvalTimer();
-      this._clearWatchTimer();
-      this._clearRestartTimer();
-      this.evalTimer = setInterval(this._evalHandler, 1000);
-      this.watchTimer = setInterval(this._watchDog, 100);
+    this._clearEvalTimer();
+    this._clearWatchTimer();
+    this._clearRestartTimer();
+    this.evalTimer = setInterval(this._evalHandler, 1000);
+    this.watchTimer = setInterval(this._watchDog, 100);
 
-      this._evaluator.init(this._curStream);
-      this._evaluator.callbacks = {
-        onStartProbe: this._probeStartCallback,
-        onCancelProbe: this._probeCancelCallback,
-        onResult: this._onEvaluatorResult,
-      };
-    }
+    this._evaluator.init(this._curStream);
+    this._evaluator.callbacks = {
+      onStartProbe: this._probeStartCallback,
+      onCancelProbe: this._probeCancelCallback,
+      onResult: this._onEvaluationResult,
+    };
   }
 
   restart(delayed) {
@@ -72,9 +76,9 @@ export class AbrController {
     this.watchTimer = setInterval(this._watchDog, 100);
   }
 
-  setBuffering(bufferingTime) {
-    this._evaluator.setBuffering(bufferingTime);
-    this._setBufferingTime(bufferingTime);
+  setBuffering(bufferSec) {
+    this._evaluator.setBuffering(bufferSec * 1000);
+    this._setBufferingTime(bufferSec * 1000);
   }
 
   _setBufferingTime(bufferingTime) {
@@ -110,10 +114,7 @@ export class AbrController {
   }.bind(this);
 
   _evalHandler = function () {
-    if (
-      !this._isSwitchInProgressCallback() &&
-      !this._isSeekInProgressCallback()
-    ) {
+    if (!this._isSwitchInProgressCallback()) {
       let lowBufferCount = this._evaluator.calculateCurStreamMetric(
         "latestLowBufferCount",
       );
@@ -229,7 +230,7 @@ export class AbrController {
 
   _trialComplete = function () {
     this._logger.debug(
-      `trial complete for ${this._curStream ? this._curStream.rendition : "unknown"}`,
+      `trial complete for ${this._curStream ? this._curStream.height : "unknown"}`,
     );
     if (this._curStream) {
       let curTrial = this._trials[this._curStream.orderedIdx];
@@ -250,7 +251,7 @@ export class AbrController {
           if (curTrial.required > 15) curTrial.required = 15;
           this._clearTrialTimer(this._curStream.orderedIdx);
           this._logger.debug(
-            `Increase trial for ${this._curStream.rendition + "p"}, idx ${curTrial.idx} to ${curTrial.required}`,
+            `Increase trial for ${this._curStream.height + "p"}, idx ${curTrial.idx} to ${curTrial.required}`,
           );
         }
       }
@@ -280,9 +281,9 @@ export class AbrController {
     this._evaluator.clear();
   }
 
-  _onEvaluatorResult = function (streamIdx) {
+  _onEvaluationResult = function (streamIdx) {
     this._logger.debug(
-      `evaluator result: ${this._renditionProvider.getRenditionName(streamIdx)}, idx: ${streamIdx}, cur stream: ${this._curStream.rendition + "p"}, idx: ${this._curStream.orderedIdx}`,
+      `evaluator result: ${this._renditionProvider.getRenditionName(streamIdx)}, idx: ${streamIdx}, cur stream: ${this._curStream.height + "p"}, idx: ${this._curStream.orderedIdx}`,
     );
     if (this._curStream.orderedIdx !== streamIdx) {
       this._switchRendition(streamIdx);
@@ -339,18 +340,17 @@ export class AbrController {
     return result;
   }
 
-  onProbeInitReceived() {
+  handleCodecData() {
     this._evaluator.getProber().receiveInit();
   }
 
-  onProbeDataReceived(isSAP, bytes, timestamp) {
-    this._evaluator.getProber().receiveFrame(isSAP, bytes, timestamp);
+  handleChunk(timestamp) {
+    this._evaluator.getProber().receiveFrame(timestamp);
   }
 
   set callbacks(cbs) {
     this._switchRenditionCallback = cbs.switchRendition;
     this._isSwitchInProgressCallback = cbs.isInProgress;
-    this._isSeekInProgressCallback = cbs.isSeeking;
     this._getCurStreamCallback = cbs.getCurStream;
     this._probeStartCallback = cbs.probeStream;
     this._probeCancelCallback = cbs.cancelStream;

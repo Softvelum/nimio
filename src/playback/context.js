@@ -1,10 +1,11 @@
+import { multiInstanceService } from "@/shared/service";
 import { checkSupportedCodecs } from "@/media/decoders/checker";
 
-export class SLDPContext {
+class PlaybackContext {
   constructor(instName) {
     this._instName = instName;
 
-    this._curIdxs = [];
+    this._curConf = [];
     this._streams = [];
     this._streamsMap = {};
     this._ordRenditions = [];
@@ -15,7 +16,7 @@ export class SLDPContext {
   setSourceUrl(url) {
     if (this._sourceUrl === url) return;
     this._sourceUrl = url;
-    this._curIdxs = [];
+    this._curConf = [];
   }
 
   async setStreams(streams) {
@@ -100,44 +101,58 @@ export class SLDPContext {
     this._cpAudioRenditions(this._ordRenditions, noVideoStreams);
   }
 
-  async _checkSupportedCodecs(streams) {
-    return {
-      video: await checkSupportedCodecs(
-        "video",
-        streams.map((v) => v.stream_info.vcodec),
-      ),
-      audio: await checkSupportedCodecs(
-        "audio",
-        streams.map((v) => v.stream_info.acodec),
-      ),
-    };
-  }
-
   getCurrentIdx(type) {
-    return this._curIdxs[type];
+    let res = this._curConf[type];
+    if (res) res = res.idx;
+    return res;
   }
 
-  getCurrentStream(type) {
-    return this._getCurrentStream(this._curIdxs[type]);
+  getCurrentStreamInfo() {
+    let res = { vIdx: this.getCurrentIdx("video") };
+
+    let stream;
+    if (res.vIdx >= 0) {
+      res.vId = this._curConf.video.trackId;
+      stream = this._getStream(res.vIdx);
+      if (stream) {
+        res.height = stream.stream_info.height;
+        res.orderedIdx = this._getStreamOrderedIdx(res.vIdx);
+      }
+    }
+    res.aIdx = this.getCurrentIdx("audio");
+    if (res.aIdx >= 0) {
+      res.aId = this._curConf.audio.trackId;
+      if (!stream) {
+        stream = this._getStream(res.aIdx);
+      }
+    }
+    if (stream) {
+      res.bandwidth = stream.stream_info.bandwidth;
+    }
+
+    return res;
   }
 
-  setCurrentStream(type, idx) {
+  setCurrentStream(type, idx, trackId) {
     let strm = this._streams[idx];
-    if (strm) this._curIdxs[type] = idx;
-
+    if (strm) this._curConf[type] = { idx, trackId };
     return strm;
   }
 
   getCurrentRendition(type) {
-    let idx = this._curIdxs[type];
+    let conf = this._curConf[type];
+    if (!conf) return null;
+
     for (let i = 0; i < this._ordRenditions.length; i++) {
-      if (this._ordRenditions[i].idx === idx) return this._ordRenditions[i];
+      if (this._ordRenditions[i].idx === conf.idx) {
+        return this._ordRenditions[i];
+      }
     }
     return null;
   }
 
   isCurrentStream(type, idx) {
-    return idx === this._curIdxs[type];
+    return this._curConf[type] && (idx === this._curConf[type].idx);
   }
 
   get streams() {
@@ -156,10 +171,31 @@ export class SLDPContext {
     return this._ordAudioRenditions;
   }
 
-  _getCurrentStream(idx) {
+  async _checkSupportedCodecs(streams) {
+    return {
+      video: await checkSupportedCodecs(
+        "video",
+        streams.map((v) => v.stream_info.vcodec),
+      ),
+      audio: await checkSupportedCodecs(
+        "audio",
+        streams.map((v) => v.stream_info.acodec),
+      ),
+    };
+  }
+
+  _getStream(idx) {
     let strm;
     if (idx >= 0) strm = this._streams[idx];
     return strm;
+  }
+
+  _getStreamOrderedIdx(idx) {
+    for (let i = 0; i < this._ordVideoRenditions.length; i++) {
+      if (this._ordVideoRenditions[i].idx === idx) {
+        return i;
+      }
+    }
   }
 
   _cpAudioRenditions(target, source) {
@@ -175,3 +211,6 @@ export class SLDPContext {
     }
   }
 }
+
+PlaybackContext = multiInstanceService(PlaybackContext);
+export { PlaybackContext };

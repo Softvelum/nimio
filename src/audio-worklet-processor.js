@@ -1,7 +1,7 @@
-import { StateManager } from "./state-manager.js";
-import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer.js";
-import { AudioService } from "./audio-service.js";
-import LoggersFactory from "./shared/logger.js";
+import { StateManager } from "./state-manager";
+import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer";
+import { AudioConfig } from "./audio-config";
+import LoggersFactory from "./shared/logger";
 
 class NimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -16,7 +16,7 @@ class NimioProcessor extends AudioWorkletProcessor {
     this.sampleRate = options.processorOptions.sampleRate;
     this.channelCount = options.outputChannelCount[0];
     this.fSampleCount = options.processorOptions.sampleCount;
-    this.audioService = new AudioService(
+    this._audioConfig = new AudioConfig(
       this.sampleRate,
       this.channelCount,
       this.fSampleCount,
@@ -63,7 +63,7 @@ class NimioProcessor extends AudioWorkletProcessor {
 
     let curSmpCnt = this.stateManager.getCurrentTsSmp();
     let curTsUs =
-      this.audioService.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
+      this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
     this.available = this.audioBuffer.getLastTimestampUs() - curTsUs;
     if (this.available < 0) this.available = 0;
 
@@ -110,7 +110,7 @@ class NimioProcessor extends AudioWorkletProcessor {
 
   _incrementCurTs(sampleCount) {
     let curSmpCnt = this.stateManager.incCurrentTsSmp(sampleCount);
-    return this.audioService.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
+    return this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
   }
 
   _insertSilence(out, chCnt) {

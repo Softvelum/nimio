@@ -1,17 +1,19 @@
 import { multiInstanceService } from "@/shared/service";
+import { PlaybackContext } from "@/playback/context";
 import LoggersFactory from "@/shared/logger";
 
 class AbrRenditionProvider {
   constructor(instanceName) {
+    this._context = PlaybackContext.getInstance(instanceName);
     this._logger = LoggersFactory.create(
       instanceName,
       "ABR Rendition Provider",
     );
   }
 
-  init(streams, renditions, settings, size) {
-    this._streams = streams;
-    this._renditions = renditions;
+  init(settings, size) {
+    this._streams = this._context.streams;
+    this._renditions = this._context.videoRenditions;
     this._maxHeight = settings.maxHeight || Number.MAX_VALUE;
     this._constrained = !!settings.sizeConstrained;
 
@@ -22,14 +24,11 @@ class AbrRenditionProvider {
     return this._streams[idx];
   }
 
-  getStreamsCount() {
-    return this._streams.length;
-  }
-
   getRendition(idx) {
     if (idx >= this._actualRenditions.length) {
       this._logger.error(`Irrelevant rendition = {idx} is requested`);
     }
+    // TODO: change to actualRenditions after thorough testing
     return this._renditions[idx];
   }
 
@@ -49,6 +48,10 @@ class AbrRenditionProvider {
     if (this._constrained) {
       this._filterRenditions(size);
     }
+  }
+
+  get streamsCount() {
+    return this._streams.length;
   }
 
   get allRenditions() {

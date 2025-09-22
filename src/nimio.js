@@ -3,19 +3,21 @@ import wsTransportUrl from "./transport/web-socket?worker&url";
 import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
-import { SLDPContext } from "./sldp/context";
+import { PlaybackContext } from "./playback/context";
 import { Ui } from "./ui/ui.js";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
-import { AudioService } from "./audio-service";
+import { AudioConfig } from "./audio-config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
 import { NimioApi } from "./nimio-api";
 import { NimioTransport } from "./nimio-transport";
 import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
+import { AbrController } from "./abr/controller";
+import { AbrRenditionProvider } from "./abr/rendition-provider";
 
 export default class Nimio {
   constructor(options) {
@@ -24,9 +26,10 @@ export default class Nimio {
     if (options && !options.instanceName) {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
     }
+    this._instName = options.instanceName;
 
     this._config = createConfig(options);
-    this._logger = LoggersFactory.create(options.instanceName, "Nimio");
+    this._logger = LoggersFactory.create(this._instName, "Nimio");
 
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
@@ -38,8 +41,8 @@ export default class Nimio {
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
-    this._videoBuffer = new FrameBuffer(options.instanceName, "Video", 1000);
-    this._tempBuffer = new FrameBuffer(options.instanceName, "Temp", 1000);
+    this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
+    this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
@@ -59,7 +62,7 @@ export default class Nimio {
     );
     this._pauseTimeoutId = null;
 
-    this._metricsManager = MetricsManager.getInstance(options.instanceName);
+    this._metricsManager = MetricsManager.getInstance(this._instName);
     if (this._config.metricsOverlay) {
       this._debugView = this._ui.appendDebugOverlay(
         this._state,
@@ -73,13 +76,14 @@ export default class Nimio {
     this._ctx = this._ui.getCanvas().getContext("2d");
 
     this._decoderFlows = { video: null, audio: null };
-    this._initTransport(options.instanceName, wsTransportUrl);
-    this._context = new SLDPContext(options.instanceName);
-    this._sldpManager = new SLDPManager(options.instanceName);
-    this._sldpManager.init(this._transport, this._context, this._config);
+    this._initTransport(this._instName, wsTransportUrl);
+    this._context = PlaybackContext.getInstance(this._instName);
+    this._sldpManager = new SLDPManager(this._instName);
+    this._sldpManager.init(this._transport, this._config);
 
     this._audioWorkletReady = null;
-    this._audioService = new AudioService(48000, 1, 1024); // default values
+    this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
+    this._createAbrController();
 
     if (this._config.autoplay) {
       this.play();
@@ -121,6 +125,10 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
+    if (this._abrController) {
+      this._abrController.stop();
+    }
+
     this._sldpManager.stop(!!closeConnection);
     if (this._debugView) {
       this._debugView.stop();
@@ -181,7 +189,7 @@ export default class Nimio {
         return true;
       }
 
-      let curTsUs = this._audioService.smpCntToTsUs(
+      let curTsUs = this._audioConfig.smpCntToTsUs(
         this._state.getCurrentTsSmp(),
       );
       if (curTsUs <= 0) return true;
@@ -252,7 +260,9 @@ export default class Nimio {
 
   _onRenditionSwitchResult(type, done) {
     if (done) {
-      this._context.setCurrentStream(type, this._nextRenditionData.idx);
+      this._context.setCurrentStream(
+        type, this._nextRenditionData.idx, this._nextRenditionData.trackId
+      );
     }
     let nextId = this._nextRenditionData.idx + 1;
     this._nextRenditionData = null;
@@ -328,8 +338,8 @@ export default class Nimio {
 
     this._audioBuffer.addPreprocessor(
       new AudioGapsProcessor(
-        this._audioService.sampleCount,
-        this._audioService.sampleRate,
+        this._audioConfig.sampleCount,
+        this._audioConfig.sampleRate,
       ),
     );
 
@@ -371,7 +381,7 @@ export default class Nimio {
     };
 
     if (!idle && this._audioBuffer) {
-      procOptions.sampleCount = this._audioService.sampleCount;
+      procOptions.sampleCount = this._audioConfig.sampleCount;
       procOptions.audioSab = this._audioBuffer.buffer;
       procOptions.capacity = this._audioBuffer.bufferCapacity;
     }
@@ -402,6 +412,14 @@ export default class Nimio {
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
     }
     this._noAudio = false;
+  }
+
+  _createAbrController() {
+    if (this._config.adaptiveBitrate && !this._abrController) {
+      this._renditionProvider = AbrRenditionProvider.getInstance(this._instName);
+      this._renditionProvider.init(this._config.adaptiveBitrate, this._ui.size);
+      this._abrController = new AbrController(this._instName, this._bufferSec);
+    }
   }
 }
 

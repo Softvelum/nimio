@@ -121,11 +121,7 @@ export class SLDPAgent {
       this._steady = !!status.steady;
     }
 
-    self.postMessage({
-      type: "status",
-      data: status.info,
-    });
-
+    self.postMessage({ type: "status", data: status.info });
     this._codecDataStatus = {};
   }
 
