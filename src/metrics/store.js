@@ -39,7 +39,8 @@ export class MetricsStore {
     this._buf500msCnt = 0;
 
     this._timerCounter = 0;
-    this._rateAdditive = 0;
+    this._freqFrameDur = 0;
+    this._tss = [];
   }
 
   destroy() {
@@ -50,6 +51,7 @@ export class MetricsStore {
     this._lb1sec.reset();
     this._buf1sec.reset();
     this._buf500msec.reset();
+    this._tss.length = 0;
   }
 
   stop() {
@@ -105,10 +107,9 @@ export class MetricsStore {
 
   customRangeRate() {
     let result = 0;
-    let tsInterval =
-      this._rateCustomTs2 - this._rateCustomTs1 + this._rateAdditive;
-    if (tsInterval > 0) {
-      result = this._rateInBps(this._bytesCustom, tsInterval / 1000);
+    let tsInt = this._rateCustomTs2 - this._rateCustomTs1 + this.getFrameDuration();
+    if (tsInt > 0) {
+      result = this._rateInBps(this._bytesCustom, tsInt / 1000);
     }
     return result;
   }
@@ -124,6 +125,7 @@ export class MetricsStore {
       }
       this._framesCount++;
 
+      this._updateFrameDuration(timestamp);
       this._updateTimestamps("_rate500msecTs1", "_rate500msecTs2", timestamp);
       this._updateTimestamps("_rate1secTs1", "_rate1secTs2", timestamp);
       this._updateTimestamps("_rateTotalTs1", "_rateTotalTs2", timestamp);
@@ -189,29 +191,27 @@ export class MetricsStore {
 
   avgRate() {
     let result = 0;
-    let tsInterval =
-      this._rateTotalTs2 - this._rateTotalTs1 + this._rateAdditive;
-    if (tsInterval > 0) {
-      result = this._rateInBps(this._bytesTotal, tsInterval / 1000);
+    let tsInt = this._rateTotalTs2 - this._rateTotalTs1 + this.getFrameDuration();
+    if (tsInt > 0) {
+      result = this._rateInBps(this._bytesTotal, tsInt / 1000);
     }
     return result;
   }
 
   curRate1sec() {
     let result = 0;
-    let tsInterval = this._rate1secTs2 - this._rate1secTs1 + this._rateAdditive;
-    if (tsInterval > 0) {
-      result = this._rateInBps(this._bytes1sec, tsInterval / 1000);
+    let tsInt = this._rate1secTs2 - this._rate1secTs1 + this.getFrameDuration();
+    if (tsInt > 0) {
+      result = this._rateInBps(this._bytes1sec, tsInt / 1000);
     }
     return result;
   }
 
   curRate500msec() {
     let result = 0;
-    let tsInterval =
-      this._rate500msecTs2 - this._rate500msecTs1 + this._rateAdditive;
-    if (tsInterval > 0) {
-      result = this._rateInBps(this._bytes500msec, tsInterval / 1000);
+    let tsInt = this._rate500msecTs2 - this._rate500msecTs1 + this.getFrameDuration();
+    if (tsInt > 0) {
+      result = this._rateInBps(this._bytes500msec, tsInt / 1000);
     }
     return result;
   }
@@ -233,7 +233,7 @@ export class MetricsStore {
 
   latestBandwidth() {
     let result = this.curBw1sec();
-    if (this._bw1sec.length() > 0) {
+    if (this._bw1sec.length > 0) {
       let lastBw = this._bw1sec.get(-1);
       if (0 === result) {
         result = lastBw;
@@ -246,7 +246,7 @@ export class MetricsStore {
 
   latestRate() {
     let result = this.curRate1sec();
-    if (this._rate1sec.length() > 0) {
+    if (this._rate1sec.length > 0) {
       let lastRate = this._rate1sec.get(-1);
       if (0 == result) {
         result = lastRate;
@@ -260,7 +260,7 @@ export class MetricsStore {
   latestLowBufferCount() {
     let result = this._lowBuf1sec;
     for (let i = 0; i < 2; i++) {
-      if (this._lb1sec.length() > i) {
+      if (this._lb1sec.length > i) {
         result += this._lb1sec.get(-1 * (i + 1));
       }
     }
@@ -281,6 +281,11 @@ export class MetricsStore {
 
   avg3secBufLevel() {
     return this._mean(this._buf500msec) || this._bufferLevel;
+  }
+
+  getFrameDuration() {
+    if (this._freqFrameDur === 0) this._calcFrameDuration();
+    return this._freqFrameDur;
   }
 
   _updateTimestamps(lower, higher, val) {
@@ -343,7 +348,7 @@ export class MetricsStore {
     this._buf500msCnt = 0;
 
     this._timerCounter = 0;
-    this._rateAdditive = 0;
+    this._freqFrameDur = 0;
   }
 
   _updateRate500msec(curTime) {
@@ -413,6 +418,37 @@ export class MetricsStore {
       this._interval500msec = undefined;
     }
     this._timerCounter = 0;
+  }
+
+  _updateFrameDuration(ts) {
+    if (this._tss.length >= 90) return;
+
+    let i;
+    for (i = 0; i < this._tss.length; i++) {
+      if (ts > this._tss[i]) break;
+    }
+    this._tss.splice(i, 0, ts);
+  }
+
+  _calcFrameDuration() {
+    this._freqFrameDur = 0;
+
+    let i;
+    let durCounts = {};
+    for (i = 1; i < this._tss.length; i++) {
+      let dur = this._tss[i] - this._tss[i - 1];
+      durCounts[dur] = durCounts[dur] > 0 ? durCounts[dur] + 1 : 1;
+    }
+    let maxCount = 0;
+    for (i in durCounts) {
+      if (durCounts[i] > maxCount) {
+        let dur = parseInt(i);
+        if (dur > 0) {
+          this._freqFrameDur = dur;
+          maxCount = durCounts[i];
+        }
+      }
+    }
   }
 
   // _percentile(sortedArr, q) {

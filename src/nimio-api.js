@@ -34,12 +34,15 @@ export const NimioApi = {
   },
 
   setCurrentRendition(type, id) {
+    this._logger.debug(`set ${type} rendition ID ${id}`);
+
     if (!this._context) return false;
     if (!this._checkRenditionType(type)) return false;
     if (!this._isSwitchPossible(type)) return false;
 
     let rIdx = id - 1;
     if (this._context.isCurrentStream(type, rIdx)) {
+      this._logger.debug("specified rendition is already the current one");
       return true;
     }
 

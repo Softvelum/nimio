@@ -47,6 +47,10 @@ class MetricsManager {
     this._exec("reportLowBuffer", id);
   }
 
+  getFrameDuration(id) {
+    return this._exec("getFrameDuration", id);
+  }
+
   getMetric(id) {
     return this._findMetricFor("getMetric", id);
   }

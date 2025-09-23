@@ -30,8 +30,10 @@ export const NimioTransport = {
     }
 
     this._createMainDecoderFlow("video", data);
-    if (this._config.adaptiveBitrate) {
+    if (this._abrController) {
+      this._renditionProvider.init(this._config.adaptiveBitrate, this._ui.size);
       this._abrController.start();
+      this._lastBufReportMs = performance.now() + 100;
     }
   },
 
@@ -54,6 +56,10 @@ export const NimioTransport = {
   },
 
   _onVideoCodecDataReceived(data) {
+    if (data.data) {
+      this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
+    }
+
     if (this._abrController.isProbing(data.trackId)) {
       return this._abrController.handleCodecData(data);
     }
@@ -71,6 +77,10 @@ export const NimioTransport = {
   },
 
   _onAudioCodecDataReceived(data) {
+    if (data.data) {
+      this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
+    }
+
     let audioAvailable = true;
     let curConfigVals = this._audioConfig.get();
     let newConfigVals = this._audioConfig.parse(data.data, data.family);
@@ -105,9 +115,6 @@ export const NimioTransport = {
   },
 
   _onVideoChunkReceived(data) {
-    if (this._abrController.isProbing(data.trackId)) {
-      return this._abrController.handleChunk(data);
-    }
     this._processChunk(this._decoderFlows["video"], data);
   },
 
@@ -126,8 +133,8 @@ export const NimioTransport = {
 
     if (this._isNextRenditionTrack(data.trackId)) {
       this._nextRenditionData.decoderFlow.processChunk(data);
-    } else if (this._abr) {
-
+    } else if (this._abrController?.isProbing(data.trackId)) {
+      this._abrController.handleChunkTs(data.timestamp);
     }
   },
 };

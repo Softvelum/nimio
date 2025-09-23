@@ -11,6 +11,8 @@ class PlaybackContext {
     this._ordRenditions = [];
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
+
+    this._autoAbr = true;
   }
 
   setSourceUrl(url) {
@@ -169,6 +171,10 @@ class PlaybackContext {
 
   get audioRenditions() {
     return this._ordAudioRenditions;
+  }
+
+  get autoAbr() {
+    return this._autoAbr;
   }
 
   async _checkSupportedCodecs(streams) {

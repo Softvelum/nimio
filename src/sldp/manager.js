@@ -77,6 +77,7 @@ export class SLDPManager {
   }
 
   probeStream(type, idx, duration) {
+    this._logger.debug(`probe ${type} stream ${idx} for ${duration}ms`);
     let stream = this._getStream(idx);
     if (!stream) return;
 
@@ -101,8 +102,9 @@ export class SLDPManager {
     this._transport.send("removeTimescale", [sn]);
   }
 
-  cancelProbe(sn, makeRequest) {
-    if (makeRequest) {
+  cancelProbe(sn, doRequest) {
+    this._logger.debug(`cancel probe SN ${sn}, req ${doRequest}`);
+    if (doRequest) {
       this._transport.send("stop", { sns: [sn] });
     }
     this._transport.send("removeTimescale", [sn]);

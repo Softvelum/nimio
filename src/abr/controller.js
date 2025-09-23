@@ -4,16 +4,16 @@ import { PlaybackContext } from "@/playback/context";
 import LoggersFactory from "@/shared/logger";
 
 export class AbrController {
-  constructor(instanceName, bufferSec) {
+  constructor(instanceName, bufferMs) {
     this._trials = {};
     this._maxPhases = 3;
     this._trialsActive = false;
-    this._evaluator = new AbrEvaluator(instanceName, bufferSec * 1000);
+    this._evaluator = new AbrEvaluator(instanceName, bufferMs);
     this._renditionProvider = AbrRenditionProvider.getInstance(instanceName);
     this._context = PlaybackContext.getInstance(instanceName);
     this._logger = LoggersFactory.create(instanceName, "ABR controller");
 
-    this._setBufferingTime(bufferSec * 1000);
+    this._setBufferingTime(bufferMs);
   }
 
   start() {
@@ -34,8 +34,8 @@ export class AbrController {
     this._clearEvalTimer();
     this._clearWatchTimer();
     this._clearRestartTimer();
-    this.evalTimer = setInterval(this._evalHandler, 1000);
-    this.watchTimer = setInterval(this._watchDog, 100);
+    this._evalTimer = setInterval(this._evalHandler, 1000);
+    this._watchTimer = setInterval(this._watchDog, 100);
 
     this._evaluator.init(this._curStream);
     this._evaluator.callbacks = {
@@ -72,21 +72,21 @@ export class AbrController {
     this._clearEvalTimer();
     this._clearWatchTimer();
     this._evalHandler();
-    this.evalTimer = setInterval(this._evalHandler, 1000);
-    this.watchTimer = setInterval(this._watchDog, 100);
+    this._evalTimer = setInterval(this._evalHandler, 1000);
+    this._watchTimer = setInterval(this._watchDog, 100);
   }
 
-  setBuffering(bufferSec) {
-    this._evaluator.setBuffering(bufferSec * 1000);
-    this._setBufferingTime(bufferSec * 1000);
+  setBuffering(bufferMs) {
+    this._evaluator.setBuffering(bufferMs);
+    this._setBufferingTime(bufferMs);
   }
 
   _setBufferingTime(bufferingTime) {
-    this.stepDownBufferLevel =
+    this._stepDownBufferLevel =
       bufferingTime > 700
         ? (0.5 * bufferingTime) / 1000
         : (0.6 * bufferingTime) / 1000;
-    this.safeRunBufferLevel =
+    this._safeRunBufferLevel =
       bufferingTime > 700
         ? (0.65 * bufferingTime) / 1000
         : (0.75 * bufferingTime) / 1000;
@@ -95,7 +95,7 @@ export class AbrController {
   _increasePhases() {
     if (this._maxPhases < 30) {
       this._maxPhases++;
-      this._logger.debug("Increase maxPhases", this._maxPhases);
+      this._logger.debug(`Increase maxPhases to ${this._maxPhases}`);
     }
   }
 
@@ -103,9 +103,9 @@ export class AbrController {
     if (this._evaluator.isRunning()) {
       let curBufLevel =
         this._evaluator.calculateCurVideoStreamMetric("latestBufLevel");
-      if (curBufLevel < this.stepDownBufferLevel) {
+      if (curBufLevel < this._stepDownBufferLevel) {
         this._logger.debug(
-          `watchDog interrupts abr evaluator because current buffer level ${curBufLevel} < ${this.stepDownBufferLevel}`,
+          `watchDog interrupts abr evaluator because current buffer level ${curBufLevel} < ${this._stepDownBufferLevel}`,
         );
         this._evaluator.finish();
         this._increasePhases();
@@ -125,29 +125,24 @@ export class AbrController {
           "evalHandler: playback stalled! Switch to lowest rendition.",
         );
         this._evaluator.cancel();
-        this._switchRendition(0, TRANSITION_MODE.ABRUPT);
+        this._switchRendition(0);
         this._increasePhases();
         this._phaseCount = 0;
       } else {
         this._logger.debug(`phase ${this._phaseCount} max ${this._maxPhases}`);
         if (this._phaseCount >= 3) {
-          let curBandwidth =
-            this._evaluator.calculateCurStreamMetric("latestBandwidth");
+          let curBw = this._evaluator.calculateCurStreamMetric("latestBandwidth");
           let curRate = this._evaluator.calculateCurStreamMetric("latestRate");
-          curBandwidth +=
-            this._evaluator.calculateProbeStreamMetric("latestBandwidth");
+          curBw += this._evaluator.calculateProbeStreamMetric("latestBandwidth");
 
           this._logger.debug(
-            `eval: current buf: ${curBufLevel}, step down buf: ${this.stepDownBufferLevel}, current bw: ${curBandwidth}, current rate: ${curRate}`,
+            `eval: current buf: ${curBufLevel}, step down buf: ${this._stepDownBufferLevel}, current bw: ${curBw}, current rate: ${curRate}`,
           );
 
-          if (curBufLevel < this.stepDownBufferLevel) {
+          if (curBufLevel < this._stepDownBufferLevel) {
             this._evaluator.cancel();
-            if (curRate > curBandwidth) {
-              let downIdx = this._evaluator.findRelevantStream(
-                curBandwidth,
-                curRate,
-              );
+            if (curRate > curBw) {
+              let downIdx = this._evaluator.findRelevantStream(curBw, curRate);
               if (downIdx !== this._curStream.orderedIdx) {
                 this._logger.debug(
                   `evalHandler: step down to ${this._renditionProvider.getRenditionName(downIdx)}`,
@@ -163,24 +158,21 @@ export class AbrController {
             if (
               isSuitable &&
               this._phaseCount >= this._maxPhases &&
-              curBandwidth > 0 &&
-              curBufLevel > this.safeRunBufferLevel &&
+              curBw > 0 &&
+              curBufLevel > this._safeRunBufferLevel &&
               lowBufferCount === 0
             ) {
               this._evaluator.run();
               this._phaseCount = 0;
             } else if (isSuitable) {
               this._logger.debug(
-                `ABR evaluator isn't run: phaseCount = ${this._phaseCount}, curBandwidth = ${curBandwidth}, ` +
-                  `curLevel = ${curBufLevel}, safeLevel = ${this.safeRunBufferLevel}, lowBufCount = ${lowBufferCount}`,
+                `ABR evaluator isn't run: phase count = ${this._phaseCount}, current bandwidth = ${curBw}, ` +
+                  `cur level = ${curBufLevel}, safe level = ${this._safeRunBufferLevel}, low buf count = ${lowBufferCount}`,
               );
             }
           }
         }
-        if (
-          !this._evaluator.isRunning() &&
-          this._phaseCount < this._maxPhases
-        ) {
+        if (!this._evaluator.isRunning() && this._phaseCount < this._maxPhases) {
           this._phaseCount++;
         }
       }
@@ -239,7 +231,7 @@ export class AbrController {
     }
   }.bind(this);
 
-  _switchRendition(orderedIdx, mode) {
+  _switchRendition(orderedIdx) {
     if (orderedIdx !== this._curStream.orderedIdx) {
       let goUp = orderedIdx > this._curStream.orderedIdx;
       if (goUp) {
@@ -260,10 +252,8 @@ export class AbrController {
         !goUp ||
         this._trials[orderedIdx].runs >= this._trials[orderedIdx].required
       ) {
-        this._switchRenditionCallback(
-          this._renditionProvider.getRendition(orderedIdx).idx,
-          mode,
-        );
+        let switchIdx = this._renditionProvider.getRendition(orderedIdx).idx;
+        this._switchRenditionCallback(switchIdx + 1);
       }
     }
   }
@@ -297,16 +287,16 @@ export class AbrController {
   }.bind(this);
 
   _clearEvalTimer() {
-    if (undefined !== this.evalTimer) {
-      clearInterval(this.evalTimer);
-      this.evalTimer = undefined;
+    if (undefined !== this._evalTimer) {
+      clearInterval(this._evalTimer);
+      this._evalTimer = undefined;
     }
   }
 
   _clearWatchTimer() {
-    if (undefined !== this.watchTimer) {
-      clearInterval(this.watchTimer);
-      this.watchTimer = undefined;
+    if (undefined !== this._watchTimer) {
+      clearInterval(this._watchTimer);
+      this._watchTimer = undefined;
     }
   }
 
@@ -334,7 +324,7 @@ export class AbrController {
   isProbing(id) {
     let result = false;
     let prober = this._evaluator.getProber();
-    if (prober && prober.id() === id) {
+    if (prober?.id === id) {
       result = prober.isEnabled();
     }
     return result;
@@ -344,15 +334,14 @@ export class AbrController {
     this._evaluator.getProber().receiveInit();
   }
 
-  handleChunk(timestamp) {
+  handleChunkTs(timestamp) {
     this._evaluator.getProber().receiveFrame(timestamp);
   }
 
   set callbacks(cbs) {
     this._switchRenditionCallback = cbs.switchRendition;
     this._isSwitchInProgressCallback = cbs.isInProgress;
-    this._getCurStreamCallback = cbs.getCurStream;
     this._probeStartCallback = cbs.probeStream;
-    this._probeCancelCallback = cbs.cancelStream;
+    this._probeCancelCallback = cbs.cancelProbe;
   }
 }

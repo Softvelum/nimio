@@ -6,6 +6,7 @@ const RELIABLE_INTERVAL = 3000;
 
 export class AbrEvaluator {
   constructor(instName, bufferTime) {
+    this._instName = instName;
     this._running = false;
     this._runsCount = 0;
 
@@ -95,20 +96,14 @@ export class AbrEvaluator {
           probeTime = Math.floor(probeTime + 0.5);
           if (probeTime < 100) probeTime = 100;
         }
-        if (0 == probeTime || probeTime > RELIABLE_INTERVAL)
+
+        if (0 == probeTime || probeTime > RELIABLE_INTERVAL) {
           probeTime = RELIABLE_INTERVAL;
-        if (0 === this._runsCount && probeTime > 600) {
-          probeTime = 600;
         }
+        if (0 === this._runsCount && probeTime > 600) probeTime = 600;
         this._logger.debug(`doRun probe during ${probeTime}`);
 
-        let stream = this._renditionProvider.getStream(streamToProbe.idx);
-        this._prober = new Prober(
-          stream.stream,
-          stream.stream_info.vtimescale,
-          probeTime,
-          this._metricsManager,
-        );
+        this._prober = new Prober(this._instName, streamToProbe.idx, probeTime);
         this._prober.callbacks = {
           onStartProbe: this._startProbeCallback,
           onCancelProbe: this._cancelProbeCallback,
@@ -129,7 +124,7 @@ export class AbrEvaluator {
     let totalBandwidth = this.calculateCurStreamMetric("customRangeBandwidth");
     this._logger.debug(`finished probe: cur bandwidth ${totalBandwidth}`);
 
-    let proberMetrics = this._metricsManager.getMetrics(this._prober.id());
+    let proberMetrics = this._metricsManager.getMetric(this._prober.id);
     let proberBandwidth = Math.max(
       proberMetrics.avgBandwidth(),
       proberMetrics.latestBandwidth(),
@@ -186,7 +181,7 @@ export class AbrEvaluator {
         this.doRun();
       } else {
         this._logger.debug(
-          `finished probe: return result ${this._renditionProvider.getRenditionName(this._curStreamIdx)}`,
+          `finished probe: result ${this._renditionProvider.getRenditionName(this._curStreamIdx)}`,
           this._curStreamIdx,
         );
         this._onResultCallback(this._curStreamIdx);
@@ -195,15 +190,15 @@ export class AbrEvaluator {
   }.bind(this);
 
   calculateCurVideoStreamMetric(metr) {
-    return this._metricsManager.getMetrics(this._curStream.vId)[metr]();
+    return this._metricsManager.getMetric(this._curStream.vId)[metr]();
   }
 
   calculateCurStreamMetric(metr) {
-    let videoMetrics = this._metricsManager.getMetrics(this._curStream.vId);
+    let videoMetrics = this._metricsManager.getMetric(this._curStream.vId);
     let result = videoMetrics[metr]();
     if (result < 0 || !(result >= 0)) result = 0;
     if (undefined !== this._curStream.aId) {
-      let audioMetrics = this._metricsManager.getMetrics(this._curStream.aId);
+      let audioMetrics = this._metricsManager.getMetric(this._curStream.aId);
       let aRes = audioMetrics[metr]();
       if (aRes > 0) result += aRes;
     }
@@ -213,7 +208,7 @@ export class AbrEvaluator {
   calculateProbeStreamMetric(metr) {
     let result = 0;
     if (undefined !== this._prober) {
-      let pMetrics = this._metricsManager.getMetrics(this._prober.id());
+      let pMetrics = this._metricsManager.getMetric(this._prober.id);
       result = pMetrics[metr]();
     }
     return result;
@@ -225,18 +220,14 @@ export class AbrEvaluator {
       this._curStream.bandwidth > 0 ? curRate / this._curStream.bandwidth : 1;
     for (let i = this._curStream.orderedIdx - 1; i >= 0; i--) {
       if (this._renditionProvider.isRenditionActual(i)) {
-        if (
-          curBandwidth >=
-          1.1 * this._renditionProvider.getRendition(i).bandwidth * bwCorrector
-        ) {
+        let rendBandwidth = this._renditionProvider.getRendition(i).bandwidth;
+        if (curBandwidth >= 1.1 * rendBandwidth * bwCorrector) {
           result = i;
           break;
         }
       }
     }
-    this._logger.debug(
-      `findRelevantStream: found index ${this._curStream.orderedIdx}`,
-    );
+    this._logger.debug(`findRelevantStream: found ${this._curStream.orderedIdx}`);
     return result;
   }
 

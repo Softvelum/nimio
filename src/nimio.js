@@ -18,6 +18,7 @@ import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
 import { AbrController } from "./abr/controller";
 import { AbrRenditionProvider } from "./abr/rendition-provider";
+import { EventMixin } from "./events";
 
 export default class Nimio {
   constructor(options) {
@@ -210,6 +211,17 @@ export default class Nimio {
           (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
         if (availableMs < 0) availableMs = 0;
         this._state.setAvailableVideoMs(availableMs);
+
+        if (this._abrController) {
+          let curTimeMs = performance.now();
+          if (
+            this._lastBufReportMs > 0 &&
+            curTimeMs - this._lastBufReportMs >= 100
+          ) {
+            this._reportBufferLevel(availableMs);
+            this._lastBufReportMs = curTimeMs;
+          }
+        }
       }
     }
   }
@@ -266,6 +278,10 @@ export default class Nimio {
     }
     let nextId = this._nextRenditionData.idx + 1;
     this._nextRenditionData = null;
+    if (this._abrController && this._context.autoAbr) {
+      this._abrController.restart(true);
+    }
+
     this._logger.debug(
       `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
@@ -417,11 +433,32 @@ export default class Nimio {
   _createAbrController() {
     if (this._config.adaptiveBitrate && !this._abrController) {
       this._renditionProvider = AbrRenditionProvider.getInstance(this._instName);
-      this._renditionProvider.init(this._config.adaptiveBitrate, this._ui.size);
-      this._abrController = new AbrController(this._instName, this._bufferSec);
+
+      let buffering = this._config.latency;
+      this._lowBufferMs = (buffering > 1000) ? 200 : buffering / 5;
+      this._abrController = new AbrController(this._instName, buffering);
+      this._abrController.callbacks = {
+        switchRendition: this.setVideoRendition.bind(this),
+        isInProgress: () => !!this._nextRenditionData,
+        probeStream: (idx, duration) => {
+          return this._sldpManager.probeStream("video", idx, duration);
+        },
+        cancelProbe: (sn, doReq) => this._sldpManager.cancelProbe(sn, doReq),
+      };
+
+      this._lastBufReportMs = 0;
+    }
+  }
+
+  _reportBufferLevel(ms) {
+    let trackId = this._decoderFlows.video.trackId;
+    this._metricsManager.reportBufLevel(trackId, ms / 1000);
+    if (ms < this._lowBufferMs) {
+      this._metricsManager.reportLowBuffer(trackId);
     }
   }
 }
 
+Object.assign(Nimio.prototype, EventMixin);
 Object.assign(Nimio.prototype, NimioApi);
 Object.assign(Nimio.prototype, NimioTransport);
