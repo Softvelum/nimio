@@ -56,9 +56,7 @@ export const NimioTransport = {
   },
 
   _onVideoCodecDataReceived(data) {
-    if (data.data) {
-      this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
-    }
+    this._runMetrics(data);
 
     if (this._abrController.isProbing(data.trackId)) {
       return this._abrController.handleCodecData(data);
@@ -77,9 +75,7 @@ export const NimioTransport = {
   },
 
   _onAudioCodecDataReceived(data) {
-    if (data.data) {
-      this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
-    }
+    this._runMetrics(data);
 
     let audioAvailable = true;
     let curConfigVals = this._audioConfig.get();
@@ -135,6 +131,13 @@ export const NimioTransport = {
       this._nextRenditionData.decoderFlow.processChunk(data);
     } else if (this._abrController?.isProbing(data.trackId)) {
       this._abrController.handleChunkTs(data.timestamp);
+    }
+  },
+
+  _runMetrics(data) {
+    this._metricsManager.run(data.trackId);
+    if (data.data) {
+      this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
     }
   },
 };

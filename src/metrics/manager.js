@@ -28,7 +28,7 @@ class MetricsManager {
   }
 
   run(id) {
-    this._exec("run", id);
+    this._exec("start", id);
   }
 
   stop(id) {
