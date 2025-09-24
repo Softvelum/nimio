@@ -1,3 +1,4 @@
+import { MetricsManager } from "@/metrics/manager";
 import LoggersFactory from "@/shared/logger";
 
 export class Prober {
@@ -98,6 +99,10 @@ export class Prober {
 
   get id() {
     return this._streamId;
+  }
+
+  get period() {
+    return this._period;
   }
 
   set callbacks(cbs) {

@@ -1,3 +1,4 @@
+import { Prober } from "./prober";
 import { AbrRenditionProvider } from "./rendition-provider";
 import { MetricsManager } from "@/metrics/manager";
 import LoggersFactory from "@/shared/logger";
@@ -107,8 +108,8 @@ export class AbrEvaluator {
         this._prober.callbacks = {
           onStartProbe: this._startProbeCallback,
           onCancelProbe: this._cancelProbeCallback,
-          onInitReceived: this.onInitReceived,
-          onProbeFinished: this.onProbeFinished,
+          onInitReceived: this._onInitReceived.bind(this),
+          onProbeFinished: this._onProbeFinished.bind(this),
         };
         this._running = true;
         this._prober.start();
@@ -118,7 +119,7 @@ export class AbrEvaluator {
     }
   }
 
-  onProbeFinished = function () {
+  _onProbeFinished() {
     this._runsCount++;
     this.calculateCurStreamMetric("stopCustom");
     let totalBandwidth = this.calculateCurStreamMetric("customRangeBandwidth");
@@ -151,6 +152,7 @@ export class AbrEvaluator {
     this._logger.debug(
       `finished probe: ${isEnoughBuffer ? "enough buffer" : "NOT ENOUGH BUFFER"}, period: ${proberPeriod}, buf level: ${curVBufLevel * 1000}, min required buf: ${this._enoughBufferToContinue}, bwCorrector: ${bwCorrector}`,
     );
+
     if (isEnoughBuffer && proberPeriod >= RELIABLE_INTERVAL) {
       this._curBandwidth = totalBandwidth;
       let renditions = this._renditionProvider.actualRenditions;
@@ -187,7 +189,7 @@ export class AbrEvaluator {
         this._onResultCallback(this._curStreamIdx);
       }
     }
-  }.bind(this);
+  }
 
   calculateCurVideoStreamMetric(metr) {
     return this._metricsManager.getMetric(this._curStream.vId)[metr]();
@@ -239,9 +241,9 @@ export class AbrEvaluator {
     return this._running;
   }
 
-  onInitReceived = function () {
+  _onInitReceived() {
     this.calculateCurStreamMetric("startCustom");
-  }.bind(this);
+  }
 
   set callbacks(cbs) {
     this._startProbeCallback = cbs.onStartProbe;

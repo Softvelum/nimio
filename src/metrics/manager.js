@@ -58,13 +58,13 @@ class MetricsManager {
   _exec(op, id, ...args) {
     let m = this._findMetricFor(op, id);
     if (!m) return;
-    m[op](args);
+    return m[op](...args);
   }
 
   _findMetricFor(op, id) {
     let m = this._metrics.get(id);
     if (!m) {
-      this._logger.error(`${op}: no metric found for ${id} track.`);
+      this._logger.debug(`${op}: no metric found for ${id} track.`);
       return null;
     }
     return m;

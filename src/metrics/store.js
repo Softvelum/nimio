@@ -1,7 +1,7 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import LoggersFactory from "@/shared/logger.js";
 
-const STAT_SIZE = 6; // 6 seconds
+const STAT_SIZE = 3; // 3 seconds
 const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 6 seconds of 250ms buckets
 
 export class MetricsStore {
@@ -31,7 +31,7 @@ export class MetricsStore {
     this._rate1sec = new RingBuffer(`${instanceName} rate`, STAT_SIZE);
     this._lb1sec = new RingBuffer(`${instanceName} lb`, STAT_SIZE);
     this._buf1sec = new RingBuffer(`${instanceName} buf`, STAT_SIZE);
-    this._buf500msec = new RingBuffer(`${instanceName} buf500`, STAT_SIZE);
+    this._buf500msec = new RingBuffer(`${instanceName} buf500`, STAT_SIZE * 2);
 
     this._buf1secSum = 0;
     this._buf1secCnt = 0;
@@ -276,11 +276,25 @@ export class MetricsStore {
   }
 
   avgBufLevel() {
-    return this._mean(this._buf1sec) || this._bufferLevel;
+    let res;
+    if (this._buf1sec.length > 0) {
+      res = this._mean(this._buf1sec);
+    } else if (this._buf500msCnt > 0) {
+      res = this._bufferLevel;
+    }
+    // undefined means that no metric is gathered
+    return res;
   }
 
   avg3secBufLevel() {
-    return this._mean(this._buf500msec) || this._bufferLevel;
+    let res;
+    if (this._buf1sec.length > 0) {
+      res = this._mean(this._buf1sec);
+    } else if (this._buf500msCnt > 0) {
+      res = this._buf500msSum / this._buf500msCnt;
+    }
+    // undefined means that no metric is gathered
+    return res;
   }
 
   getFrameDuration() {
@@ -365,8 +379,8 @@ export class MetricsStore {
 
   _updateBwRate1sec(curTime) {
     var curBw = this.curBw1sec();
-    this._bw1sec.push(curBw);
-    this._rate1sec.push(this.curRate1sec());
+    this._bw1sec.push(curBw, true);
+    this._rate1sec.push(this.curRate1sec(), true);
     if (undefined !== this._bwTime2 && curTime - this._bwTime2 <= 1000) {
       this._rate1secTs1 = this._rate1secTs2;
       this._bwTime1 = this._bwTime2;
@@ -393,7 +407,7 @@ export class MetricsStore {
     if (this._buf500msCnt > 0) {
       avgBuf = this._buf500msSum / this._buf500msCnt;
       this._buf500msSum = this._buf500msCnt = 0;
-      this._buf500msec.push(avgBuf);
+      this._buf500msec.push(avgBuf, true);
     }
 
     // TODO: rework for better handling of timer delays
@@ -403,10 +417,10 @@ export class MetricsStore {
       if (this._buf1secCnt > 0) {
         avgBuf = this._buf1secSum / this._buf1secCnt;
         this._buf1secSum = this._buf1secCnt = 0;
-        this._buf1sec.push(avgBuf);
+        this._buf1sec.push(avgBuf, true);
       }
 
-      this._lb1sec.push(this._lowBuf1sec);
+      this._lb1sec.push(this._lowBuf1sec, true);
       this._lowBuf1sec = 0;
       this._timerCounter = 0;
     }
@@ -423,11 +437,12 @@ export class MetricsStore {
   _updateFrameDuration(ts) {
     if (this._tss.length >= 90) return;
 
-    let i;
+    let i = 0;
     for (i = 0; i < this._tss.length; i++) {
-      if (ts > this._tss[i]) break;
+      if (ts < this._tss[i]) break;
     }
     this._tss.splice(i, 0, ts);
+    this._freqFrameDur = 0;
   }
 
   _calcFrameDuration() {

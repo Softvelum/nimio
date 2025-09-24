@@ -30,7 +30,7 @@ export class RingBuffer {
       this.length--; // decrease length to allow increment below
       this.head++;
       if (this.head === this.capacity) this.head = 0;
-      this._logger.warn("Ring buffer is full. Overwriting the first item.");
+      // this._logger.warn("Ring buffer is full. Overwriting the first item.");
     }
 
     this.buffer[this.tail++] = item;

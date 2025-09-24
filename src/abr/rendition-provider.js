@@ -33,7 +33,7 @@ class AbrRenditionProvider {
   }
 
   getRenditionName(idx) {
-    return this.getRendition(idx).rendition + "p";
+    return this.getRendition(idx).rendition;
   }
 
   isTopAvailable(idx) {

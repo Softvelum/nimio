@@ -22,8 +22,6 @@ import { EventMixin } from "./events";
 
 export default class Nimio {
   constructor(options) {
-    console.debug("Nimio " + this.version());
-
     if (options && !options.instanceName) {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
     }
@@ -31,6 +29,7 @@ export default class Nimio {
 
     this._config = createConfig(options);
     this._logger = LoggersFactory.create(this._instName, "Nimio");
+    this._logger.debug("Nimio " + this.version());
 
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
