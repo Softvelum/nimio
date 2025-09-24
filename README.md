@@ -12,8 +12,9 @@ https://softvelum.com/nimio/demo/ - Stable
 
 ## SLDP & WebCodecs Features
 
-- **SLDP Protocol** (Softvelum Low Delay Protocol) — WebSocket‑based streaming with sub-100ms latency, supporting H.264, H.265/HEVC, AV1, VP8, VP9, AAC, MP3, Opus, and more.
-- **WebCodecs Integration** — Fine‑grained control over decoding, synchronization, jitter buffering, playback speed, and debugging at each stage of the pipeline.
+- **SLDP Protocol** (Softvelum Low Delay Protocol) - WebSocket‑based streaming with sub-100ms latency, supporting H.264, H.265/HEVC, AV1, VP8, VP9, AAC, MP3, Opus, and more.
+- **WebCodecs Integration** - Fine‑grained control over decoding, synchronization, jitter buffering, playback speed, and debugging at each stage of the pipeline.
+- **Available on all web platforms** - desktop, Android and [recent iOS/macOS](https://softvelum.com/2025/09/nimio-safari-ios-macos-26/).
 
 Read the [first beta release announcement](https://softvelum.com/2025/05/introducing-nimio-nextgen-player/) with the list of current features.
 
@@ -88,6 +89,33 @@ These methods are available directly on the `Nimio` class.
 
 - `Nimio.version()`  
   Return the current version string (identical to `instance.version()`).
+
+## Roadmap
+
+The following features are planned for upcoming releases:
+
+- Adaptive bitrate
+- Volume control
+- Automatic aspect ratio detection
+- Fullscreen playback
+- Picture-in-Picture (PiP)
+- Latency retention for asynchronous renditions
+- CEA-608 closed captions
+- VU meter
+- VOD playback (DVR support)
+- VOD thumbnail previews
+- SEI timecodes support
+- WebTransport protocol
+- Nimble Advertizer integration
+- Automatic reconnection
+- Sync mode
+- Screenshot capture
+- Splash/startup image
+- Extended Player API
+- Muted autoplay
+- Dynamic latency adjustment
+- OffscreenCanvas rendering
+- Resume from pause in DVR mode (no auto-jump to live)
 
 ## Contributing
 
