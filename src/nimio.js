@@ -272,7 +272,9 @@ export default class Nimio {
   _onRenditionSwitchResult(type, done) {
     if (done) {
       this._context.setCurrentStream(
-        type, this._nextRenditionData.idx, this._nextRenditionData.trackId
+        type,
+        this._nextRenditionData.idx,
+        this._nextRenditionData.trackId,
       );
     }
     let nextId = this._nextRenditionData.idx + 1;
@@ -431,10 +433,13 @@ export default class Nimio {
 
   _createAbrController() {
     if (this._config.adaptiveBitrate && !this._abrController) {
-      this._renditionProvider = AbrRenditionProvider.getInstance(this._instName);
+      this._renditionProvider = AbrRenditionProvider.getInstance(
+        this._instName,
+      );
+      this._context.autoAbr = true;
 
       let buffering = this._config.latency;
-      this._lowBufferMs = (buffering > 1000) ? 200 : buffering / 5;
+      this._lowBufferMs = buffering > 1000 ? 200 : buffering / 5;
       this._abrController = new AbrController(this._instName, buffering);
       this._abrController.callbacks = {
         switchRendition: this.setVideoRendition.bind(this),

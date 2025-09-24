@@ -58,7 +58,7 @@ export const NimioTransport = {
   _onVideoCodecDataReceived(data) {
     this._runMetrics(data);
 
-    if (this._abrController.isProbing(data.trackId)) {
+    if (this._abrController?.isProbing(data.trackId)) {
       return this._abrController.handleCodecData(data);
     }
 

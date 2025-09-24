@@ -59,8 +59,7 @@ export class AbrEvaluator {
 
   setBuffering(bufferTime) {
     this._minBufferingTime = bufferTime > 1000 ? 600 : bufferTime / 2;
-    this._enoughBufferToContinue =
-      bufferTime > 1000 ? 1000 : bufferTime * 0.8;
+    this._enoughBufferToContinue = bufferTime > 1000 ? 1000 : bufferTime * 0.8;
   }
 
   doRun() {
@@ -229,7 +228,9 @@ export class AbrEvaluator {
         }
       }
     }
-    this._logger.debug(`findRelevantStream: found ${this._curStream.orderedIdx}`);
+    this._logger.debug(
+      `findRelevantStream: found ${this._curStream.orderedIdx}`,
+    );
     return result;
   }
 

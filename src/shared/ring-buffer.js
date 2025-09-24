@@ -30,7 +30,6 @@ export class RingBuffer {
       this.length--; // decrease length to allow increment below
       this.head++;
       if (this.head === this.capacity) this.head = 0;
-      // this._logger.warn("Ring buffer is full. Overwriting the first item.");
     }
 
     this.buffer[this.tail++] = item;
@@ -52,13 +51,13 @@ export class RingBuffer {
 
   get(idx) {
     if (this.isEmpty()) {
-      this._logger.warn("Can't get from empty ring buffer", i);
+      this._logger.warn("Can't get from empty ring buffer", idx);
       return null;
     }
 
     let i = idx;
     if (i < 0) i += this.length;
-    if (i < 0 || i >= this.length) {
+    if (i < 0 || i >= this.length || i == undefined) {
       this._logger.error("Invalid index for get", idx, this.length);
       return null;
     }

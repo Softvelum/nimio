@@ -12,7 +12,7 @@ class PlaybackContext {
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
 
-    this._autoAbr = true;
+    this._autoAbr = false;
   }
 
   setSourceUrl(url) {
@@ -154,7 +154,7 @@ class PlaybackContext {
   }
 
   isCurrentStream(type, idx) {
-    return this._curConf[type] && (idx === this._curConf[type].idx);
+    return this._curConf[type] && idx === this._curConf[type].idx;
   }
 
   get streams() {
@@ -175,6 +175,10 @@ class PlaybackContext {
 
   get autoAbr() {
     return this._autoAbr;
+  }
+
+  set autoAbr(val) {
+    this._autoAbr = val;
   }
 
   async _checkSupportedCodecs(streams) {

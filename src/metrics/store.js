@@ -107,7 +107,8 @@ export class MetricsStore {
 
   customRangeRate() {
     let result = 0;
-    let tsInt = this._rateCustomTs2 - this._rateCustomTs1 + this.getFrameDuration();
+    let tsInt =
+      this._rateCustomTs2 - this._rateCustomTs1 + this.getFrameDuration();
     if (tsInt > 0) {
       result = this._rateInBps(this._bytesCustom, tsInt / 1000);
     }
@@ -191,7 +192,8 @@ export class MetricsStore {
 
   avgRate() {
     let result = 0;
-    let tsInt = this._rateTotalTs2 - this._rateTotalTs1 + this.getFrameDuration();
+    let tsInt =
+      this._rateTotalTs2 - this._rateTotalTs1 + this.getFrameDuration();
     if (tsInt > 0) {
       result = this._rateInBps(this._bytesTotal, tsInt / 1000);
     }
@@ -209,7 +211,8 @@ export class MetricsStore {
 
   curRate500msec() {
     let result = 0;
-    let tsInt = this._rate500msecTs2 - this._rate500msecTs1 + this.getFrameDuration();
+    let tsInt =
+      this._rate500msecTs2 - this._rate500msecTs1 + this.getFrameDuration();
     if (tsInt > 0) {
       result = this._rateInBps(this._bytes500msec, tsInt / 1000);
     }

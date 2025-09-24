@@ -21,7 +21,8 @@ export class AbrController {
     if (
       this._curStream.vIdx == undefined ||
       this._renditionProvider.streamsCount < 2
-    ) return;
+    )
+      return;
 
     this._logger.debug("start");
     this._initTrials();
@@ -131,9 +132,11 @@ export class AbrController {
       } else {
         this._logger.debug(`phase ${this._phaseCount} max ${this._maxPhases}`);
         if (this._phaseCount >= 3) {
-          let curBw = this._evaluator.calculateCurStreamMetric("latestBandwidth");
+          let curBw =
+            this._evaluator.calculateCurStreamMetric("latestBandwidth");
           let curRate = this._evaluator.calculateCurStreamMetric("latestRate");
-          curBw += this._evaluator.calculateProbeStreamMetric("latestBandwidth");
+          curBw +=
+            this._evaluator.calculateProbeStreamMetric("latestBandwidth");
 
           this._logger.debug(
             `eval: current buf: ${curBufLevel}, step down buf: ${this._stepDownBufferLevel}, current bw: ${curBw}, current rate: ${curRate}`,
@@ -172,7 +175,10 @@ export class AbrController {
             }
           }
         }
-        if (!this._evaluator.isRunning() && this._phaseCount < this._maxPhases) {
+        if (
+          !this._evaluator.isRunning() &&
+          this._phaseCount < this._maxPhases
+        ) {
           this._phaseCount++;
         }
       }
