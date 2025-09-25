@@ -127,7 +127,7 @@ export default class Nimio {
   stop(closeConnection) {
     this._state.stop();
     if (this._isAutoAbr()) {
-      this._abrController.stop({hard: true});
+      this._abrController.stop({ hard: true });
     }
 
     this._sldpManager.stop(!!closeConnection);

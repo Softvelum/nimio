@@ -21,7 +21,7 @@ export const NimioAbr = {
   stopAbr() {
     if (this._isAutoAbr()) {
       this._context.autoAbr = false;
-      this._abrController.stop({hard: true});
+      this._abrController.stop({ hard: true });
     }
   },
 
