@@ -187,16 +187,13 @@ export default class Nimio {
 
   _renderVideoFrame() {
     if (this._noVideo || !this._state.isPlaying()) return true;
-    console.log('requestVideoFrame');
 
     requestAnimationFrame(this._renderVideoFrame);
     if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
       return true;
     }
 
-    let curTsUs = this._audioConfig.smpCntToTsUs(
-      this._state.getCurrentTsSmp(),
-    );
+    let curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
     if (curTsUs <= 0) return true;
 
     let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;

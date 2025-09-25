@@ -62,5 +62,4 @@ export const NimioAbr = {
     this._abrController.start();
     this._lastBufReportMs = performance.now() + 100;
   },
-
 };
