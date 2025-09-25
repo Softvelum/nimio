@@ -101,7 +101,9 @@ export default class Nimio {
     }
 
     this._state.start();
-    if (this._isAutoAbr()) this._abrController.start();
+    if (this._isAutoAbr()) {
+      this._startAbrController();
+    }
 
     requestAnimationFrame(this._renderVideoFrame);
 
@@ -184,43 +186,44 @@ export default class Nimio {
   }
 
   _renderVideoFrame() {
-    if (!this._noVideo && this._state.isPlaying()) {
-      requestAnimationFrame(this._renderVideoFrame);
-      if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
-        return true;
-      }
+    if (this._noVideo || !this._state.isPlaying()) return true;
+    console.log('requestVideoFrame');
 
-      let curTsUs = this._audioConfig.smpCntToTsUs(
-        this._state.getCurrentTsSmp(),
+    requestAnimationFrame(this._renderVideoFrame);
+    if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
+      return true;
+    }
+
+    let curTsUs = this._audioConfig.smpCntToTsUs(
+      this._state.getCurrentTsSmp(),
+    );
+    if (curTsUs <= 0) return true;
+
+    let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
+    const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
+    if (frame) {
+      this._ctx.drawImage(
+        frame,
+        0,
+        0,
+        this._ctx.canvas.width,
+        this._ctx.canvas.height,
       );
-      if (curTsUs <= 0) return true;
+      frame.close();
 
-      let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
-      const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
-      if (frame) {
-        this._ctx.drawImage(
-          frame,
-          0,
-          0,
-          this._ctx.canvas.width,
-          this._ctx.canvas.height,
-        );
-        frame.close();
+      let availableMs =
+        (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
+      if (availableMs < 0) availableMs = 0;
+      this._state.setAvailableVideoMs(availableMs);
 
-        let availableMs =
-          (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
-        if (availableMs < 0) availableMs = 0;
-        this._state.setAvailableVideoMs(availableMs);
-
-        if (this._isAutoAbr()) {
-          let curTimeMs = performance.now();
-          if (
-            this._lastBufReportMs > 0 &&
-            curTimeMs - this._lastBufReportMs >= 100
-          ) {
-            this._reportBufferLevel(availableMs);
-            this._lastBufReportMs = curTimeMs;
-          }
+      if (this._isAutoAbr()) {
+        let curTimeMs = performance.now();
+        if (
+          this._lastBufReportMs > 0 &&
+          curTimeMs - this._lastBufReportMs >= 100
+        ) {
+          this._reportBufferLevel(availableMs);
+          this._lastBufReportMs = curTimeMs;
         }
       }
     }

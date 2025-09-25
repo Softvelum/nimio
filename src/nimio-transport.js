@@ -32,8 +32,7 @@ export const NimioTransport = {
     this._createMainDecoderFlow("video", data);
     if (this._isAutoAbr()) {
       this._renditionProvider.init(this._config.adaptiveBitrate, this._ui.size);
-      this._abrController.start();
-      this._lastBufReportMs = performance.now() + 100;
+      this._startAbrController();
     }
   },
 

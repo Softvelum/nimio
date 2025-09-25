@@ -12,7 +12,7 @@ export const NimioAbr = {
     }
 
     if (this._decoderFlows["video"].isActive() && !this._state.isPaused()) {
-      this._abrController.start();
+      this._startAbrController();
     }
 
     return true;
@@ -57,4 +57,10 @@ export const NimioAbr = {
       this._lastBufReportMs = 0;
     }
   },
+
+  _startAbrController() {
+    this._abrController.start();
+    this._lastBufReportMs = performance.now() + 100;
+  },
+
 };
