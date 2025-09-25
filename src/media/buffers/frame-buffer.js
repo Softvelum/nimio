@@ -1,5 +1,5 @@
-import LoggersFactory from "@/shared/logger.js";
-import { RingBuffer } from "@/shared/ring-buffer.js";
+import LoggersFactory from "@/shared/logger";
+import { RingBuffer } from "@/shared/ring-buffer";
 
 export class FrameBuffer {
   constructor(instName, type, maxFrames = 100) {

@@ -13,6 +13,7 @@ export class DecoderFlow {
     this._trackId = trackId;
     this._type = type;
     this._startTsUs = 0;
+    this._buffer = null;
 
     // TODO: check if timescale is needed further
     this._timescale = timescale;
@@ -23,6 +24,10 @@ export class DecoderFlow {
       type: "module",
     });
     this._addDecoderListener();
+  }
+
+  isActive() {
+    return this._buffer !== null;
   }
 
   setBuffer(buffer, state) {
@@ -108,6 +113,7 @@ export class DecoderFlow {
     this._shutdown();
     this._trackId = null;
     this._buffer.reset();
+    this._buffer = null;
   }
 
   finalizeSwitch() {

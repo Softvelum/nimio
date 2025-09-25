@@ -1,4 +1,4 @@
-export const NimioApi = {
+export const NimioRenditions = {
   getRenditions(type) {
     if (!this._context) return [];
     if (type && !this._checkRenditionType(type)) return [];

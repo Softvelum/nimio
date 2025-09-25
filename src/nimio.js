@@ -1,10 +1,11 @@
 import workletUrl from "./audio-worklet-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
+import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
-import { Ui } from "./ui/ui.js";
+import { Ui } from "./ui/ui";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
@@ -12,13 +13,11 @@ import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioConfig } from "./audio-config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
-import { NimioApi } from "./nimio-api";
 import { NimioTransport } from "./nimio-transport";
+import { NimioRenditions } from "./nimio-renditions";
+import { NimioAbr } from "./nimio-abr";
 import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
-import { AbrController } from "./abr/controller";
-import { AbrRenditionProvider } from "./abr/rendition-provider";
-import { EventMixin } from "./events";
 
 export default class Nimio {
   constructor(options) {
@@ -102,6 +101,7 @@ export default class Nimio {
     }
 
     this._state.start();
+    if (this._isAutoAbr()) this._abrController.start();
 
     requestAnimationFrame(this._renderVideoFrame);
 
@@ -117,6 +117,7 @@ export default class Nimio {
 
   pause() {
     this._state.pause();
+    if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
       this.stop(true); // TODO: check possibility to reuse socket
@@ -125,8 +126,8 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
-    if (this._abrController) {
-      this._abrController.stop();
+    if (this._isAutoAbr()) {
+      this._abrController.stop({hard: true});
     }
 
     this._sldpManager.stop(!!closeConnection);
@@ -211,7 +212,7 @@ export default class Nimio {
         if (availableMs < 0) availableMs = 0;
         this._state.setAvailableVideoMs(availableMs);
 
-        if (this._abrController) {
+        if (this._isAutoAbr()) {
           let curTimeMs = performance.now();
           if (
             this._lastBufReportMs > 0 &&
@@ -279,7 +280,7 @@ export default class Nimio {
     }
     let nextId = this._nextRenditionData.idx + 1;
     this._nextRenditionData = null;
-    if (this._abrController && this._context.autoAbr) {
+    if (this._isAutoAbr()) {
       this._abrController.restart(true);
     }
 
@@ -431,31 +432,8 @@ export default class Nimio {
     this._noAudio = false;
   }
 
-  _createAbrController() {
-    if (this._config.adaptiveBitrate && !this._abrController) {
-      this._renditionProvider = AbrRenditionProvider.getInstance(
-        this._instName,
-      );
-      this._context.autoAbr = true;
-
-      let buffering = this._config.latency;
-      this._lowBufferMs = buffering > 1000 ? 200 : buffering / 5;
-      this._abrController = new AbrController(this._instName, buffering);
-      this._abrController.callbacks = {
-        switchRendition: this.setVideoRendition.bind(this),
-        isInProgress: () => !!this._nextRenditionData,
-        probeStream: (idx, duration) => {
-          return this._sldpManager.probeStream("video", idx, duration);
-        },
-        cancelProbe: (sn, doReq) => this._sldpManager.cancelProbe(sn, doReq),
-      };
-
-      this._lastBufReportMs = 0;
-    }
-  }
-
   _reportBufferLevel(ms) {
-    let trackId = this._decoderFlows.video.trackId;
+    let trackId = this._decoderFlows["video"].trackId;
     this._metricsManager.reportBufLevel(trackId, ms / 1000);
     if (ms < this._lowBufferMs) {
       this._metricsManager.reportLowBuffer(trackId);
@@ -464,5 +442,6 @@ export default class Nimio {
 }
 
 Object.assign(Nimio.prototype, EventMixin);
-Object.assign(Nimio.prototype, NimioApi);
 Object.assign(Nimio.prototype, NimioTransport);
+Object.assign(Nimio.prototype, NimioRenditions);
+Object.assign(Nimio.prototype, NimioAbr);

@@ -1,4 +1,4 @@
-import { STATE, IDX } from "./shared/values.js";
+import { STATE, IDX } from "./shared/values";
 
 const U32POWER = 0x0100000000;
 
