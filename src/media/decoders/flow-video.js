@@ -2,9 +2,8 @@ import { DecoderFlow } from "./flow";
 import vDecoderUrl from "./decoder-video?worker&url"; // ?worker&url - Vite initiate new Rollup build
 
 export class DecoderFlowVideo extends DecoderFlow {
-  constructor(trackId, timescale) {
-    super(trackId, timescale, vDecoderUrl);
-    this._type = "video";
+  constructor(instanceName, trackId, timescale) {
+    super(instanceName, trackId, timescale, "video", vDecoderUrl);
   }
 
   _prepareFrame(data) {

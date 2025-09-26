@@ -2,9 +2,8 @@ import { DecoderFlow } from "./flow";
 import aDecoderUrl from "./decoder-audio?worker&url"; // ?worker&url - Vite initiate new Rollup build
 
 export class DecoderFlowAudio extends DecoderFlow {
-  constructor(trackId, timescale) {
-    super(trackId, timescale, aDecoderUrl);
-    this._type = "audio";
+  constructor(instanceName, trackId, timescale) {
+    super(instanceName, trackId, timescale, "audio", aDecoderUrl);
   }
 
   _prepareFrame(data) {

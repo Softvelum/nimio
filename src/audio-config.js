@@ -2,7 +2,7 @@ import { parseAACConfig } from "./media/parsers/aac-config-parser";
 import { parseMp3Config } from "./media/parsers/mp3-config-parser";
 import { parseOpusConfig } from "./media/parsers/opus-config-parser";
 
-export class AudioService {
+export class AudioConfig {
   constructor(sampleRate = 0, numberOfChannels = 0, sampleCount = 0) {
     this._sampleRate = sampleRate;
     this._numberOfChannels = numberOfChannels;
@@ -14,7 +14,7 @@ export class AudioService {
     };
   }
 
-  parseAudioConfig(codecData, codecFamily) {
+  parse(codecData, codecFamily) {
     let parserFn = this._parsers[codecFamily];
     if (!parserFn) {
       console.error("No parser for the given codec", codecFamily);
@@ -33,7 +33,7 @@ export class AudioService {
     return (smpCnt * 1000) / (this._sampleRate / 1000);
   }
 
-  isConfigCompatible(config) {
+  isCompatible(config) {
     return (
       this._sampleRate === config.sampleRate &&
       this._numberOfChannels === config.numberOfChannels &&
@@ -41,13 +41,13 @@ export class AudioService {
     );
   }
 
-  setConfig(config) {
+  set(config) {
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount;
   }
 
-  get currentConfig() {
+  get() {
     return {
       sampleRate: this._sampleRate,
       numberOfChannels: this._numberOfChannels,

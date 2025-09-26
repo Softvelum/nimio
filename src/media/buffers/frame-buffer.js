@@ -1,5 +1,5 @@
-import LoggersFactory from "@/shared/logger.js";
-import { RingBuffer } from "@/shared/ring-buffer.js";
+import LoggersFactory from "@/shared/logger";
+import { RingBuffer } from "@/shared/ring-buffer";
 
 export class FrameBuffer {
   constructor(instName, type, maxFrames = 100) {
@@ -12,7 +12,7 @@ export class FrameBuffer {
   pushFrame(frame) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
-      this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
+      // this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
       this._disposeFrame(removed);
       this._updateFirstFrameTs();
     }

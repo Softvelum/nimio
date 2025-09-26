@@ -1,31 +1,34 @@
 import workletUrl from "./audio-worklet-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
+import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
-import { SLDPContext } from "./sldp/context";
-import { Ui } from "./ui/ui.js";
+import { PlaybackContext } from "./playback/context";
+import { Ui } from "./ui/ui";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
-import { TransportAdapter } from "./transport/adapter";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
-import { AudioService } from "./audio-service";
+import { AudioConfig } from "./audio-config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
-import { NimioApi } from "./nimio-api";
+import { NimioTransport } from "./nimio-transport";
+import { NimioRenditions } from "./nimio-renditions";
+import { NimioAbr } from "./nimio-abr";
+import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
 
 export default class Nimio {
   constructor(options) {
-    console.debug("Nimio " + this.version());
-
     if (options && !options.instanceName) {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
     }
+    this._instName = options.instanceName;
 
     this._config = createConfig(options);
-    this._logger = LoggersFactory.create(options.instanceName, "Nimio");
+    this._logger = LoggersFactory.create(this._instName, "Nimio");
+    this._logger.debug("Nimio " + this.version());
 
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
@@ -37,8 +40,8 @@ export default class Nimio {
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
-    this._videoBuffer = new FrameBuffer(options.instanceName, "Video", 1000);
-    this._tempBuffer = new FrameBuffer(options.instanceName, "Temp", 1000);
+    this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
+    this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
@@ -58,6 +61,7 @@ export default class Nimio {
     );
     this._pauseTimeoutId = null;
 
+    this._metricsManager = MetricsManager.getInstance(this._instName);
     if (this._config.metricsOverlay) {
       this._debugView = this._ui.appendDebugOverlay(
         this._state,
@@ -70,17 +74,15 @@ export default class Nimio {
 
     this._ctx = this._ui.getCanvas().getContext("2d");
 
-    this._initTransport(options.instanceName, wsTransportUrl);
-    this._context = new SLDPContext(options.instanceName);
-    this._sldpManager = new SLDPManager(
-      options.instanceName,
-      this._transport,
-      this._context,
-      this._config,
-    );
+    this._decoderFlows = { video: null, audio: null };
+    this._initTransport(this._instName, wsTransportUrl);
+    this._context = PlaybackContext.getInstance(this._instName);
+    this._sldpManager = new SLDPManager(this._instName);
+    this._sldpManager.init(this._transport, this._config);
 
     this._audioWorkletReady = null;
-    this._audioService = new AudioService(48000, 1, 1024); // default values
+    this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
+    this._createAbrController();
 
     if (this._config.autoplay) {
       this.play();
@@ -99,6 +101,9 @@ export default class Nimio {
     }
 
     this._state.start();
+    if (this._isAutoAbr()) {
+      this._startAbrController();
+    }
 
     requestAnimationFrame(this._renderVideoFrame);
 
@@ -114,6 +119,7 @@ export default class Nimio {
 
   pause() {
     this._state.pause();
+    if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
       this.stop(true); // TODO: check possibility to reuse socket
@@ -122,6 +128,10 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
+    if (this._isAutoAbr()) {
+      this._abrController.stop({ hard: true });
+    }
+
     this._sldpManager.stop(!!closeConnection);
     if (this._debugView) {
       this._debugView.stop();
@@ -141,14 +151,13 @@ export default class Nimio {
       }
       this._nextRenditionData = null;
     }
-    if (this._vDecoderFlow) {
-      this._vDecoderFlow.destroy();
-      this._vDecoderFlow = null;
-    }
-    if (this._aDecoderFlow) {
-      this._aDecoderFlow.destroy();
-      this._aDecoderFlow = null;
-    }
+
+    ["video", "audio"].forEach((type) => {
+      if (this._decoderFlows[type]) {
+        this._decoderFlows[type].destroy();
+        this._decoderFlows[type] = null;
+      }
+    });
 
     this._state.setPlaybackStartTsUs(0);
     this._state.resetCurrentTsUs();
@@ -176,118 +185,76 @@ export default class Nimio {
     isPlayClicked ? this.play() : this.pause();
   }
 
-  _initTransport(instName, url) {
-    this._transport = new TransportAdapter(instName, url);
-    this._transport.callbacks = {
-      videoSetup: this._onVideoSetupReceived.bind(this),
-      videoCodec: this._onVideoCodecDataReceived.bind(this),
-      videoChunk: this._onVideoChunkReceived.bind(this),
-
-      audioSetup: this._onAudioSetupReceived.bind(this),
-      audioCodec: this._onAudioCodecDataReceived.bind(this),
-      audioChunk: this._onAudioChunkReceived.bind(this),
-    };
-  }
-
   _renderVideoFrame() {
-    if (!this._noVideo && this._state.isPlaying()) {
-      requestAnimationFrame(this._renderVideoFrame);
-      if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
-        return true;
-      }
+    if (this._noVideo || !this._state.isPlaying()) return true;
 
-      let curTsUs = this._audioService.smpCntToTsUs(
-        this._state.getCurrentTsSmp(),
+    requestAnimationFrame(this._renderVideoFrame);
+    if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
+      return true;
+    }
+
+    let curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
+    if (curTsUs <= 0) return true;
+
+    let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
+    const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
+    if (frame) {
+      this._ctx.drawImage(
+        frame,
+        0,
+        0,
+        this._ctx.canvas.width,
+        this._ctx.canvas.height,
       );
-      if (curTsUs <= 0) return true;
+      frame.close();
 
-      let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
-      const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
-      if (frame) {
-        this._ctx.drawImage(
-          frame,
-          0,
-          0,
-          this._ctx.canvas.width,
-          this._ctx.canvas.height,
-        );
-        frame.close();
+      let availableMs =
+        (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
+      if (availableMs < 0) availableMs = 0;
+      this._state.setAvailableVideoMs(availableMs);
 
-        let availableMs =
-          (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
-        if (availableMs < 0) availableMs = 0;
-        this._state.setAvailableVideoMs(availableMs);
+      if (this._isAutoAbr()) {
+        let curTimeMs = performance.now();
+        if (
+          this._lastBufReportMs > 0 &&
+          curTimeMs - this._lastBufReportMs >= 100
+        ) {
+          this._reportBufferLevel(availableMs);
+          this._lastBufReportMs = curTimeMs;
+        }
       }
     }
   }
 
-  _onVideoSetupReceived(data) {
-    if (!data || !data.config) {
-      this._noVideo = true;
-      return;
-    }
-
-    if (this._isNextRenditionTrack(data.trackId)) {
-      return this._createNextRenditionFlow("video", data);
-    }
-
-    if (this._vDecoderFlow) {
-      this._logger.warn("Received video setup while video flow already exist");
-      return;
-    }
-
-    this._vDecoderFlow = new DecoderFlowVideo(data.trackId, data.timescale);
-    this._vDecoderFlow.onStartTsNotSet = this._onVideoStartTsNotSet.bind(this);
-    this._vDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    if (this._config.adaptiveBitrate) {
-      this._vDecoderFlow.onSwitchResult = (done) => {
-        this._onRenditionSwitchResult("video", done);
-      };
-      this._vDecoderFlow.onInputCancel = () => {
-        this._sldpManager.cancelStream(this._vDecoderFlow.trackId);
-      };
-    }
-    this._vDecoderFlow.setConfig(data.config);
-  }
-
-  _onAudioSetupReceived(data) {
-    if (!data || !data.config) {
-      this._startNoAudioMode();
-      return;
-    }
-
-    if (this._isNextRenditionTrack(data.trackId)) {
-      return this._createNextRenditionFlow("audio", data);
-    }
-
-    if (this._aDecoderFlow) {
-      this._logger.warn("Received audio setup while audio flow already exist");
-      return;
-    }
-
-    this._aDecoderFlow = new DecoderFlowAudio(data.trackId, data.timescale);
-    this._aDecoderFlow.onStartTsNotSet = this._onAudioStartTsNotSet.bind(this);
-    this._aDecoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    if (this._config.adaptiveBitrate) {
-      this._aDecoderFlow.onSwitchResult = (done) => {
-        this._onRenditionSwitchResult("audio", done);
-      };
-      this._aDecoderFlow.onInputCancel = () => {
-        this._sldpManager.cancelStream(this._aDecoderFlow.trackId);
-      };
-    }
-    this._aDecoderFlow.setConfig(data.config);
-  }
-
-  _isNextRenditionTrack(trackId) {
-    return (
-      this._nextRenditionData && this._nextRenditionData.trackId === trackId
+  _createMainDecoderFlow(type, data) {
+    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
+    this._decoderFlows[type] = new flowClass(
+      this._config.instanceName,
+      data.trackId,
+      data.timescale,
     );
+
+    let decoderFlow = this._decoderFlows[type];
+    decoderFlow.onStartTsNotSet =
+      type === "video"
+        ? this._onVideoStartTsNotSet.bind(this)
+        : this._onAudioStartTsNotSet.bind(this);
+    decoderFlow.onDecodingError = this._onDecodingError.bind(this);
+    if (this._config.adaptiveBitrate) {
+      decoderFlow.onSwitchResult = (done) => {
+        this._onRenditionSwitchResult(type, done);
+      };
+      decoderFlow.onInputCancel = () => {
+        this._sldpManager.cancelStream(decoderFlow.trackId);
+      };
+    }
+    decoderFlow.setConfig(data.config);
   }
 
   _createNextRenditionFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
     this._nextRenditionData.decoderFlow = new flowClass(
+      this._config.instanceName,
       data.trackId,
       data.timescale,
     );
@@ -297,104 +264,26 @@ export default class Nimio {
     this._nextRenditionData.decoderFlow.setConfig(data.config);
   }
 
-  _onVideoCodecDataReceived(data) {
-    let decoderFlow = this._vDecoderFlow;
-    let buffer = this._videoBuffer;
-    if (this._isNextRenditionTrack(data.trackId)) {
-      decoderFlow = this._nextRenditionData.decoderFlow;
-      buffer = this._tempBuffer;
-      this._vDecoderFlow.switchTo(decoderFlow);
-    }
-
-    decoderFlow.setCodecData({ codecData: data.data });
-    decoderFlow.setBuffer(buffer, this._state);
-  }
-
-  _onAudioCodecDataReceived(data) {
-    let audioAvailable = true;
-    let prevConfig = this._audioService.currentConfig;
-    let config = this._audioService.parseAudioConfig(data.data, data.family);
-    let decoderFlow, buffer;
-    if (this._isNextRenditionTrack(data.trackId)) {
-      if (!config || !this._audioService.isConfigCompatible(prevConfig)) {
-        this._logger.warn(
-          "Received incompatible audio config for next rendition",
-          data.trackId,
-          prevConfig,
-          config,
-        );
-        this._audioService.setConfig(prevConfig);
-        this._nextRenditionData.decoderFlow.destroy();
-        this._onRenditionSwitchResult("audio", false);
-        return;
-      }
-
-      decoderFlow = this._nextRenditionData.decoderFlow;
-      buffer = this._tempBuffer;
-      this._aDecoderFlow.switchTo(decoderFlow);
-    } else {
-      audioAvailable = this._prepareAudioOutput(config);
-      decoderFlow = this._aDecoderFlow;
-      buffer = this._audioBuffer;
-    }
-
-    if (audioAvailable) {
-      decoderFlow.setCodecData({ codecData: data.data, config: config });
-      decoderFlow.setBuffer(buffer, this._state);
-    }
-  }
-
-  _prepareAudioOutput(config) {
-    if (!config) {
-      if (!this._noAudio) {
-        this._startNoAudioMode();
-      }
-      return false;
-    }
-
-    if (this._noAudio) {
-      // Stop no audio mode if it was started previously
-      this._stopAudio();
-    }
-
-    this._audioBuffer = WritableAudioBuffer.allocate(
-      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
-      config.sampleRate,
-      config.numberOfChannels,
-      config.sampleCount,
+  _isNextRenditionTrack(trackId) {
+    return (
+      this._nextRenditionData && this._nextRenditionData.trackId === trackId
     );
-
-    this._audioBuffer.addPreprocessor(
-      new AudioGapsProcessor(
-        this._audioService.sampleCount,
-        this._audioService.sampleRate,
-      ),
-    );
-
-    return true;
-  }
-
-  _onVideoChunkReceived(data) {
-    this._processChunk(this._vDecoderFlow, data);
-  }
-
-  _onAudioChunkReceived(data) {
-    this._processChunk(this._aDecoderFlow, data);
-  }
-
-  _processChunk(flow, data) {
-    let res = flow.processChunk(data);
-    if (!res && this._isNextRenditionTrack(data.trackId)) {
-      this._nextRenditionData.decoderFlow.processChunk(data);
-    }
   }
 
   _onRenditionSwitchResult(type, done) {
     if (done) {
-      this._context.setCurrentStream(type, this._nextRenditionData.idx);
+      this._context.setCurrentStream(
+        type,
+        this._nextRenditionData.idx,
+        this._nextRenditionData.trackId,
+      );
     }
     let nextId = this._nextRenditionData.idx + 1;
     this._nextRenditionData = null;
+    if (this._isAutoAbr()) {
+      this._abrController.restart(true);
+    }
+
     this._logger.debug(
       `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
@@ -445,6 +334,36 @@ export default class Nimio {
     }
   }
 
+  _prepareAudioOutput(config) {
+    if (!config) {
+      if (!this._noAudio) {
+        this._startNoAudioMode();
+      }
+      return false;
+    }
+
+    if (this._noAudio) {
+      // Stop no audio mode if it was started previously
+      this._stopAudio();
+    }
+
+    this._audioBuffer = WritableAudioBuffer.allocate(
+      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
+      config.sampleRate,
+      config.numberOfChannels,
+      config.sampleCount,
+    );
+
+    this._audioBuffer.addPreprocessor(
+      new AudioGapsProcessor(
+        this._audioConfig.sampleCount,
+        this._audioConfig.sampleRate,
+      ),
+    );
+
+    return true;
+  }
+
   async _initAudioContext(sampleRate, channels, idle) {
     if (!this._audioContext) {
       this._audioContext = new AudioContext({
@@ -480,7 +399,7 @@ export default class Nimio {
     };
 
     if (!idle && this._audioBuffer) {
-      procOptions.sampleCount = this._audioService.sampleCount;
+      procOptions.sampleCount = this._audioConfig.sampleCount;
       procOptions.audioSab = this._audioBuffer.buffer;
       procOptions.capacity = this._audioBuffer.bufferCapacity;
     }
@@ -512,6 +431,17 @@ export default class Nimio {
     }
     this._noAudio = false;
   }
+
+  _reportBufferLevel(ms) {
+    let trackId = this._decoderFlows["video"].trackId;
+    this._metricsManager.reportBufLevel(trackId, ms / 1000);
+    if (ms < this._lowBufferMs) {
+      this._metricsManager.reportLowBuffer(trackId);
+    }
+  }
 }
 
-Object.assign(Nimio.prototype, NimioApi);
+Object.assign(Nimio.prototype, EventMixin);
+Object.assign(Nimio.prototype, NimioTransport);
+Object.assign(Nimio.prototype, NimioRenditions);
+Object.assign(Nimio.prototype, NimioAbr);

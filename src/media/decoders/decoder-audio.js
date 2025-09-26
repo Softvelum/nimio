@@ -1,4 +1,4 @@
-import { RingBuffer } from "@/shared/ring-buffer.js";
+import { RingBuffer } from "@/shared/ring-buffer";
 import { adjustCodecId } from "./checker";
 
 let audioDecoder;
