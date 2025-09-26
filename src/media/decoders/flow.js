@@ -157,12 +157,12 @@ export class DecoderFlow {
         if (this._switchContext) {
           this._updateSwitchTimestamps(frame.timestamp);
           this._switchContext.handleFrame(frame);
-          if (this._switchContext.src) break;
+          if (this._switchContext?.src) break;
         }
         await this._handleDecoderOutput(frame, e.data);
         break;
       case "decoderError":
-        if (this._switchContext && this._switchContext.src) {
+        if (this._switchContext?.src) {
           this._onSwitchResult(false);
           this.destroy();
           break;
