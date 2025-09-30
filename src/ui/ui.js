@@ -106,6 +106,11 @@ export class Ui {
     this.btnPlayPause.style.opacity = "0";
   }
 
+  get size() {
+    let box = this.canvas.getBoundingClientRect();
+    return [box.width, box.height];
+  }
+
   _hanldleClick(e, onPlayPause) {
     let isPlayClicked = false;
     if ("pause" === this.state) {

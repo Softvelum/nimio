@@ -1,0 +1,75 @@
+import { multiInstanceService } from "@/shared/service";
+import LoggersFactory from "@/shared/logger";
+import { MetricsStore } from "./store";
+
+class MetricsManager {
+  constructor(instName) {
+    this._instName = instName;
+    this._logger = LoggersFactory.create(instName, "MetricsManager");
+    this._metrics = new Map();
+  }
+
+  add(id, type) {
+    if (undefined !== this._metrics.get(id)) {
+      this._logger.error(`metric for ID ${id} already exists. Overwriting.`);
+    }
+    let m = new MetricsStore(this._instName, id, type);
+    this._metrics.set(id, m);
+    return m;
+  }
+
+  remove(id) {
+    let m = this._findMetricFor("remove", id);
+    if (!m) return null;
+
+    m.destroy();
+    this._metrics.delete(id);
+    return m;
+  }
+
+  run(id) {
+    this._exec("start", id);
+  }
+
+  stop(id) {
+    this._exec("stop", id);
+  }
+
+  reportBandwidth(id, bytes, timestamp) {
+    this._exec("reportBandwidth", id, bytes, timestamp);
+  }
+
+  reportBufLevel(id, lvl) {
+    this._exec("reportBufLevel", id, lvl);
+  }
+
+  reportLowBuffer(id) {
+    this._exec("reportLowBuffer", id);
+  }
+
+  getFrameDuration(id) {
+    return this._exec("getFrameDuration", id);
+  }
+
+  getMetric(id) {
+    return this._findMetricFor("getMetric", id);
+  }
+
+  _exec(op, id, ...args) {
+    let m = this._findMetricFor(op, id);
+    if (!m) return;
+    return m[op](...args);
+  }
+
+  _findMetricFor(op, id) {
+    let m = this._metrics.get(id);
+    if (!m) {
+      this._logger.debug(`${op}: no metric found for ${id} track.`);
+      return null;
+    }
+    return m;
+  }
+}
+
+MetricsManager = multiInstanceService(MetricsManager);
+export { MetricsManager };

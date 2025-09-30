@@ -36,7 +36,7 @@ export class SLDPAgent {
     }
     let timescale = this._timescale[trackId];
     if (!timescale) {
-      console.warn(
+      console.debug(
         `Timescale for track ${trackId} not found, cannot process frame`,
       );
       return;
@@ -84,7 +84,7 @@ export class SLDPAgent {
 
         tsSec = (timestamp + compositionOffset) / (timescale / 1000);
         tsUs = Math.round(1000 * tsSec);
-        // console.log(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
+        // console.debug(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
         this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
@@ -106,7 +106,7 @@ export class SLDPAgent {
   }
 
   processStatus(msg) {
-    console.debug("Command received", msg);
+    console.debug("Status received", msg);
     const status = JSON.parse(msg);
     if (
       !status.info ||
@@ -121,11 +121,7 @@ export class SLDPAgent {
       this._steady = !!status.steady;
     }
 
-    self.postMessage({
-      type: "status",
-      data: status.info,
-    });
-
+    self.postMessage({ type: "status", data: status.info });
     this._codecDataStatus = {};
   }
 

@@ -1,27 +1,36 @@
+import { PlaybackContext } from "@/playback/context";
 import LoggersFactory from "@/shared/logger";
 
 export class SLDPManager {
-  constructor(instName, transport, context, config) {
+  constructor(instName) {
     this._curStreams = [];
     this._reqStreams = {};
     this._nextSN = 1;
+    this._nextPN = 1;
+    this._snMod = parseInt("80", 16);
+
+    this._context = PlaybackContext.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, "SLDP Manager");
+    // TODO: set from config.syncBuffer
+    this._useSteady = false;
+  }
+
+  init(transport, config) {
+    if (this._transport) {
+      this._logger.error("SLDP Manager already initialized");
+      return;
+    }
 
     this._startOffset = config.startOffset || 0;
     this._hasVideo = !config.audioOnly;
     this._hasAudio = !config.videoOnly;
     this._initRend = config.adaptiveBitrate.initialRendition;
 
-    // TODO: set from config.syncBuffer
-    this._useSteady = false;
-
     this._transport = transport;
     this._transport.setCallback("status", async (msg) => {
       await this._processStatus(msg);
       this._play(this._curStreams);
     });
-
-    this._context = context;
-    this._logger = LoggersFactory.create(instName, "SLDP Manager");
   }
 
   start(url) {
@@ -48,14 +57,12 @@ export class SLDPManager {
     this._transport.send("removeTimescale", sns);
   }
 
-  requestStream(type, idx) {
-    let stream = this._context.streams[idx];
-    if (!stream) {
-      this._logger.error(`Stream with index ${idx} not found`);
-      return;
-    }
+  requestStream(type, idx, offset) {
+    let stream = this._getStream(idx);
+    if (!stream) return;
 
-    let ss = this._serializeStream(type, stream, 0);
+    if (offset === undefined) offset = 0;
+    let ss = this._serializeStream(type, stream, offset);
     let setup = this._setupObject(type, ss.sn, stream.stream_info);
 
     setTimeout(() => {
@@ -69,6 +76,20 @@ export class SLDPManager {
     return ss.sn;
   }
 
+  probeStream(type, idx, duration) {
+    this._logger.debug(`probe ${type} stream ${idx} for ${duration}ms`);
+    let stream = this._getStream(idx);
+    if (!stream) return;
+
+    let sp = this._serializeProbe(type, stream, duration);
+    let timescale = stream.stream_info.vtimescale;
+    if (type === "audio") timescale = stream.stream_info.atimescale;
+    this._transport.send("timescale", { [sp.sn]: timescale });
+
+    this._play([sp]);
+    return sp.sn;
+  }
+
   cancelStream(sn) {
     let idx = this._reqStreams[sn];
     if (idx === undefined) {
@@ -78,6 +99,14 @@ export class SLDPManager {
 
     delete this._reqStreams[sn];
     this._transport.send("stop", { sns: [sn] });
+    this._transport.send("removeTimescale", [sn]);
+  }
+
+  cancelProbe(sn, doRequest) {
+    this._logger.debug(`cancel probe SN ${sn}, req ${doRequest}`);
+    if (doRequest) {
+      this._transport.send("stop", { sns: [sn] });
+    }
     this._transport.send("removeTimescale", [sn]);
   }
 
@@ -145,16 +174,18 @@ export class SLDPManager {
     }
 
     if (gotVideo && vIdx !== undefined) {
-      let stream = this._context.setCurrentStream("video", vIdx);
-      let trackId = this._pushCurStream("video", stream);
+      let trackId = this._nextStreamNumber(true);
+      let stream = this._context.setCurrentStream("video", vIdx, trackId);
+      this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
       timescale[trackId] = vsetup.timescale;
       this._reqStreams[trackId] = vIdx;
     }
 
     if (gotAudio && aIdx !== undefined) {
-      let stream = this._context.setCurrentStream("audio", aIdx);
-      let trackId = this._pushCurStream("audio", stream);
+      let trackId = this._nextStreamNumber(true);
+      let stream = this._context.setCurrentStream("audio", aIdx, trackId);
+      this._pushCurStream("audio", stream);
       asetup = this._setupObject("audio", trackId, stream.stream_info);
       timescale[trackId] = asetup.timescale;
       this._reqStreams[trackId] = aIdx;
@@ -172,24 +203,47 @@ export class SLDPManager {
     return strm.sn;
   }
 
-  _serializeStream(type, stream, offset) {
-    let sn = this._streamNumber();
-    if (offset === undefined) {
-      offset = this._startOffset;
-    }
-
+  _serializeProbe(type, stream, duration) {
     return {
-      type: type,
+      sn: this._nextProbeNumber(),
       stream: stream.stream,
-      offset: offset,
-      sn: sn,
+      type: type,
+      offset: 10_000,
+      duration: duration,
     };
   }
 
-  _streamNumber() {
-    let sn = this._nextSN % parseInt("F0", 16);
-    this._nextSN++;
+  _getStream(idx) {
+    let stream = this._context.streams[idx];
+    if (!stream) {
+      this._logger.error(`Stream with index ${idx} not found`);
+    }
+    return stream;
+  }
+
+  _serializeStream(type, stream, offset) {
+    if (offset === undefined) offset = this._startOffset;
+
+    let res = {
+      sn: this._nextStreamNumber(),
+      stream: stream.stream,
+      type: type,
+      offset: offset,
+    };
+
+    return res;
+  }
+
+  _nextStreamNumber(omitIncrement) {
+    let sn = this._nextSN % this._snMod;
+    if (!omitIncrement) this._nextSN++;
     return sn;
+  }
+
+  _nextProbeNumber() {
+    let pn = this._snMod + (this._nextPN % this._snMod);
+    this._nextPN++;
+    return pn;
   }
 
   _setupObject(type, trackId, streamInfo) {

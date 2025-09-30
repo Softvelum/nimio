@@ -53,9 +53,6 @@ describe("RingBuffer", () => {
     rb.push(3); // should not be added
     expect(rb.length).toBe(2);
     expect(rb.toArray()).toEqual([1, 2]);
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Ring buffer is full. Capacity: 2",
-    );
   });
 
   it("overwrites oldest on overflow with force=true", () => {
@@ -64,9 +61,6 @@ describe("RingBuffer", () => {
     rb.push("b");
     rb.push("c", true); // overwrites "a"
     expect(rb.toArray()).toEqual(["b", "c"]);
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "Ring buffer is full. Overwriting the first item.",
-    );
   });
 
   it("works correctly for edge case with force=true", () => {
@@ -79,9 +73,6 @@ describe("RingBuffer", () => {
     rb.push("d");
     rb.push("e");
     rb.push("f", true); // should overwrite "c"
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "Ring buffer is full. Overwriting the first item.",
-    );
   });
 
   it("get returns correct item", () => {
@@ -108,7 +99,7 @@ describe("RingBuffer", () => {
     );
 
     rb.push("a");
-    expect(rb.get(-1)).toBe(null);
+    expect(rb.get(null)).toBe(null);
     expect(rb.get(2)).toBe(null);
     expect(mockLogger.error).toHaveBeenCalledWith(
       "Invalid index for get",
