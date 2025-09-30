@@ -128,6 +128,9 @@
 
 /* Volume */
 .volume{ display:inline-grid; grid-auto-flow:column; align-items:center; gap:8px; }
+.volume:hover .volume-range {
+    display: block;
+}
 .volume-range{
     display: none;
     -webkit-appearance:none; appearance:none;
@@ -143,9 +146,10 @@
     width:14px; height:14px; border-radius:50%; background:#fff; border:none;
     box-shadow:0 0 0 2px rgba(0,0,0,.35);
 }
-.icon-vol-0{ display:none; }
-.is-muted .icon-vol-1{ display:none; }
-.is-muted .icon-vol-0{ display:block; }
+.icon-vol-mute{ display:block; }
+.icon-vol-unmute{ display:none; }
+.is-muted .icon-vol-mute{ display:none; }
+.is-muted .icon-vol-unmute{ display:block; }
 
 /* Menu (renditions) */
 .menu{ position:relative; }

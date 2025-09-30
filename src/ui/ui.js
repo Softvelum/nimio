@@ -4,8 +4,9 @@ import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
 
 export class Ui {
-  constructor(container, opts, onPlayPause) {
+  constructor(container, opts, onPlayPause, onMuteUnmute, onVolumeChange) {
     this.state = "pause";
+    this.muted = false;
 
     this.container = document.getElementById(container);
     Object.assign(this.container.style, {
@@ -32,6 +33,9 @@ export class Ui {
     this.container.appendChild(this.btnPlayPause);
 
     this._onClick = (e) => this._hanldleClick(e, onPlayPause);
+    this._onMuteUnmuteClick = () => this._hanldleMuteUnmuteClick(onMuteUnmute);
+    this._onVolumeChange = (value) =>
+      this._hanldleVolumeChange(value, onVolumeChange);
     this.canvas.addEventListener("click", this._onClick);
 
     this._createControls();
@@ -50,6 +54,14 @@ export class Ui {
 
     this.buttonPlayPause = this.controlsBar.querySelector(".btn-play-pause");
     this.buttonPlayPause.addEventListener("click", this._onClick);
+
+    this.buttonVolume = this.controlsBar.querySelector(".btn-volume");
+    this.buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
+
+    this.volumeRange = this.controlsBar.querySelector(".volume-range");
+    this.volumeRange.addEventListener("input", (e) => {
+      this._onVolumeChange(Number(e.target.value));
+    });
 
     const style = document.createElement("style");
     style.textContent = controlsCss;
@@ -109,6 +121,7 @@ export class Ui {
   }
 
   hideControls(animate) {
+    return;
     this.btnPlayPause.style.transition = animate ? "opacity 0.5s ease" : "none";
     this.btnPlayPause.style.opacity = "0";
 
@@ -129,7 +142,30 @@ export class Ui {
     } else {
       this.drawPlay();
     }
-    onPlayPause(e, isPlayClicked);
+    onPlayPause?.(e, isPlayClicked);
+  }
+
+  _hanldleMuteUnmuteClick(onMuteUnmute) {
+    this.muted = !this.muted;
+    if (this.muted) {
+      this.buttonVolume.querySelector(".icon-vol-mute").style.display = "none";
+      this.buttonVolume.querySelector(".icon-vol-unmute").style.display =
+        "block";
+    } else {
+      this.buttonVolume.querySelector(".icon-vol-mute").style.display = "block";
+      this.buttonVolume.querySelector(".icon-vol-unmute").style.display =
+        "none";
+    }
+    onMuteUnmute?.(this.muted);
+  }
+
+  _hanldleVolumeChange(value, onVolumeChange) {
+    if (0 == value && !this.muted) {
+      this._onMuteUnmuteClick();
+    } else if (this.muted) {
+      this._onMuteUnmuteClick();
+    }
+    onVolumeChange?.(value);
   }
 
   _handleMouseMove(e) {
