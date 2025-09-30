@@ -415,16 +415,19 @@ export default class Nimio {
         processorOptions: procOptions,
       },
     );
+
     this._gainer = this._audioContext.createGain();
-    this._gainer.gain.value = 0.5;
     this._audioNode.connect(this._gainer);
     this._gainer.connect(this._audioContext.destination);
-
-    // this._audioNode.connect(this._audioContext.destination);
   }
 
-  setVolume(vol) {
-    this._gainer.gain.setValueAtTime(vol, this._audioContext.currentTime);
+  setVolume(val) {
+    this._gainer.gain.setValueAtTime(val / 100, this._audioContext.currentTime);
+    return true;
+  }
+
+  getVolume() {
+    return Math.round(this._gainer.gain.value * 100);
   }
 
   async _startNoAudioMode() {

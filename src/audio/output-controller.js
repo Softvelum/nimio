@@ -6,8 +6,6 @@ class AudioOutputController {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, "AudioOutputController");
   }
-
-  
 }
 
 AudioOutputController = multiInstanceService(AudioOutputController);
