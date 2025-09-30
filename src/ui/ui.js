@@ -31,10 +31,10 @@ export class Ui {
     this.btnPlayPause.appendChild(this.button);
     this.container.appendChild(this.btnPlayPause);
 
-    this._createControls();
-
     this._onClick = (e) => this._hanldleClick(e, onPlayPause);
-    this.container.addEventListener("click", this._onClick);
+    this.canvas.addEventListener("click", this._onClick);
+
+    this._createControls();
 
     this.setupEasing();
   }
@@ -48,8 +48,8 @@ export class Ui {
 
     this.container.appendChild(frag);
 
-    this.playButton = this.controlsBar.querySelector(".btn-play");
-    // this.playButton.style.display = "none";
+    this.buttonPlayPause = this.controlsBar.querySelector(".btn-play-pause");
+    this.buttonPlayPause.addEventListener("click", this._onClick);
 
     const style = document.createElement("style");
     style.textContent = controlsCss;
@@ -88,22 +88,32 @@ export class Ui {
     this.state = "pause";
     this.button.classList.remove("pause");
     this.button.classList.add("play");
+    this.buttonPlayPause.querySelector(".icon-play").style.display = "block";
+    this.buttonPlayPause.querySelector(".icon-pause").style.display = "none";
   }
 
   drawPause() {
     this.state = "play";
     this.button.classList.remove("play");
     this.button.classList.add("pause");
+    this.buttonPlayPause.querySelector(".icon-play").style.display = "none";
+    this.buttonPlayPause.querySelector(".icon-pause").style.display = "block";
   }
 
   showControls(animate) {
     this.btnPlayPause.style.transition = animate ? "opacity 0.2s ease" : "none";
     this.btnPlayPause.style.opacity = "0.7";
+
+    this.controlsBar.style.transition = animate ? "opacity 0.2s ease" : "none";
+    this.controlsBar.style.opacity = "1";
   }
 
   hideControls(animate) {
     this.btnPlayPause.style.transition = animate ? "opacity 0.5s ease" : "none";
     this.btnPlayPause.style.opacity = "0";
+
+    this.controlsBar.style.transition = animate ? "opacity 0.2s ease" : "none";
+    this.controlsBar.style.opacity = "0";
   }
 
   get size() {

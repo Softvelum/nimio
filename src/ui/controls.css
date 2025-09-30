@@ -119,12 +119,12 @@
 .btn:active{ transform:translateY(1px) scale(.98); }
 .btn:focus-visible{ outline:none; border-color:rgba(120,180,255,.9); box-shadow:var(--focus); }
 
-/* Play/Pause icon toggle via .is-paused on .btn-play */
-.btn-play .icon-pause{ display:none; }
-.btn-play.is-paused .icon-play{ display:block; }
-.btn-play.is-paused .icon-pause{ display:none; }
-.btn-play:not(.is-paused) .icon-play{ display:none; }
-.btn-play:not(.is-paused) .icon-pause{ display:block; }
+/* Play/Pause icon toggle via .is-paused on .btn-play-pause */
+.btn-play-pause .icon-pause{ display:none; }
+.btn-play-pause.is-paused .icon-play{ display:block; }
+.btn-play-pause.is-paused .icon-pause{ display:none; }
+.btn-play-pause:not(.is-paused) .icon-play{ display:none; }
+.btn-play-pause:not(.is-paused) .icon-pause{ display:block; }
 
 /* Volume */
 .volume{ display:inline-grid; grid-auto-flow:column; align-items:center; gap:8px; }
