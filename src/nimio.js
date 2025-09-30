@@ -1,4 +1,4 @@
-import workletUrl from "./audio-worklet-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
+import audioWorkletUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
 import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
@@ -11,13 +11,14 @@ import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
-import { AudioConfig } from "./audio-config";
+import { AudioConfig } from "./audio/config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
 import { NimioTransport } from "./nimio-transport";
 import { NimioRenditions } from "./nimio-renditions";
 import { NimioAbr } from "./nimio-abr";
 import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
+import { AudioContextProvider } from "./audio/context-provider";
 
 export default class Nimio {
   constructor(options) {
@@ -82,6 +83,7 @@ export default class Nimio {
 
     this._audioWorkletReady = null;
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
+    this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._createAbrController();
 
     if (this._config.autoplay) {
@@ -366,10 +368,9 @@ export default class Nimio {
 
   async _initAudioContext(sampleRate, channels, idle) {
     if (!this._audioContext) {
-      this._audioContext = new AudioContext({
-        latencyHint: "interactive",
-        sampleRate: sampleRate,
-      });
+      this._audioCtxProvider.init(sampleRate);
+      this._audioCtxProvider.setChannelCount(channels);
+      this._audioContext = this._audioCtxProvider.get();
 
       if (sampleRate !== this._audioContext.sampleRate) {
         this._logger.error(
@@ -381,7 +382,7 @@ export default class Nimio {
 
       // load processor
       this._audioWorkletReady = this._audioContext.audioWorklet
-        .addModule(workletUrl)
+        .addModule(audioWorkletUrl)
         .catch((err) => {
           this._logger.error("Audio worklet error", err);
         });
@@ -406,7 +407,7 @@ export default class Nimio {
 
     this._audioNode = new AudioWorkletNode(
       this._audioContext,
-      "nimio-processor",
+      "audio-nimio-processor",
       {
         numberOfInputs: 0,
         numberOfOutputs: 1,
@@ -414,8 +415,16 @@ export default class Nimio {
         processorOptions: procOptions,
       },
     );
+    this._gainer = this._audioContext.createGain();
+    this._gainer.gain.value = 0.5;
+    this._audioNode.connect(this._gainer);
+    this._gainer.connect(this._audioContext.destination);
 
-    this._audioNode.connect(this._audioContext.destination);
+    // this._audioNode.connect(this._audioContext.destination);
+  }
+
+  setVolume(vol) {
+    this._gainer.gain.setValueAtTime(vol, this._audioContext.currentTime);
   }
 
   async _startNoAudioMode() {

@@ -1,9 +1,9 @@
-import { StateManager } from "./state-manager";
-import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer";
-import { AudioConfig } from "./audio-config";
-import LoggersFactory from "./shared/logger";
+import { StateManager } from "@/state-manager";
+import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
+import { AudioConfig } from "./config";
+import LoggersFactory from "@/shared/logger";
 
-class NimioProcessor extends AudioWorkletProcessor {
+class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
@@ -137,4 +137,4 @@ class NimioProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("nimio-processor", NimioProcessor);
+registerProcessor("audio-nimio-processor", AudioNimioProcessor);
