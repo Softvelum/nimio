@@ -121,7 +121,6 @@ export class Ui {
   }
 
   hideControls(animate) {
-    return;
     this.btnPlayPause.style.transition = animate ? "opacity 0.5s ease" : "none";
     this.btnPlayPause.style.opacity = "0";
 
