@@ -1,5 +1,5 @@
 import { multiInstanceService } from "@/shared/service";
-import VUMeterFactory from "./factory";
+import { VUMeterFactory } from "./factory";
 
 class VUMeterController {
   constructor(instName) {
@@ -11,7 +11,7 @@ class VUMeterController {
 
     if (this._settings && this._settings.mode && this._settings.type) {
       this._inst = new VUMeterFactory(this._instName).create(this._settings);
-      if (this._inst !== undefined) {
+      if (this._inst) {
         if (this._settings.container) {
           this._inst.setUI(this._settings.container);
         }

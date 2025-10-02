@@ -67,28 +67,28 @@ export class VUMeterUI {
   }
 
   destroy(total) {
-    if (this.meter) {
-      if (this.fullValue) {
-        for (let i = 0; i < this.fullValueItems.length; i++) {
-          this.meter.removeChild(this.fullValueItems[i]);
-        }
-        this.fullValueItems = [];
-        this.channelLevels = [];
-        this.fullValue = false;
-      }
+    if (!this.meter) return;
 
-      if (total) {
-        this.container.removeChild(this.meter);
-        this.meter = undefined;
+    if (this.fullValue) {
+      for (let i = 0; i < this.fullValueItems.length; i++) {
+        this.meter.removeChild(this.fullValueItems[i]);
       }
+      this.fullValueItems = [];
+      this.channelLevels = [];
+      this.fullValue = false;
+    }
+
+    if (total) {
+      this.container.removeChild(this.meter);
+      this.meter = undefined;
     }
   }
 
   update(values) {
-    if (this.meter) {
-      for (let i = 0; i < this.channels; i++) {
-        this.levelValues[i] = this._calcLevel(values[i]);
-      }
+    if (!this.meter) return;
+
+    for (let i = 0; i < this.channels; i++) {
+      this.levelValues[i] = this._calcLevel(values[i]);
     }
   }
 
@@ -130,11 +130,11 @@ export class VUMeterUI {
   }
 
   _removePlaceholder() {
-    if (this.placeholder) {
-      this.container.removeChild(this.meter);
-      this.meter = undefined;
-      this.placeholder = false;
-    }
+    if (!this.placeholder) return;
+
+    this.container.removeChild(this.meter);
+    this.meter = undefined;
+    this.placeholder = false;
   }
 
   _createMeterDiv() {
@@ -233,15 +233,15 @@ export class VUMeterUI {
   }
 
   _drawMeter() {
-    if (this.fullValue) {
-      for (let i = 0; i < this.channels; i++) {
-        if (this.vertical) {
-          this.channelLevels[i].style.height = this.levelValues[i] + "px";
-        } else {
-          this.channelLevels[i].style.width = this.levelValues[i] + "px";
-        }
+    if (!this.fullValue) return;
+
+    for (let i = 0; i < this.channels; i++) {
+      if (this.vertical) {
+        this.channelLevels[i].style.height = this.levelValues[i] + "px";
+      } else {
+        this.channelLevels[i].style.width = this.levelValues[i] + "px";
       }
-      window.requestAnimationFrame(() => this._drawMeter());
     }
+    window.requestAnimationFrame(() => this._drawMeter());
   }
 }

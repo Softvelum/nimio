@@ -19,6 +19,19 @@ import { NimioAbr } from "./nimio-abr";
 import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
 import { AudioContextProvider } from "./audio/context-provider";
+import { ScriptPathProvider } from "./shared/script-path-provider";
+
+let scriptPath;
+if (document.currentScript === null) {
+  // Javascript module
+  scriptPath = import.meta.url;
+} else if (document.currentScript) {
+  // Javascript library
+  scriptPath = document.currentScript.src;
+}
+if (scriptPath) {
+  scriptPath = scriptPath.substr( 0, scriptPath.lastIndexOf('/') + 1 );
+}
 
 export default class Nimio {
   constructor(options) {
@@ -26,6 +39,7 @@ export default class Nimio {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
     }
     this._instName = options.instanceName;
+    ScriptPathProvider.getInstance(this._instName).setScriptPath(scriptPath);
 
     this._config = createConfig(options);
     this._logger = LoggersFactory.create(this._instName, "Nimio");

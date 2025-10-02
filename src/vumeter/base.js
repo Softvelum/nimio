@@ -1,9 +1,8 @@
-import VUMeterUI from "./ui";
-import AudioContextProvider from "media/audio_context_provider";
-import AudioGraphController from "media/audio_graph_controller";
+import { AudioContextProvider } from "@/audio/context-provider";
+import { VUMeterUI } from "./ui";
 import LoggersFactory from "@/shared/logger";
 
-class BaseMeter {
+export class BaseMeter {
   constructor(dbRange, rate, instName) {
     this.dbRange = dbRange || 100;
     this.dbMult = 20; // min level 0.00001 -> 100 dB
@@ -155,5 +154,3 @@ class BaseMeter {
     return db;
   }
 }
-
-export default BaseMeter;

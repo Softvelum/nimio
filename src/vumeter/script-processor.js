@@ -1,6 +1,6 @@
-import BaseMeter from "./base_meter";
+import { BaseMeter } from "./base_meter";
 
-class ScriptProcessorMeter extends BaseMeter {
+export class ScriptProcessorMeter extends BaseMeter {
   constructor(settings, instName) {
     super(settings.db_range, settings.rate, instName);
     this.mode = settings.mode;
@@ -12,11 +12,7 @@ class ScriptProcessorMeter extends BaseMeter {
     }[this.mode];
     this.channelData = [];
     this.logger.debug(
-      "ScriptProcessor VU meter constructor: ",
-      this.mode,
-      this.type,
-      this.dbRange,
-      this.rate,
+      `ScriptProcessor VU meter constructor: mode=${this.mode}, type=${this.type}, dbRange=${this.dbRange}, rate=${this.rate}`,
     );
   }
 
@@ -37,8 +33,7 @@ class ScriptProcessorMeter extends BaseMeter {
   _createMeter() {
     if (undefined === this.meter) {
       this.logger.debug(
-        "Create ScriptProcessor meter, channels =",
-        this.channels,
+        `Create ScriptProcessor meter, channels =${this.channels}`,
       );
       this._initValues();
       this.meter = this.context.createScriptProcessor(
@@ -48,19 +43,16 @@ class ScriptProcessorMeter extends BaseMeter {
       );
 
       if ("input" === this.type) {
-        this.gainer = this.context.createGain();
-        this.gainer.gain.value = 1;
         // source -> meter -> gainer -> destination
         //      \-------------/
-        this.meter.connect(this.gainer);
-        this.audGraphCtrl.addVumeterChain(
+        this.audGraphCtrl.appendNode(
           [this.meter, this.gainer],
           [this.gainer],
         );
       } else {
         // source -> meter -> destination
         //      \-------------/
-        this.audGraphCtrl.addVumeterChain([this.meter, "dest"], [this.meter]);
+        this.audGraphCtrl.appendNode([this.meter, "dest"], [this.meter]);
       }
 
       this.meter.onaudioprocess = (ev) => this._updateMeter(ev);
@@ -179,5 +171,3 @@ class ScriptProcessorMeter extends BaseMeter {
     }
   }
 }
-
-export default ScriptProcessorMeter;

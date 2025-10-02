@@ -9,7 +9,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
 
     this._logger = LoggersFactory.create(
       options.processorOptions.instanceName,
-      "Audio worklet",
+      "AudioNimioProcessor",
     );
 
     this.stateManager = new StateManager(options.processorOptions.stateSab);

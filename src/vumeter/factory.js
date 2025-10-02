@@ -1,5 +1,5 @@
-import ScriptProcessorMeter from "./script-processor";
-import AudioWorkletMeter from "./audio-worklet";
+import { ScriptProcessorMeter } from "./script-processor";
+import { AudioWorkletMeter } from "./audio-worklet";
 
 function VUMeterFactory(instName) {
   return {
@@ -26,4 +26,5 @@ function VUMeterFactory(instName) {
     },
   };
 }
-export default VUMeterFactory;
+
+export { VUMeterFactory };

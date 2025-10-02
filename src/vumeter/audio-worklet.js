@@ -1,6 +1,6 @@
-import ScriptPathProvider from "shared/script_path_provider";
-import BaseMeter from "./base_meter";
-import vuProcessorUrl from "./vu_audio_processor.worklet.js";
+import vuProcessorUrl from "./audio-processor.worklet?worker&url";
+import { ScriptPathProvider } from "@/shared/script-path-provider";
+import { BaseMeter } from "./base_meter";
 
 class AudioWorkletMeter extends BaseMeter {
   constructor(settings, instName) {
@@ -10,16 +10,11 @@ class AudioWorkletMeter extends BaseMeter {
 
     this._spProvider = ScriptPathProvider.getInstance(instName);
     this.logger.debug(
-      "AudioWorklet VU meter constructor: ",
-      this.mode,
-      this.type,
-      this.dbRange,
-      this.rate,
+      `AudioWorklet VU meter constructor: mode=${this.mode}, type=${this.type}, dbRange=${this.dbRange}, rate=${this.rate}`
     );
   }
 
   setVolume(v) {
-    this.curVolume = v;
     if (this.gainer) {
       this.gainer.gain.setValueAtTime(v, this.context.currentTime);
     } else if (this.suspended) {
@@ -46,10 +41,6 @@ class AudioWorkletMeter extends BaseMeter {
     // For input type: source -> meter -> gainer -> destination
     // For output type: source -> meter -> destination
     if ("input" === this.type) {
-      this.gainer = this.context.createGain();
-      this.gainer.gain.value =
-        undefined !== this.curVolume ? this.curVolume : 1;
-      this.meter.connect(this.gainer);
       this.audGraphCtrl.addVumeterChain([this.meter], [this.gainer]);
     } else {
       this.audGraphCtrl.addVumeterChain([this.meter], [this.meter]);
@@ -108,16 +99,11 @@ class AudioWorkletMeter extends BaseMeter {
         this.audGraphCtrl.removeVumeterChain();
         if ("input" === this.type) {
           this.meter.disconnect(this.gainer);
-          this.gainer = undefined;
         }
-        this.meter = undefined;
-        this.curVolume = undefined;
       } catch (error) {
-        this.curVolume = undefined;
-        this.gainer = undefined;
-        this.meter = undefined;
         this.logger.warn("Exception caught: ", error);
       }
+      this.meter = undefined;
     }
   }
 
