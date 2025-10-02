@@ -47,7 +47,12 @@ export class Ui {
     this.canvas.addEventListener("click", this._onClick);
 
     this._createControls();
-    // this.setRenditions(["1080p", "760p", "480p", "360p"]);
+    // this.setRenditions([
+    //   { name: "1080p", id: 0 },
+    //   { name: "760p", id: 1 },
+    //   { name: "480p", id: 2 },
+    //   { name: "360p", id: 3 },
+    // ]);
 
     this.setupEasing();
   }
@@ -165,8 +170,10 @@ export class Ui {
       button.className = "menu-item";
       button.setAttribute("role", "menuitemradio");
       button.setAttribute("aria-checked", "false");
-      button.dataset.rendition = rendition;
-      button.textContent = rendition;
+      button.dataset.rendition = rendition.name;
+      button.textContent = rendition.name;
+
+      button._rendition = rendition;
 
       this.menuSection.appendChild(button);
     });
@@ -187,7 +194,9 @@ export class Ui {
       btn.setAttribute("aria-checked", btn === selectedBtn ? "true" : "false");
     });
 
-    this._onRenditionSelectedCallback(selectedBtn.dataset.rendition || "Auto");
+    this._onRenditionSelectedCallback(
+      selectedBtn._rendition || { name: "Auto" },
+    );
   }
 
   _hanldleClick(e, onPlayPause) {
