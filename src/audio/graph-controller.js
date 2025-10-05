@@ -10,7 +10,7 @@ class AudioGraphController {
     this._nodes = [];
   }
 
-  assemble(conns) {
+  assemble(...conns) {
     this._audCtx = this._audCtxProvider.get();
     for (let i = 0; i < conns.length; i++) {
       let s = this._getSource(conns[i][0]);
@@ -150,10 +150,10 @@ class AudioGraphController {
   }
 
   _getSource(s) {
-    return s === 'src' ? this._source : this._nodes[s];
+    return s === 'src' ? this._source : this._nodes[parseInt(s)];
   }
   _getDestination(d) {
-    return d === 'dst' ? this._audCtx.destination : this._nodes[d];
+    return d === 'dst' ? this._audCtx.destination : this._nodes[parseInt(d)];
   }
   _connect(s, d) {
     s.connect(d);

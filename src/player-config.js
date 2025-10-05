@@ -16,6 +16,8 @@ const DEFAULTS = {
   videoOnly: false,
   audioOnly: false,
   adaptiveBitrate: {},
+  volumeId: false,
+  muted: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -90,6 +92,9 @@ export function createConfig(overrides = {}) {
     target.latency + target.startOffset + target.pauseTimeout;
 
   initAbrSettings(target, logger);
+
+  // ID for storing the last volume level
+  target.volumeId = target.container;
 
   return new Proxy(target, {
     get(obj, prop) {

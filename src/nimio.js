@@ -19,6 +19,8 @@ import { NimioAbr } from "./nimio-abr";
 import { MetricsManager } from "./metrics/manager";
 import LoggersFactory from "./shared/logger";
 import { AudioContextProvider } from "./audio/context-provider";
+import { AudioGraphController } from "./audio/graph-controller";
+import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
 
 let scriptPath;
@@ -73,6 +75,12 @@ export default class Nimio {
         metricsOverlay: this._config.metricsOverlay,
       },
       this._onPlayPauseClick,
+      (mute) => {
+        mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
+      },
+      (volume) => {
+        this._audioVolumeCtrl.setVolume(volume);
+      },
     );
     this._pauseTimeoutId = null;
 
@@ -98,6 +106,8 @@ export default class Nimio {
     this._audioWorkletReady = null;
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
+    this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
+    this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
     this._createAbrController();
 
     if (this._config.autoplay) {
@@ -430,18 +440,10 @@ export default class Nimio {
       },
     );
 
-    this._gainer = this._audioContext.createGain();
-    this._audioNode.connect(this._gainer);
-    this._gainer.connect(this._audioContext.destination);
-  }
-
-  setVolume(val) {
-    this._gainer.gain.setValueAtTime(val / 100, this._audioContext.currentTime);
-    return true;
-  }
-
-  getVolume() {
-    return Math.round(this._gainer.gain.value * 100);
+    this._audioVolumeCtrl.init(this._audioContext, this._config);
+    this._audioGraphCtrl.setSource(this._audioNode);
+    this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node());
+    this._audioGraphCtrl.assemble(["src", 0], [0, "dst"]);
   }
 
   async _startNoAudioMode() {
