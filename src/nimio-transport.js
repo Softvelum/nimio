@@ -31,9 +31,10 @@ export const NimioTransport = {
 
     this._createMainDecoderFlow("video", data);
     if (this._isAutoAbr()) {
-      this._renditionProvider.init(this._config.adaptiveBitrate, this._ui.size);
+      this._rendProvider.init(this._config.adaptiveBitrate, this._ui.size);
       this._startAbrController();
     }
+    this._ui.setRenditions(this._makeUiRenditionList());
   },
 
   _onAudioSetupReceived(data) {
@@ -139,4 +140,16 @@ export const NimioTransport = {
       this._metricsManager.reportBandwidth(data.trackId, data.data.byteLength);
     }
   },
+
+  _makeUiRenditionList() {
+    let res = [];
+    // if (this._isAutoAbr()) {
+    //   res[0] = {name: "Auto", id: rId++};
+    // }
+    let renditions = this._context.videoRenditions;
+    for (let i = 0; i < renditions.length; i++) {
+      res.push({name: renditions[i].rendition, id: i});
+    }
+    return res;
+  }
 };
