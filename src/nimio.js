@@ -81,6 +81,14 @@ export default class Nimio {
       (volume) => {
         this._audioVolumeCtrl.setVolume(volume);
       },
+      (rend) => {
+        if (!rend) return false;
+        if (rend.name === "Auto") {
+          return this.startAbr();
+        }
+        this.stopAbr();
+        return this.setCurrentRendition("video", rend.id);
+      },
     );
     this._pauseTimeoutId = null;
 

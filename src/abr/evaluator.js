@@ -196,6 +196,9 @@ export class AbrEvaluator {
 
   calculateCurStreamMetric(metr) {
     let videoMetrics = this._metricsManager.getMetric(this._curStream.vId);
+    if (!videoMetrics) {
+      debugger;
+    }
     let result = videoMetrics[metr]();
     if (result < 0 || !(result >= 0)) result = 0;
     if (undefined !== this._curStream.aId) {

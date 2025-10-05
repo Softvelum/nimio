@@ -144,12 +144,12 @@ export const NimioTransport = {
   _makeUiRenditionList() {
     let res = [];
     // if (this._isAutoAbr()) {
-    //   res[0] = {name: "Auto", id: rId++};
+    //   res[0] = {name: "Auto", id: 0};
     // }
     let renditions = this._context.videoRenditions;
     for (let i = 0; i < renditions.length; i++) {
-      res.push({name: renditions[i].rendition, id: i});
+      res.push({ name: renditions[i].rendition, id: renditions[i].idx + 1 });
     }
     return res;
-  }
+  },
 };
