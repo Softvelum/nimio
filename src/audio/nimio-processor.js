@@ -1,15 +1,15 @@
-import { StateManager } from "./state-manager";
-import { ReadableAudioBuffer } from "./media/buffers/readable-audio-buffer";
-import { AudioConfig } from "./audio-config";
-import LoggersFactory from "./shared/logger";
+import { StateManager } from "@/state-manager";
+import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
+import { AudioConfig } from "./config";
+import LoggersFactory from "@/shared/logger";
 
-class NimioProcessor extends AudioWorkletProcessor {
+class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
     this._logger = LoggersFactory.create(
       options.processorOptions.instanceName,
-      "Audio worklet",
+      "AudioNimioProcessor",
     );
 
     this.stateManager = new StateManager(options.processorOptions.stateSab);
@@ -137,4 +137,4 @@ class NimioProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("nimio-processor", NimioProcessor);
+registerProcessor("audio-nimio-processor", AudioNimioProcessor);

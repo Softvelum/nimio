@@ -1,6 +1,6 @@
-import { parseAACConfig } from "./media/parsers/aac-config-parser";
-import { parseMp3Config } from "./media/parsers/mp3-config-parser";
-import { parseOpusConfig } from "./media/parsers/opus-config-parser";
+import { parseAACConfig } from "@/media/parsers/aac-config-parser";
+import { parseMp3Config } from "@/media/parsers/mp3-config-parser";
+import { parseOpusConfig } from "@/media/parsers/opus-config-parser";
 
 export class AudioConfig {
   constructor(sampleRate = 0, numberOfChannels = 0, sampleCount = 0) {
