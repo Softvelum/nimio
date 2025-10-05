@@ -4,7 +4,14 @@ import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
 
 export class Ui {
-  constructor(container, opts, onPlayPause, onMuteUnmute, onVolumeChange) {
+  constructor(
+    container,
+    opts,
+    onPlayPause,
+    onMuteUnmute,
+    onVolumeChange,
+    onRenditionSelected,
+  ) {
     this.state = "pause";
     this.muted = false;
 
@@ -33,12 +40,19 @@ export class Ui {
     this.container.appendChild(this.btnPlayPause);
 
     this._onClick = (e) => this._hanldleClick(e, onPlayPause);
+    this._onRenditionSelectedCallback = (r) => onRenditionSelected?.(r);
     this._onMuteUnmuteClick = () => this._hanldleMuteUnmuteClick(onMuteUnmute);
     this._onVolumeChange = (value) =>
       this._hanldleVolumeChange(value, onVolumeChange);
     this.canvas.addEventListener("click", this._onClick);
 
     this._createControls();
+    // this.setRenditions([
+    //   { name: "1080p", id: 0 },
+    //   { name: "760p", id: 1 },
+    //   { name: "480p", id: 2 },
+    //   { name: "360p", id: 3 },
+    // ]);
 
     this.setupEasing();
   }
@@ -62,6 +76,13 @@ export class Ui {
     this.volumeRange.addEventListener("input", (e) => {
       this._onVolumeChange(Number(e.target.value));
     });
+
+    this.buttonSettings = this.controlsBar.querySelector(".btn-settings");
+    this.buttonSettings.addEventListener("click", (e) =>
+      this._hanldleSettingsClick(e),
+    );
+    this.menuPopover = this.controlsBar.querySelector(".menu-popover");
+    this.menuSection = this.menuPopover.querySelector(".menu-section");
 
     const style = document.createElement("style");
     style.textContent = controlsCss;
@@ -133,6 +154,51 @@ export class Ui {
     return [box.width, box.height];
   }
 
+  setRenditions(renditions) {
+    if (!Array.isArray(renditions)) {
+      console.error("setRenditions: not an array");
+      return;
+    }
+
+    const autoBtn = this.menuSection.querySelector("button.rendition-auto");
+    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+      if (btn !== autoBtn) btn.remove();
+    });
+
+    renditions.forEach((rendition, index) => {
+      const button = document.createElement("button");
+      button.className = "menu-item";
+      button.setAttribute("role", "menuitemradio");
+      button.setAttribute("aria-checked", "false");
+      button.dataset.rendition = rendition.name;
+      button.textContent = rendition.name;
+
+      button._rendition = rendition;
+
+      this.menuSection.appendChild(button);
+    });
+
+    this.enableSelection();
+  }
+
+  enableSelection() {
+    this.menuSection.addEventListener("click", (e) => {
+      const btn = e.target.closest("button.menu-item");
+      if (!btn) return;
+      this.selectRendition(btn);
+    });
+  }
+
+  selectRendition(selectedBtn) {
+    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+      btn.setAttribute("aria-checked", btn === selectedBtn ? "true" : "false");
+    });
+
+    this._onRenditionSelectedCallback(
+      selectedBtn._rendition || { name: "Auto" },
+    );
+  }
+
   _hanldleClick(e, onPlayPause) {
     let isPlayClicked = false;
     if ("pause" === this.state) {
@@ -165,6 +231,10 @@ export class Ui {
       this._onMuteUnmuteClick();
     }
     onVolumeChange?.(value);
+  }
+
+  _hanldleSettingsClick(e) {
+    this.menuPopover.hidden = !this.menuPopover.hidden;
   }
 
   _handleMouseMove(e) {
