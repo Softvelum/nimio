@@ -16,7 +16,7 @@ class AudioGraphController {
       let s = this._getSource(conns[i][0]);
       let d = this._getDestination(conns[i][1]);
       if (!s || !d) {
-        this._logger.error(`Can't connect nodes ${conns[i][0]}->${conns[i][1]}`);
+        this._logger.error(`Can't connect nodes ${conns[i]}`, s, d);
         return false;
       }
     }
@@ -150,10 +150,10 @@ class AudioGraphController {
   }
 
   _getSource(s) {
-    return s === 'src' ? this._source : this._nodes[parseInt(s)];
+    return s === "src" ? this._source : this._nodes[parseInt(s)];
   }
   _getDestination(d) {
-    return d === 'dst' ? this._audCtx.destination : this._nodes[parseInt(d)];
+    return d === "dst" ? this._audCtx.destination : this._nodes[parseInt(d)];
   }
   _connect(s, d) {
     s.connect(d);

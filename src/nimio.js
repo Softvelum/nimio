@@ -32,7 +32,7 @@ if (document.currentScript === null) {
   scriptPath = document.currentScript.src;
 }
 if (scriptPath) {
-  scriptPath = scriptPath.substr( 0, scriptPath.lastIndexOf('/') + 1 );
+  scriptPath = scriptPath.substr(0, scriptPath.lastIndexOf("/") + 1);
 }
 
 export default class Nimio {
