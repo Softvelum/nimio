@@ -33,6 +33,7 @@
   -webkit-backdrop-filter: blur(8px);
   color: var(--fg);
   user-select: none;
+  margin: 0px;
 }
 
 /* SEEK ROW */
