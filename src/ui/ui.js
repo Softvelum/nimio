@@ -45,6 +45,7 @@ export class Ui {
     this._onVolumeChange = (value) =>
       this._hanldleVolumeChange(value, onVolumeChange);
     this.canvas.addEventListener("click", this._onClick);
+    this.btnPlayPause.addEventListener("click", this._onClick);
 
     this._createControls();
     // this.setRenditions([
