@@ -57,7 +57,7 @@ class VUMeterController {
   start() {
     if (!this._inst || !this._ui) return;
 
-    this._inst.start(this._ui.mediaElement);
+    this._inst.start();
     this._ui.setVUMeterHandler(this._inst);
     this._started = true;
   }

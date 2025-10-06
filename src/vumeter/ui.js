@@ -1,62 +1,62 @@
 export class VUMeterUI {
   constructor(container, dbRange) {
-    this.container = container;
-    this.vertical = true;
-    this.borderSize = 2;
-    this.fontSize = 10;
-    this.backgroundColor = "black";
-    this.tickColor = "#ddd";
-    this.gradient = ["red 1%", "#ff0 16%", "lime 45%", "#080 100%"];
-    this.dbRange = dbRange;
-    this.dbTickSize = 10;
-    this.levelTransition = "0.1s";
+    this._container = container;
+    this._vertical = true;
+    this._borderSize = 2;
+    this._fontSize = 10;
+    this._backgroundColor = "black";
+    this._tickColor = "#ddd";
+    this._gradient = ["red 1%", "#ff0 16%", "lime 45%", "#080 100%"];
+    this._dbRange = dbRange;
+    this._dbTickSize = 10;
+    this._levelTransition = "0.1s";
     this._createBasicView();
   }
 
   create(numChannels) {
-    if (this.fullValue) {
-      return;
-    } else if (undefined === this.meter) {
+    if (this._fullValue) return;
+    
+    if (!this._meter) {
       this._createBasicView();
     }
 
-    this.channels = numChannels;
+    this._channels = numChannels;
     this._createGradient();
 
-    let channelWidth = this.meterWidth / this.channels;
-    if (!this.vertical) {
-      channelWidth = this.meterHeight / this.channels;
+    let channelWidth = this._meterWidth / this._channels;
+    if (!this._vertical) {
+      channelWidth = this._meterHeight / this._channels;
     }
-    let channelLeft = this.tickWidth;
-    if (!this.vertical) {
-      channelLeft = this.meterTop;
+    let channelLeft = this._tickWidth;
+    if (!this._vertical) {
+      channelLeft = this._meterTop;
     }
-    for (let i = 0; i < this.channels; i++) {
+    for (let i = 0; i < this._channels; i++) {
       this._createChannelLevel(
-        this.borderSize * 2,
-        this.meterTop,
+        this._borderSize * 2,
+        this._meterTop,
         channelLeft,
         false,
       );
-      this.channelLevels[i] = this._createChannelLevel(
+      this._channelLevels[i] = this._createChannelLevel(
         channelWidth,
-        this.meterTop,
+        this._meterTop,
         channelLeft,
-        this.levelTransition,
+        this._levelTransition,
       );
       channelLeft += channelWidth;
-      this.levelValues[i] = this._calcLevel(-this.dbRange);
+      this._levelValues[i] = this._calcLevel(-this._dbRange);
     }
-    this.fullValue = true;
+    this._fullValue = true;
     this._drawMeter();
   }
 
   refresh(numChannels) {
     if (
-      this.container.clientWidth !== this.elementWidth ||
-      this.container.clientHeight !== this.elementHeight
+      this._container.clientWidth !== this._elementWidth ||
+      this._container.clientHeight !== this._elementHeight
     ) {
-      let isFull = this.fullValue;
+      let isFull = this._fullValue;
       this.destroy(true);
       if (isFull) {
         this.create(numChannels);
@@ -67,34 +67,34 @@ export class VUMeterUI {
   }
 
   destroy(total) {
-    if (!this.meter) return;
+    if (!this._meter) return;
 
-    if (this.fullValue) {
-      for (let i = 0; i < this.fullValueItems.length; i++) {
-        this.meter.removeChild(this.fullValueItems[i]);
+    if (this._fullValue) {
+      for (let i = 0; i < this._fullValueItems.length; i++) {
+        this._meter.removeChild(this._fullValueItems[i]);
       }
-      this.fullValueItems = [];
-      this.channelLevels = [];
-      this.fullValue = false;
+      this._fullValueItems = [];
+      this._channelLevels = [];
+      this._fullValue = false;
     }
 
     if (total) {
-      this.container.removeChild(this.meter);
-      this.meter = undefined;
+      this._container.removeChild(this._meter);
+      this._meter = undefined;
     }
   }
 
   update(values) {
-    if (!this.meter) return;
+    if (!this._meter) return;
 
-    for (let i = 0; i < this.channels; i++) {
-      this.levelValues[i] = this._calcLevel(values[i]);
+    for (let i = 0; i < this._channels; i++) {
+      this._levelValues[i] = this._calcLevel(values[i]);
     }
   }
 
   _calcLevel(val) {
-    let meterDimension = this.vertical ? this.meterHeight : this.meterWidth;
-    let result = Math.floor((val * meterDimension) / -this.dbRange);
+    let meterDimension = this._vertical ? this._meterHeight : this._meterWidth;
+    let result = Math.floor((val * meterDimension) / -this._dbRange);
     if (result < 0) {
       result = 0;
     } else if (result > meterDimension) {
@@ -104,142 +104,142 @@ export class VUMeterUI {
   }
 
   _setParams() {
-    this.tickWidth = this.fontSize * 2.0;
+    this._tickWidth = this._fontSize * 2.0;
 
-    this.elementWidth = this.container.clientWidth;
-    this.elementHeight = this.container.clientHeight;
-    if (this.elementWidth > this.elementHeight) {
-      this.vertical = false;
+    this._elementWidth = this._container.clientWidth;
+    this._elementHeight = this._container.clientHeight;
+    if (this._elementWidth > this._elementHeight) {
+      this._vertical = false;
     }
-    this.meterTop = this.vertical
-      ? this.borderSize
-      : this.fontSize * 1.5 + this.borderSize;
+    this._meterTop = this._vertical
+      ? this._borderSize
+      : this._fontSize * 1.5 + this._borderSize;
 
-    this.meterHeight = this.elementHeight - this.meterTop - this.borderSize;
-    this.meterWidth = this.elementWidth - this.tickWidth - this.borderSize;
-    this.fullValueItems = [];
-    this.channelLevels = [];
-    this.levelValues = [];
+    this._meterHeight = this._elementHeight - this._meterTop - this._borderSize;
+    this._meterWidth = this._elementWidth - this._tickWidth - this._borderSize;
+    this._fullValueItems = [];
+    this._channelLevels = [];
+    this._levelValues = [];
   }
 
   _createBasicView() {
     this._setParams();
     this._createMeterDiv();
     this._createTicks();
-    this.fullValue = false;
+    this._fullValue = false;
   }
 
   _removePlaceholder() {
-    if (!this.placeholder) return;
+    if (!this._placeholder) return;
 
-    this.container.removeChild(this.meter);
-    this.meter = undefined;
-    this.placeholder = false;
+    this._container.removeChild(this._meter);
+    this._meter = undefined;
+    this._placeholder = false;
   }
 
   _createMeterDiv() {
-    this.meter = document.createElement("div");
-    this.meter.style.position = "relative";
-    this.meter.style.width = this.elementWidth + "px";
-    this.meter.style.height = this.elementHeight + "px";
-    this.meter.style.backgroundColor = this.backgroundColor;
-    this.container.appendChild(this.meter);
+    this._meter = document.createElement("div");
+    this._meter.style.position = "relative";
+    this._meter.style.width = this._elementWidth + "px";
+    this._meter.style.height = this._elementHeight + "px";
+    this._meter.style.backgroundColor = this._backgroundColor;
+    this._container.appendChild(this._meter);
   }
 
   _createTicks() {
-    let numTicks = (this.dbRange / this.dbTickSize) >>> 0;
+    let numTicks = (this._dbRange / this._dbTickSize) >>> 0;
     let dbTickLabel = 0;
-    if (this.vertical) {
-      let dbTickTop = this.fontSize + this.borderSize;
+    if (this._vertical) {
+      let dbTickTop = this._fontSize + this._borderSize;
       for (let i = 0; i < numTicks; i++) {
         let dbTick = document.createElement("div");
-        this.meter.appendChild(dbTick);
-        dbTick.style.width = this.tickWidth + "px";
+        this._meter.appendChild(dbTick);
+        dbTick.style.width = this._tickWidth + "px";
         dbTick.style.textAlign = "right";
-        dbTick.style.color = this.tickColor;
-        dbTick.style.fontSize = this.fontSize + "px";
+        dbTick.style.color = this._tickColor;
+        dbTick.style.fontSize = this._fontSize + "px";
         dbTick.style.position = "absolute";
         dbTick.style.top = dbTickTop + "px";
         dbTick.textContent = dbTickLabel + "";
-        dbTickLabel -= this.dbTickSize;
-        dbTickTop += this.meterHeight / numTicks;
+        dbTickLabel -= this._dbTickSize;
+        dbTickTop += this._meterHeight / numTicks;
       }
     } else {
-      this.tickWidth = this.meterWidth / numTicks;
-      let dbTickRight = this.fontSize * 2;
+      this._tickWidth = this._meterWidth / numTicks;
+      let dbTickRight = this._fontSize * 2;
       for (let i = 0; i < numTicks; i++) {
         let dbTick = document.createElement("div");
-        this.meter.appendChild(dbTick);
-        dbTick.style.width = this.tickWidth + "px";
+        this._meter.appendChild(dbTick);
+        dbTick.style.width = this._tickWidth + "px";
         dbTick.style.textAlign = "right";
-        dbTick.style.color = this.tickColor;
-        dbTick.style.fontSize = this.fontSize + "px";
+        dbTick.style.color = this._tickColor;
+        dbTick.style.fontSize = this._fontSize + "px";
         dbTick.style.position = "absolute";
         dbTick.style.top = "5px";
         dbTick.style.right = dbTickRight + "px";
         dbTick.textContent = dbTickLabel + "";
-        dbTickLabel -= this.dbTickSize;
-        dbTickRight += this.tickWidth;
+        dbTickLabel -= this._dbTickSize;
+        dbTickRight += this._tickWidth;
       }
     }
   }
 
   _createGradient() {
     let gradient = document.createElement("div");
-    this.meter.appendChild(gradient);
-    gradient.style.width = this.meterWidth + "px";
-    gradient.style.height = this.meterHeight + "px";
+    this._meter.appendChild(gradient);
+    gradient.style.width = this._meterWidth + "px";
+    gradient.style.height = this._meterHeight + "px";
     gradient.style.position = "absolute";
-    gradient.style.top = this.meterTop + "px";
+    gradient.style.top = this._meterTop + "px";
     let backgroundGradient;
-    if (this.vertical) {
-      gradient.style.left = this.tickWidth + "px";
+    if (this._vertical) {
+      gradient.style.left = this._tickWidth + "px";
       backgroundGradient =
-        "linear-gradient(to bottom, " + this.gradient.join(", ") + ")";
+        "linear-gradient(to bottom, " + this._gradient.join(", ") + ")";
     } else {
-      gradient.style.left = this.borderSize + "px";
+      gradient.style.left = this._borderSize + "px";
       backgroundGradient =
-        "linear-gradient(to left, " + this.gradient.join(", ") + ")";
+        "linear-gradient(to left, " + this._gradient.join(", ") + ")";
     }
     gradient.style.backgroundImage = backgroundGradient;
-    this.fullValueItems.push(gradient);
+    this._fullValueItems.push(gradient);
   }
 
   _createChannelLevel(width, top, left, transition) {
     let level = document.createElement("div");
-    this.meter.appendChild(level);
+    this._meter.appendChild(level);
     level.style.position = "absolute";
-    if (this.vertical) {
+    if (this._vertical) {
       level.style.width = width + "px";
-      level.style.height = this.meterHeight + "px";
+      level.style.height = this._meterHeight + "px";
       level.style.top = top + "px";
       level.style.left = left + "px";
     } else {
-      level.style.width = this.meterWidth + "px";
+      level.style.width = this._meterWidth + "px";
       level.style.height = width + "px";
       level.style.top = left + "px";
-      level.style.right = this.fontSize * 2 + "px";
+      level.style.right = this._fontSize * 2 + "px";
     }
-    level.style.backgroundColor = this.backgroundColor;
+    level.style.backgroundColor = this._backgroundColor;
     if (transition) {
-      if (this.vertical) {
-        level.style.transition = "height " + this.levelTransition;
+      if (this._vertical) {
+        level.style.transition = "height " + this._levelTransition;
       } else {
-        level.style.transition = "width " + this.levelTransition;
+        level.style.transition = "width " + this._levelTransition;
       }
     }
-    this.fullValueItems.push(level);
+    this._fullValueItems.push(level);
     return level;
   }
 
   _drawMeter() {
-    if (!this.fullValue) return;
+    if (!this._fullValue) return;
 
-    for (let i = 0; i < this.channels; i++) {
-      if (this.vertical) {
-        this.channelLevels[i].style.height = this.levelValues[i] + "px";
+    for (let i = 0; i < this._channels; i++) {
+      if (this._vertical) {
+        this._channelLevels[i].style.height = this._levelValues[i] + "px";
       } else {
-        this.channelLevels[i].style.width = this.levelValues[i] + "px";
+        this._channelLevels[i].style.width = this._levelValues[i] + "px";
       }
     }
     window.requestAnimationFrame(() => this._drawMeter());

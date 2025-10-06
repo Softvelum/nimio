@@ -3,25 +3,25 @@ import { BaseMeter } from "./base_meter";
 export class ScriptProcessorMeter extends BaseMeter {
   constructor(settings, instName) {
     super(settings.db_range, settings.rate, instName);
-    this.mode = settings.mode;
-    this.type = settings.type;
-    this.calcChannelValueFor = {
+    this._mode = settings.mode;
+    this._type = settings.type;
+    this._calcChannelValueFor = {
       peak: this._calcChannelValuePeak,
       avg: this._calcChannelValueAvg,
       rms: this._calcChannelValueRms,
-    }[this.mode];
-    this.channelData = [];
-    this.logger.debug(
-      `ScriptProcessor VU meter constructor: mode=${this.mode}, type=${this.type}, dbRange=${this.dbRange}, rate=${this.rate}`,
+    }[this._mode];
+    this._channelData = [];
+    this._bufSize = 2048;
+    this._logger.debug(
+      `ScriptProcessor VU meter constructor: mode=${this._mode}, type=${this._type}, dbRange=${this._dbRange}, rate=${this._rate}`,
     );
   }
 
   setVolume(v) {
-    if (this.gainer) {
-      var time = this.context.currentTime;
-      this.gainer.gain.setValueAtTime(v, time);
-    } else if (this.suspended) {
-      this.logger.debug("Setup suspended VU meter");
+    if (this._gainer) {
+      // this._gainer.gain.setValueAtTime(v, time);
+    } else if (this._suspended) {
+      this._logger.debug("Setup suspended VU meter");
       this._setupMeter();
       if (this.onActivated && this.isActivated()) {
         this.onActivated();
@@ -31,46 +31,46 @@ export class ScriptProcessorMeter extends BaseMeter {
   }
 
   _createMeter() {
-    if (undefined === this.meter) {
-      this.logger.debug(
-        `Create ScriptProcessor meter, channels =${this.channels}`,
+    if (undefined === this._meter) {
+      this._logger.debug(
+        `Create ScriptProcessor meter, channels =${this._channels}`,
       );
       this._initValues();
-      this.meter = this.context.createScriptProcessor(
-        this.bufSize,
-        this.channels,
-        this.channels,
+      this._meter = this._context.createScriptProcessor(
+        this._bufSize,
+        this._channels,
+        this._channels,
       );
 
-      if ("input" === this.type) {
+      if ("input" === this._type) {
         // source -> meter -> gainer -> destination
         //      \-------------/
-        this.audGraphCtrl.appendNode([this.meter, this.gainer], [this.gainer]);
+        this._audGraphCtrl.appendNode([this._meter, this._gainer], [this._gainer]);
       } else {
         // source -> meter -> destination
         //      \-------------/
-        this.audGraphCtrl.appendNode([this.meter, "dest"], [this.meter]);
+        this._audGraphCtrl.appendNode([this._meter, "dest"], [this._meter]);
       }
 
-      this.meter.onaudioprocess = (ev) => this._updateMeter(ev);
+      this._meter.onaudioprocess = (ev) => this._updateMeter(ev);
     }
   }
 
   _removeMeter() {
-    if (this.meter) {
-      this.logger.debug("Remove meter");
+    if (this._meter) {
+      this._logger.debug("Remove meter");
       try {
-        this.audGraphCtrl.removeVumeterChain();
-        if ("input" === this.type) {
-          this.meter.disconnect(this.gainer);
-          this.gainer = undefined;
+        this._audGraphCtrl.removeVumeterChain();
+        if ("input" === this._type) {
+          this._meter.disconnect(this._gainer);
+          this._gainer = undefined;
         }
-        this.meter.onaudioprocess = undefined;
-        this.meter = undefined;
+        this._meter.onaudioprocess = undefined;
+        this._meter = undefined;
       } catch (error) {
-        this.gainer = undefined;
-        this.meter = undefined;
-        this.logger.warn("Exception caught: ", error);
+        this._gainer = undefined;
+        this._meter = undefined;
+        this._logger.warn("Exception caught: ", error);
       }
     }
   }
@@ -80,20 +80,20 @@ export class ScriptProcessorMeter extends BaseMeter {
   }
 
   _setupRateControl() {
-    if (this.rateControl) return;
+    if (this._rateControl) return;
 
     let control = {};
-    let gcdSRbufSize = this._gcd(this.samplingRate, this.bufSize);
-    if (this.rate < gcdSRbufSize / this.bufSize) {
-      gcdSRbufSize = this.rate * this.bufSize;
+    let gcdSRbufSize = this._gcd(this._samplingRate, this._bufSize);
+    if (this._rate < gcdSRbufSize / this._bufSize) {
+      gcdSRbufSize = this._rate * this._bufSize;
       let p = 0;
       while ((gcdSRbufSize >>= 1)) p++;
       gcdSRbufSize = 2 ** p;
     }
-    let range = this.bufSize / gcdSRbufSize;
+    let range = this._bufSize / gcdSRbufSize;
 
-    control.max = this.samplingRate / gcdSRbufSize;
-    control.exp = (range * this.rate + 0.5) >>> 0;
+    control.max = this._samplingRate / gcdSRbufSize;
+    control.exp = (range * this._rate + 0.5) >>> 0;
     if (control.exp >= control.max) {
       // all readings are required, nothing to filter
       control = false;
@@ -102,69 +102,67 @@ export class ScriptProcessorMeter extends BaseMeter {
       control.tgt = control.cur = 0;
       control.cnt = -2;
     }
-    this.rateControl = control;
+    this._rateControl = control;
   }
 
   _calcChannelValueAvg(i) {
-    let dSize = this.channelData[i].length;
+    let dSize = this._channelData[i].length;
     for (let sample = 0; sample < dSize; sample++) {
-      this.channelValues[i] += Math.abs(this.channelData[i][sample]);
+      this._channelValues[i] += Math.abs(this._channelData[i][sample]);
     }
-    this.channelValues[i] /= dSize;
+    this._channelValues[i] /= dSize;
   }
 
   _calcChannelValueRms(i) {
-    let dSize = this.channelData[i].length;
+    let dSize = this._channelData[i].length;
     for (let sample = 0; sample < dSize; sample++) {
-      this.channelValues[i] +=
-        this.channelData[i][sample] * this.channelData[i][sample];
+      this._channelValues[i] +=
+        this._channelData[i][sample] * this._channelData[i][sample];
     }
-    this.channelValues[i] = Math.sqrt(this.channelValues[i] / dSize);
+    this._channelValues[i] = Math.sqrt(this._channelValues[i] / dSize);
   }
 
   _calcChannelValuePeak(i) {
-    let dSize = this.channelData[i].length;
+    let dSize = this._channelData[i].length;
     for (let sample = 0; sample < dSize; sample++) {
-      var val = Math.abs(this.channelData[i][sample]);
-      if (val > this.channelValues[i]) {
-        this.channelValues[i] = val;
+      var val = Math.abs(this._channelData[i][sample]);
+      if (val > this._channelValues[i]) {
+        this._channelValues[i] = val;
       }
     }
   }
 
   _updateMeter(audioProcessingEvent) {
-    if (this.rateControl) {
-      var ctrl = this.rateControl;
+    if (this._rateControl) {
+      var ctrl = this._rateControl;
       ctrl.cnt++;
-      if (ctrl.tgt === ctrl.cnt) {
-        if (ctrl.cur + 0.1 >= ctrl.max) {
-          ctrl.cur = ctrl.add;
-          ctrl.tgt = ctrl.add >>> 0;
-          ctrl.cnt = 0;
-        } else {
-          ctrl.cur += ctrl.add;
-          ctrl.tgt = ctrl.cur >>> 0;
-        }
+      if (ctrl.tgt !== ctrl.cnt) return;
+
+      if (ctrl.cur + 0.1 >= ctrl.max) {
+        ctrl.cur = ctrl.add;
+        ctrl.tgt = ctrl.add >>> 0;
+        ctrl.cnt = 0;
       } else {
-        return;
+        ctrl.cur += ctrl.add;
+        ctrl.tgt = ctrl.cur >>> 0;
       }
     }
 
     let inputBuffer = audioProcessingEvent.inputBuffer;
-    this.channelData.length = 0;
-    for (let i = 0; i < this.channels; i++) {
-      this.channelData[i] = inputBuffer.getChannelData(i);
-      this.channelValues[i] = 0.0;
-      this.calcChannelValueFor(i);
-      this.channelDecibels[i] = this._dbFromVal(this.channelValues[i]);
+    this._channelData.length = 0;
+    for (let i = 0; i < this._channels; i++) {
+      this._channelData[i] = inputBuffer.getChannelData(i);
+      this._channelValues[i] = 0.0;
+      this._calcChannelValueFor(i);
+      this._channelDecibels[i] = this._dbFromVal(this._channelValues[i]);
     }
-    if (this.ui) {
-      this.ui.update(this.channelDecibels);
+    if (this._ui) {
+      this._ui.update(this._channelDecibels);
     }
 
-    // this.logger.debug(this.mode + ' meter', this.channelValues.join('::'), this.channelDecibels.join('::'));
-    if (this.callback) {
-      this.callback(this.channelValues, this.channelDecibels);
+    // this._logger.debug(this._mode + ' meter', this._channelValues.join('::'), this._channelDecibels.join('::'));
+    if (this._callback) {
+      this._callback(this._channelValues, this._channelDecibels);
     }
   }
 }

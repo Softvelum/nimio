@@ -1,4 +1,4 @@
-import audioWorkletUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
+import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
 import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
@@ -414,7 +414,7 @@ export default class Nimio {
 
       // load processor
       this._audioWorkletReady = this._audioContext.audioWorklet
-        .addModule(audioWorkletUrl)
+        .addModule(audioProcUrl)
         .catch((err) => {
           this._logger.error("Audio worklet error", err);
         });
