@@ -19,11 +19,10 @@ export const NimioAbr = {
   },
 
   stopAbr() {
-    if (this._isAutoAbr()) {
-      this._context.autoAbr = false;
-      this._logger.warn('Stop abr set autoAbr to false');
-      this._abrController.stop({ hard: true });
-    }
+    if (!this._isAutoAbr()) return;
+
+    this._context.autoAbr = false;
+    this._abrController.stop({ hard: true });
   },
 
   isAbr() {
