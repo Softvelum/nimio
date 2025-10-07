@@ -6,13 +6,13 @@
     <title>Nimio demo</title>
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.conditional.min.css"
     />
     <link rel="stylesheet" href="demo.css" type="text/css" />
     <link rel="stylesheet" href="nimio.css" type="text/css" />
   </head>
   <body>
-    <main class="container">
+    <main class="container pico">
       <section>
         <img
           src="nimio-logo.png"
@@ -63,9 +63,47 @@
           </fieldset>
         </article>
       </section>
-      <section>
-        <div id="video"></div>
-      </section>
+    </main>
+    <style>
+      .player_wrp {
+        width: 100%;
+        margin-right: auto;
+        margin-left: auto;
+      }
+      @media (min-width: 576px) {
+        .player_wrp {
+          max-width: 510px;
+          padding-right: 0;
+          padding-left: 0;
+        }
+      }
+
+      @media (min-width: 768px) {
+        .player_wrp {
+          max-width: 700px;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        .player_wrp {
+          max-width: 950px;
+        }
+      }
+
+      @media (min-width: 1280px) {
+        .player_wrp {
+          max-width: 1200px;
+        }
+      }
+
+      @media (min-width: 1536px) {
+        .player_wrp {
+          max-width: 1450px;
+        }
+      }
+    </style>
+    <div class="player_wrp">
+      <div id="video"></div>
       <script type="module">
         import Nimio from "../src/nimio.js";
         function initNimio() {
@@ -94,6 +132,6 @@
         cb.onchange = () => (art.hidden = !cb.checked);
         cb.onchange();
       </script>
-    </main>
+    </div>
   </body>
 </html>
