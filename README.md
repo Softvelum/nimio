@@ -32,6 +32,16 @@ nimio = new Nimio({
   pauseTimeout: 3000, // ms until auto-stop when paused
   metricsOverlay: true, // Show overlay with performance metrics
   logLevel: "warn", // Logging verbosity
+  autoplay: true, // Start playback automatically
+  videoOnly: false, // Video only playback
+  audioOnly: false, // Audio only playback
+  muted: true, // Player is muted on start
+  adaptiveBitrate: {
+    initialRendition: "480p", // Default rendition which the player will set on start
+    maxRendition: "1080p", // Maximum rendition that the player will set automatically
+    sizeConstrained: true, // Player won't automatically switch to renditions which dimensions exceed the actual player size more then 5%
+
+  },
 });
 
 nimio.play();
