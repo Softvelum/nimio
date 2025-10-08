@@ -1,6 +1,6 @@
 import { multiInstanceService } from "@/shared/service";
 import { AudioContextProvider } from "./context-provider";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 class AudioGraphController {
   constructor(instName) {

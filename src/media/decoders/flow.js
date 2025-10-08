@@ -1,5 +1,5 @@
 import { MetricsManager } from "@/metrics/manager";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 const SWITCH_THRESHOLD_US = 8_000_000;
 
