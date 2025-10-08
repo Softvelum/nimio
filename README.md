@@ -40,7 +40,6 @@ nimio = new Nimio({
     initialRendition: "480p", // Default rendition which the player will set on start
     maxRendition: "1080p", // Maximum rendition that the player will set automatically
     sizeConstrained: true, // Player won't automatically switch to renditions which dimensions exceed the actual player size more then 5%
-
   },
 });
 
