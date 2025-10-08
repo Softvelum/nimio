@@ -86,4 +86,4 @@ let LoggersFactory = (function () {
   };
 })();
 
-export default LoggersFactory;
+export { LoggersFactory };

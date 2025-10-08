@@ -1,5 +1,5 @@
 import { PlaybackContext } from "@/playback/context";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 export class SLDPManager {
   constructor(instName) {

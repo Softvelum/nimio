@@ -1,5 +1,5 @@
 import { MetricsManager } from "@/metrics/manager";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 export class Prober {
   constructor(instName, streamIdx, period) {

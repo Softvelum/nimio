@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mockLogger } from "./mocks/logger-mock";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 import { createConfig } from "@/player-config";
 
 describe("createConfig", () => {
