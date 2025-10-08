@@ -1,7 +1,7 @@
 import { Prober } from "./prober";
 import { AbrRenditionProvider } from "./rendition-provider";
 import { MetricsManager } from "@/metrics/manager";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 const RELIABLE_INTERVAL = 3000;
 

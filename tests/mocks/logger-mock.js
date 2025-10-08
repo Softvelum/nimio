@@ -10,7 +10,7 @@ vi.mock("@/shared/logger", () => {
     create: vi.fn(() => mockLogger),
     setLevel: vi.fn(),
   };
-  return { default: LoggersFactory };
+  return { LoggersFactory };
 });
 
 export { mockLogger };

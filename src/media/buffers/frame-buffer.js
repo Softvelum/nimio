@@ -1,4 +1,4 @@
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 import { RingBuffer } from "@/shared/ring-buffer";
 
 export class FrameBuffer {
