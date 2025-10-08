@@ -1,7 +1,7 @@
 import { StateManager } from "@/state-manager";
 import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
 import { AudioConfig } from "./config";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {

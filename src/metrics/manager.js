@@ -1,5 +1,5 @@
 import { multiInstanceService } from "@/shared/service";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 import { MetricsStore } from "./store";
 
 class MetricsManager {

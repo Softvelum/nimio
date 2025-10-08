@@ -1,7 +1,7 @@
 import { AbrEvaluator } from "./evaluator";
 import { AbrRenditionProvider } from "./rendition-provider";
 import { PlaybackContext } from "@/playback/context";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 export class AbrController {
   constructor(instanceName, bufferMs) {

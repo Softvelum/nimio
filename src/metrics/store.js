@@ -1,5 +1,5 @@
 import { RingBuffer } from "@/shared/ring-buffer";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 const STAT_SIZE = 3; // 3 seconds
 const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 6 seconds of 250ms buckets

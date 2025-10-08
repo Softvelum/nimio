@@ -1,4 +1,4 @@
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 export class TransportAdapter {
   constructor(instName, workerUrl) {
