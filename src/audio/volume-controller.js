@@ -5,7 +5,6 @@ class AudioVolumeController {
   constructor(instName) {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, "VolumeController");
-    this._curVolume = 100;
   }
 
   init(audioContext, settings) {
@@ -37,7 +36,15 @@ class AudioVolumeController {
   }
 
   getVolume() {
-    return this._gainer ? Math.round(this._gainer.gain.value * 100) : 0;
+    let vol = 0;
+    if (this._gainer) {
+      if (this._muted) {
+        vol = this._lastVolume || 100;
+      } else {
+        vol = Math.round(this._gainer.gain.value * 100);
+      }
+    }
+    return vol;
   }
 
   mute() {
@@ -63,7 +70,9 @@ class AudioVolumeController {
     let res = 100;
     if (!window.localStorage) return res;
     try {
-      res = parseInt(localStorage.getItem(`nimio_volume_${this._storageId}`));
+      let volume = localStorage.getItem(`nimio_volume_${this._storageId}`);
+      if (volume === null) volume = localStorage.getItem("nimio_volume_all");
+      res = parseInt(volume);
     } catch (e) {
       this._logger.warn("Error getting last volume from local storage", e);
     }
@@ -80,6 +89,7 @@ class AudioVolumeController {
 
     try {
       localStorage.setItem(`nimio_volume_${this._storageId}`, val);
+      localStorage.setItem("nimio_volume_all", val);
     } catch (e) {
       this._logger.warn("Error setting current volume to localStorage", e);
     }
