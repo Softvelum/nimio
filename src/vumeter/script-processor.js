@@ -17,62 +17,41 @@ export class ScriptProcessorMeter extends BaseMeter {
     );
   }
 
-  setVolume(v) {
-    if (this._gainer) {
-      // this._gainer.gain.setValueAtTime(v, time);
-    } else if (this._suspended) {
-      this._logger.debug("Setup suspended VU meter");
-      this._setupMeter();
-      if (this.onActivated && this.isActivated()) {
-        this.onActivated();
-        this.onActivated = undefined;
-      }
-    }
-  }
-
   _createMeter() {
-    if (undefined === this._meter) {
-      this._logger.debug(
-        `Create ScriptProcessor meter, channels =${this._channels}`,
-      );
-      this._initValues();
-      this._meter = this._context.createScriptProcessor(
-        this._bufSize,
-        this._channels,
-        this._channels,
-      );
+    if (this._meter) return;
 
-      if ("input" === this._type) {
-        // source -> meter -> gainer -> destination
-        //      \-------------/
-        this._audGraphCtrl.appendNode([this._meter, this._gainer], [this._gainer]);
-      } else {
-        // source -> meter -> destination
-        //      \-------------/
-        this._audGraphCtrl.appendNode([this._meter, "dest"], [this._meter]);
-      }
+    this._logger.debug(`Create ScriptProcessor, channels=${this._channels}`);
+    this._initValues();
+    this._meter = this._context.createScriptProcessor(
+      this._bufSize,
+      this._channels,
+      this._channels,
+    );
 
-      this._meter.onaudioprocess = (ev) => this._updateMeter(ev);
+    if ("input" === this._type) {
+      // source -> meter -> gainer -> destination
+      //      \-------------/
+      this._audGraphCtrl.appendNode([this._meter, this._gainer], [this._gainer]);
+    } else {
+      // source -> meter -> destination
+      //      \-------------/
+      this._audGraphCtrl.appendNode([this._meter, "dest"], [this._meter]);
     }
+
+    this._meter.onaudioprocess = (ev) => this._updateMeter(ev);
   }
 
   _removeMeter() {
-    if (this._meter) {
-      this._logger.debug("Remove meter");
-      try {
-        this._audGraphCtrl.removeVumeterChain();
-        if ("input" === this._type) {
-          this._meter.disconnect(this._gainer);
-          this._gainer = undefined;
-        }
-        this._meter.onaudioprocess = undefined;
-        this._meter = undefined;
-      } catch (error) {
-        this._gainer = undefined;
-        this._meter = undefined;
-        this._logger.warn("Exception caught: ", error);
-      }
+    if (!this._meter) return;
+
+    this._logger.debug("Remove meter");
+    try {
+      this._audGraphCtrl.removeVumeterChain();
+    } catch (error) {
+      this._logger.warn("Exception caught: ", error);
     }
+    this._meter.onaudioprocess = undefined;
+    this._meter = undefined;
   }
 
   _gcd(a, b) {

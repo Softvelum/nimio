@@ -14,19 +14,6 @@ class AudioWorkletMeter extends BaseMeter {
     );
   }
 
-  setVolume(v) {
-    if (this._gainer) {
-      // this._gainer.gain.setValueAtTime(v, this._context.currentTime);
-    } else if (this._suspended) {
-      this._logger.debug("Setup suspended VU meter");
-      this._setupMeter();
-      if (this.onActivated && this.isActivated()) {
-        this.onActivated();
-        this.onActivated = undefined;
-      }
-    }
-  }
-
   _onWorkletModuleAdded = () => {
     this._logger.debug("AudioWorklet module loaded", this._procUrl);
     this._meter = new AudioWorkletNode(this._context, "vu-audio-processor", {
@@ -38,14 +25,6 @@ class AudioWorkletMeter extends BaseMeter {
       },
     });
     this._meter.port.postMessage({ cmd: "init" });
-    // For input type: source -> meter -> gainer -> destination
-    // For output type: source -> meter -> destination
-    if ("input" === this._type) {
-      this._audGraphCtrl.appendNode([this._meter], [this._gainer]);
-    } else {
-      this._audGraphCtrl.appendNode([this._meter], [this._meter]);
-    }
-
     this._setupRateControl();
     this._meter.port.onmessage = (ev) => this._updateMeter(ev);
   };

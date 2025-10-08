@@ -29,7 +29,7 @@ export class BaseMeter {
     if (this._audGraphCtrl) {
       this._audGraphCtrl.setChannelCount(this._channels);
     }
-    // TODO: update ui channels if ui and channels count was updated
+    // TODO: update ui channels if ui and channels count has been updated
   }
 
   stop(removeUI) {
@@ -46,19 +46,19 @@ export class BaseMeter {
   }
 
   refreshUI(audioInfo) {
-    if (this._ui) {
-      let channels = audioInfo ? audioInfo.channels || 2 : 2;
-      this._logger.debug(`refreshUI channels count = ${channels}`);
-      this._ui.refresh(channels);
-    }
+    if (!this._ui) return;
+
+    let channels = audioInfo ? audioInfo.channels || 2 : 2;
+    this._logger.debug(`refreshUI channels count = ${channels}`);
+    this._ui.refresh(channels);
   }
 
-  onPlay() {
-    if (this._context) {
-      this._logger.debug("onPlay event, resume context");
-      this._context.resume();
-    }
-  }
+  // onPlay() {
+  //   if (!this._context) return;
+
+  //   this._logger.debug("onPlay event, resume context");
+  //   this._context.resume();
+  // }
 
   setCallback(cb) {
     this._callback = cb;
@@ -104,7 +104,7 @@ export class BaseMeter {
   }
 
   _enableSource() {
-    if (undefined === this._context) {
+    if (!this._context) {
       let audCtxProvider = AudioContextProvider.getInstance(this._instName);
       this._context = audCtxProvider.get();
       if (this._context) {

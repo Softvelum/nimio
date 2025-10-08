@@ -25,10 +25,6 @@ class VUMeterController {
     }
   }
 
-  attachUI(ui) {
-    this._ui = ui;
-  }
-
   isStarted() {
     return this._started;
   }
@@ -41,7 +37,6 @@ class VUMeterController {
     this.stop(true);
 
     this._settings = undefined;
-    this._ui = undefined;
     this._onFatalError = undefined;
     this._inst = undefined;
     this._started = false;
@@ -55,10 +50,9 @@ class VUMeterController {
   }
 
   start() {
-    if (!this._inst || !this._ui) return;
+    if (!this._inst) return;
 
     this._inst.start();
-    this._ui.setVUMeterHandler(this._inst);
     this._started = true;
   }
 
@@ -69,15 +63,10 @@ class VUMeterController {
     this._started = false;
   }
 
-  handlePlay() {
-    if (!this._inst) return;
-    this._inst.onPlay();
-  }
-
-  unmute() {
-    if (!this._inst) return;
-    this._ui.unmuteVUMeter();
-  }
+  // handlePlay() {
+  //   if (!this._inst) return;
+  //   this._inst.onPlay();
+  // }
 
   refreshUI() {
     if (!this._inst) return;

@@ -22,6 +22,7 @@ import { AudioContextProvider } from "./audio/context-provider";
 import { AudioGraphController } from "./audio/graph-controller";
 import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
+import { VUMeterController } from "./vumeter/controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -80,6 +81,19 @@ export default class Nimio {
       },
       (volume) => {
         this._audioVolumeCtrl.setVolume(volume);
+
+        // setVolume(v) {
+        //   if (this._gainer) {
+        //     // this._gainer.gain.setValueAtTime(v, this._context.currentTime);
+        //   } else if (this._suspended) {
+        //     this._logger.debug("Setup suspended VU meter");
+        //     this._setupMeter();
+        //     if (this.onActivated && this.isActivated()) {
+        //       this.onActivated();
+        //       this.onActivated = undefined;
+        //     }
+        //   }
+        // }
       },
       (rend) => {
         if (!rend) return false;
@@ -116,6 +130,8 @@ export default class Nimio {
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
+    this._vuMeterCtrl = VUMeterController.getInstance(this._instName);
+    this._vuMeterCtrl.init(this._config.vuMeter);
     this._createAbrController();
 
     if (this._config.autoplay) {
@@ -452,6 +468,15 @@ export default class Nimio {
     this._audioGraphCtrl.setSource(this._audioNode);
     this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node());
     this._audioGraphCtrl.assemble(["src", 0], [0, "dst"]);
+
+    // // For input type: source -> meter -> gainer -> destination
+    // // For output type: source -> meter -> destination
+    // if ("input" === this._type) {
+    //   this._audGraphCtrl.appendNode([this._meter], [this._gainer]);
+    // } else {
+    //   this._audGraphCtrl.appendNode([this._meter], [this._meter]);
+    // }
+
   }
 
   async _startNoAudioMode() {
