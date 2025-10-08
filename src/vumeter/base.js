@@ -1,6 +1,6 @@
 import { AudioContextProvider } from "@/audio/context-provider";
 import { VUMeterUI } from "./ui";
-import LoggersFactory from "@/shared/logger";
+import { LoggersFactory } from "@/shared/logger";
 
 export class BaseMeter {
   constructor(dbRange, rate, instName) {
