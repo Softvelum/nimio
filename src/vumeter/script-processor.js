@@ -1,4 +1,4 @@
-import { BaseMeter } from "./base_meter";
+import { BaseMeter } from "./base";
 
 export class ScriptProcessorMeter extends BaseMeter {
   constructor(settings, instName) {

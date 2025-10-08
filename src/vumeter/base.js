@@ -1,4 +1,5 @@
 import { AudioContextProvider } from "@/audio/context-provider";
+import { AudioGraphController } from "@/audio/graph-controller";
 import { VUMeterUI } from "./ui";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -79,6 +80,10 @@ export class BaseMeter {
     return this._context?.state === "running";
   }
 
+  node() {
+    return this._meter;
+  }
+
   _setupMeter() {
     let ok = this._enableSource();
     if (ok) {
@@ -88,6 +93,7 @@ export class BaseMeter {
         this._setupRateControl();
       }
 
+      debugger;
       if (this._ui) {
         this._logger.debug(`_setupMeter channels = ${this._channels}`);
         this._ui.create(this._channels);
@@ -111,7 +117,7 @@ export class BaseMeter {
         this._audGraphCtrl = AudioGraphController.getInstance(this._instName);
         if ("suspended" !== this._context.state) {
           this._logger.debug(`enableSource channels = ${this._channels}`);
-          this._audGraphCtrl.init(this._channels);
+          this._audGraphCtrl.setChannelCount(this._channels);
           this._suspended = false;
         } else {
           var meter = this;
@@ -120,7 +126,7 @@ export class BaseMeter {
               "Audio context switched its state to running, setup VU meter, channels =",
               meter._channels,
             );
-            meter._audGraphCtrl.init(meter._channels);
+            meter._audGraphCtrl.setChannelCount(meter._channels);
             meter._suspended = false;
             meter._setupMeter();
             if (meter.onActivated) {

@@ -10,8 +10,10 @@ class VUMeterController {
     this._settings = settings;
 
     if (this._settings && this._settings.mode && this._settings.type) {
+      debugger;
       this._inst = new VUMeterFactory(this._instName).create(this._settings);
       if (this._inst) {
+        debugger;
         if (this._settings.container) {
           this._inst.setUI(this._settings.container);
         }
@@ -76,6 +78,10 @@ class VUMeterController {
   setUpdateCallback(cb) {
     if (!this._inst) return;
     this._inst.setCallback(cb);
+  }
+
+  node() {
+    return this._inst.node();
   }
 
   _onFatalError = function () {

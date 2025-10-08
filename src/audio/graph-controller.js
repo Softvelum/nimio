@@ -50,6 +50,12 @@ class AudioGraphController {
     this._audCtx.destination._inconns = [];
   }
 
+  setChannelCount(channels) {
+    if (this._source) {
+      this._source.channelCount = channels;
+    }
+  }
+
   setSource(src) {
     let srcConns = [];
     if (this._source?._outconns) {

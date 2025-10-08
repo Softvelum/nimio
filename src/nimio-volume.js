@@ -14,4 +14,12 @@ export const NimioVolume = {
   unmute() {
     return this._audioVolumeCtrl.unmute();
   },
+
+  _onVUMeterUpdate(magnitudes, decibels) {
+    this._logger.debug("VU meter update", magnitudes, decibels);
+  },
+
+  _onVUMeterFatalError() {
+    // TODO: restart audio graph
+  },
 };

@@ -132,7 +132,11 @@ export default class Nimio {
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
     this._vuMeterCtrl = VUMeterController.getInstance(this._instName);
-    this._vuMeterCtrl.init(this._config.vuMeter);
+    this._vuMeterCtrl.init(
+      this._config.vuMeter,
+      this._onVUMeterUpdate.bind(this),
+      this._onVUMeterFatalError.bind(this),
+    );
     this._createAbrController();
 
     if (this._config.autoplay) {
@@ -465,10 +469,13 @@ export default class Nimio {
       },
     );
 
+    this._vuMeterCtrl.start();
+
     this._audioVolumeCtrl.init(this._audioContext, this._config);
     this._audioGraphCtrl.setSource(this._audioNode);
+    this._audioGraphCtrl.appendNode(this._vuMeterCtrl.node());
     this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node());
-    this._audioGraphCtrl.assemble(["src", 0], [0, "dst"]);
+    this._audioGraphCtrl.assemble(["src", 0], [0, 1], [1, "dst"]);
 
     // // For input type: source -> meter -> gainer -> destination
     // // For output type: source -> meter -> destination

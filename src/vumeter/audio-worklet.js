@@ -1,6 +1,6 @@
 import vuProcUrl from "./audio-processor.worklet?worker&url";
 import { ScriptPathProvider } from "@/shared/script-path-provider";
-import { BaseMeter } from "./base_meter";
+import { BaseMeter } from "./base";
 
 class AudioWorkletMeter extends BaseMeter {
   constructor(settings, instName) {
@@ -106,4 +106,4 @@ class AudioWorkletMeter extends BaseMeter {
   }
 }
 
-export default AudioWorkletMeter;
+export { AudioWorkletMeter };

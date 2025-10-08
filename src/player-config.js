@@ -18,7 +18,7 @@ const DEFAULTS = {
   adaptiveBitrate: {},
   volumeId: false,
   muted: false,
-  vuMeter: {},
+  vuMeter: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

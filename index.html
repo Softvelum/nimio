@@ -23,7 +23,10 @@
     </button>
     <br />
     <br />
-    <div id="video"></div>
+    <div style="display: inline-flex">
+      <div id="video"></div>
+      <div id="vu-meter" style="width: 80px; height: 268px;"></div>
+    </div>
     <script type="module">
       import Nimio from "/src/nimio.js";
 
@@ -46,6 +49,9 @@
           // adaptiveBitrate: {
           //   initialRendition: "720p",
           // },
+          vuMeter: {
+            container: "vu-meter",
+          },
         });
       }
 
