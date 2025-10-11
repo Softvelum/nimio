@@ -27,29 +27,15 @@ export class ScriptProcessorMeter extends BaseMeter {
       this._channels,
       this._channels,
     );
-
-    if ("input" === this._type) {
-      // source -> meter -> gainer -> destination
-      //      \-------------/
-      this._audGraphCtrl.appendNode([this._meter, this._gainer], [this._gainer]);
-    } else {
-      // source -> meter -> destination
-      //      \-------------/
-      this._audGraphCtrl.appendNode([this._meter, "dest"], [this._meter]);
-    }
-
     this._meter.onaudioprocess = (ev) => this._updateMeter(ev);
+
+    if (this._readyCallback) this._readyCallback(this._meter);
   }
 
   _removeMeter() {
     if (!this._meter) return;
 
     this._logger.debug("Remove meter");
-    try {
-      this._audGraphCtrl.removeVumeterChain();
-    } catch (error) {
-      this._logger.warn("Exception caught: ", error);
-    }
     this._meter.onaudioprocess = undefined;
     this._meter = undefined;
   }
@@ -140,8 +126,8 @@ export class ScriptProcessorMeter extends BaseMeter {
     }
 
     // this._logger.debug(this._mode + ' meter', this._channelValues.join('::'), this._channelDecibels.join('::'));
-    if (this._callback) {
-      this._callback(this._channelValues, this._channelDecibels);
+    if (this._updateCallback) {
+      this._updateCallback(this._channelValues, this._channelDecibels);
     }
   }
 }

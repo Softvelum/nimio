@@ -62,7 +62,7 @@ class AudioVolumeController {
     return true;
   }
 
-  node() {
+  get node() {
     return this._gainer;
   }
 

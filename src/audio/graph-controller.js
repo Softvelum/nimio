@@ -50,13 +50,20 @@ class AudioGraphController {
     this._audCtx.destination._inconns = [];
   }
 
+  dismantle() {
+    this.reset();
+    this._audCtx = undefined;
+    this._source = undefined;
+    this._nodes.length = 0;
+  }
+
   setChannelCount(channels) {
     if (this._source) {
       this._source.channelCount = channels;
     }
   }
 
-  setSource(src) {
+  setSource(src, channels) {
     let srcConns = [];
     if (this._source?._outconns) {
       for (let i = 0; i < this._source._outconns.length; i++) {
@@ -69,6 +76,9 @@ class AudioGraphController {
     let oldSrc = this._source;
     this._source = src;
     this._source._outconns = [];
+    if (channels !== undefined) {
+      this.setChannelCount(channels);
+    }
 
     for (let i = 0; i < srcConns.length; i++) {
       this._source.connect(srcConns[i]);
@@ -80,53 +90,85 @@ class AudioGraphController {
     }
   }
 
-  appendNode(node, skipConnect = false) {
+  // opts: 
+  // - connectDest - connect appended node to the audio context destination
+  // - connectPrev - connect appended node to the previous node
+  // - parallel - if true, the previous node's outgoing connections are left intact, else the connections are removed
+  appendNode(node, opts = {}) {
     let nLen = this._nodes.length;
-    let prevNode = nLen > 0 ? this._nodes[nLen - 1] : this._source;
+    let prevNode, nextNode;
+    if (opts.connectPrev) {
+      prevNode = nLen > 0 ? this._nodes[nLen - 1] : this._source;
+    }
+    if (opts.connectDest) {
+      nextNode = this._audCtxProvider.get().destination;
+    }
 
     this._nodes.push(node);
     node._inconns = [];
     node._outconns = [];
 
-    if (!prevNode || skipConnect) return;
+    if (nextNode) this._connect(node, nextNode);
 
-    let outConns = prevNode._outconns;
-    for (let i = 0; i < outConns.length; i++) {
-      prevNode.disconnect(outConns[i]);
-      node.connect(outConns[i]);
-      node._outconns.push(outConns[i]);
-      let idx = outConns[i]._inconns.indexOf(prevNode);
-      if (idx >= 0) {
-        outConns[i]._inconns[idx] = node;
+    // if not parallel, the previous node's connections are assigned 
+    // to the appended node while connecting the previous node to the appended
+    if (prevNode && !opts.parallel) {
+      let outConns = prevNode._outconns;
+      for (let i = 0; i < outConns.length; i++) {
+        prevNode.disconnect(outConns[i]);
+        node.connect(outConns[i]);
+        node._outconns.push(outConns[i]);
+        let idx = outConns[i]._inconns.indexOf(prevNode);
+        if (idx >= 0) {
+          outConns[i]._inconns[idx] = node;
+        }
       }
+      prevNode._outconns.length = 0;
     }
-    prevNode._outconns.length = 0;
-    this._connect(prevNode, node);
+    if (prevNode) this._connect(prevNode, node);
+
+    return this._nodes.length - 1;
   }
 
-  prependNode(node, skipConnect = false) {
-    this._audCtx = this._audCtxProvider.get();
+  // opts: 
+  // - connectSource - connect appended node to the audio source
+  // - connectNext - connect appended node to the next node
+  // - parallel - if true, the next node's incoming connections are left intact, else the connections are removed
+  prependNode(node, opts = {}) {
     let nLen = this._nodes.length;
-    let nextNode = nLen > 0 ? this._nodes[0] : this._audCtx.destination;
+    let prevNode, nextNode;
+    if (opts.connectNext) {
+      let audCtx = this._audCtxProvider.get();
+      nextNode = nLen > 0 ? this._nodes[0] : audCtx.destination;
+    }
+    if (opts.connectSource) {
+      prevNode = this._source;
+    }
 
     this._nodes.shift(node);
     node._inconns = [];
     node._outconns = [];
 
-    if (!nextNode || skipConnect) return;
+    if (prevNode) this._connect(prevNode, node);
 
-    let inConns = prevNode._inconns;
-    for (let i = 0; i < inConns.length; i++) {
-      inConns[i].disconnect(nextNode);
-      inConns[i].connect(node);
-      node._inconns.push(inConns[i]);
-      let idx = inConns[i]._outconns.indexOf(nextNode);
-      if (idx >= 0) {
-        inConns[i]._outconns[idx] = node;
+    // if not parallel, the next node's incoming connections are assigned 
+    // to the prepended node while connecting the prepended node to the next
+    if (nextNode && !opts.parallel) {
+      let inConns = nextNode._inconns;
+      for (let i = 0; i < inConns.length; i++) {
+        inConns[i].disconnect(nextNode);
+        inConns[i].connect(node);
+        node._inconns.push(inConns[i]);
+        let idx = inConns[i]._outconns.indexOf(nextNode);
+        if (idx >= 0) {
+          inConns[i]._outconns[idx] = node;
+        }
       }
+      nextNode._inconns.length = 0;
     }
-    nextNode._inconns.length = 0;
-    this._connect(node, nextNode);
+    if (nextNode) this._connect(node, nextNode);
+
+    return 0;
   }
 
   removeNode(node) {
@@ -163,7 +205,9 @@ class AudioGraphController {
   }
   _connect(s, d) {
     s.connect(d);
+    if (!s._outconns) s._outconns = [];
     s._outconns.push(d);
+    if (!d._inconns) d._inconns = [];
     d._inconns.push(s);
   }
   _breakConn(s, d) {

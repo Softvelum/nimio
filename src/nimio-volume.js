@@ -1,3 +1,5 @@
+import { VUMeterService } from "./vumeter/service";
+
 export const NimioVolume = {
   setVolume(vol) {
     return this._audioVolumeCtrl.setVolume(vol);
@@ -15,11 +17,13 @@ export const NimioVolume = {
     return this._audioVolumeCtrl.unmute();
   },
 
-  _onVUMeterUpdate(magnitudes, decibels) {
-    this._logger.debug("VU meter update", magnitudes, decibels);
+  _createVUMeter() {
+    this._vuMeterSvc = VUMeterService.getInstance(this._instName);
+    const onUpdate = this._onVUMeterUpdate.bind(this);
+    this._vuMeterSvc.init(this._config.vuMeter, onUpdate);
   },
 
-  _onVUMeterFatalError() {
-    // TODO: restart audio graph
+  _onVUMeterUpdate(magnitudes, decibels) {
   },
+
 };

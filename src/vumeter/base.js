@@ -1,5 +1,4 @@
 import { AudioContextProvider } from "@/audio/context-provider";
-import { AudioGraphController } from "@/audio/graph-controller";
 import { VUMeterUI } from "./ui";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -17,24 +16,13 @@ export class BaseMeter {
     this._logger.debug(
       `Start VU meter, channel count: ${this._channels}, sampling rate: ${this._samplingRate}`,
     );
-
-    if (this._context?.state === "suspended") {
-      this._suspended = true;
-    }
+    this._context = AudioContextProvider.getInstance(this._instName).get();
     this._setupMeter();
-  }
-
-  setAudioInfo(audioInfo) {
-    this._samplingRate = audioInfo ? audioInfo.samplingRate : undefined;
-    this._channels = audioInfo ? audioInfo.channels || 2 : 2;
-    if (this._audGraphCtrl) {
-      this._audGraphCtrl.setChannelCount(this._channels);
-    }
-    // TODO: update ui channels if ui and channels count has been updated
   }
 
   stop(removeUI) {
     this._logger.debug("Stop VU meter", removeUI);
+    // this._audGraphCtrl.removeNode(this._meter);
     this._removeMeter();
     this._initValues();
     if (this._ui) {
@@ -46,27 +34,27 @@ export class BaseMeter {
     return this._setupMeter();
   }
 
-  refreshUI(audioInfo) {
+  setAudioInfo(audioInfo) {
+    this._samplingRate = audioInfo ? audioInfo.sampleRate : undefined;
+    this._channels = audioInfo ? audioInfo.channels || 2 : 2;
+    // TODO: update ui channels if ui and channels count has been updated
+  }
+
+  refreshUI() {
     if (!this._ui) return;
-
-    let channels = audioInfo ? audioInfo.channels || 2 : 2;
-    this._logger.debug(`refreshUI channels count = ${channels}`);
-    this._ui.refresh(channels);
+    this._ui.refresh(this._channels);
   }
 
-  // onPlay() {
-  //   if (!this._context) return;
-
-  //   this._logger.debug("onPlay event, resume context");
-  //   this._context.resume();
-  // }
-
-  setCallback(cb) {
-    this._callback = cb;
+  set readyCallback(cb) {
+    this._readyCallback = cb;
   }
 
-  setFatalErrorCallback(cb) {
-    this._fatalErrorCallback = cb;
+  set updateCallback(cb) {
+    this._updateCallback = cb;
+  }
+
+  set errorCallback(cb) {
+    this._errorCallback = cb;
   }
 
   setUI(containerId) {
@@ -76,75 +64,27 @@ export class BaseMeter {
     }
   }
 
-  isActivated() {
-    return this._context?.state === "running";
-  }
-
-  node() {
+  get node() {
     return this._meter;
   }
 
   _setupMeter() {
-    let ok = this._enableSource();
-    if (ok) {
-      this._createMeter();
-      this._logger.debug("meter created", this._context.state);
-      if (this._rate && this._samplingRate) {
-        this._setupRateControl();
-      }
-
-      debugger;
-      if (this._ui) {
-        this._logger.debug(`_setupMeter channels = ${this._channels}`);
-        this._ui.create(this._channels);
-      }
+    this._createMeter();
+    this._logger.debug("meter created", this._context.state);
+    if (this._rate && this._samplingRate) {
+      this._setupRateControl();
     }
-    return ok;
+
+    if (this._ui) {
+      this._logger.debug(`_setupMeter channels = ${this._channels}`);
+      this._ui.create(this._channels);
+    }
   }
 
   _initValues() {
-    this._suspended = false;
     this._rateControl = false;
     this._channelValues = [];
     this._channelDecibels = [];
-  }
-
-  _enableSource() {
-    if (!this._context) {
-      let audCtxProvider = AudioContextProvider.getInstance(this._instName);
-      this._context = audCtxProvider.get();
-      if (this._context) {
-        this._audGraphCtrl = AudioGraphController.getInstance(this._instName);
-        if ("suspended" !== this._context.state) {
-          this._logger.debug(`enableSource channels = ${this._channels}`);
-          this._audGraphCtrl.setChannelCount(this._channels);
-          this._suspended = false;
-        } else {
-          var meter = this;
-          audCtxProvider.onContextRunning(function (ctx) {
-            meter._logger.debug(
-              "Audio context switched its state to running, setup VU meter, channels =",
-              meter._channels,
-            );
-            meter._audGraphCtrl.setChannelCount(meter._channels);
-            meter._suspended = false;
-            meter._setupMeter();
-            if (meter.onActivated) {
-              meter.onActivated();
-              meter.onActivated = undefined;
-            }
-          });
-
-          this._logger.debug("Audio context is created, but it's suspended");
-          this._suspended = true;
-          this._context.resume();
-        }
-      }
-    } else if (this._suspended) {
-      this._logger.debug("Trying to resume suspended audio context");
-      this._context.resume();
-    }
-    return this.isActivated();
   }
 
   _dbFromVal(val) {

@@ -24,9 +24,12 @@ class AudioWorkletMeter extends BaseMeter {
         mode: this._mode,
       },
     });
+
     this._meter.port.postMessage({ cmd: "init" });
     this._setupRateControl();
     this._meter.port.onmessage = (ev) => this._updateMeter(ev);
+
+    if (this._readyCallback) this._readyCallback(this._meter);
   };
 
   _onWorkletModuleNotFound = (error) => {
@@ -48,46 +51,44 @@ class AudioWorkletMeter extends BaseMeter {
 
     this.stop(true);
     this._context = undefined;
-    if (this._fatalErrorCallback) {
-      this._fatalErrorCallback();
+    if (this._errorCallback) {
+      this._errorCallback();
     }
   };
 
   _createMeter() {
-    if (undefined === this._meter) {
-      this._logger.debug("Create AudioWorklet meter");
+    if (this._meter) return;
+    this._logger.debug("Create AudioWorklet meter");
 
-      this._initValues();
-      this._procUrl = this._spProvider.translateToScriptPath(vuProcUrl);
+    this._initValues();
+    this._procUrl = this._spProvider.translateToScriptPath(vuProcUrl);
 
-      this._context.audioWorklet
-        .addModule(this._procUrl)
-        .then(this._onWorkletModuleAdded)
-        .catch(this._onWorkletModuleNotFound);
-    }
+    this._context.audioWorklet
+      .addModule(this._procUrl)
+      .then(this._onWorkletModuleAdded)
+      .catch(this._onWorkletModuleNotFound);
   }
 
   _removeMeter() {
-    if (this._meter) {
-      this._logger.debug("Remove meter");
-      try {
-        this._meter.port.postMessage({ cmd: "stop" });
-        this._audGraphCtrl.removeVumeterChain();
-      } catch (error) {
-        this._logger.warn(`Exception caught: ${error}`);
-      }
-      this._meter = undefined;
+    if (!this._meter) return;
+    this._logger.debug("Remove meter");
+
+    try {
+      this._meter.port.postMessage({ cmd: "stop" });
+    } catch (error) {
+      this._logger.warn(`Exception caught: ${error}`);
     }
+    this._meter = undefined;
   }
 
   _setupRateControl() {
-    if (this._meter) {
-      this._meter.port.postMessage({
-        cmd: "rate",
-        rate: this._rate,
-        sRate: this._samplingRate,
-      });
-    }
+    if (!this._meter) return;
+
+    this._meter.port.postMessage({
+      cmd: "rate",
+      rate: this._rate,
+      sRate: this._samplingRate,
+    });
   }
 
   _updateMeter(prEv) {
@@ -100,8 +101,8 @@ class AudioWorkletMeter extends BaseMeter {
       this._ui.update(this._channelDecibels);
     }
 
-    if (this._callback) {
-      this._callback(this._channelValues, this._channelDecibels);
+    if (this._updateCallback) {
+      this._updateCallback(this._channelValues, this._channelDecibels);
     }
   }
 }

@@ -23,7 +23,6 @@ import { AudioContextProvider } from "./audio/context-provider";
 import { AudioGraphController } from "./audio/graph-controller";
 import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
-import { VUMeterController } from "./vumeter/controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -64,6 +63,7 @@ export default class Nimio {
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
+      this._logger.warn("Both video and audio only modes are set. Skipping.");
       this._config.videoOnly = this._config.audioOnly = false;
       this._noVideo = this._noAudio = false;
     }
@@ -89,10 +89,6 @@ export default class Nimio {
         //   } else if (this._suspended) {
         //     this._logger.debug("Setup suspended VU meter");
         //     this._setupMeter();
-        //     if (this.onActivated && this.isActivated()) {
-        //       this.onActivated();
-        //       this.onActivated = undefined;
-        //     }
         //   }
         // }
       },
@@ -131,13 +127,9 @@ export default class Nimio {
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
-    this._vuMeterCtrl = VUMeterController.getInstance(this._instName);
-    this._vuMeterCtrl.init(
-      this._config.vuMeter,
-      this._onVUMeterUpdate.bind(this),
-      this._onVUMeterFatalError.bind(this),
-    );
+
     this._createAbrController();
+    this._createVUMeter();
 
     if (this._config.autoplay) {
       this.play();
@@ -146,6 +138,13 @@ export default class Nimio {
       }, 1000);
     }
   }
+
+  // onPlay() {
+  //   if (!this._context) return;
+
+  //   this._logger.debug("onPlay event, resume context");
+  //   this._context.resume();
+  // }
 
   play() {
     const resumeFromPause = this._state.isPaused();
@@ -221,11 +220,15 @@ export default class Nimio {
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
     this._pauseTimeoutId = null;
+
+    this._vuMeterSvc.stop();
+    this._audioGraphCtrl.dismantle();
   }
 
   destroy() {
     this.stop(true);
     this._ui.destroy();
+    this._vuMeterSvc.clear();
   }
 
   version() {
@@ -439,6 +442,8 @@ export default class Nimio {
         .catch((err) => {
           this._logger.error("Audio worklet error", err);
         });
+
+      this._vuMeterSvc.setAudioInfo({ sampleRate, channels });
     }
 
     await this._audioWorkletReady;
@@ -469,13 +474,14 @@ export default class Nimio {
       },
     );
 
-    this._vuMeterCtrl.start();
-
     this._audioVolumeCtrl.init(this._audioContext, this._config);
-    this._audioGraphCtrl.setSource(this._audioNode);
-    this._audioGraphCtrl.appendNode(this._vuMeterCtrl.node());
-    this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node());
-    this._audioGraphCtrl.assemble(["src", 0], [0, 1], [1, "dst"]);
+    this._audioGraphCtrl.setSource(this._audioNode, channels);
+    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
+    this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+
+    if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
+      this._vuMeterSvc.start();
+    }
 
     // // For input type: source -> meter -> gainer -> destination
     // // For output type: source -> meter -> destination
@@ -483,6 +489,17 @@ export default class Nimio {
     //   this._audGraphCtrl.appendNode([this._meter], [this._gainer]);
     // } else {
     //   this._audGraphCtrl.appendNode([this._meter], [this._meter]);
+    // }
+
+    // ScriptNodeProcessor
+    // if ("input" === this._type) {
+    //   // source -> meter -> gainer -> destination
+    //   //      \-------------/
+    //   this._audGraphCtrl.appendNode([this._meter, this._gainer], [this._gainer]);
+    // } else {
+    //   // source -> meter -> destination
+    //   //      \-------------/
+    //   this._audGraphCtrl.appendNode([this._meter, "dest"], [this._meter]);
     // }
 
   }
