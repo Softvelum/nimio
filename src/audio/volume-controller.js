@@ -1,14 +1,17 @@
 import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
+import { AudioContextProvider } from "./context-provider";
 
 class AudioVolumeController {
   constructor(instName) {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, "VolumeController");
+    this._audioCtxProvider = AudioContextProvider.getInstance(instName);
   }
 
-  init(audioContext, settings) {
-    this._audioCtx = audioContext;
+  init(settings) {
+    this._audioCtx = this._audioCtxProvider.get();
+    this._suspended = this._audioCtxProvider.isSuspended();
     this._gainer = this._audioCtx.createGain();
     if (!this._gainer) {
       this._logger.error("Can't initialize volume controller");
