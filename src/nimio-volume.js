@@ -23,7 +23,5 @@ export const NimioVolume = {
     this._vuMeterSvc.init(this._config.vuMeter, onUpdate);
   },
 
-  _onVUMeterUpdate(magnitudes, decibels) {
-  },
-
+  _onVUMeterUpdate(magnitudes, decibels) {},
 };

@@ -90,7 +90,7 @@ class AudioGraphController {
     }
   }
 
-  // opts: 
+  // opts:
   // - connectDest - connect appended node to the audio context destination
   // - connectPrev - connect appended node to the previous node
   // - parallel - if true, the previous node's outgoing connections are left intact, else the connections are removed
@@ -110,7 +110,7 @@ class AudioGraphController {
 
     if (nextNode) this._connect(node, nextNode);
 
-    // if not parallel, the previous node's connections are assigned 
+    // if not parallel, the previous node's connections are assigned
     // to the appended node while connecting the previous node to the appended
     if (prevNode && !opts.parallel) {
       let outConns = prevNode._outconns;
@@ -130,7 +130,7 @@ class AudioGraphController {
     return this._nodes.length - 1;
   }
 
-  // opts: 
+  // opts:
   // - connectSource - connect appended node to the audio source
   // - connectNext - connect appended node to the next node
   // - parallel - if true, the next node's incoming connections are left intact, else the connections are removed
@@ -151,7 +151,7 @@ class AudioGraphController {
 
     if (prevNode) this._connect(prevNode, node);
 
-    // if not parallel, the next node's incoming connections are assigned 
+    // if not parallel, the next node's incoming connections are assigned
     // to the prepended node while connecting the prepended node to the next
     if (nextNode && !opts.parallel) {
       let inConns = nextNode._inconns;

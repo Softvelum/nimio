@@ -15,7 +15,7 @@ export class VUMeterUI {
 
   create(numChannels) {
     if (this._fullValue) return;
-    
+
     if (!this._meter) {
       this._createBasicView();
     }
