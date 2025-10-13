@@ -25,8 +25,6 @@ class AudioContextProvider {
     });
     this._suspended = false;
 
-    this._audioCtx.suspend();
-
     // setInterval(() => {
     //   this._logger.debug(
     //     `Channels: ${that._audioCtx.destination.channelCount}, Max: ${that._audioCtx.destination.maxChannelCount}, state: ${that._audioCtx.state}`
@@ -54,7 +52,7 @@ class AudioContextProvider {
       };
       this._logger.debug("Audio context is created, but it's suspended");
       this._suspended = true;
-      // this._audioCtx.resume();
+      this._audioCtx.resume();
     }
   }
 

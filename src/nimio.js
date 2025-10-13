@@ -131,7 +131,7 @@ export default class Nimio {
   }
 
   play() {
-    const resumeFromPause = this._state.isPaused();
+    const initialPlay = !this._state.isPaused();
 
     if (this._pauseTimeoutId !== null) {
       clearTimeout(this._pauseTimeoutId);
@@ -145,11 +145,13 @@ export default class Nimio {
 
     requestAnimationFrame(this._renderVideoFrame);
 
-    if (!resumeFromPause) {
+    if (initialPlay) {
       this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
       if (this._debugView) {
         this._debugView.start();
       }
+    } else if (this._audioCtxProvider.isSuspended()) {
+      this._audioCtxProvider.get().resume();
     }
 
     this._ui.drawPause();

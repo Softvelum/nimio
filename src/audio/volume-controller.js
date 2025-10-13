@@ -30,6 +30,7 @@ class AudioVolumeController {
 
   setVolume(val) {
     if (!this._gainer) return false;
+    this._checkSuspended();
 
     val = this._storeVolume(val);
     if (this._muted) return true;
@@ -52,6 +53,8 @@ class AudioVolumeController {
 
   mute() {
     if (!this._gainer) return false;
+    this._checkSuspended();
+
     this._gainer.gain.setValueAtTime(0, this._audioCtx.currentTime);
     this._muted = true;
     return true;
@@ -59,6 +62,8 @@ class AudioVolumeController {
 
   unmute() {
     if (!this._gainer) return false;
+    this._checkSuspended();
+
     let vol = this._lastVolume >= 0 ? this._lastVolume / 100 : 1;
     this._gainer.gain.setValueAtTime(vol, this._audioCtx.currentTime);
     this._muted = false;
@@ -67,6 +72,15 @@ class AudioVolumeController {
 
   get node() {
     return this._gainer;
+  }
+
+  _checkSuspended() {
+    if (this._suspended) {
+      this._audioCtx.resume();
+      this._audioCtxProvider.onContextRunning(() => {
+        this._suspended = false;
+      });
+    }
   }
 
   _getStoredVolume() {
