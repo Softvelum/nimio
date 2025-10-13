@@ -25,7 +25,7 @@
     <br />
     <div style="display: inline-flex">
       <div id="video"></div>
-      <div id="vu-meter" style="width: 80px; height: 268px;"></div>
+      <div id="vu-meter" style="width: 80px; height: 268px"></div>
     </div>
     <script type="module">
       import Nimio from "/src/nimio.js";
@@ -51,6 +51,7 @@
           // },
           vuMeter: {
             container: "vu-meter",
+            type: "input",
           },
         });
       }
