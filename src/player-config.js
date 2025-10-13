@@ -143,6 +143,9 @@ export function createConfig(overrides = {}) {
   // ID for storing the last volume level
   target.volumeId = target.container;
 
+  // ID for storing the last volume level
+  target.volumeId = target.container;
+
   return new Proxy(target, {
     get(obj, prop) {
       if (!(prop in DEFAULTS)) {
