@@ -41,6 +41,15 @@ nimio = new Nimio({
     maxRendition: "1080p", // Maximum rendition that the player will set automatically
     sizeConstrained: true, // Player won't automatically switch to renditions which dimensions exceed the actual player size more then 5%
   },
+  vuMeter: {
+    // a volume unit (VU) meter settings object
+    api: "AudioWorklet", // audio processing interface used by VU meter ("AudioWorklet" or "ScriptProcessor")
+    container: "vu-meter", // ID of the VU meter container. VU meter UI  occupies the whole container's size. Vertical orientation (container's height >= width), horizontal orientation (container's width > height)
+    mode: "peak", // the way which audio level values are calculated ("peak", "avg", "rms")
+    type: "input", // VU meter readings type ("input" or "output")
+    rate: 6, // audio level update frequency limit (from 0.001 to 50)
+    dbRange: 100, // decibel scale range which is plotted in the VU meter UI
+  },
 });
 
 nimio.play();

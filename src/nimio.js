@@ -1,4 +1,4 @@
-import audioWorkletUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
+import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
 import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
@@ -63,6 +63,7 @@ export default class Nimio {
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
     if (this._noVideo && this._noAudio) {
+      this._logger.warn("Both video and audio only modes are set. Skipping.");
       this._config.videoOnly = this._config.audioOnly = false;
       this._noVideo = this._noAudio = false;
     }
@@ -81,6 +82,14 @@ export default class Nimio {
       },
       (volume) => {
         this._audioVolumeCtrl.setVolume(volume);
+      },
+      (rend) => {
+        if (!rend) return false;
+        if (rend.name === "Auto") {
+          return this.startAbr();
+        }
+        this.stopAbr();
+        return this.setCurrentRendition("video", rend.id);
       },
     );
     this._pauseTimeoutId = null;
@@ -109,7 +118,9 @@ export default class Nimio {
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
+
     this._createAbrController();
+    this._createVUMeter();
 
     if (this._config.autoplay) {
       this.play();
@@ -120,7 +131,7 @@ export default class Nimio {
   }
 
   play() {
-    const resumeFromPause = this._state.isPaused();
+    const initialPlay = !this._state.isPaused();
 
     if (this._pauseTimeoutId !== null) {
       clearTimeout(this._pauseTimeoutId);
@@ -134,11 +145,13 @@ export default class Nimio {
 
     requestAnimationFrame(this._renderVideoFrame);
 
-    if (!resumeFromPause) {
+    if (initialPlay) {
       this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
       if (this._debugView) {
         this._debugView.start();
       }
+    } else if (this._audioCtxProvider.isSuspended()) {
+      this._audioCtxProvider.get().resume();
     }
 
     this._ui.drawPause();
@@ -193,11 +206,15 @@ export default class Nimio {
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
     this._pauseTimeoutId = null;
+
+    this._vuMeterSvc.stop();
+    this._audioGraphCtrl.dismantle();
   }
 
   destroy() {
     this.stop(true);
     this._ui.destroy();
+    this._vuMeterSvc.clear();
   }
 
   version() {
@@ -407,10 +424,12 @@ export default class Nimio {
 
       // load processor
       this._audioWorkletReady = this._audioContext.audioWorklet
-        .addModule(audioWorkletUrl)
+        .addModule(audioProcUrl)
         .catch((err) => {
           this._logger.error("Audio worklet error", err);
         });
+
+      this._vuMeterSvc.setAudioInfo({ sampleRate, channels });
     }
 
     await this._audioWorkletReady;
@@ -441,10 +460,14 @@ export default class Nimio {
       },
     );
 
-    this._audioVolumeCtrl.init(this._audioContext, this._config);
-    this._audioGraphCtrl.setSource(this._audioNode);
-    this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node());
-    this._audioGraphCtrl.assemble(["src", 0], [0, "dst"]);
+    this._audioVolumeCtrl.init(this._config);
+    this._audioGraphCtrl.setSource(this._audioNode, channels);
+    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
+    this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+
+    if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
+      this._vuMeterSvc.start();
+    }
   }
 
   async _startNoAudioMode() {

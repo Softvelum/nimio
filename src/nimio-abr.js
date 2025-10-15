@@ -19,10 +19,10 @@ export const NimioAbr = {
   },
 
   stopAbr() {
-    if (this._isAutoAbr()) {
-      this._context.autoAbr = false;
-      this._abrController.stop({ hard: true });
-    }
+    if (!this._isAutoAbr()) return;
+
+    this._context.autoAbr = false;
+    this._abrController.stop({ hard: true });
   },
 
   isAbr() {
@@ -35,9 +35,7 @@ export const NimioAbr = {
 
   _createAbrController() {
     if (this._config.adaptiveBitrate && !this._abrController) {
-      this._renditionProvider = AbrRenditionProvider.getInstance(
-        this._instName,
-      );
+      this._rendProvider = AbrRenditionProvider.getInstance(this._instName);
       this._context.autoAbr = true;
 
       let buffering = this._config.latency;

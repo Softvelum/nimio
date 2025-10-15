@@ -18,6 +18,7 @@ const DEFAULTS = {
   adaptiveBitrate: {},
   volumeId: false,
   muted: false,
+  vuMeter: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -67,6 +68,51 @@ function initAbrSettings(settings, logger) {
   }
 }
 
+function initVUMeterSettings(settings, logger) {
+  if (!(settings.vuMeter instanceof Object)) return;
+
+  settings.vuMeter.dbRange = parseInt(settings.vuMeter.dbRange);
+  if (isNaN(settings.vuMeter.dbRange)) {
+    settings.vuMeter.dbRange = undefined;
+  }
+  settings.vuMeter.rate = parseFloat(settings.vuMeter.rate);
+  if (isNaN(settings.vuMeter.rate)) {
+    settings.vuMeter.rate = undefined;
+  } else if (settings.vuMeter.rate < 0.001) {
+    settings.vuMeter.rate = 0.001;
+  }
+
+  if (settings.vuMeter.mode === undefined) {
+    settings.vuMeter.mode = "peak";
+  }
+  if (!["peak", "rms", "avg"].includes(settings.vuMeter.mode)) {
+    logger.warn(
+      `VU meter mode ${settings.vuMeter.mode} isn't recognized. Setting the "peak" mode by default`,
+    );
+    settings.vuMeter.mode = "peak";
+  }
+
+  if (settings.vuMeter.type === undefined) {
+    settings.vuMeter.type = "output";
+  }
+  if (!["input", "output"].includes(settings.vuMeter.type)) {
+    logger.warn(
+      `VU meter type ${settings.vuMeter.type} isn't recognized. Setting the "output" type be default`,
+    );
+    settings.vuMeter.type = "output";
+  }
+
+  if (settings.vuMeter.api === undefined) {
+    settings.vuMeter.api = "AudioWorklet";
+  }
+  if (!["AudioWorklet", "ScriptProcessor"].includes(settings.vuMeter.api)) {
+    logger.warn(
+      `VU meter api ${settings.vuMeter.api} isn't recognized. Setting "AudioWorklet" by default`,
+    );
+    settings.vuMeter.api = "AudioWorklet";
+  }
+}
+
 export function createConfig(overrides = {}) {
   const filtered = {};
   const unknown = [];
@@ -92,6 +138,7 @@ export function createConfig(overrides = {}) {
     target.latency + target.startOffset + target.pauseTimeout;
 
   initAbrSettings(target, logger);
+  initVUMeterSettings(target, logger);
 
   // ID for storing the last volume level
   target.volumeId = target.container;

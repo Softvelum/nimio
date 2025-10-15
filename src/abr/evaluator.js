@@ -124,18 +124,19 @@ export class AbrEvaluator {
     let totalBandwidth = this.calculateCurStreamMetric("customRangeBandwidth");
     this._logger.debug(`finished probe: cur bandwidth ${totalBandwidth}`);
 
-    let proberMetrics = this._metricsManager.getMetric(this._prober.id);
-    let proberBandwidth = Math.max(
-      proberMetrics.avgBandwidth(),
-      proberMetrics.latestBandwidth(),
-    );
-    let proberRate = proberMetrics.avgRate();
-    totalBandwidth += proberBandwidth;
+    let prMetrics = this._metricsManager.getMetric(this._prober.id);
+    let prBw = 0;
+    let prRate = 0;
+    if (prMetrics) {
+      prBw = Math.max(prMetrics.avgBandwidth(), prMetrics.latestBandwidth());
+      prRate = prMetrics.avgRate();
+    }
+    totalBandwidth += prBw;
     this._logger.debug(
       `finished probe: previous bw ${this._curBandwidth}, current bw ${totalBandwidth}`,
     );
     this._logger.debug(
-      `finished probe: prober bw ${proberBandwidth}, prober rate ${proberRate}`,
+      `finished probe: prober bw ${prBw}, prober rate ${prRate}`,
     );
 
     let proberPeriod = this._prober.period;
@@ -190,17 +191,26 @@ export class AbrEvaluator {
     }
   }
 
+  _calculateStreamMetric(streamId, metrName) {
+    let metric = this._metricsManager.getMetric(streamId);
+    if (!metric) {
+      this._logger.warn(
+        `Requested not existing metric ${metrName} for stream ID ${streamId}`,
+      );
+      return 0;
+    }
+    return metric[metrName]();
+  }
+
   calculateCurVideoStreamMetric(metr) {
-    return this._metricsManager.getMetric(this._curStream.vId)[metr]();
+    return this._calculateStreamMetric(this._curStream.vId, metr);
   }
 
   calculateCurStreamMetric(metr) {
-    let videoMetrics = this._metricsManager.getMetric(this._curStream.vId);
-    let result = videoMetrics[metr]();
+    let result = this._calculateStreamMetric(this._curStream.vId, metr);
     if (result < 0 || !(result >= 0)) result = 0;
     if (undefined !== this._curStream.aId) {
-      let audioMetrics = this._metricsManager.getMetric(this._curStream.aId);
-      let aRes = audioMetrics[metr]();
+      let aRes = this._calculateStreamMetric(this._curStream.aId, metr);
       if (aRes > 0) result += aRes;
     }
     return result;
@@ -209,8 +219,7 @@ export class AbrEvaluator {
   calculateProbeStreamMetric(metr) {
     let result = 0;
     if (undefined !== this._prober) {
-      let pMetrics = this._metricsManager.getMetric(this._prober.id);
-      result = pMetrics[metr]();
+      result = this._calculateStreamMetric(this._prober.id, metr);
     }
     return result;
   }

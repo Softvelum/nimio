@@ -1,14 +1,17 @@
 import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
+import { AudioContextProvider } from "./context-provider";
 
 class AudioVolumeController {
   constructor(instName) {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, "VolumeController");
+    this._audioCtxProvider = AudioContextProvider.getInstance(instName);
   }
 
-  init(audioContext, settings) {
-    this._audioCtx = audioContext;
+  init(settings) {
+    this._audioCtx = this._audioCtxProvider.get();
+    this._suspended = this._audioCtxProvider.isSuspended();
     this._gainer = this._audioCtx.createGain();
     if (!this._gainer) {
       this._logger.error("Can't initialize volume controller");
@@ -27,6 +30,7 @@ class AudioVolumeController {
 
   setVolume(val) {
     if (!this._gainer) return false;
+    this._checkSuspended();
 
     val = this._storeVolume(val);
     if (this._muted) return true;
@@ -49,6 +53,8 @@ class AudioVolumeController {
 
   mute() {
     if (!this._gainer) return false;
+    this._checkSuspended();
+
     this._gainer.gain.setValueAtTime(0, this._audioCtx.currentTime);
     this._muted = true;
     return true;
@@ -56,14 +62,25 @@ class AudioVolumeController {
 
   unmute() {
     if (!this._gainer) return false;
+    this._checkSuspended();
+
     let vol = this._lastVolume >= 0 ? this._lastVolume / 100 : 1;
     this._gainer.gain.setValueAtTime(vol, this._audioCtx.currentTime);
     this._muted = false;
     return true;
   }
 
-  node() {
+  get node() {
     return this._gainer;
+  }
+
+  _checkSuspended() {
+    if (this._suspended) {
+      this._audioCtx.resume();
+      this._audioCtxProvider.onContextRunning(() => {
+        this._suspended = false;
+      });
+    }
   }
 
   _getStoredVolume() {

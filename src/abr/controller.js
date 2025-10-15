@@ -50,10 +50,12 @@ export class AbrController {
     if (delayed) {
       this._clearEvalTimer();
       this._clearWatchTimer();
-      let ctrl = this;
-      this._restartTimer = setTimeout(function () {
-        ctrl._restartTimer = undefined;
-        ctrl.start();
+      this._restartTimer = setTimeout(() => {
+        this._restartTimer = undefined;
+        if (this._curStream) {
+          // ABR controller hasn't been stopped during the delay
+          this.start();
+        }
       }, 5000);
     } else {
       this.start();
