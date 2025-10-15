@@ -24,8 +24,6 @@ class AudioContextProvider {
       latencyHint: "interactive",
     });
     this._suspended = false;
-    // TODO: remove
-    this._audioCtx.suspend();
 
     // setInterval(() => {
     //   this._logger.debug(
@@ -54,8 +52,7 @@ class AudioContextProvider {
       };
       this._logger.debug("Audio context is created, but it's suspended");
       this._suspended = true;
-      // TODO: uncomment
-      // this._audioCtx.resume();
+      this._audioCtx.resume();
     }
   }
 
