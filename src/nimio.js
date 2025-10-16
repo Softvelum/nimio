@@ -1,6 +1,5 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
-import { EventMixin } from "./events";
 import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
@@ -17,12 +16,14 @@ import { NimioTransport } from "./nimio-transport";
 import { NimioRenditions } from "./nimio-renditions";
 import { NimioAbr } from "./nimio-abr";
 import { NimioVolume } from "./nimio-volume";
+import { NimioEvents } from "./nimio-events";
 import { MetricsManager } from "./metrics/manager";
 import { LoggersFactory } from "./shared/logger";
 import { AudioContextProvider } from "./audio/context-provider";
 import { AudioGraphController } from "./audio/graph-controller";
 import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
+import { EventBus } from "./event-bus";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -48,11 +49,12 @@ export default class Nimio {
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
 
+    this._eventBus = EventBus.getInstance(this._instName);
+
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
       return total;
     }, 0);
-
     this._sab = new SharedArrayBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     this._state = new StateManager(this._sab);
     this._state.stop();
@@ -76,21 +78,22 @@ export default class Nimio {
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
       },
-      this._onPlayPauseClick,
-      (mute) => {
-        mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
-      },
-      (volume) => {
-        this._audioVolumeCtrl.setVolume(volume);
-      },
-      (rend) => {
-        if (!rend) return false;
-        if (rend.name === "Auto") {
-          return this.startAbr();
-        }
-        this.stopAbr();
-        return this.setCurrentRendition("video", rend.id);
-      },
+      this._eventBus,
+      // this._onPlayPauseClick,
+      // (mute) => {
+      //   mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
+      // },
+      // (volume) => {
+      //   this._audioVolumeCtrl.setVolume(volume);
+      // },
+      // (rend) => {
+      //   if (!rend) return false;
+      //   if (rend.name === "Auto") {
+      //     return this.startAbr();
+      //   }
+      //   this.stopAbr();
+      //   return this.setCurrentRendition("video", rend.id);
+      // },
     );
     this._pauseTimeoutId = null;
 
@@ -123,7 +126,7 @@ export default class Nimio {
     this._createVUMeter();
 
     if (this._config.autoplay) {
-      this.play();
+      setTimeout(() => this.play(), 0);
       setTimeout(() => {
         this._ui.hideControls(true);
       }, 1000);
@@ -142,6 +145,7 @@ export default class Nimio {
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
+    this._eventBus.emit("nimio:play", this._instName, this._config.container);
 
     requestAnimationFrame(this._renderVideoFrame);
 
@@ -225,7 +229,7 @@ export default class Nimio {
     return __NIMIO_VERSION__;
   }
 
-  _onPlayPauseClick(e, isPlayClicked) {
+  _onPlayPauseClick(isPlayClicked) {
     isPlayClicked ? this.play() : this.pause();
   }
 
@@ -493,7 +497,7 @@ export default class Nimio {
   }
 }
 
-Object.assign(Nimio.prototype, EventMixin);
+Object.assign(Nimio.prototype, NimioEvents);
 Object.assign(Nimio.prototype, NimioTransport);
 Object.assign(Nimio.prototype, NimioRenditions);
 Object.assign(Nimio.prototype, NimioAbr);

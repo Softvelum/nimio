@@ -42,10 +42,10 @@ class AudioGraphController {
     }
     for (let i = 0; i < this._nodes.length; i++) {
       this._nodes[i]._inconns = [];
-      for (let j = 0; j < this._nodes[i]._outconns.length; i++) {
+      for (let j = 0; j < this._nodes[i]._outconns?.length; j++) {
         this._nodes[i].disconnect(this._nodes[i]._outconns[j]);
       }
-      this._nodes._outconns = [];
+      this._nodes[i]._outconns = [];
     }
     this._audCtx.destination._inconns = [];
   }

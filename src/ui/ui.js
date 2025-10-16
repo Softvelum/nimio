@@ -4,16 +4,10 @@ import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
 
 export class Ui {
-  constructor(
-    container,
-    opts,
-    onPlayPause,
-    onMuteUnmute,
-    onVolumeChange,
-    onRenditionSelected,
-  ) {
+  constructor(container, opts, eventBus) {
     this.state = "pause";
     this.muted = false;
+    this._eventBus = eventBus;
 
     this.container = document.getElementById(container);
     Object.assign(this.container.style, {
@@ -39,22 +33,12 @@ export class Ui {
     this.btnPlayPause.appendChild(this.button);
     this.container.appendChild(this.btnPlayPause);
 
-    this._onClick = (e) => this._hanldleClick(e, onPlayPause);
-    this._onRenditionSelectedCallback = (r) => onRenditionSelected?.(r);
-    this._onMuteUnmuteClick = () => this._hanldleMuteUnmuteClick(onMuteUnmute);
-    this._onVolumeChange = (value) =>
-      this._hanldleVolumeChange(value, onVolumeChange);
+    this._onClick = this._handleClick.bind(this);
+    this._onMuteUnmuteClick = this._handleMuteUnmuteClick.bind(this);
     this.canvas.addEventListener("click", this._onClick);
     this.btnPlayPause.addEventListener("click", this._onClick);
 
     this._createControls();
-    // this.setRenditions([
-    //   { name: "1080p", id: 0 },
-    //   { name: "760p", id: 1 },
-    //   { name: "480p", id: 2 },
-    //   { name: "360p", id: 3 },
-    // ]);
-
     this.setupEasing();
   }
 
@@ -75,7 +59,7 @@ export class Ui {
 
     this.volumeRange = this.controlsBar.querySelector(".volume-range");
     this.volumeRange.addEventListener("input", (e) => {
-      this._onVolumeChange(Number(e.target.value));
+      this._handleVolumeChange(Number(e.target.value));
     });
 
     this.buttonSettings = this.controlsBar.querySelector(".btn-settings");
@@ -200,18 +184,13 @@ export class Ui {
     );
   }
 
-  _hanldleClick(e, onPlayPause) {
-    let isPlayClicked = false;
-    if ("pause" === this.state) {
-      isPlayClicked = true;
-      this.drawPause();
-    } else {
-      this.drawPlay();
-    }
-    onPlayPause?.(e, isPlayClicked);
+  _handleClick(e) {
+    let isPlayClicked = ("pause" === this.state);
+    isPlayClicked ? this.drawPause() : this.drawPlay();
+    this._eventBus.emit("ui:play-pause-click", isPlayClicked);
   }
 
-  _hanldleMuteUnmuteClick(onMuteUnmute) {
+  _handleMuteUnmuteClick() {
     this.muted = !this.muted;
     if (this.muted) {
       this.buttonVolume.querySelector(".icon-vol-mute").style.display = "none";
@@ -222,16 +201,14 @@ export class Ui {
       this.buttonVolume.querySelector(".icon-vol-unmute").style.display =
         "none";
     }
-    onMuteUnmute?.(this.muted);
+    this._eventBus.emit("ui:mute-unmute-click", this.muted);
   }
 
-  _hanldleVolumeChange(value, onVolumeChange) {
-    if (0 == value && !this.muted) {
-      this._onMuteUnmuteClick();
-    } else if (this.muted) {
-      this._onMuteUnmuteClick();
+  _handleVolumeChange(value) {
+    if (this.muted || value === 0) {
+      this._handleMuteUnmuteClick();
     }
-    onVolumeChange?.(value);
+    this._eventBus.emit("ui:volume-change", value);
   }
 
   _hanldleSettingsClick(e) {
