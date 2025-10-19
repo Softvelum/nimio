@@ -1,12 +1,14 @@
 import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
 import { AudioContextProvider } from "./context-provider";
+import { EventBus } from "@/event-bus";
 
 class AudioVolumeController {
   constructor(instName) {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, "VolumeController");
     this._audioCtxProvider = AudioContextProvider.getInstance(instName);
+    this._eventBus = EventBus.getInstance(instName);
   }
 
   init(settings) {
@@ -23,9 +25,12 @@ class AudioVolumeController {
     if (settings.muted) {
       this._gainer.gain.value = 0;
       this._muted = true;
+      this._eventBus.emit("nimio:muted", true);
     } else {
       this._gainer.gain.value = this._lastVolume / 100;
     }
+
+    this._eventBus.emit("nimio:volume-set", this._lastVolume);
   }
 
   setVolume(val) {
@@ -33,9 +38,11 @@ class AudioVolumeController {
     this._checkSuspended();
 
     val = this._storeVolume(val);
-    if (this._muted) return true;
+    this._eventBus.emit("nimio:volume-set", val);
 
-    this._gainer.gain.setValueAtTime(val / 100, this._audioCtx.currentTime);
+    if (!this._muted) {
+      this._gainer.gain.setValueAtTime(val / 100, this._audioCtx.currentTime);
+    }
     return true;
   }
 
@@ -55,6 +62,7 @@ class AudioVolumeController {
     if (!this._gainer) return false;
     this._checkSuspended();
 
+    this._eventBus.emit("nimio:muted", true);
     this._gainer.gain.setValueAtTime(0, this._audioCtx.currentTime);
     this._muted = true;
     return true;
@@ -64,6 +72,7 @@ class AudioVolumeController {
     if (!this._gainer) return false;
     this._checkSuspended();
 
+    this._eventBus.emit("nimio:muted", false);
     let vol = this._lastVolume >= 0 ? this._lastVolume / 100 : 1;
     this._gainer.gain.setValueAtTime(vol, this._audioCtx.currentTime);
     this._muted = false;

@@ -71,30 +71,24 @@ export default class Nimio {
     }
 
     this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
+    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._onRenditionChange = this._onRenditionChange.bind(this);
     this._ui = new Ui(
       this._config.container,
       {
         width: this._config.width, //todo get from video?
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
+        logger: LoggersFactory.create(this._instName, "Nimio UI"),
+        autoAbr: !!this._config.adaptiveBitrate,
       },
       this._eventBus,
-      // this._onPlayPauseClick,
-      // (mute) => {
-      //   mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
-      // },
-      // (volume) => {
-      //   this._audioVolumeCtrl.setVolume(volume);
-      // },
-      // (rend) => {
-      //   if (!rend) return false;
-      //   if (rend.name === "Auto") {
-      //     return this.startAbr();
-      //   }
-      //   this.stopAbr();
-      //   return this.setCurrentRendition("video", rend.id);
-      // },
     );
+    this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
+    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.on("ui:volume-change", this._onVolumeChange);
+    this._eventBus.on("ui:rendition-change", this._onRenditionChange);
     this._pauseTimeoutId = null;
 
     this._metricsManager = MetricsManager.getInstance(this._instName);
@@ -315,25 +309,6 @@ export default class Nimio {
   _isNextRenditionTrack(trackId) {
     return (
       this._nextRenditionData && this._nextRenditionData.trackId === trackId
-    );
-  }
-
-  _onRenditionSwitchResult(type, done) {
-    if (done) {
-      this._context.setCurrentStream(
-        type,
-        this._nextRenditionData.idx,
-        this._nextRenditionData.trackId,
-      );
-    }
-    let nextId = this._nextRenditionData.idx + 1;
-    this._nextRenditionData = null;
-    if (this._isAutoAbr()) {
-      this._abrController.restart(true);
-    }
-
-    this._logger.debug(
-      `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
   }
 

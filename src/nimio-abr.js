@@ -14,15 +14,20 @@ export const NimioAbr = {
     if (this._decoderFlows["video"].isActive() && !this._state.isPaused()) {
       this._startAbrController();
     }
+    this._eventBus.emit("nimio:abr", true);
 
     return true;
   },
 
   stopAbr() {
-    if (!this._isAutoAbr()) return;
+    if (this._noVideo || !this._decoderFlows["video"]) return false;
+    if (!this._isAutoAbr()) return true;
 
     this._context.autoAbr = false;
     this._abrController.stop({ hard: true });
+    this._eventBus.emit("nimio:abr", false);
+
+    return true;
   },
 
   isAbr() {

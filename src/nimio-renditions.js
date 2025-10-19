@@ -68,9 +68,43 @@ export const NimioRenditions = {
     this._nextRenditionData = {
       idx: rIdx,
       trackId: this._sldpManager.requestStream(type, rIdx),
+      name: stream.stream_info.name,
     };
 
     return true;
+  },
+
+  _onRenditionChange(rend) {
+    if (!rend) return false;
+    if (rend.name === "Auto") {
+      return this.startAbr();
+    }
+    this.stopAbr();
+    return this.setCurrentRendition("video", rend.id);
+  },
+
+  _onRenditionSwitchResult(type, done) {
+    let nextId = this._nextRenditionData.idx + 1;
+    if (done) {
+      this._context.setCurrentStream(
+        type,
+        this._nextRenditionData.idx,
+        this._nextRenditionData.trackId,
+      );
+
+      this._eventBus.emit("nimio:rendition-set", {
+        name: this._nextRenditionData.name,
+        id: nextId,
+      });
+    }
+    this._nextRenditionData = null;
+
+    if (this._isAutoAbr()) {
+      this._abrController.restart(true);
+    }
+    this._logger.debug(
+      `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
+    );
   },
 
   _checkRenditionType(type) {

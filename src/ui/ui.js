@@ -6,8 +6,10 @@ import controlsCss from "./controls.css?raw";
 export class Ui {
   constructor(container, opts, eventBus) {
     this.state = "pause";
-    this.muted = false;
+    this._muted = false;
     this._eventBus = eventBus;
+    this._logger = opts.logger;
+    this._autoAbr = opts.autoAbr;
 
     this.container = document.getElementById(container);
     Object.assign(this.container.style, {
@@ -34,12 +36,23 @@ export class Ui {
     this.container.appendChild(this.btnPlayPause);
 
     this._onClick = this._handleClick.bind(this);
+    this._onVolumeSet = this._onVolumeSet.bind(this);
     this._onMuteUnmuteClick = this._handleMuteUnmuteClick.bind(this);
+    this._onMuteUnmuteSet = this._onMuteUnmuteSet.bind(this);
+    this._onRenditionSet = this._onRenditionSet.bind(this);
+    this._onRenditionsReceived = this._onRenditionsReceived.bind(this);
+    this._onAdaptiveBitrateSet = this._onAdaptiveBitrateSet.bind(this);
     this.canvas.addEventListener("click", this._onClick);
     this.btnPlayPause.addEventListener("click", this._onClick);
 
     this._createControls();
-    this.setupEasing();
+    this._setupEasing();
+
+    this._eventBus.on("nimio:volume-set", this._onVolumeSet);
+    this._eventBus.on("nimio:muted", this._onMuteUnmuteSet);
+    this._eventBus.on("nimio:rendition-set", this._onRenditionSet);
+    this._eventBus.on("nimio:rendition-list", this._onRenditionsReceived);
+    this._eventBus.on("nimio:abr", this._onAdaptiveBitrateSet);
   }
 
   _createControls() {
@@ -54,8 +67,8 @@ export class Ui {
     this.buttonPlayPause = this.controlsBar.querySelector(".btn-play-pause");
     this.buttonPlayPause.addEventListener("click", this._onClick);
 
-    this.buttonVolume = this.controlsBar.querySelector(".btn-volume");
-    this.buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
+    this._buttonVolume = this.controlsBar.querySelector(".btn-volume");
+    this._buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
 
     this.volumeRange = this.controlsBar.querySelector(".volume-range");
     this.volumeRange.addEventListener("input", (e) => {
@@ -64,7 +77,7 @@ export class Ui {
 
     this.buttonSettings = this.controlsBar.querySelector(".btn-settings");
     this.buttonSettings.addEventListener("click", (e) =>
-      this._hanldleSettingsClick(e),
+      this._handleSettingsClick(e),
     );
     this.menuPopover = this.controlsBar.querySelector(".menu-popover");
     this.menuSection = this.menuPopover.querySelector(".menu-section");
@@ -86,7 +99,7 @@ export class Ui {
     }
   }
 
-  setupEasing() {
+  _setupEasing() {
     this.hideTimer = null;
     this._onMouseMove = (e) => this._handleMouseMove(e);
     this.container.addEventListener("mousemove", this._onMouseMove);
@@ -139,34 +152,49 @@ export class Ui {
     return [box.width, box.height];
   }
 
-  setRenditions(renditions) {
+  _onRenditionsReceived(renditions) {
     if (!Array.isArray(renditions)) {
-      console.error("setRenditions: not an array");
+      this._logger.error("_onRenditionsReceived: not an array");
       return;
     }
 
     const autoBtn = this.menuSection.querySelector("button.rendition-auto");
+    autoBtn.style.display = this._autoAbr ? "block" : "none";
+    autoBtn.dataset.rendition = "auto";
     this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();
     });
 
-    renditions.forEach((rendition, index) => {
+    renditions.forEach((rendition) => {
       const button = document.createElement("button");
       button.className = "menu-item";
       button.setAttribute("role", "menuitemradio");
       button.setAttribute("aria-checked", "false");
       button.dataset.rendition = rendition.name;
+      button.dataset.rid = rendition.id;
       button.textContent = rendition.name;
-
       button._rendition = rendition;
-
       this.menuSection.appendChild(button);
     });
 
-    this.enableSelection();
+    this._enableSelection();
   }
 
-  enableSelection() {
+  _toggleAutoAbrButton() {
+    const res = this.menuSection.querySelector("button.rendition-auto");
+    res.setAttribute("aria-checked", this._autoAbr ? "true" : "false");
+    if (this._autoAbr) {
+      res.style.display = "block";
+      if (this._curRendition) {
+        res.textContent = `Auto ${this._curRendition.name}`;
+      }
+    } else {
+      res.textContent = "Auto";
+    }
+    return res;
+  }
+
+  _enableSelection() {
     this.menuSection.addEventListener("click", (e) => {
       const btn = e.target.closest("button.menu-item");
       if (!btn) return;
@@ -175,43 +203,69 @@ export class Ui {
   }
 
   selectRendition(selectedBtn) {
-    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
-      btn.setAttribute("aria-checked", btn === selectedBtn ? "true" : "false");
-    });
+    let selRendition = selectedBtn._rendition || { name: "Auto" };
+    this._eventBus.emit("ui:rendition-change", selRendition);
+  }
 
-    this._onRenditionSelectedCallback(
-      selectedBtn._rendition || { name: "Auto" },
-    );
+  _onRenditionSet(rData) {
+    this._curRendition = rData;
+    this._applyCurrentRendition();
+  }
+
+  _applyCurrentRendition() {
+    if (!this._curRendition) {
+      this._logger.error("No current rendition to apply!");
+      return;
+    }
+    this._toggleAutoAbrButton();
+
+    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+      if (btn.dataset.rendition === "auto") return;
+      let isSel =
+        !this._autoAbr &&
+        this._curRendition.name === btn.dataset.rendition &&
+        this._curRendition.id === parseInt(btn.dataset.rid);
+      btn.setAttribute("aria-checked", isSel ? "true" : "false");
+    });
   }
 
   _handleClick(e) {
-    let isPlayClicked = ("pause" === this.state);
+    let isPlayClicked = "pause" === this.state;
     isPlayClicked ? this.drawPause() : this.drawPlay();
     this._eventBus.emit("ui:play-pause-click", isPlayClicked);
   }
 
   _handleMuteUnmuteClick() {
-    this.muted = !this.muted;
-    if (this.muted) {
-      this.buttonVolume.querySelector(".icon-vol-mute").style.display = "none";
-      this.buttonVolume.querySelector(".icon-vol-unmute").style.display =
-        "block";
-    } else {
-      this.buttonVolume.querySelector(".icon-vol-mute").style.display = "block";
-      this.buttonVolume.querySelector(".icon-vol-unmute").style.display =
-        "none";
-    }
-    this._eventBus.emit("ui:mute-unmute-click", this.muted);
+    this._muted = !this._muted;
+    this._eventBus.emit("ui:mute-unmute-click", this._muted);
+  }
+
+  _onMuteUnmuteSet(muted) {
+    this._muted = muted;
+    let muteIcon = this._buttonVolume.querySelector(".icon-vol-mute");
+    let unmuteIcon = this._buttonVolume.querySelector(".icon-vol-unmute");
+
+    muteIcon.style.display = this._muted ? "none" : "block";
+    unmuteIcon.style.display = this._muted ? "block" : "none";
   }
 
   _handleVolumeChange(value) {
-    if (this.muted || value === 0) {
+    if (this._muted || value === 0) {
       this._handleMuteUnmuteClick();
     }
     this._eventBus.emit("ui:volume-change", value);
   }
 
-  _hanldleSettingsClick(e) {
+  _onVolumeSet(value) {
+    this.volumeRange.value = value;
+  }
+
+  _onAdaptiveBitrateSet(val) {
+    this._autoAbr = val;
+    this._applyCurrentRendition();
+  }
+
+  _handleSettingsClick(e) {
     this.menuPopover.hidden = !this.menuPopover.hidden;
   }
 
