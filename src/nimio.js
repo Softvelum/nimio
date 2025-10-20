@@ -277,6 +277,7 @@ export default class Nimio {
     }
   }
 
+  // TODO: rework to the common latency control mechanism for video and audio
   _adjustPlaybackLatency(availableMs) {
     let targetLatencyMs = 1.1 * this._config.latency;
     if (availableMs > targetLatencyMs) {
