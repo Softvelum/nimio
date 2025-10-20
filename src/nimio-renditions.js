@@ -130,13 +130,6 @@ export const NimioRenditions = {
   },
 
   _isSwitchPossible(type) {
-    if (!this._config.adaptiveBitrate) {
-      this._logger.warn(
-        `Can't switch ${type} rendition, adaptive bitrate is disabled`,
-      );
-      return false;
-    }
-
     if (
       (type === "video" && this._noVideo) ||
       (type === "audio" && this._noAudio)

@@ -116,7 +116,9 @@ export default class Nimio {
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
 
-    this._createAbrController();
+    if (this._config.adaptiveBitrate) {
+      this._createAbrController();
+    }
     this._createVUMeter();
 
     if (this._config.autoplay) {
@@ -282,14 +284,12 @@ export default class Nimio {
         ? this._onVideoStartTsNotSet.bind(this)
         : this._onAudioStartTsNotSet.bind(this);
     decoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    if (this._config.adaptiveBitrate) {
-      decoderFlow.onSwitchResult = (done) => {
-        this._onRenditionSwitchResult(type, done);
-      };
-      decoderFlow.onInputCancel = () => {
-        this._sldpManager.cancelStream(decoderFlow.trackId);
-      };
-    }
+    decoderFlow.onSwitchResult = (done) => {
+      this._onRenditionSwitchResult(type, done);
+    };
+    decoderFlow.onInputCancel = () => {
+      this._sldpManager.cancelStream(decoderFlow.trackId);
+    };
     decoderFlow.setConfig(data.config);
   }
 
