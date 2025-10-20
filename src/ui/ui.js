@@ -5,48 +5,142 @@ import controlsCss from "./controls.css?raw";
 
 export class Ui {
   constructor(container, opts, eventBus) {
-    this.state = "pause";
+    this._state = "pause";
     this._muted = false;
     this._eventBus = eventBus;
     this._logger = opts.logger;
     this._autoAbr = opts.autoAbr;
 
-    this.container = document.getElementById(container);
-    Object.assign(this.container.style, {
+    this._container = document.getElementById(container);
+    Object.assign(this._container.style, {
       display: "inline-block",
       position: "relative",
     });
-    this.container.classList.add("nimio-container");
+    this._container.classList.add("nimio-container");
 
-    this.canvas = document.createElement("canvas");
-    this.canvas.width = opts.width; // todo if no options, get from container
-    this.canvas.height = opts.height;
-    Object.assign(this.canvas.style, {
+    this._canvas = document.createElement("canvas");
+    this._canvas.width = opts.width; // todo if no options, get from container
+    this._canvas.height = opts.height;
+    Object.assign(this._canvas.style, {
       cursor: "pointer",
       zIndex: 10,
       "background-color": "grey",
     });
-    this.container.appendChild(this.canvas);
+    this._container.appendChild(this._canvas);
 
-    this.btnPlayPause = document.createElement("div");
-    this.btnPlayPause.classList.add("play-pause");
-    this.button = document.createElement("div");
-    this.button.classList.add("play");
-    this.btnPlayPause.appendChild(this.button);
-    this.container.appendChild(this.btnPlayPause);
+    this._btnPlayPause = document.createElement("div");
+    this._btnPlayPause.classList.add("play-pause");
+    this._button = document.createElement("div");
+    this._button.classList.add("play");
+    this._btnPlayPause.appendChild(this._button);
+    this._container.appendChild(this._btnPlayPause);
 
     this._onClick = this._handleClick.bind(this);
-    this._onVolumeSet = this._onVolumeSet.bind(this);
     this._onMuteUnmuteClick = this._handleMuteUnmuteClick.bind(this);
+    this._canvas.addEventListener("click", this._onClick);
+    this._btnPlayPause.addEventListener("click", this._onClick);
+    this._addPlaybackEventHandlers();
+
+    this._createControls();
+    this._setupEasing();
+  }
+
+  destroy() {
+    if (this._hideTimer) {
+      clearTimeout(this._hideTimer);
+    }
+    this._removePlaybackEventHandlers();
+    this._container.removeEventListener("mousemove", this._onMouseMove);
+    this._container.removeEventListener("mouseout", this._onMouseOut);
+    this._container.removeEventListener("click", this._onClick);
+    while (this._container.firstChild) {
+      this._container.removeChild(this._container.firstChild);
+    }
+  }
+
+  drawPlay() {
+    this._state = "pause";
+    this._button.classList.remove("pause");
+    this._button.classList.add("play");
+    this._buttonPlayPause.querySelector(".icon-play").style.display = "block";
+    this._buttonPlayPause.querySelector(".icon-pause").style.display = "none";
+  }
+
+  drawPause() {
+    this._state = "play";
+    this._button.classList.remove("play");
+    this._button.classList.add("pause");
+    this._buttonPlayPause.querySelector(".icon-play").style.display = "none";
+    this._buttonPlayPause.querySelector(".icon-pause").style.display = "block";
+  }
+
+  showControls(anim) {
+    this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
+    this._btnPlayPause.style.opacity = "0.7";
+
+    this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
+    this._controlsBar.style.opacity = "1";
+  }
+
+  hideControls(anim) {
+    this._btnPlayPause.style.transition = anim ? "opacity 0.5s ease" : "none";
+    this._btnPlayPause.style.opacity = "0";
+
+    this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
+    this._controlsBar.style.opacity = "0";
+  }
+
+  appendDebugOverlay(state, videoBuffer) {
+    return new DebugView(this._container, state, videoBuffer);
+  }
+
+  get canvas() {
+    return this._canvas;
+  }
+
+  get size() {
+    let box = this._canvas.getBoundingClientRect();
+    return [box.width, box.height];
+  }
+
+  _createControls() {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = controlsHtml.trim();
+
+    const frag = tpl.content.cloneNode(true);
+    this._controlsBar = frag.querySelector(".nimio-controls");
+
+    this._container.appendChild(frag);
+
+    this._buttonPlayPause = this._controlsBar.querySelector(".btn-play-pause");
+    this._buttonPlayPause.addEventListener("click", this._onClick);
+
+    this._buttonVolume = this._controlsBar.querySelector(".btn-volume");
+    this._buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
+
+    this._volumeRange = this._controlsBar.querySelector(".volume-range");
+    this._volumeRange.addEventListener("input", (e) => {
+      this._handleVolumeChange(Number(e.target.value));
+    });
+
+    this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
+    this._buttonSettings.addEventListener("click", (e) =>
+      this._handleSettingsClick(e),
+    );
+    this._menuPopover = this._controlsBar.querySelector(".menu-popover");
+    this._menuSection = this._menuPopover.querySelector(".menu-section");
+
+    const style = document.createElement("style");
+    style.textContent = controlsCss;
+    document.head.appendChild(style);
+  }
+
+  _addPlaybackEventHandlers() {
+    this._onVolumeSet = this._onVolumeSet.bind(this);
     this._onMuteUnmuteSet = this._onMuteUnmuteSet.bind(this);
     this._onRenditionSet = this._onRenditionSet.bind(this);
     this._onRenditionsReceived = this._onRenditionsReceived.bind(this);
     this._onAdaptiveBitrateSet = this._onAdaptiveBitrateSet.bind(this);
-    this.canvas.addEventListener("click", this._onClick);
-    this.btnPlayPause.addEventListener("click", this._onClick);
-
-    this._createControls();
-    this._setupEasing();
 
     this._eventBus.on("nimio:volume-set", this._onVolumeSet);
     this._eventBus.on("nimio:muted", this._onMuteUnmuteSet);
@@ -55,101 +149,20 @@ export class Ui {
     this._eventBus.on("nimio:abr", this._onAdaptiveBitrateSet);
   }
 
-  _createControls() {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = controlsHtml.trim();
-
-    const frag = tpl.content.cloneNode(true);
-    this.controlsBar = frag.querySelector(".nimio-controls");
-
-    this.container.appendChild(frag);
-
-    this.buttonPlayPause = this.controlsBar.querySelector(".btn-play-pause");
-    this.buttonPlayPause.addEventListener("click", this._onClick);
-
-    this._buttonVolume = this.controlsBar.querySelector(".btn-volume");
-    this._buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
-
-    this.volumeRange = this.controlsBar.querySelector(".volume-range");
-    this.volumeRange.addEventListener("input", (e) => {
-      this._handleVolumeChange(Number(e.target.value));
-    });
-
-    this.buttonSettings = this.controlsBar.querySelector(".btn-settings");
-    this.buttonSettings.addEventListener("click", (e) =>
-      this._handleSettingsClick(e),
-    );
-    this.menuPopover = this.controlsBar.querySelector(".menu-popover");
-    this.menuSection = this.menuPopover.querySelector(".menu-section");
-
-    const style = document.createElement("style");
-    style.textContent = controlsCss;
-    document.head.appendChild(style);
-  }
-
-  destroy() {
-    if (this.hideTimer) {
-      clearTimeout(this.hideTimer);
-    }
-    this.container.removeEventListener("mousemove", this._onMouseMove);
-    this.container.removeEventListener("mouseout", this._onMouseOut);
-    this.container.removeEventListener("click", this._onClick);
-    while (this.container.firstChild) {
-      this.container.removeChild(this.container.firstChild);
-    }
+  _removePlaybackEventHandlers() {
+    this._eventBus.off("nimio:volume-set", this._onVolumeSet);
+    this._eventBus.off("nimio:muted", this._onMuteUnmuteSet);
+    this._eventBus.off("nimio:rendition-set", this._onRenditionSet);
+    this._eventBus.off("nimio:rendition-list", this._onRenditionsReceived);
+    this._eventBus.off("nimio:abr", this._onAdaptiveBitrateSet);
   }
 
   _setupEasing() {
-    this.hideTimer = null;
+    this._hideTimer = null;
     this._onMouseMove = (e) => this._handleMouseMove(e);
-    this.container.addEventListener("mousemove", this._onMouseMove);
+    this._container.addEventListener("mousemove", this._onMouseMove);
     this._onMouseOut = (e) => this._handleMouseOut(e);
-    this.container.addEventListener("mouseout", this._onMouseOut);
-  }
-
-  appendDebugOverlay(state, videoBuffer) {
-    return new DebugView(this.container, state, videoBuffer);
-  }
-
-  getCanvas() {
-    return this.canvas;
-  }
-
-  drawPlay() {
-    this.state = "pause";
-    this.button.classList.remove("pause");
-    this.button.classList.add("play");
-    this.buttonPlayPause.querySelector(".icon-play").style.display = "block";
-    this.buttonPlayPause.querySelector(".icon-pause").style.display = "none";
-  }
-
-  drawPause() {
-    this.state = "play";
-    this.button.classList.remove("play");
-    this.button.classList.add("pause");
-    this.buttonPlayPause.querySelector(".icon-play").style.display = "none";
-    this.buttonPlayPause.querySelector(".icon-pause").style.display = "block";
-  }
-
-  showControls(animate) {
-    this.btnPlayPause.style.transition = animate ? "opacity 0.2s ease" : "none";
-    this.btnPlayPause.style.opacity = "0.7";
-
-    this.controlsBar.style.transition = animate ? "opacity 0.2s ease" : "none";
-    this.controlsBar.style.opacity = "1";
-  }
-
-  hideControls(animate) {
-    this.btnPlayPause.style.transition = animate ? "opacity 0.5s ease" : "none";
-    this.btnPlayPause.style.opacity = "0";
-
-    this.controlsBar.style.transition = animate ? "opacity 0.2s ease" : "none";
-    this.controlsBar.style.opacity = "0";
-  }
-
-  get size() {
-    let box = this.canvas.getBoundingClientRect();
-    return [box.width, box.height];
+    this._container.addEventListener("mouseout", this._onMouseOut);
   }
 
   _onRenditionsReceived(renditions) {
@@ -158,10 +171,10 @@ export class Ui {
       return;
     }
 
-    const autoBtn = this.menuSection.querySelector("button.rendition-auto");
+    const autoBtn = this._menuSection.querySelector("button.rendition-auto");
     autoBtn.style.display = this._autoAbr ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
-    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();
     });
 
@@ -174,19 +187,20 @@ export class Ui {
       button.dataset.rid = rendition.id;
       button.textContent = rendition.name;
       button._rendition = rendition;
-      this.menuSection.appendChild(button);
+      this._menuSection.appendChild(button);
     });
 
     this._enableSelection();
   }
 
   _toggleAutoAbrButton() {
-    const res = this.menuSection.querySelector("button.rendition-auto");
+    const res = this._menuSection.querySelector("button.rendition-auto");
     res.setAttribute("aria-checked", this._autoAbr ? "true" : "false");
     if (this._autoAbr) {
       res.style.display = "block";
       if (this._curRendition) {
-        res.textContent = `Auto ${this._curRendition.name}`;
+        const delim = "\u00A0\u00A0";
+        res.textContent = `Auto${delim}${this._curRendition.name}`;
       }
     } else {
       res.textContent = "Auto";
@@ -195,14 +209,14 @@ export class Ui {
   }
 
   _enableSelection() {
-    this.menuSection.addEventListener("click", (e) => {
+    this._menuSection.addEventListener("click", (e) => {
       const btn = e.target.closest("button.menu-item");
       if (!btn) return;
-      this.selectRendition(btn);
+      this._selectRendition(btn);
     });
   }
 
-  selectRendition(selectedBtn) {
+  _selectRendition(selectedBtn) {
     let selRendition = selectedBtn._rendition || { name: "Auto" };
     this._eventBus.emit("ui:rendition-change", selRendition);
   }
@@ -219,7 +233,7 @@ export class Ui {
     }
     this._toggleAutoAbrButton();
 
-    this.menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
         !this._autoAbr &&
@@ -230,7 +244,7 @@ export class Ui {
   }
 
   _handleClick(e) {
-    let isPlayClicked = "pause" === this.state;
+    let isPlayClicked = "pause" === this._state;
     isPlayClicked ? this.drawPause() : this.drawPlay();
     this._eventBus.emit("ui:play-pause-click", isPlayClicked);
   }
@@ -257,7 +271,7 @@ export class Ui {
   }
 
   _onVolumeSet(value) {
-    this.volumeRange.value = value;
+    this._volumeRange.value = value;
   }
 
   _onAdaptiveBitrateSet(val) {
@@ -266,22 +280,22 @@ export class Ui {
   }
 
   _handleSettingsClick(e) {
-    this.menuPopover.hidden = !this.menuPopover.hidden;
+    this._menuPopover.hidden = !this._menuPopover.hidden;
   }
 
   _handleMouseMove(e) {
     this.showControls(true);
-    clearTimeout(this.hideTimer);
+    clearTimeout(this._hideTimer);
 
-    this.hideTimer = setTimeout(() => {
+    this._hideTimer = setTimeout(() => {
       this.hideControls(true);
     }, 2000);
   }
 
   _handleMouseOut(e) {
     this.hideControls(true);
-    if (this.hideTimer) {
-      clearTimeout(this.hideTimer);
+    if (this._hideTimer) {
+      clearTimeout(this._hideTimer);
     }
   }
 }

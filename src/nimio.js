@@ -70,10 +70,7 @@ export default class Nimio {
       this._noVideo = this._noAudio = false;
     }
 
-    this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
-    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
-    this._onVolumeChange = this._onVolumeChange.bind(this);
-    this._onRenditionChange = this._onRenditionChange.bind(this);
+    this._addUiEventHandlers();
     this._ui = new Ui(
       this._config.container,
       {
@@ -85,10 +82,6 @@ export default class Nimio {
       },
       this._eventBus,
     );
-    this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    this._eventBus.on("ui:volume-change", this._onVolumeChange);
-    this._eventBus.on("ui:rendition-change", this._onRenditionChange);
     this._pauseTimeoutId = null;
 
     this._metricsManager = MetricsManager.getInstance(this._instName);
@@ -102,7 +95,7 @@ export default class Nimio {
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._firstFrameTsUs = 0;
 
-    this._ctx = this._ui.getCanvas().getContext("2d");
+    this._ctx = this._ui.canvas.getContext("2d");
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -215,6 +208,7 @@ export default class Nimio {
     this.stop(true);
     this._ui.destroy();
     this._vuMeterSvc.clear();
+    this._removeUiEventHandlers();
   }
 
   version() {
@@ -225,9 +219,28 @@ export default class Nimio {
     return __NIMIO_VERSION__;
   }
 
-  _onPlayPauseClick(isPlayClicked) {
-    isPlayClicked ? this.play() : this.pause();
+  _addUiEventHandlers() {
+    this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
+    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._onRenditionChange = this._onRenditionChange.bind(this);
+
+    this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
+    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.on("ui:volume-change", this._onVolumeChange);
+    this._eventBus.on("ui:rendition-change", this._onRenditionChange);
   }
+
+  _removeUiEventHandlers() {
+    this._eventBus.off("ui:play-pause-click", this._onPlayPauseClick);
+    this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.off("ui:volume-change", this._onVolumeChange);
+    this._eventBus.off("ui:rendition-change", this._onRenditionChange);
+  }
+
+  _onPlayPauseClick = function (isPlayClicked) {
+    isPlayClicked ? this.play() : this.pause();
+  };
 
   _renderVideoFrame() {
     if (this._noVideo || !this._state.isPlaying()) return true;
