@@ -193,7 +193,7 @@ export default class Nimio {
     });
 
     this._state.setPlaybackStartTsUs(0);
-    this._state.resetCurrentTsUs();
+    this._state.resetCurrentTsSmp();
     this._firstFrameTsUs = 0;
 
     this._ui.drawPlay();
@@ -250,36 +250,51 @@ export default class Nimio {
       return true;
     }
 
-    let curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
+    let curTsUs;
+    if (this._audioCtxProvider.isSuspended()) {
+      let expCurTime = performance.now() - this._config.latency;
+      curTsUs = (expCurTime - this._firstFrameTime) * 1000;
+      this._state.setCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(curTsUs));
+    } else {
+      curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
+    }
     if (curTsUs <= 0) return true;
 
     let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
     const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
-    if (frame) {
-      this._ctx.drawImage(
-        frame,
-        0,
-        0,
-        this._ctx.canvas.width,
-        this._ctx.canvas.height,
-      );
-      frame.close();
+    if (!frame) return true;
 
-      let availableMs =
-        (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
-      if (availableMs < 0) availableMs = 0;
-      this._state.setAvailableVideoMs(availableMs);
+    this._ctx.drawImage(
+      frame,
+      0,
+      0,
+      this._ctx.canvas.width,
+      this._ctx.canvas.height,
+    );
+    frame.close();
 
-      if (this._isAutoAbr()) {
-        let curTimeMs = performance.now();
-        if (
-          this._lastBufReportMs > 0 &&
-          curTimeMs - this._lastBufReportMs >= 100
-        ) {
-          this._reportBufferLevel(availableMs);
-          this._lastBufReportMs = curTimeMs;
-        }
+    let availableMs = (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
+    if (availableMs < 0) availableMs = 0;
+    this._adjustPlaybackLatency(availableMs);
+    this._state.setAvailableVideoMs(availableMs);
+
+    if (this._isAutoAbr()) {
+      let curTimeMs = performance.now();
+      if (
+        this._lastBufReportMs > 0 &&
+        curTimeMs - this._lastBufReportMs >= 100
+      ) {
+        this._reportBufferLevel(availableMs);
+        this._lastBufReportMs = curTimeMs;
       }
+    }
+  }
+
+  // TODO: rework to the common latency control mechanism for video and audio
+  _adjustPlaybackLatency(availableMs) {
+    let targetLatencyMs = 1.1 * this._config.latency;
+    if (availableMs > targetLatencyMs) {
+      this._firstFrameTime -= availableMs - targetLatencyMs;
     }
   }
 
@@ -329,13 +344,14 @@ export default class Nimio {
     if (this._firstFrameTsUs !== 0) return true;
 
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      this._firstFrameTsUs =
-        this._videoBuffer.length > 0
-          ? this._videoBuffer.firstFrameTs
-          : frame.timestamp;
+      this._firstFrameTime = performance.now();
+      this._firstFrameTsUs = frame.timestamp;
+      if (this._videoBuffer.length > 0) {
+        this._firstFrameTsUs = this._videoBuffer.firstFrameTs;
+      }
       this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
-      if (!this._noAudio) {
+      if (!this._noAudio && !this._audioCtxProvider.isSuspended()) {
         await this._startNoAudioMode();
       }
     }
@@ -353,6 +369,7 @@ export default class Nimio {
     }
 
     if (this._firstFrameTsUs === 0) {
+      this._firstFrameTime = performance.now();
       this._firstFrameTsUs = frame.rawTimestamp;
       this._state.setPlaybackStartTsUs(frame.rawTimestamp);
     }
