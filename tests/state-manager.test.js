@@ -50,7 +50,7 @@ describe("StateManager", () => {
     expect(manager.getCurrentTsSmp()).toBe(0);
     manager.incCurrentTsSmp(123);
     expect(manager.getCurrentTsSmp()).toBe(123);
-    manager.resetCurrentTsUs();
+    manager.resetCurrentTsSmp();
     expect(manager.getCurrentTsSmp()).toBe(0);
   });
 

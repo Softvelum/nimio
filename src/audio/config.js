@@ -33,6 +33,10 @@ export class AudioConfig {
     return (smpCnt * 1000) / (this._sampleRate / 1000);
   }
 
+  tsUsToSmpCnt(tsUs) {
+    return (tsUs / 1000) * (this._sampleRate / 1000);
+  }
+
   isCompatible(config) {
     return (
       this._sampleRate === config.sampleRate &&

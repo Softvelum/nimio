@@ -55,11 +55,15 @@ export class StateManager {
     return this._atomicLoad64(IDX.CURRENT_TS);
   }
 
+  setCurrentTsSmp(smpCnt) {
+    this._atomicStore64(IDX.CURRENT_TS, smpCnt);
+  }
+
   incCurrentTsSmp(smpCnt) {
     return this._atomicAdd64(IDX.CURRENT_TS, smpCnt);
   }
 
-  resetCurrentTsUs() {
+  resetCurrentTsSmp() {
     this._atomicStore64(IDX.CURRENT_TS, 0);
   }
 
