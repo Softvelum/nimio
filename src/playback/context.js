@@ -48,6 +48,7 @@ class PlaybackContext {
         let res = streamInfo.resolution.split("x");
         streamInfo.width = parseInt(res[0]);
         streamInfo.height = parseInt(res[1]);
+        streamInfo.name = res[1] + "p";
 
         if (this._cSupport.video[streamInfo.vcodec]) {
           streamInfo.vcodecSupported = true;
@@ -74,7 +75,7 @@ class PlaybackContext {
             width: streamInfo.width,
             height: streamInfo.height,
             vcodec: streamInfo.vcodec,
-            rendition: res[1] + "p",
+            rendition: streamInfo.name,
           });
         }
       }

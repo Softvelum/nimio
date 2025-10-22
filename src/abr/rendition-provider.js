@@ -51,7 +51,7 @@ class AbrRenditionProvider {
   }
 
   get streamsCount() {
-    return this._streams.length;
+    return this._streams?.length || 0;
   }
 
   get allRenditions() {

@@ -17,6 +17,14 @@ export const NimioVolume = {
     return this._audioVolumeCtrl.unmute();
   },
 
+  _onVolumeChange(volume) {
+    this._audioVolumeCtrl.setVolume(volume);
+  },
+
+  _onMuteUnmuteClick(mute) {
+    mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
+  },
+
   _createVUMeter() {
     this._vuMeterSvc = VUMeterService.getInstance(this._instName);
     const onUpdate = this._onVUMeterUpdate.bind(this);

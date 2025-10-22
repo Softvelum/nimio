@@ -51,8 +51,12 @@
           // },
           vuMeter: {
             container: "vu-meter",
-            type: "input",
+            type: "output",
           },
+        });
+
+        window.nimio.on("nimio:play", (inst, contId) => {
+          console.log("Nimio play event", inst, contId);
         });
       }
 

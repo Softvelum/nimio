@@ -34,7 +34,13 @@ export const NimioTransport = {
       this._rendProvider.init(this._config.adaptiveBitrate, this._ui.size);
       this._startAbrController();
     }
-    this._ui.setRenditions(this._makeUiRenditionList());
+
+    this._eventBus.emit("nimio:rendition-list", this._makeUiRenditionList());
+    let curRend = this._context.getCurrentRendition("video");
+    this._eventBus.emit("nimio:rendition-set", {
+      name: curRend.rendition,
+      id: curRend.idx + 1,
+    });
   },
 
   _onAudioSetupReceived(data) {
@@ -143,9 +149,6 @@ export const NimioTransport = {
 
   _makeUiRenditionList() {
     let res = [];
-    // if (this._isAutoAbr()) {
-    //   res[0] = {name: "Auto", id: 0};
-    // }
     let renditions = this._context.videoRenditions;
     for (let i = 0; i < renditions.length; i++) {
       res.push({ name: renditions[i].rendition, id: renditions[i].idx + 1 });
