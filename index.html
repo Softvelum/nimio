@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="wss://demo-nimble.softvelum.com/live/bbb"
+      value="ws://172.16.80.128:8081/live/stream"
     />
     <button
       id="initNimioButton"
@@ -53,6 +53,7 @@
             container: "vu-meter",
             type: "output",
           },
+          workletLogs: true,
         });
 
         window.nimio.on("nimio:play", (inst, contId) => {

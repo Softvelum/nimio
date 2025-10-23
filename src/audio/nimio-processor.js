@@ -7,9 +7,12 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
+    LoggersFactory.setLevel(options.processorOptions.logLevel);
+    LoggersFactory.toggleWorkletLogs(options.processorOptions.enableLogs);
     this._logger = LoggersFactory.create(
       options.processorOptions.instanceName,
       "AudioNimioProcessor",
+      this.port,
     );
 
     this.stateManager = new StateManager(options.processorOptions.stateSab);
@@ -51,6 +54,8 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     if (this.stateManager.isStopped()) {
       return false; // stop processing
     }
+
+    this._logger.debug("test", chCnt, speed);
 
     if (this.playbackStartTsUs === 0) {
       this.playbackStartTsUs = this.stateManager.getPlaybackStartTsUs();

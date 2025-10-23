@@ -1,40 +1,44 @@
 let LoggersFactory = (function () {
   let _level = "warn";
+  let _workletLogging = false;
 
   class Logger {
-    constructor(id, prefix) {
-      this.id = id;
-      this.prefix = prefix;
-      this.lf = "log";
+    constructor(id, prefix, workletPort) {
+      this._id = id;
+      this._prefix = prefix;
+      this._lf = "log";
+      if (_workletLogging) {
+        this._workletPort = workletPort;
+      }
     }
 
     setId(id) {
-      if (null == this.id) {
-        this.id = id;
+      if (null == this._id) {
+        this._id = id;
       } else {
-        console.error("Logger.setId: attempt to reset Logger id", this.id, id);
+        console.error("Logger.setId: attempt to reset Logger id", this._id, id);
       }
     }
 
     setPrefix(prefix) {
-      this.prefix = prefix;
+      this._prefix = prefix;
     }
 
     error() {
-      this.lf = "error";
+      this._lf = "error";
       this._log.apply(this, arguments);
     }
 
     warn() {
       if ("warn" == _level || "debug" == _level) {
-        this.lf = "warn";
+        this._lf = "warn";
         this._log.apply(this, arguments);
       }
     }
 
     debug() {
       if ("debug" == _level) {
-        this.lf = "log";
+        this._lf = "log";
         this._log.apply(this, arguments);
       }
     }
@@ -66,22 +70,34 @@ let LoggersFactory = (function () {
         "." +
         msecs +
         "][" +
-        this.id +
+        this._id +
         "][" +
-        this.prefix +
+        this._prefix +
         "]: " +
         arguments[0];
 
-      console[this.lf].apply(console, arguments);
+      
+      if (this._workletPort) {
+        return this._workletPort.postMessage({
+          type: "log",
+          lf: this._lf,
+          args: Array.prototype.slice.call(arguments),
+        });
+      }
+
+      console[this._lf].apply(console, arguments);
     }
   }
 
   return {
-    create: function (id, prefix) {
-      return new Logger(id, prefix);
+    create: function (id, prefix, isWorklet) {
+      return new Logger(id, prefix, isWorklet);
     },
     setLevel: function (lvl) {
-      _level = lvl;
+      if (lvl) _level = lvl;
+    },
+    toggleWorkletLogs: function (on) {
+      _workletLogging = !!on;
     },
   };
 })();

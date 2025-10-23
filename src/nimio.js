@@ -24,6 +24,7 @@ import { AudioGraphController } from "./audio/graph-controller";
 import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
+import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -48,6 +49,7 @@ export default class Nimio {
     this._config = createConfig(options);
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
+    this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
 
     this._eventBus = EventBus.getInstance(this._instName);
 
@@ -202,6 +204,7 @@ export default class Nimio {
 
     this._vuMeterSvc.stop();
     this._audioGraphCtrl.dismantle();
+    this._workletLogReceiver.reset();
   }
 
   destroy() {
@@ -360,8 +363,24 @@ export default class Nimio {
   }
 
   async _onAudioStartTsNotSet(frame) {
+    if (this._audioConfig.sampleRate !== frame.sampleRate) {
+      this._logger.error(
+        `Audio config sampleRate=${this._audioConfig.sampleRate} differs from the actual sampleRate=${frame.sampleRate}. Abort audio processor initialization.`
+      );
+      return false;
+    }
+
+    if (this._audioConfig.numberOfChannels === 0) {
+      this._audioConfig.numberOfChannels = frame.numberOfChannels;
+      if (this._audioBuffer) this._audioBuffer.reset();
+      if (!this._prepareAudioOutput(this._audioConfig.get())) {
+        return false;
+      }
+      this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
+    }
+
     // create AudioContext with correct sampleRate on first frame
-    await this._initAudioContext(frame.sampleRate, frame.numberOfChannels);
+    await this._initAudioProcessor(frame.sampleRate, frame.numberOfChannels);
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
@@ -400,8 +419,13 @@ export default class Nimio {
       this._stopAudio();
     }
 
+    if (config.numberOfChannels === 0) {
+      // The number of channels will be detected with the first audio frame
+      return true;
+    }
+
     this._audioBuffer = WritableAudioBuffer.allocate(
-      this._bufferSec * 5, // reserve 5 times buffer size for development (TODO: reduce later)
+      this._bufferSec * 2, // reserve 2 times buffer size for development (TODO: reduce later)
       config.sampleRate,
       config.numberOfChannels,
       config.sampleCount,
@@ -417,7 +441,7 @@ export default class Nimio {
     return true;
   }
 
-  async _initAudioContext(sampleRate, channels, idle) {
+  async _initAudioProcessor(sampleRate, channels, idle) {
     if (!this._audioContext) {
       this._audioCtxProvider.init(sampleRate);
       this._audioCtxProvider.setChannelCount(channels);
@@ -450,6 +474,8 @@ export default class Nimio {
       stateSab: this._sab,
       latency: this._config.latency,
       idle: idle || false,
+      logLevel: this._config.logLevel,
+      enableLogs: this._config.workletLogs,
     };
 
     if (!idle && this._audioBuffer) {
@@ -468,6 +494,7 @@ export default class Nimio {
         processorOptions: procOptions,
       },
     );
+    this._workletLogReceiver.add(this._audioNode);
 
     this._audioVolumeCtrl.init(this._config);
     this._audioGraphCtrl.setSource(this._audioNode, channels);
@@ -480,7 +507,7 @@ export default class Nimio {
   }
 
   async _startNoAudioMode() {
-    await this._initAudioContext(48000, 1, true);
+    await this._initAudioProcessor(48000, 1, true);
     this._noAudio = true;
     this._logger.debug("No audio mode started");
   }
