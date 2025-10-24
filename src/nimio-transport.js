@@ -88,11 +88,6 @@ export const NimioTransport = {
     let newConfigVals = this._audioConfig.parse(data.data, data.family);
     let decoderFlow, buffer;
     if (this._isNextRenditionTrack(data.trackId)) {
-      if (newConfigVals.numberOfChannels === 0) {
-        // The number of channels were previously received from the decoder
-        newConfigVals.numberOfChannels = curConfigVals.numberOfChannels;
-      }
-
       if (!newConfigVals || !this._audioConfig.isCompatible(curConfigVals)) {
         this._logger.warn(
           "Received incompatible audio config for next rendition",
@@ -116,7 +111,6 @@ export const NimioTransport = {
     }
 
     if (audioAvailable) {
-      if (newConfigVals.numberOfChannels === 0) newConfigVals.numberOfChannels = 2;
       decoderFlow.setCodecData({ codecData: data.data, config: newConfigVals });
       decoderFlow.setBuffer(buffer, this._state);
     }

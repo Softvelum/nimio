@@ -204,6 +204,7 @@ export default class Nimio {
 
     this._vuMeterSvc.stop();
     this._audioGraphCtrl.dismantle();
+    this._audioCtxProvider.reset();
     this._workletLogReceiver.reset();
   }
 
@@ -298,6 +299,8 @@ export default class Nimio {
     let targetLatencyMs = 1.1 * this._config.latency;
     if (availableMs > targetLatencyMs) {
       this._firstFrameTime -= availableMs - targetLatencyMs;
+    } else if (availableMs < 0.2 * targetLatencyMs) {
+      this._firstFrameTime += targetLatencyMs;
     }
   }
 
@@ -344,6 +347,7 @@ export default class Nimio {
   }
 
   async _onVideoStartTsNotSet(frame) {
+    this._logger.debug('onAudioStartTsNotSet', this._firstFrameTsUs);
     if (this._firstFrameTsUs !== 0) return true;
 
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
@@ -354,7 +358,7 @@ export default class Nimio {
       }
       this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
-      if (!this._noAudio && !this._audioCtxProvider.isSuspended()) {
+      if (!this._noAudio && this._audioCtxProvider.isRunning()) {
         await this._startNoAudioMode();
       }
     }
@@ -363,21 +367,27 @@ export default class Nimio {
   }
 
   async _onAudioStartTsNotSet(frame) {
-    if (this._audioConfig.sampleRate !== frame.sampleRate) {
+    this._logger.debug('onAudioStartTsNotSet', this._firstFrameTsUs);
+    if (
+      this._audioConfig.sampleRate !== frame.sampleRate ||
+      this._audioConfig.numberOfChannels !== frame.numberOfChannels
+    ) {
       this._logger.error(
-        `Audio config sampleRate=${this._audioConfig.sampleRate} differs from the actual sampleRate=${frame.sampleRate}. Abort audio processor initialization.`
+        `Audio config (sampleRate=${this._audioConfig.sampleRate}, channels=${this._audioConfig.numberOfChannels}) differs from the actual (sampleRate=${frame.sampleRate}, channels=${frame.numberOfChannels}). Abort audio processor initialization.`
       );
       return false;
     }
 
-    if (this._audioConfig.numberOfChannels === 0) {
-      this._audioConfig.numberOfChannels = frame.numberOfChannels;
-      if (this._audioBuffer) this._audioBuffer.reset();
-      if (!this._prepareAudioOutput(this._audioConfig.get())) {
-        return false;
-      }
-      this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
-    }
+    // The following workaround is possible for the case when the ASC header contains channels count equal to 0,
+    // which means that the channel layout should be taken from the PCE of the RAW AAC data.
+    // if (this._audioConfig.numberOfChannels === 0) {
+    //   this._audioConfig.numberOfChannels = frame.numberOfChannels;
+    //   if (this._audioBuffer) this._audioBuffer.reset();
+    //   if (!this._prepareAudioOutput(this._audioConfig.get())) {
+    //     return false;
+    //   }
+    //   this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
+    // }
 
     // create AudioContext with correct sampleRate on first frame
     await this._initAudioProcessor(frame.sampleRate, frame.numberOfChannels);
@@ -407,7 +417,8 @@ export default class Nimio {
   }
 
   _prepareAudioOutput(config) {
-    if (!config) {
+    this._logger.debug("prepareAudioOutput");
+    if (!config || config.numberOfChannels < 1) {
       if (!this._noAudio) {
         this._startNoAudioMode();
       }
@@ -417,11 +428,6 @@ export default class Nimio {
     if (this._noAudio) {
       // Stop no audio mode if it was started previously
       this._stopAudio();
-    }
-
-    if (config.numberOfChannels === 0) {
-      // The number of channels will be detected with the first audio frame
-      return true;
     }
 
     this._audioBuffer = WritableAudioBuffer.allocate(
@@ -500,6 +506,9 @@ export default class Nimio {
     this._audioGraphCtrl.setSource(this._audioNode, channels);
     let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
     this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+    if (this._audioCtxProvider.isSuspended()) {
+      this._audioContext.resume();
+    }
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
       this._vuMeterSvc.start();
@@ -507,12 +516,14 @@ export default class Nimio {
   }
 
   async _startNoAudioMode() {
+    this._logger.debug("startNoAudioMode");
     await this._initAudioProcessor(48000, 1, true);
     this._noAudio = true;
     this._logger.debug("No audio mode started");
   }
 
   _stopAudio() {
+    this._logger.debug("stopAudio");
     if (this._audioContext) {
       this._audioContext.close();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;

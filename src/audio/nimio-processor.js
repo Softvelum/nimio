@@ -55,8 +55,6 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       return false; // stop processing
     }
 
-    this._logger.debug("test", chCnt, speed);
-
     if (this.playbackStartTsUs === 0) {
       this.playbackStartTsUs = this.stateManager.getPlaybackStartTsUs();
     }
@@ -70,6 +68,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     let curTsUs =
       this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
     this.available = this.audioBuffer.getLastTimestampUs() - curTsUs;
+    // this._logger.debug(`available=${this.available} curTsUs=${curTsUs}, playbackStartTsUs=${this.playbackStartTsUs}, curSmpCnt=${curSmpCnt}, lastTsUs=${this.audioBuffer.getLastTimestampUs()}`);
     if (this.available < 0) this.available = 0;
 
     if (

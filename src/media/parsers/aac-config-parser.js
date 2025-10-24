@@ -50,5 +50,48 @@ export function parseAACConfig(codecData) {
     config.numberOfChannels = 8; // 7.1 surround sound system
   }
 
+  // TODO: When the channel configuration in an ASC header is 0,
+  // it means the actual channel layout is not explicitly given in the ASC header.
+  // Instead, it must be parsed from the program configuration element (PCE) inside the AAC raw data.
+  // Currently Nimble Streamer doesn't provide the PCE. So, we skip this case for now (it's rather rare in fact).
+  // A sample code for getting the channel layout from PCE is the following (not really tested):
+  // function parseChannelsFromPCE(pceData) {
+  //   const elementInstanceTag = readBits(4);
+  //   const objectType = readBits(2);
+  //   const samplingFreqIndex = readBits(4);
+  //   const numFrontChannelElements = readBits(4);
+  //   const numSideChannelElements = readBits(4);
+  //   const numBackChannelElements = readBits(4);
+  //   const numLfeChannelElements = readBits(2);
+  //   const numAssocDataElements = readBits(3);
+  //   const numValidCcElements = readBits(4);
+  //   const monoMixdownPresent = readBits(1);
+  //   if (monoMixdownPresent) readBits(4);
+  //   const stereoMixdownPresent = readBits(1);
+  //   if (stereoMixdownPresent) readBits(4);
+  //   const matrixMixdownIdxPresent = readBits(1);
+  //   if (matrixMixdownIdxPresent) readBits(3);
+  //
+  //   let channels = 0;
+  //   // Each channel element flag indicates SCE/CPE type
+  //   for (let i = 0; i < numFrontChannelElements; i++) {
+  //     const isCpe = readBits(1);
+  //     readBits(4); // element_tag_select
+  //     channels += isCpe ? 2 : 1;
+  //   }
+  //   for (let i = 0; i < numSideChannelElements; i++) {
+  //     const isCpe = readBits(1);
+  //     readBits(4);
+  //     channels += isCpe ? 2 : 1;
+  //   }
+  //   for (let i = 0; i < numBackChannelElements; i++) {
+  //     const isCpe = readBits(1);
+  //     readBits(4);
+  //     channels += isCpe ? 2 : 1;
+  //   }
+  //   channels += numLfeChannelElements;
+  //   return channels || null;
+  // }
+
   return config;
 }

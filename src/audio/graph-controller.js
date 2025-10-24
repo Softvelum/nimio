@@ -193,6 +193,8 @@ class AudioGraphController {
             }
           }
         }
+        this._nodes.splice(i, 1);
+        break;
       }
     }
   }
