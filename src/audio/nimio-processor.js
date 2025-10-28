@@ -40,7 +40,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       );
     }
 
-    this.available = 0;
+    this._audAvailableUs = 0;
     this.startThreshold = this.targetLatencyMs * 1000;
     this.minThreshold = 0.25 * this.startThreshold;
     this.speedFactor = 1.0;
@@ -67,14 +67,14 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     let curSmpCnt = this.stateManager.getCurrentTsSmp();
     let curTsUs =
       this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
-    this.available = this.audioBuffer.getLastTimestampUs() - curTsUs;
-    // this._logger.debug(`available=${this.available} curTsUs=${curTsUs}, playbackStartTsUs=${this.playbackStartTsUs}, curSmpCnt=${curSmpCnt}, lastTsUs=${this.audioBuffer.getLastTimestampUs()}`);
-    if (this.available < 0) this.available = 0;
+    this._audAvailableUs = this.audioBuffer.getLastTimestampUs() - curTsUs;
+    // this._logger.debug(`available=${this._audAvailableUs} curTsUs=${curTsUs}, playbackStartTsUs=${this.playbackStartTsUs}, curSmpCnt=${curSmpCnt}, lastTsUs=${this.audioBuffer.getLastTimestampUs()}`);
+    if (this._audAvailableUs < 0) this._audAvailableUs = 0;
 
     if (
       this.stateManager.isPaused() ||
-      this.available < this.minThreshold ||
-      (this.startThreshold > 0 && this.available < this.startThreshold)
+      this._audAvailableUs < this.minThreshold ||
+      (this.startThreshold > 0 && this._audAvailableUs < this.startThreshold)
     ) {
       this._insertSilence(out, chCnt);
       const durationMs = ((1e6 * sampleCount) / this.sampleRate + 0.5) >>> 0;
@@ -86,27 +86,33 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       let incTsUs = this._incrementCurTs(sampleCount);
       this.audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, speed);
 
-      this._controlPlaybackLatency(this.available / 1000);
+      let vidAvailableUs = this.stateManager.getVideoLatestTsUs() - curTsUs;
+      if (vidAvailableUs < 0) vidAvailableUs = 0;
+      // this._logger.debug("vidAvailableUs", vidAvailableUs);
+      this._controlPlaybackLatency(
+        Math.min(this._audAvailableUs, vidAvailableUs) / 1000
+      );
     }
     return true;
   }
 
   _processIdle(output, channelCount, sampleCount) {
     this._insertSilence(output, channelCount);
-    if (this.stateManager.isPaused()) return true;
+    if (
+      this.stateManager.isPaused() ||
+      this.playbackStartTsUs === 0
+    ) return true;
 
-    if (this.playbackStartTsUs !== 0) {
-      if (this.available < this.startThreshold) {
-        this.available += (sampleCount * 1e6) / this.sampleRate;
-      }
+    if (this._audAvailableUs < this.startThreshold) {
+      this._audAvailableUs += (sampleCount * 1e6) / this.sampleRate;
+    }
 
-      if (this.available >= this.startThreshold) {
-        this.available = this.startThreshold;
-        let curTsUs = this._incrementCurTs(sampleCount);
-        let availableMs =
-          (this.stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
-        this._controlPlaybackLatency(availableMs);
-      }
+    if (this._audAvailableUs >= this.startThreshold) {
+      this._audAvailableUs = this.startThreshold;
+      let curTsUs = this._incrementCurTs(sampleCount);
+      let vidAvailableMs =
+        (this.stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
+      this._controlPlaybackLatency(vidAvailableMs);
     }
 
     return true;
