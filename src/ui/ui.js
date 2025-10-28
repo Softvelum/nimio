@@ -21,6 +21,13 @@ export class Ui {
     this._canvas = document.createElement("canvas");
     this._canvas.width = opts.width; // todo if no options, get from container
     this._canvas.height = opts.height;
+    this._dpr = window.devicePixelRatio || 1;
+    this._logger.warn("DPR", this._dpr);
+
+    this._cctx = this._canvas.getContext("2d");
+    this._cctx.save();
+    this._cctx.scale(this._dpr, this._dpr);
+    this._cctx.restore();
     Object.assign(this._canvas.style, {
       cursor: "pointer",
       zIndex: 10,
@@ -129,6 +136,11 @@ export class Ui {
     );
     this._menuPopover = this._controlsBar.querySelector(".menu-popover");
     this._menuSection = this._menuPopover.querySelector(".menu-section");
+
+    this._onFullscreeClick = this._toggleFullscreen.bind(this);
+    this._buttonFullscreen = this._controlsBar.querySelector(".btn-fullscreen");
+    this._buttonFullscreen.addEventListener("click", this._onFullscreeClick);
+    this._canvas.addEventListener("dblclick", this._onFullscreeClick);
 
     const style = document.createElement("style");
     style.textContent = controlsCss;
@@ -297,5 +309,14 @@ export class Ui {
     if (this._hideTimer) {
       clearTimeout(this._hideTimer);
     }
+  }
+
+  async _toggleFullscreen(e) {
+    if (!document.fullscreenElement) {
+      await this._canvas.requestFullscreen({ navigationUI: "hide" });
+    } else {
+      await document.exitFullscreen();
+    }
+    e.stopPropagation();
   }
 }
