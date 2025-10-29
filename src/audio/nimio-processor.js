@@ -2,6 +2,7 @@ import { StateManager } from "@/state-manager";
 import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
 import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
+import { LatencyController } from "@/latency-controller";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -15,136 +16,101 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this.port,
     );
 
-    this.stateManager = new StateManager(options.processorOptions.stateSab);
-    this.sampleRate = options.processorOptions.sampleRate;
-    this.channelCount = options.outputChannelCount[0];
-    this.fSampleCount = options.processorOptions.sampleCount;
+    this._stateManager = new StateManager(options.processorOptions.stateSab);
+    this._sampleRate = options.processorOptions.sampleRate;
+    this._channelCount = options.outputChannelCount[0];
+    this._fSampleCount = options.processorOptions.sampleCount;
     this._audioConfig = new AudioConfig(
-      this.sampleRate,
-      this.channelCount,
-      this.fSampleCount,
+      this._sampleRate,
+      this._channelCount,
+      this._fSampleCount,
     );
 
-    this.targetLatencyMs = options.processorOptions.latency;
-    this.hysteresis = this.targetLatencyMs < 1000 ? 1.5 : 1.2;
-    this.idle = options.processorOptions.idle;
-    this.playbackStartTsUs = 0;
+    this._targetLatencyMs = options.processorOptions.latency;
+    this._latencyCtrl = new LatencyController(
+      options.processorOptions.instanceName,
+      this._stateManager,
+      this._audioConfig,
+      this._targetLatencyMs,
+    )
 
-    if (!this.idle) {
-      this.audioBuffer = new ReadableAudioBuffer(
+    this._idle = options.processorOptions.idle;
+    if (!this._idle) {
+      this._audioBuffer = new ReadableAudioBuffer(
         options.processorOptions.audioSab,
         options.processorOptions.capacity,
-        this.sampleRate,
-        this.channelCount,
-        this.fSampleCount,
+        this._sampleRate,
+        this._channelCount,
+        this._fSampleCount,
       );
     }
 
-    this._audAvailableUs = 0;
-    this.startThreshold = this.targetLatencyMs * 1000;
-    this.minThreshold = 0.25 * this.startThreshold;
-    this.speedFactor = 1.0;
+    this._speed = 1.0;
   }
 
   process(inputs, outputs) {
     const out = outputs[0];
     const chCnt = out.length;
-    const speed = this.speedFactor;
 
-    if (this.stateManager.isStopped()) {
+    if (this._stateManager.isStopped()) {
       return false; // stop processing
     }
 
-    if (this.playbackStartTsUs === 0) {
-      this.playbackStartTsUs = this.stateManager.getPlaybackStartTsUs();
+    const sampleCount = (out[0].length * this._speed + 0.5) >>> 0;
+    if (this._stateManager.isPaused()) {
+      this._insertSilence(out, chCnt, sampleCount);
+      return true;
     }
 
-    const sampleCount = (out[0].length * speed + 0.5) >>> 0;
-    if (this.idle) {
-      return this._processIdle(out, chCnt, sampleCount);
-    }
-
-    let curSmpCnt = this.stateManager.getCurrentTsSmp();
-    let curTsUs =
-      this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
-    this._audAvailableUs = this.audioBuffer.getLastTimestampUs() - curTsUs;
-    // this._logger.debug(`available=${this._audAvailableUs} curTsUs=${curTsUs}, playbackStartTsUs=${this.playbackStartTsUs}, curSmpCnt=${curSmpCnt}, lastTsUs=${this.audioBuffer.getLastTimestampUs()}`);
-    if (this._audAvailableUs < 0) this._audAvailableUs = 0;
-
-    if (
-      this.stateManager.isPaused() ||
-      this._audAvailableUs < this.minThreshold ||
-      (this.startThreshold > 0 && this._audAvailableUs < this.startThreshold)
-    ) {
-      this._insertSilence(out, chCnt);
-      const durationMs = ((1e6 * sampleCount) / this.sampleRate + 0.5) >>> 0;
-      this._logger.debug("Insert silence: ", durationMs);
-      // TODO: use 64-bit value for storing silence duration
-      this.stateManager.incSilenceUs(durationMs);
+    let curTsUs = this._latencyCtrl.incAudioSamples(sampleCount);
+    if (this._idle || this._latencyCtrl.isFilling()) {
+      this._insertSilence(out, chCnt, sampleCount);
     } else {
-      this.startThreshold = 0;
-      let incTsUs = this._incrementCurTs(sampleCount);
-      this.audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, speed);
-
-      let vidAvailableUs = this.stateManager.getVideoLatestTsUs() - curTsUs;
-      if (vidAvailableUs < 0) vidAvailableUs = 0;
-      // this._logger.debug("vidAvailableUs", vidAvailableUs);
-      this._controlPlaybackLatency(
-        Math.min(this._audAvailableUs, vidAvailableUs) / 1000
-      );
+      let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
+      this._audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, this._speed);
     }
+
     return true;
   }
 
   _processIdle(output, channelCount, sampleCount) {
     this._insertSilence(output, channelCount);
-    if (
-      this.stateManager.isPaused() ||
-      this.playbackStartTsUs === 0
-    ) return true;
+    if (this._latencyCtrl.isPending()) return true;
 
-    if (this._audAvailableUs < this.startThreshold) {
-      this._audAvailableUs += (sampleCount * 1e6) / this.sampleRate;
-    }
+    // if (this._audAvailableUs < this._startThreshold) {
+    //   this._audAvailableUs += this._samplesDurationUs(sampleCount);
+    // }
 
-    if (this._audAvailableUs >= this.startThreshold) {
-      this._audAvailableUs = this.startThreshold;
-      let curTsUs = this._incrementCurTs(sampleCount);
-      let vidAvailableMs =
-        (this.stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
-      this._controlPlaybackLatency(vidAvailableMs);
-    }
+    // if (this._audAvailableUs >= this._startThreshold) {
+    //   this._audAvailableUs = this._startThreshold;
+    //   let curTsUs = this._incrementCurTs(sampleCount);
+    //   let vidAvailableMs =
+    //     (this._stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
+    //   this._controlPlaybackLatency(vidAvailableMs);
+    // }
 
     return true;
   }
 
-  _incrementCurTs(sampleCount) {
-    let curSmpCnt = this.stateManager.incCurrentTsSmp(sampleCount);
-    return this._audioConfig.smpCntToTsUs(curSmpCnt) + this.playbackStartTsUs;
-  }
-
-  _insertSilence(out, chCnt) {
+  _insertSilence(out, chCnt, sampleCount) {
     for (let c = 0; c < chCnt; c++) {
       out[c].fill(0);
     }
+
+    if (!this._idle) {
+      this._stateManager.incSilenceUs(this._samplesDurationUs(sampleCount));
+    }
   }
 
-  _controlPlaybackLatency(availableMs) {
-    if (availableMs <= this.targetLatencyMs) {
-      if (this.speedFactor !== 1.0) {
-        this.speedFactor = 1.0;
-        console.debug("speedFactor 1.0", availableMs, this.targetLatencyMs);
-      }
-    } else if (availableMs > this.targetLatencyMs * this.hysteresis) {
-      if (this.speedFactor !== 1.1) {
-        this.speedFactor = 1.1; // speed boost
-        console.debug("speedFactor 1.1", availableMs, this.targetLatencyMs);
-      }
-    }
-    if (!this.idle) {
-      this.stateManager.setAvailableAudioMs((availableMs + 0.5) >>> 0);
-    }
+  _samplesDurationUs(sampleCount) {
+    return (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
+  }
+
+  _setSpeed(speed) {
+    if (this._speed === speed) return;
+    this._speed = speed;
   }
 }
+
 
 registerProcessor("audio-nimio-processor", AudioNimioProcessor);

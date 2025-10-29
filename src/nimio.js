@@ -195,6 +195,8 @@ export default class Nimio {
     });
 
     this._state.setPlaybackStartTsUs(0);
+    this._state.setVideoLatestTsUs(0);
+    this._state.setAudioLatestTsUs(0);
     this._state.resetCurrentTsSmp();
     this._firstFrameTsUs = 0;
 

@@ -75,6 +75,14 @@ export class StateManager {
     this._atomicStore64(IDX.VIDEO_LATEST_TS, tsUs);
   }
 
+  getAudioLatestTsUs() {
+    return this._atomicLoad64(IDX.AUDIO_LATEST_TS);
+  }
+
+  setAudioLatestTsUs(tsUs) {
+    this._atomicStore64(IDX.AUDIO_LATEST_TS, tsUs);
+  }
+
   getPlaybackStartTsUs() {
     return this._atomicLoad64(IDX.PLAYBACK_START_TS);
   }
@@ -183,7 +191,7 @@ export class StateManager {
         Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
         Atomics.compareExchange(this._flags, idx, low, newLow) === low
       ) {
-        return newLow + newHigh * U32POWER;
+        return low + high * U32POWER;
       }
       // Retry if another thread wrote a new value in the middle
     }
