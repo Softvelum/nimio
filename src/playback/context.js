@@ -142,6 +142,10 @@ class PlaybackContext {
     return strm;
   }
 
+  resetCurrentStream(type) {
+    this._curConf[type] = undefined;
+  }
+
   getCurrentRendition(type) {
     let conf = this._curConf[type];
     if (!conf) return null;

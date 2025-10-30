@@ -26,15 +26,21 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._fSampleCount,
     );
 
+    this._idle = options.processorOptions.idle;
     this._targetLatencyMs = options.processorOptions.latency;
     this._latencyCtrl = new LatencyController(
       options.processorOptions.instanceName,
       this._stateManager,
       this._audioConfig,
-      this._targetLatencyMs,
-    )
+      {
+        latency: this._targetLatencyMs,
+        video: options.processorOptions.videoEnabled,
+        audio: !this._idle,
+        port: this.port,
+      }
+    );
+    this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 
-    this._idle = options.processorOptions.idle;
     if (!this._idle) {
       this._audioBuffer = new ReadableAudioBuffer(
         options.processorOptions.audioSab,
@@ -73,25 +79,6 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     return true;
   }
 
-  _processIdle(output, channelCount, sampleCount) {
-    this._insertSilence(output, channelCount);
-    if (this._latencyCtrl.isPending()) return true;
-
-    // if (this._audAvailableUs < this._startThreshold) {
-    //   this._audAvailableUs += this._samplesDurationUs(sampleCount);
-    // }
-
-    // if (this._audAvailableUs >= this._startThreshold) {
-    //   this._audAvailableUs = this._startThreshold;
-    //   let curTsUs = this._incrementCurTs(sampleCount);
-    //   let vidAvailableMs =
-    //     (this._stateManager.getVideoLatestTsUs() - curTsUs) / 1000;
-    //   this._controlPlaybackLatency(vidAvailableMs);
-    // }
-
-    return true;
-  }
-
   _insertSilence(out, chCnt, sampleCount) {
     for (let c = 0; c < chCnt; c++) {
       out[c].fill(0);
@@ -106,11 +93,11 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     return (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
   }
 
-  _setSpeed(speed) {
+  _setSpeed(speed, availableMs) {
     if (this._speed === speed) return;
     this._speed = speed;
+    this._logger.debug(`speed ${speed}`, availableMs, this._targetLatencyMs);
   }
 }
-
 
 registerProcessor("audio-nimio-processor", AudioNimioProcessor);

@@ -258,9 +258,7 @@ export default class Nimio {
 
     let curTsUs;
     if (this._audioCtxProvider.isSuspended()) {
-      let expCurTime = performance.now() - this._config.latency;
-      curTsUs = (expCurTime - this._firstFrameTime) * 1000;
-      this._state.setCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(curTsUs));
+      this._latencyCtrl.checkCurrentVideoTime();
     } else {
       curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
     }
@@ -482,6 +480,7 @@ export default class Nimio {
       stateSab: this._sab,
       latency: this._config.latency,
       idle: idle || false,
+      videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
       enableLogs: this._config.workletLogs,
     };
@@ -503,6 +502,18 @@ export default class Nimio {
       },
     );
     this._workletLogReceiver.add(this._audioNode);
+
+    this._latencyCtrl = new LatencyController(
+      this._config.instanceName,
+      this._state,
+      this._audioConfig,
+      {
+        latency: this._config.latency,
+        video: !this._noVideo,
+        audio: !this._noAudio,
+      }
+    );
+    // this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 
     this._audioVolumeCtrl.init(this._config);
     this._audioGraphCtrl.setSource(this._audioNode, channels);
