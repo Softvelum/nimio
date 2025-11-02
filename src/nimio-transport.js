@@ -16,7 +16,7 @@ export const NimioTransport = {
 
   _onVideoSetupReceived(data) {
     if (!data || !data.config) {
-      this._noVideo = true;
+      this._setNoVideo();
       return;
     }
 

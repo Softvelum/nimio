@@ -12,6 +12,7 @@ import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { createConfig } from "./player-config";
 import { AudioConfig } from "./audio/config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
+import { LatencyController } from "./latency-controller";
 import { NimioTransport } from "./nimio-transport";
 import { NimioRenditions } from "./nimio-renditions";
 import { NimioAbr } from "./nimio-abr";
@@ -116,6 +117,8 @@ export default class Nimio {
     }
     this._createVUMeter();
 
+    this._createLatencyController();
+
     if (this._config.autoplay) {
       setTimeout(() => this.play(), 0);
       setTimeout(() => {
@@ -133,6 +136,7 @@ export default class Nimio {
     }
 
     this._state.start();
+    this._latencyCtrl.start();
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
@@ -154,6 +158,7 @@ export default class Nimio {
 
   pause() {
     this._state.pause();
+    this._latencyCtrl.pause();
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
@@ -173,12 +178,14 @@ export default class Nimio {
     }
 
     this._videoBuffer.reset();
-    this._noVideo = false;
+    this._noVideo = this._config.audioOnly;
 
     this._stopAudio();
+    this._noAudio = this._config.videoOnly;
     if (this._audioBuffer) {
       this._audioBuffer.reset();
     }
+    this._latencyCtrl.reset();
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
@@ -256,16 +263,15 @@ export default class Nimio {
       return true;
     }
 
-    let curTsUs;
+    let curPlayedTsUs;
     if (this._audioCtxProvider.isSuspended()) {
-      this._latencyCtrl.checkCurrentVideoTime();
+      curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
     } else {
-      curTsUs = this._audioConfig.smpCntToTsUs(this._state.getCurrentTsSmp());
+      curPlayedTsUs = this._latencyCtrl.getCurrentTsUs();
     }
-    if (curTsUs <= 0) return true;
+    if (curPlayedTsUs === this._firstFrameTsUs) return;
 
-    let currentPlayedTsUs = curTsUs + this._firstFrameTsUs;
-    const frame = this._videoBuffer.popFrameForTime(currentPlayedTsUs);
+    const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
     if (!frame) return true;
 
     this._ctx.drawImage(
@@ -277,31 +283,23 @@ export default class Nimio {
     );
     frame.close();
 
-    let availableMs = (this._videoBuffer.lastFrameTs - frame.timestamp) / 1000;
-    if (availableMs < 0) availableMs = 0;
-    this._adjustPlaybackLatency(availableMs);
-    this._state.setAvailableVideoMs(availableMs);
-
     if (this._isAutoAbr()) {
       let curTimeMs = performance.now();
       if (
         this._lastBufReportMs > 0 &&
         curTimeMs - this._lastBufReportMs >= 100
       ) {
-        this._reportBufferLevel(availableMs);
+        this._reportBufferLevel(this._latencyCtrl.availableMs("video"));
         this._lastBufReportMs = curTimeMs;
       }
     }
   }
 
-  // TODO: rework to the common latency control mechanism for video and audio
-  _adjustPlaybackLatency(availableMs) {
-    let targetLatencyMs = 1.1 * this._config.latency;
-    if (availableMs > targetLatencyMs) {
-      this._firstFrameTime -= availableMs - targetLatencyMs;
-    } else if (availableMs < 0.2 * targetLatencyMs) {
-      this._firstFrameTime += targetLatencyMs;
-    }
+  // TODO: move this function with renderVideoFrame to a separate component
+  _setSpeed(speed, availableMs) {
+    if (this._speed === speed) return;
+    this._speed = speed;
+    this._logger.debug(`speed ${speed}`, availableMs);
   }
 
   _createMainDecoderFlow(type, data) {
@@ -351,7 +349,6 @@ export default class Nimio {
     if (this._firstFrameTsUs !== 0) return true;
 
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      this._firstFrameTime = performance.now();
       this._firstFrameTsUs = frame.timestamp;
       if (this._videoBuffer.length > 0) {
         this._firstFrameTsUs = this._videoBuffer.firstFrameTs;
@@ -398,7 +395,6 @@ export default class Nimio {
     }
 
     if (this._firstFrameTsUs === 0) {
-      this._firstFrameTime = performance.now();
       this._firstFrameTsUs = frame.rawTimestamp;
       this._state.setPlaybackStartTsUs(frame.rawTimestamp);
     }
@@ -408,8 +404,8 @@ export default class Nimio {
 
   _onDecodingError(kind) {
     // TODO: show error message in UI
-    if (kind === "video") this._noVideo = true;
-    if (kind === "audio") this._noAudio = true;
+    if (kind === "video") this._setNoVideo();
+    if (kind === "audio") this._setNoAudio();
 
     if (this._noVideo && this._noAudio) {
       this.stop(true);
@@ -503,18 +499,6 @@ export default class Nimio {
     );
     this._workletLogReceiver.add(this._audioNode);
 
-    this._latencyCtrl = new LatencyController(
-      this._config.instanceName,
-      this._state,
-      this._audioConfig,
-      {
-        latency: this._config.latency,
-        video: !this._noVideo,
-        audio: !this._noAudio,
-      }
-    );
-    // this._latencyCtrl.speedFn = this._setSpeed.bind(this);
-
     this._audioVolumeCtrl.init(this._config);
     this._audioGraphCtrl.setSource(this._audioNode, channels);
     let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
@@ -528,10 +512,21 @@ export default class Nimio {
     }
   }
 
+  _setNoVideo(yes) {
+    if (yes === undefined) yes = true;
+    this._noVideo = !!yes;
+    this._latencyCtrl.videoEnabled = !yes;
+  }
+
+  _setNoAudio(yes) {
+    if (yes === undefined) yes = true;
+    this._noAudio = !!yes;
+    this._latencyCtrl.audioEnabled = !yes;
+  }
+
   async _startNoAudioMode() {
-    this._logger.debug("startNoAudioMode");
+    this._setNoAudio();
     await this._initAudioProcessor(48000, 1, true);
-    this._noAudio = true;
     this._logger.debug("No audio mode started");
   }
 
@@ -541,7 +536,7 @@ export default class Nimio {
       this._audioContext.close();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
     }
-    this._noAudio = false;
+    this._setNoAudio(false);
   }
 
   _reportBufferLevel(ms) {
@@ -550,6 +545,21 @@ export default class Nimio {
     if (ms < this._lowBufferMs) {
       this._metricsManager.reportLowBuffer(trackId);
     }
+  }
+
+  _createLatencyController() {
+    this._latencyCtrl = new LatencyController(
+      this._config.instanceName,
+      this._state,
+      this._audioConfig,
+      {
+        latency: this._config.latency,
+        video: !this._noVideo,
+        audio: !this._noAudio,
+      }
+    );
+    this._speed = 1.0;
+    this._latencyCtrl.speedFn = this._setSpeed.bind(this);
   }
 }
 
