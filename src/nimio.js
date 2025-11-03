@@ -95,9 +95,8 @@ export default class Nimio {
       );
     }
 
-    this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._firstFrameTsUs = 0;
-
+    this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._ctx = this._ui.canvas.getContext("2d");
 
     this._decoderFlows = { video: null, audio: null };
@@ -269,7 +268,9 @@ export default class Nimio {
     } else {
       curPlayedTsUs = this._latencyCtrl.getCurrentTsUs();
     }
-    if (curPlayedTsUs === this._firstFrameTsUs) return;
+    this._updateBufferLevelMetrics();
+
+    if (this._latencyCtrl.isPending()) return true;
 
     const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
     if (!frame) return true;
@@ -282,17 +283,6 @@ export default class Nimio {
       this._ctx.canvas.height,
     );
     frame.close();
-
-    if (this._isAutoAbr()) {
-      let curTimeMs = performance.now();
-      if (
-        this._lastBufReportMs > 0 &&
-        curTimeMs - this._lastBufReportMs >= 100
-      ) {
-        this._reportBufferLevel(this._latencyCtrl.availableMs("video"));
-        this._lastBufReportMs = curTimeMs;
-      }
-    }
   }
 
   // TODO: move this function with renderVideoFrame to a separate component
@@ -345,7 +335,6 @@ export default class Nimio {
   }
 
   async _onVideoStartTsNotSet(frame) {
-    this._logger.debug('onAudioStartTsNotSet', this._firstFrameTsUs);
     if (this._firstFrameTsUs !== 0) return true;
 
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
@@ -364,7 +353,6 @@ export default class Nimio {
   }
 
   async _onAudioStartTsNotSet(frame) {
-    this._logger.debug('onAudioStartTsNotSet', this._firstFrameTsUs);
     if (
       this._audioConfig.sampleRate !== frame.sampleRate ||
       this._audioConfig.numberOfChannels !== frame.numberOfChannels
@@ -537,6 +525,16 @@ export default class Nimio {
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
     }
     this._setNoAudio(false);
+  }
+
+  _updateBufferLevelMetrics() {
+    if (this._isAutoAbr()) {
+      let curTimeMs = performance.now();
+      if (this._lastBufUpdMs > 0 && curTimeMs - this._lastBufUpdMs >= 100) {
+        this._reportBufferLevel(this._latencyCtrl.availableMs("video"));
+        this._lastBufUpdMs = curTimeMs;
+      }
+    }
   }
 
   _reportBufferLevel(ms) {

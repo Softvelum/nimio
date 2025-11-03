@@ -9,8 +9,8 @@ export class LatencyController {
 
     this.reset();
 
-    this._startThreshUs = this._latencyMs * 1000;
-    this._minThreshUs = 0.1 * this._startThreshUs;
+    this._startThreshUs = 0.98 * this._latencyMs * 1000;
+    this._minThreshUs = 0.25 * this._latencyMs * 1000;
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.2;
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
@@ -44,23 +44,26 @@ export class LatencyController {
   }
 
   availableMs(type) {
-    const isVideo = type === "video";
-    if (isVideo && this._video && this._videoAvailUs === undefined) {
-      this._getVideoAvailableUs();
+    let res = Number.MAX_VALUE;
+    const isVideo = (type === "video") || !type;
+    if (isVideo) {
+      if (!this._video) return 0;
+      if (this._videoAvailUs === undefined) this._getVideoAvailableUs();
+      res = this._videoAvailUs;
     }
-    if (!isVideo && this._audio && this._audioAvailUs === undefined) {
-      this._getAudioAvailableUs();
+    const isAudio = (type === "audio") || !type;
+    if (isAudio) {
+      if (!this._audio) return 0;
+      if (this._audioAvailUs === undefined) this._getAudioAvailableUs();
+      res = Math.min(res, this._audioAvailUs);
     }
 
-    let res = isVideo ? this._videoAvailUs : this._audioAvailUs;
     return (res / 1000 + 0.5) >>> 0;
   }
 
   incAudioSamples(sampleCount) {
     this._calculateAvailable();
-    if (this._startThreshUs > 0 && this._availableUs <= this._startThreshUs) {
-      return this._curTsUs;
-    }
+    if (this.isStarting()) return this._curTsUs;
 
     this._startThreshUs = 0;
     this._stateMgr.incCurrentTsSmp(sampleCount);
@@ -73,10 +76,7 @@ export class LatencyController {
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
     this._prevVideoTime = performance.now();
-    if (
-      this._startThreshUs > 0 && this._availableUs <= this._startThreshUs ||
-      prevVideoTime === 0
-    ) {
+    if (this.isStarting() || prevVideoTime === 0) {
       return this._curTsUs;
     }
 
@@ -89,10 +89,48 @@ export class LatencyController {
   }
 
   getCurrentTsUs() {
-    this._getCurrentTsUs();
-    this._getVideoAvailableUs();
+    this._calculateAvailable();
+    if (this._availableUs > this._startThreshUs) this._startThreshUs = 0;
 
     return this._curTsUs;
+  }
+
+  isStarting() {
+    return this._startThreshUs > 0 && this._availableUs <= this._startThreshUs;
+  }
+
+  isPending() {
+    return this._availableUs <= this._minThreshUs || this.isStarting();
+  }
+
+  set speedFn(fn) {
+    this._setSpeed = fn;
+  }
+
+  set videoEnabled(val) {
+    this._video = val;
+  }
+
+  set audioEnabled(val) {
+    this._audio = val;
+  }
+
+  _calculateAvailable() {
+    this._getCurrentTsUs();
+
+    let availableMs = Number.MAX_VALUE;
+    if (this._audio) {
+      this._getAudioAvailableUs();
+      availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
+      this._stateMgr.setAvailableAudioMs(availableMs);
+      this._availableUs = this._audioAvailUs;
+    }
+    if (this._video) {
+      this._getVideoAvailableUs();
+      availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
+      this._stateMgr.setAvailableVideoMs(availableMs);
+      this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
+    }
   }
 
   _getCurrentTsUs() {
@@ -112,51 +150,6 @@ export class LatencyController {
   _getAudioAvailableUs() {
     this._audioAvailUs = this._stateMgr.getAudioLatestTsUs() - this._curTsUs;
     if (this._audioAvailUs < 0) this._audioAvailUs = 0;
-  }
-
-  _calculateAvailable() {
-    this._getCurrentTsUs();
-
-    let availableMs = 0;
-    if (this._audio) {
-      this._getAudioAvailableUs();
-      availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableAudioMs(availableMs);
-    }
-    if (this._video) {
-      this._getVideoAvailableUs();
-      availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableVideoMs(availableMs);
-    }
-    if (this._video && this._audio) {
-      this._availableUs = Math.min(this._audioAvailUs, this._videoAvailUs);
-      // this._logger.debug(`Available ms: audio=${this._audioAvailUs / 1000}, video=${this._videoAvailUs / 1000}, used=${this._availableUs / 1000}`);
-    } else if (this._audio) {
-      this._availableUs = this._audioAvailUs;
-    } else {
-      this._availableUs = this._videoAvailUs;
-    }
-  }
-
-  isPending() {
-    return (this._startTsUs === 0);
-  }
-
-  isFilling() {
-    return this._availableUs <= this._minThreshUs ||
-    (this._startThreshUs > 0 && this._availableUs <= this._startThreshUs);
-  }
-
-  set speedFn(fn) {
-    this._setSpeed = fn;
-  }
-
-  set videoEnabled(val) {
-    this._video = val;
-  }
-
-  set audioEnabled(val) {
-    this._audio = val;
   }
 
   _adjustPlaybackLatency() {

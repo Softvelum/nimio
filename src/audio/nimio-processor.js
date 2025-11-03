@@ -69,7 +69,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     }
 
     let curTsUs = this._latencyCtrl.incAudioSamples(sampleCount);
-    if (this._idle || this._latencyCtrl.isFilling()) {
+    if (this._idle || this._latencyCtrl.isPending()) {
       this._insertSilence(out, chCnt, sampleCount);
     } else {
       let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
