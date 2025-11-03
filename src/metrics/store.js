@@ -1,5 +1,6 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import { LoggersFactory } from "@/shared/logger";
+import { mean } from "@/shared/helpers";
 
 const STAT_SIZE = 3; // 3 seconds
 const STAT_BUCKETS_COUNT = STAT_SIZE * 4; // 6 seconds of 250ms buckets
@@ -281,7 +282,7 @@ export class MetricsStore {
   avgBufLevel() {
     let res;
     if (this._buf1sec.length > 0) {
-      res = this._mean(this._buf1sec);
+      res = mean(this._buf1sec);
     } else if (this._buf500msCnt > 0) {
       res = this._bufferLevel;
     }
@@ -292,7 +293,7 @@ export class MetricsStore {
   avg3secBufLevel() {
     let res;
     if (this._buf1sec.length > 0) {
-      res = this._mean(this._buf1sec);
+      res = mean(this._buf1sec);
     } else if (this._buf500msCnt > 0) {
       res = this._buf500msSum / this._buf500msCnt;
     }
@@ -316,14 +317,6 @@ export class MetricsStore {
 
   _rateInBps(bytes, ms) {
     return ms > 0 ? (8 * 1000 * bytes) / ms : 0;
-  }
-
-  _mean(buffer) {
-    let result = 0;
-    buffer.forEach(function (v) {
-      result += v;
-    });
-    return result === 0 ? result : result / buffer.length;
   }
 
   _clearCounters() {

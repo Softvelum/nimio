@@ -1,4 +1,6 @@
-import { LoggersFactory } from "./shared/logger";
+import { LoggersFactory } from "@/shared/logger";
+import { RingBuffer } from "@/shared/ring-buffer";
+import { mean } from "@/shared/helpers";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -7,9 +9,11 @@ export class LatencyController {
     this._audioConfig = audioConfig;
     this._params = params;
 
+    this._availables = new RingBuffer(`${instName} latency ctrl`, 6);
+
     this.reset();
 
-    this._startThreshUs = 0.98 * this._latencyMs * 1000;
+    this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 0.25 * this._latencyMs * 1000;
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.2;
 
@@ -23,6 +27,7 @@ export class LatencyController {
     this._startTsUs = 0;
     this._availableUs = 0;
     this._prevVideoTime = 0;
+    this._availables.reset();
 
     this._audioAvailUs = this._videoAvailUs = undefined;
 
@@ -63,9 +68,8 @@ export class LatencyController {
 
   incAudioSamples(sampleCount) {
     this._calculateAvailable();
-    if (this.isStarting()) return this._curTsUs;
+    if (this._checkPending()) return this._curTsUs;
 
-    this._startThreshUs = 0;
     this._stateMgr.incCurrentTsSmp(sampleCount);
     this._adjustPlaybackLatency();
 
@@ -76,11 +80,10 @@ export class LatencyController {
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
     this._prevVideoTime = performance.now();
-    if (this.isStarting() || prevVideoTime === 0) {
+    if (this._checkPending() || prevVideoTime === 0) {
       return this._curTsUs;
     }
 
-    this._startThreshUs = 0;
     let timeUsPast = (performance.now() - prevVideoTime) * speed * 1000;
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(timeUsPast));
     this._adjustPlaybackLatency();
@@ -90,17 +93,21 @@ export class LatencyController {
 
   getCurrentTsUs() {
     this._calculateAvailable();
-    if (this._availableUs > this._startThreshUs) this._startThreshUs = 0;
+    this._checkPending();
 
     return this._curTsUs;
+  }
+
+  isPending() {
+    return this.isUnderrun() || this.isStarting();
   }
 
   isStarting() {
     return this._startThreshUs > 0 && this._availableUs <= this._startThreshUs;
   }
 
-  isPending() {
-    return this._availableUs <= this._minThreshUs || this.isStarting();
+  isUnderrun() {
+    return this._availableUs <= this._minThreshUs;
   }
 
   set speedFn(fn) {
@@ -113,6 +120,15 @@ export class LatencyController {
 
   set audioEnabled(val) {
     this._audio = val;
+  }
+
+  _checkPending() {
+    if (this.isUnderrun() && this._startThreshUs === 0) {
+      this._startThreshUs = this._startingBufferLevel();
+    }
+    let res = this.isStarting();
+    if (!res) this._startThreshUs = 0;
+    return res;
   }
 
   _calculateAvailable() {
@@ -131,6 +147,8 @@ export class LatencyController {
       this._stateMgr.setAvailableVideoMs(availableMs);
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
+
+    this._availables.push(this._availableUs, true);
   }
 
   _getCurrentTsUs() {
@@ -153,12 +171,24 @@ export class LatencyController {
   }
 
   _adjustPlaybackLatency() {
-    let availableMs = this._availableUs / 1000;
+    let availableMs = mean(this._availables) / 1000;
     if (availableMs <= this._latencyMs) {
+      if (this._speed !== 1) {
+        this._logger.debug("avails1", this._availables.toArray());
+      }
       this._setSpeed(1.0, availableMs);
+      this._speed = 1;
     } else if (availableMs > this._latencyMs * this._hysteresis) {
+      if (this._speed !== 1.1) {
+        this._logger.debug("avails2", this._availables.toArray());
+      }
       this._setSpeed(1.1, availableMs); // speed boost
+      this._speed = 1.1;
     }
+  }
+
+  _startingBufferLevel() {
+    return 0.98 * this._latencyMs * 1000;
   }
 
   // _adjustPlaybackLatency(availableMs) {
