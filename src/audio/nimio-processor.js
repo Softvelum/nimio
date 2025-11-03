@@ -37,7 +37,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
         video: options.processorOptions.videoEnabled,
         audio: !this._idle,
         port: this.port,
-      }
+      },
     );
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 

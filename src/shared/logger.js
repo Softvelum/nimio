@@ -76,7 +76,6 @@ let LoggersFactory = (function () {
         "]: " +
         arguments[0];
 
-      
       if (this._workletPort) {
         return this._workletPort.postMessage({
           type: "log",

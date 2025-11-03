@@ -13,16 +13,16 @@ export class WorkletLogReceiver {
       }
     }
     this._worklets.push({ inst: worklet, onmsg: worklet.port.onmessage });
- 
+
     let exMsgHandler = worklet.port.onmessage;
-    worklet.port.onmessage = function(ev) {
+    worklet.port.onmessage = function (ev) {
       let msg = ev.data;
       if (msg?.type === "log") {
         console[msg.lf].apply(console, msg.args);
         return;
       }
       if (exMsgHandler) exMsgHandler(ev);
-    }
+    };
     return true;
   }
 

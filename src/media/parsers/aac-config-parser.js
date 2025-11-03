@@ -45,7 +45,7 @@ export function parseAACConfig(codecData) {
       config.sampleCount = samplesPerFrames[(data[1] & 0x04) >> 2];
     }
   }
-  
+
   if (config.numberOfChannels === 7) {
     config.numberOfChannels = 8; // 7.1 surround sound system
   }

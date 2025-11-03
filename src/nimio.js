@@ -358,7 +358,7 @@ export default class Nimio {
       this._audioConfig.numberOfChannels !== frame.numberOfChannels
     ) {
       this._logger.error(
-        `Audio config (sampleRate=${this._audioConfig.sampleRate}, channels=${this._audioConfig.numberOfChannels}) differs from the actual (sampleRate=${frame.sampleRate}, channels=${frame.numberOfChannels}). Abort audio processor initialization.`
+        `Audio config (sampleRate=${this._audioConfig.sampleRate}, channels=${this._audioConfig.numberOfChannels}) differs from the actual (sampleRate=${frame.sampleRate}, channels=${frame.numberOfChannels}). Abort audio processor initialization.`,
       );
       return false;
     }
@@ -554,7 +554,7 @@ export default class Nimio {
         latency: this._config.latency,
         video: !this._noVideo,
         audio: !this._noAudio,
-      }
+      },
     );
     this._speed = 1.0;
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);

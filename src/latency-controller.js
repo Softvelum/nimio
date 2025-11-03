@@ -19,7 +19,7 @@ export class LatencyController {
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
     this._logger.debug(
-      `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,  
+      `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,
     );
   }
 
@@ -50,13 +50,13 @@ export class LatencyController {
 
   availableMs(type) {
     let res = Number.MAX_VALUE;
-    const isVideo = (type === "video") || !type;
+    const isVideo = type === "video" || !type;
     if (isVideo) {
       if (!this._video) return 0;
       if (this._videoAvailUs === undefined) this._getVideoAvailableUs();
       res = this._videoAvailUs;
     }
-    const isAudio = (type === "audio") || !type;
+    const isAudio = type === "audio" || !type;
     if (isAudio) {
       if (!this._audio) return 0;
       if (this._audioAvailUs === undefined) this._getAudioAvailableUs();
