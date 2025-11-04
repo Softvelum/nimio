@@ -1,6 +1,5 @@
 import { LoggersFactory } from "@/shared/logger";
-import { RingBuffer } from "@/shared/ring-buffer";
-import { mean } from "@/shared/helpers";
+import { MeanValue } from "@/shared/mean-value";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -8,14 +7,14 @@ export class LatencyController {
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
     this._params = params;
-
-    this._availables = new RingBuffer(`${instName} latency ctrl`, 6);
+    this._meanAvailableUs = new MeanValue();
 
     this.reset();
 
     this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 0.25 * this._latencyMs * 1000;
-    this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.2;
+    this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
+    this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
     this._logger.debug(
@@ -27,7 +26,7 @@ export class LatencyController {
     this._startTsUs = 0;
     this._availableUs = 0;
     this._prevVideoTime = 0;
-    this._availables.reset();
+    this._meanAvailableUs.reset();
 
     this._audioAvailUs = this._videoAvailUs = undefined;
 
@@ -148,7 +147,7 @@ export class LatencyController {
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
 
-    this._availables.push(this._availableUs, true);
+    this._meanAvailableUs.add(this._availableUs);
   }
 
   _getCurrentTsUs() {
@@ -171,19 +170,11 @@ export class LatencyController {
   }
 
   _adjustPlaybackLatency() {
-    let availableMs = mean(this._availables) / 1000;
-    if (availableMs <= this._latencyMs) {
-      if (this._speed !== 1) {
-        this._logger.debug("avails1", this._availables.toArray());
-      }
+    let availableMs = this._meanAvailableUs.get() / 1000;
+    if (availableMs <= this._latencyMs * this._subHysteresis) {
       this._setSpeed(1.0, availableMs);
-      this._speed = 1;
     } else if (availableMs > this._latencyMs * this._hysteresis) {
-      if (this._speed !== 1.1) {
-        this._logger.debug("avails2", this._availables.toArray());
-      }
       this._setSpeed(1.1, availableMs); // speed boost
-      this._speed = 1.1;
     }
   }
 
