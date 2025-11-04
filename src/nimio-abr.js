@@ -61,11 +61,11 @@ export const NimioAbr = {
       cancelProbe: (sn, doReq) => this._sldpManager.cancelProbe(sn, doReq),
     };
 
-    this._lastBufReportMs = 0;
+    this._lastBufUpdMs = 0;
   },
 
   _startAbrController() {
     this._abrController.start();
-    this._lastBufReportMs = performance.now() + 100;
+    this._lastBufUpdMs = performance.now() + 100;
   },
 };

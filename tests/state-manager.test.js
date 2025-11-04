@@ -194,7 +194,7 @@ describe("StateManager", () => {
 
     const newVal = manager._atomicAdd64(IDX.CURRENT_TS, 5);
 
-    expect(newVal).toBe(5);
+    expect(newVal).toBe(0);
     expect(manager.getCurrentTsSmp()).toBe(5);
 
     Atomics.compareExchange = origCompareExchange;

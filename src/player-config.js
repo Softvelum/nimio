@@ -19,6 +19,7 @@ const DEFAULTS = {
   volumeId: false,
   muted: false,
   vuMeter: null,
+  workletLogs: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -129,6 +130,7 @@ export function createConfig(overrides = {}) {
   validateRequired(target);
 
   LoggersFactory.setLevel(target.logLevel);
+  LoggersFactory.toggleWorkletLogs(target.workletLogs);
   const logger = LoggersFactory.create(target.instanceName, "Player config");
   for (let i = 0; i < unknown.length; i++) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);

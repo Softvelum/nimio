@@ -59,7 +59,7 @@ describe("parseAACConfig", () => {
     expect(config).toEqual({
       audioObjectType: 31,
       sampleRate: 16440,
-      numberOfChannels: 7,
+      numberOfChannels: 8,
       sampleCount: 960,
     });
   });

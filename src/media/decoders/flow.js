@@ -112,8 +112,10 @@ export class DecoderFlow {
     this._cancelInput();
     this._shutdown();
     this._trackId = null;
-    this._buffer.reset();
-    this._buffer = null;
+    if (this._buffer) {
+      this._buffer.reset();
+      this._buffer = null;
+    }
   }
 
   finalizeSwitch() {

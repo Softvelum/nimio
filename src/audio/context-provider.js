@@ -52,16 +52,29 @@ class AudioContextProvider {
       };
       this._logger.debug("Audio context is created, but it's suspended");
       this._suspended = true;
-      this._audioCtx.resume();
     }
   }
 
+  reset() {
+    this._audioCtx = this._callbacks = undefined;
+    this._suspended = false;
+  }
+
   onContextRunning(cb) {
+    if (!this._suspended) {
+      cb(this._audioCtx);
+      return;
+    }
+
     if (!this._callbacks) {
       this._logger.error("onContextRunning callbacks are not defined");
       return;
     }
     this._callbacks.push(cb);
+  }
+
+  isRunning() {
+    return this._audioCtx && !this._suspended;
   }
 
   isSuspended() {

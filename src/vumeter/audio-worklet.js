@@ -1,4 +1,4 @@
-import vuProcUrl from "./audio-processor.worklet?worker&url";
+import vuProcUrl from "./audio-processor?worker&url";
 import { ScriptPathProvider } from "@/shared/script-path-provider";
 import { BaseMeter } from "./base";
 

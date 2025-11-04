@@ -14,4 +14,5 @@ export const IDX = {
   AUDIO_DECODER_QUEUE: 8,
   PLAYBACK_START_TS: [9, 10],
   VIDEO_LATEST_TS: [11, 12],
+  AUDIO_LATEST_TS: [13, 14],
 };
