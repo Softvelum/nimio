@@ -1,5 +1,5 @@
 export class MeanValue {
-  constructor(period = 200) {
+  constructor(period = 100) {
     this._count = 0;
     this._sum = 0;
     this._periodMs = period;

@@ -7,7 +7,7 @@ export class LatencyController {
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
     this._params = params;
-    this._meanAvailableUs = new MeanValue();
+    this._meanAvailableUs = new MeanValue(250);
 
     this.reset();
 
