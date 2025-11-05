@@ -13,14 +13,17 @@ export class Ui {
 
     this._container = document.getElementById(container);
     Object.assign(this._container.style, {
-      display: "inline-block",
+      display: "inline-flex",
       position: "relative",
     });
     this._container.classList.add("nimio-container");
 
+    // todo if no options, get from container
+    this._baseWidth = opts.width;
+    this._baseHeight = opts.height;
+
     this._canvas = document.createElement("canvas");
-    this._canvas.width = opts.width; // todo if no options, get from container
-    this._canvas.height = opts.height;
+    this._updateCanvasSize(this._baseWidth, this._baseHeight);
     this._dpr = window.devicePixelRatio || 1;
     this._logger.warn("DPR", this._dpr);
 
@@ -31,6 +34,7 @@ export class Ui {
     Object.assign(this._canvas.style, {
       cursor: "pointer",
       zIndex: 10,
+      margin: "auto",
       "background-color": "grey",
     });
     this._container.appendChild(this._canvas);
@@ -43,13 +47,16 @@ export class Ui {
     this._container.appendChild(this._btnPlayPause);
 
     this._onClick = this._handleClick.bind(this);
-    this._onMuteUnmuteClick = this._handleMuteUnmuteClick.bind(this);
     this._canvas.addEventListener("click", this._onClick);
     this._btnPlayPause.addEventListener("click", this._onClick);
     this._addPlaybackEventHandlers();
+    this._addDisplayEventHandlers();
 
     this._createControls();
     this._setupEasing();
+    if (opts.fullscreen) {
+      this._toggleFullscreen();
+    }
   }
 
   destroy() {
@@ -57,6 +64,8 @@ export class Ui {
       clearTimeout(this._hideTimer);
     }
     this._removePlaybackEventHandlers();
+    this._removeControlsEventHandlers();
+    this._removeDisplayEventHandlers();
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
@@ -116,35 +125,42 @@ export class Ui {
 
     const frag = tpl.content.cloneNode(true);
     this._controlsBar = frag.querySelector(".nimio-controls");
-
     this._container.appendChild(frag);
 
     this._buttonPlayPause = this._controlsBar.querySelector(".btn-play-pause");
-    this._buttonPlayPause.addEventListener("click", this._onClick);
-
     this._buttonVolume = this._controlsBar.querySelector(".btn-volume");
-    this._buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
-
     this._volumeRange = this._controlsBar.querySelector(".volume-range");
-    this._volumeRange.addEventListener("input", (e) => {
-      this._handleVolumeChange(Number(e.target.value));
-    });
-
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
-    this._buttonSettings.addEventListener("click", (e) =>
-      this._handleSettingsClick(e),
-    );
     this._menuPopover = this._controlsBar.querySelector(".menu-popover");
     this._menuSection = this._menuPopover.querySelector(".menu-section");
+    this._addControlsEventHandlers();
 
-    this._onFullscreeClick = this._toggleFullscreen.bind(this);
+    this._onFullscreenClick = this._toggleFullscreen.bind(this);
     this._buttonFullscreen = this._controlsBar.querySelector(".btn-fullscreen");
-    this._buttonFullscreen.addEventListener("click", this._onFullscreeClick);
-    this._canvas.addEventListener("dblclick", this._onFullscreeClick);
+    this._buttonFullscreen.addEventListener("click", this._onFullscreenClick);
+    this._canvas.addEventListener("dblclick", this._onFullscreenClick);
 
     const style = document.createElement("style");
     style.textContent = controlsCss;
     document.head.appendChild(style);
+  }
+
+  _addControlsEventHandlers() {
+    this._onMuteUnmuteClick = this._handleMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._onSettingsClick = this._handleSettingsClick.bind(this);
+
+    this._buttonPlayPause.addEventListener("click", this._onClick);
+    this._buttonVolume.addEventListener("click", this._onMuteUnmuteClick);
+    this._volumeRange.addEventListener("input", this._onVolumeChange);
+    this._buttonSettings.addEventListener("click", this._onSettingsClick);
+  }
+
+  _removeControlsEventHandlers() {
+    this._buttonPlayPause.removeEventListener("click", this._onClick);
+    this._buttonVolume.removeEventListener("click", this._onMuteUnmuteClick);
+    this._volumeRange.removeEventListener("input", this._onVolumeChange);
+    this._buttonSettings.removeEventListener("click", this._onSettingsClick);
   }
 
   _addPlaybackEventHandlers() {
@@ -153,6 +169,7 @@ export class Ui {
     this._onRenditionSet = this._onRenditionSet.bind(this);
     this._onRenditionsReceived = this._onRenditionsReceived.bind(this);
     this._onAdaptiveBitrateSet = this._onAdaptiveBitrateSet.bind(this);
+    this._onRendMenuSelected = this._onRendMenuSelected.bind(this);
 
     this._eventBus.on("nimio:volume-set", this._onVolumeSet);
     this._eventBus.on("nimio:muted", this._onMuteUnmuteSet);
@@ -167,6 +184,22 @@ export class Ui {
     this._eventBus.off("nimio:rendition-set", this._onRenditionSet);
     this._eventBus.off("nimio:rendition-list", this._onRenditionsReceived);
     this._eventBus.off("nimio:abr", this._onAdaptiveBitrateSet);
+  }
+
+  _addDisplayEventHandlers() {
+    this._onResize = this._handleResize.bind(this);
+    this._onOrientChange = this._handleOrientChange.bind(this);
+    document.addEventListener("fullscreenchange", this._onResize);
+    document.addEventListener("webkitfullscreenchange", this._onResize);
+    window.addEventListener("resize", this._onResize);
+    window.addEventListener("orientationchange", this._onOrientChange);
+  }
+
+  _removeDisplayEventHandlers() {
+    document.removeEventListener("fullscreenchange", this._onResize);
+    document.removeEventListener("webkitfullscreenchange", this._onResize);
+    window.removeEventListener("resize", this._onResize);
+    window.removeEventListener("orientationchange", this._onOrientChange);
   }
 
   _setupEasing() {
@@ -221,16 +254,20 @@ export class Ui {
   }
 
   _enableSelection() {
-    this._menuSection.addEventListener("click", (e) => {
-      const btn = e.target.closest("button.menu-item");
-      if (!btn) return;
-      this._selectRendition(btn);
-    });
+    this._menuSection.removeEventListener("click", this._onRendMenuSelected);
+    this._menuSection.addEventListener("click", this._onRendMenuSelected);
   }
 
   _selectRendition(selectedBtn) {
     let selRendition = selectedBtn._rendition || { name: "Auto" };
     this._eventBus.emit("ui:rendition-change", selRendition);
+  }
+
+  _onRendMenuSelected(e) {
+    const btn = e.target.closest("button.menu-item");
+    if (!btn) return;
+    this._selectRendition(btn);
+    this._menuPopover.hidden = true;
   }
 
   _onRenditionSet(rData) {
@@ -255,6 +292,45 @@ export class Ui {
     });
   }
 
+  _isPlayerFullscreen() {
+    let fElem = document.fullscreenElement || document.webkitFullscreenElement;
+    return fElem === this._container;
+  }
+
+  _handleResize() {
+    if (this._isPlayerFullscreen()) {
+      const screenAspect = window.innerWidth / window.innerHeight;
+
+      let newWidth, newHeight;
+      if (screenAspect > this._ar) {
+        newHeight = window.innerHeight;
+        newWidth = Math.round(newHeight * this._ar);
+      } else {
+        newWidth = window.innerWidth;
+        newHeight = Math.round(newWidth / this._ar);
+      }
+
+      this._updateCanvasSize(newWidth, newHeight);
+    } else {
+      this._updateCanvasSize(this._baseWidth, this._baseHeight);
+    }
+  }
+
+  _updateCanvasSize(width, height) {
+    // TODO: check if DPR is needed here
+    this._canvas.width = width;
+    this._canvas.height = height;
+    this._canvas.style.width = `${width}px`;
+    this._canvas.style.height = `${height}px`;
+    this._ar = width / height;
+  }
+
+  _handleOrientChange(e) {
+    // orientationchange can fire before actual size update
+    // TODO: rework this using more granular approach involving aspect ratio
+    setTimeout(this._onResize, 250);
+  }
+
   _handleClick(e) {
     let isPlayClicked = "pause" === this._state;
     isPlayClicked ? this.drawPause() : this.drawPlay();
@@ -273,6 +349,10 @@ export class Ui {
 
     muteIcon.style.display = this._muted ? "none" : "block";
     unmuteIcon.style.display = this._muted ? "block" : "none";
+  }
+
+  _onVolumeChange(e) {
+    this._handleVolumeChange(Number(e.target.value));
   }
 
   _handleVolumeChange(value) {
@@ -312,11 +392,11 @@ export class Ui {
   }
 
   async _toggleFullscreen(e) {
-    if (!document.fullscreenElement) {
-      await this._canvas.requestFullscreen({ navigationUI: "hide" });
+    if (!this._isPlayerFullscreen()) {
+      await this._container.requestFullscreen({ navigationUI: "hide" });
     } else {
       await document.exitFullscreen();
     }
-    e.stopPropagation();
+    if (e) e.stopPropagation();
   }
 }
