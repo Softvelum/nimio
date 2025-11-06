@@ -13,7 +13,7 @@ export class Ui {
 
     this._container = document.getElementById(container);
     Object.assign(this._container.style, {
-      display: "inline-flex",
+      display: "inline-block",
       position: "relative",
     });
     this._container.classList.add("nimio-container");
