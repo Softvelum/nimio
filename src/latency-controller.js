@@ -12,7 +12,7 @@ export class LatencyController {
     this.reset();
 
     this._startThreshUs = this._startingBufferLevel();
-    this._minThreshUs = 0.25 * this._latencyMs * 1000;
+    this._minThreshUs = 50_000; // 50ms
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
     this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
 
@@ -133,16 +133,16 @@ export class LatencyController {
   _calculateAvailable() {
     this._getCurrentTsUs();
 
-    let availableMs = Number.MAX_VALUE;
+    this._availableUs = Number.MAX_VALUE;
     if (this._audio) {
       this._getAudioAvailableUs();
-      availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
+      let availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
       this._stateMgr.setAvailableAudioMs(availableMs);
       this._availableUs = this._audioAvailUs;
     }
     if (this._video) {
       this._getVideoAvailableUs();
-      availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
+      let availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
       this._stateMgr.setAvailableVideoMs(availableMs);
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
