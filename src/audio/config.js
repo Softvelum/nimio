@@ -34,7 +34,9 @@ export class AudioConfig {
   }
 
   tsUsToSmpCnt(tsUs) {
-    return (tsUs / 1000) * (this._sampleRate / 1000);
+    let smpCnt = (tsUs / 1000) * (this._sampleRate / 1000);
+    if (smpCnt < 0) smpCnt = 0;
+    return (smpCnt + 0.5) >>> 0;
   }
 
   isCompatible(config) {

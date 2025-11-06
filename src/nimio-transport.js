@@ -16,7 +16,7 @@ export const NimioTransport = {
 
   _onVideoSetupReceived(data) {
     if (!data || !data.config) {
-      this._noVideo = true;
+      this._setNoVideo();
       return;
     }
 
@@ -98,6 +98,7 @@ export const NimioTransport = {
         this._audioConfig.set(curConfigVals);
         this._nextRenditionData.decoderFlow.destroy();
         this._onRenditionSwitchResult("audio", false);
+        this._sldpManager.cancelStream(data.trackId);
         return;
       }
 
@@ -106,8 +107,15 @@ export const NimioTransport = {
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
       audioAvailable = this._prepareAudioOutput(newConfigVals);
-      decoderFlow = this._decoderFlows["audio"];
-      buffer = this._audioBuffer;
+      if (audioAvailable) {
+        decoderFlow = this._decoderFlows["audio"];
+        buffer = this._audioBuffer;
+      } else {
+        this._decoderFlows["audio"].destroy();
+        this._decoderFlows["audio"] = null;
+        this._sldpManager.cancelStream(data.trackId);
+        this._context.resetCurrentStream("audio");
+      }
     }
 
     if (audioAvailable) {
@@ -125,6 +133,8 @@ export const NimioTransport = {
   },
 
   _processChunk(flow, data) {
+    if (!flow) return;
+
     this._metricsManager.reportBandwidth(
       data.trackId,
       data.frameWithHeader.byteLength,

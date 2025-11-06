@@ -47,7 +47,7 @@ class AudioGraphController {
       }
       this._nodes[i]._outconns = [];
     }
-    this._audCtx.destination._inconns = [];
+    if (this._audCtx) this._audCtx.destination._inconns = [];
   }
 
   dismantle() {
@@ -193,6 +193,8 @@ class AudioGraphController {
             }
           }
         }
+        this._nodes.splice(i, 1);
+        break;
       }
     }
   }

@@ -9,6 +9,7 @@ vi.mock("@/shared/logger", () => {
   const LoggersFactory = {
     create: vi.fn(() => mockLogger),
     setLevel: vi.fn(),
+    toggleWorkletLogs: vi.fn(),
   };
   return { LoggersFactory };
 });
