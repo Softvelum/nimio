@@ -13,7 +13,7 @@ export class Ui {
 
     this._container = document.getElementById(container);
     Object.assign(this._container.style, {
-      display: "inline-block",
+      display: "inline-flex",
       position: "relative",
     });
     this._container.classList.add("nimio-container");
@@ -392,10 +392,30 @@ export class Ui {
   }
 
   async _toggleFullscreen(e) {
+    let fReq;
     if (!this._isPlayerFullscreen()) {
-      await this._container.requestFullscreen({ navigationUI: "hide" });
+      let fsOpts = { navigationUI: "hide" };
+      if (this._container.requestFullscreen) {
+        fReq = this._container.requestFullscreen(fsOpts);
+      } else if (this._container.webkitRequestFullscreen) {
+        fReq = this._container.webkitRequestFullscreen(fsOpts);
+      }
     } else {
-      await document.exitFullscreen();
+      if (document.exitFullscreen) {
+        fReq = document.exitFullscreen();
+      } else if (document.cancelFullScreen) {
+        fReq = document.cancelFullScreen();
+      } else if (document.webkitCancelFullScreen) {
+        fReq = document.webkitCancelFullScreen();
+      }
+    }
+
+    if (fReq) {
+      await fReq.catch((err) => {
+        this._logger.error("Failed to toggle fullscreen mode:", err);
+      });
+    } else {
+      this._logger.warn("No fullscreen API is available");
     }
     if (e) e.stopPropagation();
   }
