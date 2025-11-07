@@ -13,8 +13,9 @@ export class DecoderFlowAudio extends DecoderFlow {
   }
 
   async _handleDecoderOutput(frame, data) {
-    await this._handleDecodedFrame(frame);
-    this._state.setAudioLatestTsUs(frame.decTimestamp);
+    if (await this._handleDecodedFrame(frame)) {
+      this._state.setAudioLatestTsUs(this._buffer.lastFrameTs);
+    }
     this._state.setAudioDecoderQueue(data.decoderQueue);
   }
 }

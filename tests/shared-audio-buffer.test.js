@@ -60,12 +60,12 @@ describe("SharedAudioBuffer", () => {
   it("returns correct last timestamp", () => {
     sab.setWriteIdx(1);
     sab.timestamps[0] = 123456;
-    expect(sab.getLastTimestampUs()).toBe(123456);
+    expect(sab.lastFrameTs).toBe(123456);
   });
 
   it("returns zero if no timestamps have been written", () => {
     sab.setWriteIdx(0);
-    expect(sab.getLastTimestampUs()).toBe(0);
+    expect(sab.lastFrameTs).toBe(0);
   });
 
   it("iterates over frames in forEach", () => {

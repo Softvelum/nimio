@@ -96,7 +96,7 @@ export class SharedAudioBuffer {
     }
   }
 
-  getLastTimestampUs() {
+  get lastFrameTs() {
     let lastIdx = this.getWriteIdx() - 1;
     if (lastIdx < 0) lastIdx += this.capacity;
     return this.timestamps[lastIdx] || 0;

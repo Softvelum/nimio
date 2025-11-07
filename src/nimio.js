@@ -426,6 +426,7 @@ export default class Nimio {
       new AudioGapsProcessor(
         this._audioConfig.sampleCount,
         this._audioConfig.sampleRate,
+        this._logger,
       ),
     );
 
