@@ -18,6 +18,7 @@
   height: 100px;
   cursor: pointer;
   opacity: 0.7;
+  z-index: 12;
 }
 
 .play {
@@ -79,4 +80,5 @@
   font-size: 12px;
   color: black;
   line-height: 18px;
+  z-index: 11;
 }

@@ -20,6 +20,7 @@ const DEFAULTS = {
   muted: false,
   vuMeter: null,
   workletLogs: false,
+  fullscreen: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

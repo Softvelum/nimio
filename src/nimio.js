@@ -42,7 +42,7 @@ if (scriptPath) {
 export default class Nimio {
   constructor(options) {
     if (options && !options.instanceName) {
-      options.instanceName = "nimio_" + (Math.floor(Math.random() * 1000) + 1);
+      options.instanceName = "nimio_" + (Math.floor(Math.random() * 10000) + 1);
     }
     this._instName = options.instanceName;
     ScriptPathProvider.getInstance(this._instName).setScriptPath(scriptPath);
@@ -82,6 +82,7 @@ export default class Nimio {
         metricsOverlay: this._config.metricsOverlay,
         logger: LoggersFactory.create(this._instName, "Nimio UI"),
         autoAbr: !!this._config.adaptiveBitrate,
+        fullscreen: !!this._config.fullscreen && !this._noVideo,
       },
       this._eventBus,
     );
