@@ -35,10 +35,10 @@ function handleDecoderError(error) {
   self.postMessage({ type: "decoderError", kind: "video" });
 }
 
-function pushChunk(data, ts) {
+function pushChunk(data, time) {
   const encodedChunk = new EncodedVideoChunk(data);
   videoDecoder.decode(encodedChunk);
-  decodeTimings.set(encodedChunk.timestamp, ts);
+  decodeTimings.set(encodedChunk.timestamp, time);
 }
 
 function shutdownDecoder() {
@@ -104,14 +104,14 @@ self.addEventListener("message", async function (e) {
       );
 
       const chunkData = {
-        timestamp: e.data.timestamp,
+        timestamp: e.data.pts,
         type: e.data.chunkType,
         data: frame,
       };
       if (!support || !support.supported) {
         // Buffer the chunk until the decoder is ready
         buffered.push({
-          ts: performance.now(),
+          time: performance.now(),
           chunk: chunkData,
         });
         return;
@@ -120,7 +120,7 @@ self.addEventListener("message", async function (e) {
       if (buffered.length > 0) {
         // Process buffered chunks before the new one
         for (let i = 0; i < buffered.length; i++) {
-          pushChunk(buffered[i].chunk, buffered[i].ts);
+          pushChunk(buffered[i].chunk, buffered[i].time);
         }
         buffered.length = 0;
       }

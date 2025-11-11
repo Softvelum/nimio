@@ -93,9 +93,9 @@ self.addEventListener("message", async function (e) {
         frameWithHeader.byteLength,
       );
 
-      timestampBuffer.push(e.data.timestamp);
+      timestampBuffer.push(e.data.pts);
       const chunkData = {
-        timestamp: e.data.timestamp,
+        timestamp: e.data.pts,
         type: "key",
         data: frame,
       };

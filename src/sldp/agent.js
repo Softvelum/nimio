@@ -17,21 +17,21 @@ export class SLDPAgent {
   }
 
   processFrame(data) {
-    let frameWithHeader = new Uint8Array(data);
-    let trackId = frameWithHeader[0];
-    let frameType = frameWithHeader[1];
+    let frameWthHdr = new Uint8Array(data);
+    let trackId = frameWthHdr[0];
+    let frameType = frameWthHdr[1];
     let showTime = 0;
-    let frameSize = frameWithHeader.byteLength;
+    let frameSize = frameWthHdr.byteLength;
 
-    let dataPos = 2;
+    let dtPos = 2;
     let timestamp;
     if (!IS_SEQUENCE_HEADER[frameType]) {
-      timestamp = ByteReader.readUint(frameWithHeader, dataPos, 8);
-      dataPos += 8;
+      timestamp = ByteReader.readUint(frameWthHdr, dtPos, 8);
+      dtPos += 8;
 
       if (this._steady) {
-        showTime = ByteReader.readUint(frameWithHeader, dataPos, 8);
-        dataPos += 8;
+        showTime = ByteReader.readUint(frameWthHdr, dtPos, 8);
+        dtPos += 8;
       }
     }
     let timescale = this._timescale[trackId];
@@ -42,8 +42,7 @@ export class SLDPAgent {
       return;
     }
 
-    let tsSec;
-    let tsUs;
+    let ptsSec, ptsUs;
     let isKey = false;
     switch (frameType) {
       case WEB.AAC_SEQUENCE_HEADER:
@@ -52,7 +51,7 @@ export class SLDPAgent {
       case WEB.AV1_SEQUENCE_HEADER:
         this._sendCodecData(
           trackId,
-          frameWithHeader.subarray(dataPos, frameSize),
+          frameWthHdr.subarray(dtPos, frameSize),
           frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
           frameType,
         );
@@ -60,14 +59,14 @@ export class SLDPAgent {
       case WEB.MP3:
       case WEB.OPUS_FRAME:
         if (!this._codecDataStatus[trackId]) {
-          let codecData = frameWithHeader.subarray(dataPos, dataPos + 4);
+          let codecData = frameWthHdr.subarray(dtPos, dtPos + 4);
           this._codecDataStatus[trackId] = true;
           this._sendCodecData(trackId, codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
-        tsSec = timestamp / (timescale / 1000);
-        tsUs = Math.round(1000 * tsSec);
-        this._sendAudioChunk(frameWithHeader, tsUs, dataPos, showTime);
+        ptsSec = timestamp / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsSec);
+        this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:
@@ -78,14 +77,17 @@ export class SLDPAgent {
       case WEB.AV1_FRAME:
         let compositionOffset = 0;
         if (frameType !== WEB.AV1_KEY_FRAME && frameType !== WEB.AV1_FRAME) {
-          compositionOffset = ByteReader.readUint(frameWithHeader, dataPos, 4);
-          dataPos += 4;
+          compositionOffset = ByteReader.readUint(frameWthHdr, dtPos, 4);
+          dtPos += 4;
         }
 
-        tsSec = (timestamp + compositionOffset) / (timescale / 1000);
-        tsUs = Math.round(1000 * tsSec);
-        // console.debug(`V frame uts: ${tsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
-        this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
+        ptsSec = (timestamp + compositionOffset) / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsSec);
+        let dtsUs = 1000 * timestamp / (timescale / 1000);
+        let offUs = Math.round(1000 * ptsSec - dtsUs);
+        
+        // console.debug(`V frame uts: ${ptsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
+        this._sendVideoChunk(frameWthHdr, ptsUs, offUs, isKey, dtPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
       case WEB.VP9_KEY_FRAME:
@@ -96,9 +98,9 @@ export class SLDPAgent {
         isKey = true;
       case WEB.VP8_FRAME:
       case WEB.VP9_FRAME:
-        tsSec = timestamp / (timescale / 1000);
-        tsUs = Math.round(1000 * tsSec);
-        this._sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime);
+        ptsSec = timestamp / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsSec);
+        this._sendVideoChunk(frameWthHdr, ptsUs, 0, isKey, dtPos, showTime);
         break;
       default:
         break;
@@ -162,13 +164,14 @@ export class SLDPAgent {
     });
   }
 
-  _sendVideoChunk(frameWithHeader, tsUs, isKey, dataPos, showTime) {
+  _sendVideoChunk(frameWithHeader, ptsUs, offUs, isKey, dtPos, showTime) {
     let payload = {
       trackId: frameWithHeader[0],
-      timestamp: tsUs,
+      pts: ptsUs,
+      offset: offUs,
       chunkType: isKey ? "key" : "delta",
       frameWithHeader: frameWithHeader.buffer,
-      framePos: dataPos,
+      framePos: dtPos,
     };
     if (showTime > 0) {
       payload.showTime = showTime;
@@ -183,12 +186,13 @@ export class SLDPAgent {
     );
   }
 
-  _sendAudioChunk(frameWithHeader, tsUs, dataPos, showTime) {
+  _sendAudioChunk(frameWithHeader, ptsUs, dtPos, showTime) {
     let payload = {
       trackId: frameWithHeader[0],
-      timestamp: tsUs,
+      pts: ptsUs,
+      offset: 0,
       frameWithHeader: frameWithHeader.buffer,
-      framePos: dataPos,
+      framePos: dtPos,
     };
     if (showTime > 0) {
       payload.showTime = showTime;

@@ -62,14 +62,12 @@ export class DecoderFlow {
         let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
         if (
           srcFirstTsUs !== null &&
-          Math.abs(data.timestamp - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
-          data.timestamp >= srcFirstTsUs
+          Math.abs(data.pts - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
+          data.pts >= srcFirstTsUs
         ) {
           // Source flow already has a frame with this timestamp, cancel input
-          this._logger.debug(
-            `Cancel input for dst from pushChunk ${data.timestamp}`,
-          );
-          this._updateSwitchTimestamps(data.timestamp);
+          this._logger.debug(`Cancel input for dst from pushChunk ${data.pts}`);
+          this._updateSwitchTimestamps(data.pts);
           this._cancelInput();
           return false;
         }
@@ -79,7 +77,7 @@ export class DecoderFlow {
     this._decoder.postMessage(
       {
         type: "chunk",
-        timestamp: data.timestamp,
+        pts: data.pts,
         chunkType: data.chunkType,
         frameWithHeader: data.frameWithHeader,
         framePos: data.framePos,
