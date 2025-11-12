@@ -1,11 +1,45 @@
+import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
 
-export class TimestampManager {
-  constructor(instName, opts = {}) {
-    this._isVideo = type === "video";
-    this._logger = LoggersFactory.create(instName, "TimestampManager");
+class TimestampManager {
+  constructor(instName) {
+    this._instName = instName;
+    this._tsValidators = new Map();
+  }
 
-    this._dropZeroDurationFrames = !!opts.dropZeroDurationFrames;
+  init(settings) {
+    this._settings = settings;
+  }
+
+  addTrack(id, type) {
+    let tv = new TimestampValidator(this._instName, id, type, this._settings);
+    this._tsValidators.set(id, tv);
+  }
+
+  validateChunk(id, chunk) {
+    let tv = this._tsValidators.get(id);
+    if (!tv) return false;
+    return tv.validateChunk(chunk);
+  }
+
+  resetTrack(id) {
+    let tv = this._tsValidators.get(id);
+    if (tv) tv.reset();
+  }
+
+  removeTrack(id) {
+    this._tsValidators.delete(id);
+  }
+
+}
+
+class TimestampValidator {
+  constructor(instName, id, type, settings) {
+    const name = `TS Validator [${type}][${id}]`;
+    this._logger = LoggersFactory.create(instName, name);
+    
+    this._isVideo = type === "video";
+    this._dropZeroDurationFrames = settings.dropZeroDurationFrames;
     this.reset();
   }
 
@@ -75,11 +109,8 @@ export class TimestampManager {
 
     let rawDts = dts;
     dts = curChunk.dts + dtsDiff;
-    if(
-      dtsDiff > 0 && this._dtsDistCompensation === 0 ||
-      dtsDiff > 1
-    ) {
-      this._lastChunkDuration = dtsDiff;
+    if (dtsDiff > 1000) {
+      this._lastChunkDuration = dtsDiff; // 1ms at least
     }
     data.pts = dts + data.offset;
 
@@ -112,3 +143,6 @@ export class TimestampManager {
     this._lastChunk = { dts, rawDts, offset };
   }
 }
+
+TimestampManager = multiInstanceService(TimestampManager);
+export { TimestampManager };

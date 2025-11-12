@@ -1,3 +1,4 @@
+import { TimestampManager } from "./timestamp-manager";
 import { MetricsManager } from "@/metrics/manager";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -19,6 +20,9 @@ export class DecoderFlow {
     this._timescale = timescale;
     this._metricsManager = MetricsManager.getInstance(instanceName);
     this._metricsManager.add(this._trackId, this._type);
+
+    this._timestampManager = TimestampManager.getInstance(instanceName);
+    this._timestampManager.addTrack(this._trackId, this._type);
 
     this._decoder = new Worker(new URL(url, import.meta.url), {
       type: "module",
@@ -147,6 +151,7 @@ export class DecoderFlow {
 
     this._isShuttingDown = true;
     this._metricsManager.remove(this._trackId);
+    this._timestampManager.removeTrack(this._trackId);
     this._decoder.postMessage({ type: "shutdown" });
   }
 

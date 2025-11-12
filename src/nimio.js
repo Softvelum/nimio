@@ -9,6 +9,7 @@ import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
+import { TimestampManager } from "./media/decoders/timestamp-manager";
 import { createConfig } from "./player-config";
 import { AudioConfig } from "./audio/config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
@@ -95,6 +96,10 @@ export default class Nimio {
         this._videoBuffer,
       );
     }
+    this._timestampManager = TimestampManager.getInstance(this._instName);
+    this._timestampManager.init({
+      dropZeroDurationFrames: this._config.dropZeroDurationFrames
+    });
 
     this._firstFrameTsUs = 0;
     this._renderVideoFrame = this._renderVideoFrame.bind(this);

@@ -21,6 +21,7 @@ const DEFAULTS = {
   vuMeter: null,
   workletLogs: false,
   fullscreen: false,
+  dropZeroDurationFrames: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

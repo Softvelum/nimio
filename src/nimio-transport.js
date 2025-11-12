@@ -134,6 +134,10 @@ export const NimioTransport = {
 
   _processChunk(flow, data) {
     if (!flow) return;
+    if (!this._timestampManager.validateChunk(data.trackId, data)) {
+      this._logger.warn("Drop invalid chunk", data.trackId, data.pts);
+      return;
+    }
 
     this._metricsManager.reportBandwidth(
       data.trackId,
