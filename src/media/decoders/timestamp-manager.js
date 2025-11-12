@@ -6,7 +6,6 @@ export class TimestampManager {
     this._logger = LoggersFactory.create(instName, "TimestampManager");
 
     this._dropZeroDurationFrames = !!opts.dropZeroDurationFrames;
-    this._adjustZeroDistDts = !!opts.adjustZeroDistDts;
     this.reset();
   }
 
@@ -27,30 +26,29 @@ export class TimestampManager {
     let dtsDiff = dts - curChunk.rawDts;
     if (this._isVideo) {
       if (dtsDiff === 0) {
-        if (curChunk.offset === data.offset - this._dtsDistCompensation) {
-          // same DTS and same offset
-          if (this._dropZeroDurationFrames) {
-            this._logger.debug(
-              `Drop zero duration frame ts = ${dts}, offset = ${data.offset}`
-            );
-            return false;
-          }
-
-          // TODO: how to handle this properly?
+        const sameOffset =
+          curChunk.offset === data.offset - this._dtsDistCompensation;
+        if (sameOffset && this._dropZeroDurationFrames) {
+          this._logger.debug(
+            `Drop zero duration frame ts = ${dts}, offset = ${data.offset}`
+          );
+          return false;
         }
         
-        if (this._adjustZeroDistDts) {
-          // same DTS but different offset, adjust DTS but keep PTS
-          if (data.offset > this._dtsDistCompensation) {
-            this._dtsDistCompensation += 1;
-            dtsDiff = 1;
-            data.offset -= this._dtsDistCompensation;
-            Logger.debug(
-              `Fix zero distance DTS. Total DTS compensation = ${this._dtsDistCompensation}. Offset = ${data.offset}`
-            );
-          } else {
-            dtsDiff = this._revertDtsDistCompensation();
-          }
+        // same DTS but different offset, adjust DTS but keep PTS
+        if (!sameOffset && data.offset > this._dtsDistCompensation) {
+          // TODO: deside on how to updates the resulting PTS, because requestAnimationFrame
+          // fires according to the screen update frequency, which is maximum 120-144Hz
+          // for now. So it make sense to update the PTS in the resulting video buffer to make
+          // sure all frames can be displayed.
+          this._dtsDistCompensation += 1;
+          dtsDiff = 1;
+          data.offset -= this._dtsDistCompensation;
+          Logger.debug(
+            `Fix zero distance DTS. Total DTS compensation = ${this._dtsDistCompensation}. Offset = ${data.offset}`
+          );
+        } else {
+          dtsDiff = this._revertDtsDistCompensation();
         }
       } else if (this._dtsDistCompensation > 0 && dtsDiff > 0) {
         // DTS compensation has been already applied to previous frames' DTS, so now
@@ -93,13 +91,14 @@ export class TimestampManager {
     // Can't compensate DTS distance by offset, so the only way left is to treat 
     // it as discontinuity. We already introduced ts shift by the compensation,
     // so we should replace it with a multiple of regular dts distance.
-    let frameCnt = Math.floor(this._dtsDistCompensation / this._lastChunkDuration) + 1;
+    let chunksToRepay = this._dtsDistCompensation / this._lastChunkDuration;
+    let frameCnt = Math.floor(chunksToRepay) + 1;
     let result = frameCnt * this._lastChunkDuration - this._dtsDistCompensation;
     this._dtsDistCompensation = 0;
 
     Logger.debug(
       `Rollback DTS distance compensation. Frame count = ${frameCnt}, result = ${result}`,
-      this._dtsDistCompensation, lastDtsDist
+      this._dtsDistCompensation, this._lastChunkDuration
     );
 
     return result;
