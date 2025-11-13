@@ -16,10 +16,21 @@ export class LatencyController {
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
     this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
 
+    let hasPerformance = typeof performance !== "undefined";
+    this._timeFn = hasPerformance ? this._getPerfTime : this._getCurrentTime;
+
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
     this._logger.debug(
       `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,
     );
+  }
+
+  _getPerfTime() {
+    return performance.now();
+  }
+
+  _getCurrentTime() {
+    return currentTime * 1000;
   }
 
   reset() {
@@ -178,12 +189,30 @@ export class LatencyController {
     if (this._audioAvailUs < 0) this._audioAvailUs = 0;
   }
 
+
+  _seek(distUs) {
+    if (distUs <= 0) return;
+
+    let tNow = this._timeFn();
+    // if (speed > this._speed) {
+    if (this._lastSeekTime > 0 && tNow - this._lastSeekTime < 3000) return;
+    // }
+    this._lastSeekTime = tNow;
+
+    this._logger.debug(`Seek forward by ${distUs}us`);
+    this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(distUs));
+    if (this._video) this._videoAvailUs -= distUs;
+    if (this._audio) this._audioAvailUs -= distUs;
+    this._availableUs -= distUs;
+  }
+
   _adjustPlaybackLatency() {
     let availableMs = this._meanAvailableUs.get() / 1000;
     if (availableMs <= this._latencyMs * this._subHysteresis) {
-      this._setSpeed(1.0, availableMs);
+      // this._setSpeed(1.0, availableMs);
     } else if (availableMs > this._latencyMs * this._hysteresis) {
-      this._setSpeed(1.1, availableMs); // speed boost
+      // this._setSpeed(1.1, availableMs); // speed boost
+      this._seek(this._availableUs - this._latencyMs * 1000);
     }
   }
 
