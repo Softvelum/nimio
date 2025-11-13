@@ -123,10 +123,19 @@ export class LatencyController {
 
   _checkPending() {
     if (this.isUnderrun() && this._startThreshUs === 0) {
+      this._logger.debug(
+        `Buffer is underrun, set starting threshold. Available ms=${this._availableUs / 1000}`,
+      );
       this._startThreshUs = this._startingBufferLevel();
     }
+
     let res = this.isStarting();
-    if (!res) this._startThreshUs = 0;
+    if (!res && this._startThreshUs > 0) {
+      this._logger.debug(
+        `Buffer is full, starting. Available ms=${this._availableUs / 1000}`,
+      );
+      this._startThreshUs = 0;
+    }
     return res;
   }
 

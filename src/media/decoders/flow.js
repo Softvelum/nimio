@@ -103,6 +103,8 @@ export class DecoderFlow {
   switchTo(flow, type = "dst") {
     this._switchPeerFlow = flow;
     if (this._startSwitch(type)) {
+      const peerTrackId = this._switchPeerFlow.trackId;
+      this._timestampManager.updateTimeBase(peerTrackId, this._trackId);
       this._switchPeerFlow.switchTo(this, type === "dst" ? "src" : "dst");
     }
   }

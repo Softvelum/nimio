@@ -83,9 +83,9 @@ export class SLDPAgent {
 
         ptsSec = (timestamp + compositionOffset) / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsSec);
-        let dtsUs = 1000 * timestamp / (timescale / 1000);
+        let dtsUs = (1000 * timestamp) / (timescale / 1000);
         let offUs = Math.round(1000 * ptsSec - dtsUs);
-        
+
         // console.debug(`V frame uts: ${ptsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
         this._sendVideoChunk(frameWthHdr, ptsUs, offUs, isKey, dtPos, showTime);
         break;

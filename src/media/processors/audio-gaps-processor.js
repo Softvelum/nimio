@@ -38,9 +38,7 @@ export class AudioGapsProcessor {
       if (tsDiff >= 0) {
         if (tsDiff < 10_000_000) {
           this._logger.debug(
-            "Ignore real audio frames after mute",
-            ts,
-            this._lastSilenceTs
+            `Ignore real audio frames after mute ts=${ts}, last silence ts=${this._lastSilenceTs}`,
           );
           return true;
         }

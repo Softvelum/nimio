@@ -98,7 +98,7 @@ export default class Nimio {
     }
     this._timestampManager = TimestampManager.getInstance(this._instName);
     this._timestampManager.init({
-      dropZeroDurationFrames: this._config.dropZeroDurationFrames
+      dropZeroDurationFrames: this._config.dropZeroDurationFrames,
     });
 
     this._firstFrameTsUs = 0;
@@ -279,7 +279,10 @@ export default class Nimio {
     if (this._latencyCtrl.isPending()) return true;
 
     const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
-    if (!frame) return true;
+    if (!frame) {
+      // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+      return true;
+    }
 
     this._ctx.drawImage(
       frame,
