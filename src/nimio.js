@@ -101,7 +101,7 @@ export default class Nimio {
       dropZeroDurationFrames: this._config.dropZeroDurationFrames,
     });
 
-    this._firstFrameTsUs = 0;
+    this._resetPlaybackTimstamps();
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._ctx = this._ui.canvas.getContext("2d");
 
@@ -210,7 +210,7 @@ export default class Nimio {
     this._state.setVideoLatestTsUs(0);
     this._state.setAudioLatestTsUs(0);
     this._state.resetCurrentTsSmp();
-    this._firstFrameTsUs = 0;
+    this._resetPlaybackTimstamps();
 
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
@@ -264,7 +264,7 @@ export default class Nimio {
     if (this._noVideo || !this._state.isPlaying()) return true;
 
     requestAnimationFrame(this._renderVideoFrame);
-    if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
+    if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
       return true;
     }
 
@@ -344,14 +344,19 @@ export default class Nimio {
   }
 
   async _onVideoStartTsNotSet(frame) {
-    if (this._firstFrameTsUs !== 0) return true;
+    if (this._playbackStartTsUs !== 0) return true;
+    if (this._firstVideoFrameTsUs === 0) {
+      this._firstVideoFrameTsUs = frame.timestamp;
+      if (this._firstAudioFrameTsUs > 0) {
+        this._setPlaybackStartTs();
+        return true;
+      }
+    }
 
     if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      this._firstFrameTsUs = frame.timestamp;
-      if (this._videoBuffer.length > 0) {
-        this._firstFrameTsUs = this._videoBuffer.firstFrameTs;
+      if (!this._audioContext) {
+        this._setPlaybackStartTs("video");
       }
-      this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
 
       if (!this._noAudio && this._audioCtxProvider.isRunning()) {
         await this._startNoAudioMode();
@@ -388,15 +393,34 @@ export default class Nimio {
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
+      this._audioContext = this._audioNode = null;
       return false;
     }
 
-    if (this._firstFrameTsUs === 0) {
-      this._firstFrameTsUs = frame.rawTimestamp;
-      this._state.setPlaybackStartTsUs(frame.rawTimestamp);
+    if (this._firstAudioFrameTsUs === 0) {
+      this._firstAudioFrameTsUs = frame.decTimestamp;
+      if (this._firstVideoFrameTsUs) {
+        this._setPlaybackStartTs();
+      } else if (this._noVideo) {
+        this._setPlaybackStartTs("audio");
+      }
     }
 
     return true;
+  }
+
+  _setPlaybackStartTs(mode) {
+    this._playbackStartTsUs =
+      mode === "video" ? this._firstVideoFrameTsUs :
+      mode === "audio" ? this._firstAudioFrameTsUs :
+      Math.max(this._firstAudioFrameTsUs, this._firstVideoFrameTsUs);
+    this._logger.warn(`set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`);
+    this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
+  }
+
+  _resetPlaybackTimstamps() {
+    this._playbackStartTsUs = 0;
+    this._firstAudioFrameTsUs = this._firstVideoFrameTsUs = 0;
   }
 
   _onDecodingError(kind) {

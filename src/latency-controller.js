@@ -1,5 +1,6 @@
 import { LoggersFactory } from "@/shared/logger";
 import { MeanValue } from "@/shared/mean-value";
+import { currentTimeGetterMs } from "./shared/helpers";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -7,7 +8,7 @@ export class LatencyController {
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
     this._params = params;
-    this._meanAvailableUs = new MeanValue(250);
+    this._meanAvailableUs = new MeanValue(500);
 
     this.reset();
 
@@ -16,21 +17,12 @@ export class LatencyController {
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
     this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
 
-    let hasPerformance = typeof performance !== "undefined";
-    this._timeFn = hasPerformance ? this._getPerfTime : this._getCurrentTime;
+    this._getCurTimeMs = currentTimeGetterMs();
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
     this._logger.debug(
       `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,
     );
-  }
-
-  _getPerfTime() {
-    return performance.now();
-  }
-
-  _getCurrentTime() {
-    return currentTime * 1000;
   }
 
   reset() {
@@ -193,13 +185,13 @@ export class LatencyController {
   _seek(distUs) {
     if (distUs <= 0) return;
 
-    let tNow = this._timeFn();
+    let tNow = this._getCurTimeMs();
     // if (speed > this._speed) {
     if (this._lastSeekTime > 0 && tNow - this._lastSeekTime < 3000) return;
     // }
     this._lastSeekTime = tNow;
 
-    this._logger.debug(`Seek forward by ${distUs}us`);
+    this._logger.debug(`Seek forward by ${distUs / 1000}ms, cur bufer ms=${this._availableUs / 1000}`);
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(distUs));
     if (this._video) this._videoAvailUs -= distUs;
     if (this._audio) this._audioAvailUs -= distUs;
@@ -212,7 +204,8 @@ export class LatencyController {
       // this._setSpeed(1.0, availableMs);
     } else if (availableMs > this._latencyMs * this._hysteresis) {
       // this._setSpeed(1.1, availableMs); // speed boost
-      this._seek(this._availableUs - this._latencyMs * 1000);
+      this._seek((availableMs - this._latencyMs) * 1000);
+      // this._meanAvailableUs.reset();
     }
   }
 
