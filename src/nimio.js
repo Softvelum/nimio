@@ -411,10 +411,14 @@ export default class Nimio {
 
   _setPlaybackStartTs(mode) {
     this._playbackStartTsUs =
-      mode === "video" ? this._firstVideoFrameTsUs :
-      mode === "audio" ? this._firstAudioFrameTsUs :
-      Math.max(this._firstAudioFrameTsUs, this._firstVideoFrameTsUs);
-    this._logger.warn(`set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`);
+      mode === undefined
+        ? Math.max(this._firstAudioFrameTsUs, this._firstVideoFrameTsUs)
+        : mode === "video"
+          ? this._firstVideoFrameTsUs
+          : this._firstAudioFrameTsUs;
+    this._logger.warn(
+      `set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`,
+    );
     this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
   }
 
@@ -586,6 +590,8 @@ export default class Nimio {
       this._audioConfig,
       {
         latency: this._config.latency,
+        tolerance: this._config.latencyTolerance,
+        adjustMethod: this._config.latencyAdjustMethod,
         video: !this._noVideo,
         audio: !this._noAudio,
       },

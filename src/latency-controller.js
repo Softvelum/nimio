@@ -181,7 +181,6 @@ export class LatencyController {
     if (this._audioAvailUs < 0) this._audioAvailUs = 0;
   }
 
-
   _seek(distUs) {
     if (distUs <= 0) return;
 
@@ -191,7 +190,9 @@ export class LatencyController {
     // }
     this._lastSeekTime = tNow;
 
-    this._logger.debug(`Seek forward by ${distUs / 1000}ms, cur bufer ms=${this._availableUs / 1000}`);
+    this._logger.debug(
+      `Seek forward by ${distUs / 1000}ms, cur bufer ms=${this._availableUs / 1000}`,
+    );
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(distUs));
     if (this._video) this._videoAvailUs -= distUs;
     if (this._audio) this._audioAvailUs -= distUs;
@@ -199,14 +200,14 @@ export class LatencyController {
   }
 
   _adjustPlaybackLatency() {
-    let availableMs = this._meanAvailableUs.get() / 1000;
-    if (availableMs <= this._latencyMs * this._subHysteresis) {
-      // this._setSpeed(1.0, availableMs);
-    } else if (availableMs > this._latencyMs * this._hysteresis) {
-      // this._setSpeed(1.1, availableMs); // speed boost
-      this._seek((availableMs - this._latencyMs) * 1000);
-      // this._meanAvailableUs.reset();
-    }
+    // let availableMs = this._meanAvailableUs.get() / 1000;
+    // if (availableMs <= this._latencyMs * this._subHysteresis) {
+    //   // this._setSpeed(1.0, availableMs);
+    // } else if (availableMs > this._latencyMs * this._hysteresis) {
+    //   // this._setSpeed(1.1, availableMs); // speed boost
+    //   this._seek((availableMs - this._latencyMs) * 1000);
+    //   // this._meanAvailableUs.reset();
+    // }
   }
 
   _startingBufferLevel() {
