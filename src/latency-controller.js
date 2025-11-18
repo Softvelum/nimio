@@ -1,5 +1,4 @@
 import { LoggersFactory } from "@/shared/logger";
-import { MeanValue } from "@/shared/mean-value";
 import { currentTimeGetterMs } from "./shared/helpers";
 
 export class LatencyController {

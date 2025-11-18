@@ -7,34 +7,34 @@ export class RingBuffer {
       throw `Invalid capacity ${capacity}`;
     }
 
-    this.buffer = new Array(capacity);
-    this.capacity = capacity;
-    this.head = this.tail = this.length = 0;
+    this._buf = new Array(capacity);
+    this._cap = capacity;
+    this._head = this._tail = this._length = 0;
   }
 
   isFull() {
-    return this.length === this.capacity;
+    return this._length === this._cap;
   }
 
   isEmpty() {
-    return this.length === 0;
+    return this._length === 0;
   }
 
   push(item, force = false) {
     if (this.isFull()) {
       if (!force) {
-        this._logger.error(`Ring buffer is full. Capacity: ${this.capacity}`);
+        this._logger.error(`Ring buffer is full. Capacity: ${this._cap}`);
         return;
       }
 
-      this.length--; // decrease length to allow increment below
-      this.head++;
-      if (this.head === this.capacity) this.head = 0;
+      this._length--; // decrease length to allow increment below
+      this._head++;
+      if (this._head === this._cap) this._head = 0;
     }
 
-    this.buffer[this.tail++] = item;
-    if (this.tail === this.capacity) this.tail = 0;
-    this.length++;
+    this._buf[this._tail++] = item;
+    if (this._tail === this._cap) this._tail = 0;
+    this._length++;
   }
 
   pop() {
@@ -43,7 +43,7 @@ export class RingBuffer {
       return null;
     }
 
-    const item = this.buffer[this.head];
+    const item = this._buf[this._head];
     this.skip();
 
     return item;
@@ -56,35 +56,35 @@ export class RingBuffer {
     }
 
     let i = idx;
-    if (i < 0) i += this.length;
-    if (i < 0 || i >= this.length || i == undefined) {
-      this._logger.error("Invalid index for get", idx, this.length);
+    if (i < 0) i += this._length;
+    if (i < 0 || i >= this._length || i == undefined) {
+      this._logger.error("Invalid index for get", idx, this._length);
       return null;
     }
 
-    let index = this.head + i;
-    if (index >= this.capacity) index -= this.capacity;
-    return this.buffer[index];
+    let index = this._head + i;
+    if (index >= this._cap) index -= this._cap;
+    return this._buf[index];
   }
 
   skip() {
-    this.buffer[this.head] = undefined;
-    this.length--;
-    this.head++;
-    if (this.head === this.capacity) this.head = 0;
+    this._buf[this._head] = undefined;
+    this._length--;
+    this._head++;
+    if (this._head === this._cap) this._head = 0;
   }
 
   reset() {
-    this.head = this.tail = this.length = 0;
-    this.buffer.length = 0; // fast reset of the array
-    this.buffer.length = this.capacity;
+    this._head = this._tail = this._length = 0;
+    this._buf.length = 0; // fast reset of the array
+    this._buf.length = this._cap;
   }
 
   forEach(fn) {
-    let index = this.head;
-    for (let i = 0; i < this.length; i++) {
-      fn(this.buffer[index++]);
-      if (index >= this.capacity) index -= this.capacity;
+    let index = this._head;
+    for (let i = 0; i < this._length; i++) {
+      fn(this._buf[index++]);
+      if (index >= this._cap) index -= this._cap;
     }
   }
 
@@ -94,5 +94,9 @@ export class RingBuffer {
       result.push(item);
     });
     return result;
+  }
+
+  get length() {
+    return this._length;
   }
 }

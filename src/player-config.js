@@ -6,7 +6,7 @@ const DEFAULTS = {
   autoplay: false,
   width: 476,
   height: 268,
-  latency: 300,
+  latency: 200,
   latencyTolerance: "auto",
   latencyAdjustMethod: "fast-forward",
   startOffset: 1000,
