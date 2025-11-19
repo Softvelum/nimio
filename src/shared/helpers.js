@@ -18,3 +18,7 @@ export function currentTimeGetterMs() {
   let hasPerformance = typeof performance !== "undefined";
   return hasPerformance ? getPerfTime : getCurrentTime;
 }
+
+export function clamp(val, lo, hi) {
+  return Math.max(lo, Math.min(hi, val));
+}

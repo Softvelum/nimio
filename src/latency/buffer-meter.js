@@ -1,38 +1,42 @@
-class LatencyBufferMeter {
-  constructor(instName) {
-    this._shortWindowMs = 300;
-    this._longWindowMs = 2000;
+import { SlidingMin } from "@/shared/sliding-min";
 
-    this._shortMin = new SlidingWindowMin(instName, 96, this._shortWindowMs);
-    this._longMin = new SlidingWindowMin(instName, 512, this._longWindowMs);
+export class LatencyBufferMeter {
+  constructor(instName, shortWindowMs, longWindowMs) {
+    this._shortWindowMs = shortWindowMs;
+    this._longWindowMs = longWindowMs;
+    this._emaAlpha = 0.15;
 
-    this._lastValue = 0;
+    let fCnt = this._fpw(10 * this._shortWindowMs); // 10 times reserve just in case
+    this._shortMin = new SlidingMin(instName, this._shortWindowMs, fCnt);
+    fCnt = this._fpw(10 * this._longWindowMs);
+    this._longMin = new SlidingMin(instName, this._longWindowMs, fCnt);
   }
 
   update(bufMs, nowMs) {
-    this._lastValue = bufMs;
-
     this._shortMin.push(bufMs, nowMs);
     this._longMin.push(bufMs, nowMs);
     this._updateEma(bufMs);
   }
 
-  get ema() {
-    return this.ema == null ? 0 : this.ema;
+  get(timeMs) {
+    return `shortMin=${this.short(timeMs)?.toFixed(4)}ms, longMin=${this.long(timeMs)?.toFixed(4)}ms, est=${this.estimatedBuffer(timeMs)?.toFixed(4)}ms, ema=${this.ema().toFixed(4)}ms`;
   }
 
-  get shortBuffer() {
-    return this._shortMin.getMin(performance.now()) / 1000;
+  short(timeMs) {
+    return this._shortMin.getMin(timeMs);
   }
 
-  get longBuffer() {
-    return this._longMin.getMin(performance.now()) / 1000;
+  long(timeMs) {
+    return this._longMin.getMin(timeMs);
   }
 
-  get estimatedBuffer() {
-    const now = performance.now();
-    const shortB = this._shortMin.getMin(now);
-    const longB  = this._longMin.getMin(now);
+  ema() {
+    return this._ema || 0;
+  }
+
+  estimatedBuffer(timeMs) {
+    const shortB = this._shortMin.getMin(timeMs);
+    const longB  = this._longMin.getMin(timeMs);
 
     return 0.6 * shortB + 0.4 * longB;
   }
@@ -40,11 +44,15 @@ class LatencyBufferMeter {
   reset() {
     this._shortMin.clear();
     this._longMin.clear();
-    this._lastValue = 0;
+    this._ema = undefined;
   }
 
   _updateEma(value) {
-    if (this.ema == null) this.ema = value;
-    else this.ema = this.emaAlpha * value + (1 - this.emaAlpha) * this.ema;
+    if (this._ema === undefined) this._ema = value;
+    else this._ema = this._emaAlpha * value + (1 - this._emaAlpha) * this._ema;
+  }
+
+  _fpw(sizeMs) { // max frames per window
+    return Math.ceil(60 * sizeMs / 1000);
   }
 }

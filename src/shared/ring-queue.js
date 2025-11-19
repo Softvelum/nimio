@@ -64,11 +64,11 @@ export class RingQueue {
     return v;
   }
 
-  front() {
+  get front() {
     return this.isEmpty() ? null : this._buf[this._head];
   }
 
-  back() {
+  get back() {
     return this.isEmpty() ? null : this._buf[this._prev(this._tail)];
   }
 

@@ -1,5 +1,7 @@
+import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
-import { currentTimeGetterMs } from "./shared/helpers";
+import { currentTimeGetterMs } from "@/shared/helpers";
+import { clamp } from "@/shared/helpers";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -7,7 +9,14 @@ export class LatencyController {
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
     this._params = params;
-    this._meanAvailableUs = new MeanValue(500);
+
+    this._shortWindowMs = 300;
+    this._longWindowMs = 1500;
+    this._bufferMeter = new LatencyBufferMeter(
+      instName,
+      this._shortWindowMs,
+      this._longWindowMs
+    );
 
     this.reset();
 
@@ -15,6 +24,15 @@ export class LatencyController {
     this._minThreshUs = 50_000; // 50ms
     this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
     this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
+
+    this._warmupMs = 3000;
+    this._holdMs = 500;
+    this._minRate = 0.95;
+    this._maxRate = 1.1;
+    this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
+
+    this._minRateChangeIntervalMs = 200;
+    this._minSeekIntervalMs = 2000; // don't seek more frequently
 
     this._getCurTimeMs = currentTimeGetterMs();
 
@@ -28,8 +46,9 @@ export class LatencyController {
     this._startTsUs = 0;
     this._availableUs = 0;
     this._prevVideoTime = 0;
-    this._meanAvailableUs.reset();
+    this._bufferMeter.reset();
 
+    this._startTime = 0;
     this._audioAvailUs = this._videoAvailUs = undefined;
 
     this._audio = !!this._params.audio;
@@ -137,6 +156,9 @@ export class LatencyController {
         `Buffer is full, starting. Available ms=${this._availableUs / 1000}`,
       );
       this._startThreshUs = 0;
+      if (this._startTime === 0) {
+        this._startTime = this._getCurTimeMs();
+      }
     }
     return res;
   }
@@ -158,7 +180,9 @@ export class LatencyController {
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
 
-    this._meanAvailableUs.add(this._availableUs);
+    if (this._startTime > 0) {
+      this._bufferMeter.update(this._availableUs / 1000, this._getCurTimeMs());
+    }
   }
 
   _getCurrentTsUs() {
@@ -199,14 +223,49 @@ export class LatencyController {
   }
 
   _adjustPlaybackLatency() {
-    // let availableMs = this._meanAvailableUs.get() / 1000;
+    if (this._startTime === 0) return; // not started yet
+
+    // this._logger.debug(`Available ms=${this._availableUs / 1000}, ${this._bufferMeter.get()}`);
+    // let availableMs = this._bufferMeter.get() / 1000;
     // if (availableMs <= this._latencyMs * this._subHysteresis) {
     //   // this._setSpeed(1.0, availableMs);
     // } else if (availableMs > this._latencyMs * this._hysteresis) {
     //   // this._setSpeed(1.1, availableMs); // speed boost
     //   this._seek((availableMs - this._latencyMs) * 1000);
-    //   // this._meanAvailableUs.reset();
+    //   // this._bufferMeter.reset();
     // }
+
+    const now = this._getCurTimeMs();
+    const age = now - this._startTime;
+    const useShort = (age < this._warmupMs);
+
+    const bufMin = useShort ? this._bufferMeter.short(now) : this._bufferMeter.long(now);
+    const bufEma = this._bufferMeter.ema();
+
+    const delta = bufMin - this._latencyMs;
+    // const stable = Math.abs(bufMin - bufEma) < (this._latencyMs * 0.1);
+
+    // wait for holdMs to avoid acting on single spikes
+    let doAdjustment = false;
+    if (delta > 20) {
+      if (!this._pendingStableSince) {
+        this._pendingStableSince = now;
+      } else if (now - this._pendingStableSince > this._holdMs) {
+        doAdjustment = true;
+      }
+    } else {
+      this._pendingStableSince = null;
+    }
+
+    let rate = 1.0;
+    if (doAdjustment) {
+      if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
+        return;
+      }
+      rate = clamp(1 + (this._rateK * delta), this._minRate, this._maxRate);
+    }
+
+    this._applyPlaybackRate(rate, bufMin, now);
   }
 
   _startingBufferLevel() {
@@ -221,4 +280,10 @@ export class LatencyController {
   //     this._startTime += targetLatencyMs;
   //   }
   // }
+
+  _applyPlaybackRate(rate, availableMs, now) {
+    if (Math.abs(rate - 1.0) < 0.001) rate = 1.0; // snap
+    this._setSpeed(rate, availableMs);
+    this._lastActionTime = now;
+  }
 }
