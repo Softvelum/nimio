@@ -34,6 +34,8 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._audioConfig,
       {
         latency: this._targetLatencyMs,
+        tolerance: options.processorOptions.latencyTolerance,
+        adjustMethod: options.processorOptions.latencyAdjustMethod,
         video: options.processorOptions.videoEnabled,
         audio: !this._idle,
         port: this.port,

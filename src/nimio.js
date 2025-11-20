@@ -501,6 +501,8 @@ export default class Nimio {
       sampleRate: sampleRate,
       stateSab: this._sab,
       latency: this._config.latency,
+      latencyTolerance: this._config.latencyTolerance,
+      latencyAdjustMethod: this._config.latencyAdjustMethod,
       idle: idle || false,
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
