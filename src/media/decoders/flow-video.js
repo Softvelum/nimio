@@ -12,6 +12,7 @@ export class DecoderFlowVideo extends DecoderFlow {
 
   async _handleDecoderOutput(frame, data) {
     if (await this._handleDecodedFrame(frame)) {
+      if (!this._buffer) return;
       this._state.setVideoLatestTsUs(this._buffer.lastFrameTs);
     }
     this._state.setVideoDecoderQueue(data.decoderQueue);

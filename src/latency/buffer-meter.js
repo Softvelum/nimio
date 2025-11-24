@@ -36,7 +36,7 @@ export class LatencyBufferMeter {
 
   estimatedBuffer(timeMs) {
     const shortB = this._shortMin.getMin(timeMs);
-    const longB  = this._longMin.getMin(timeMs);
+    const longB = this._longMin.getMin(timeMs);
 
     return 0.6 * shortB + 0.4 * longB;
   }
@@ -52,7 +52,8 @@ export class LatencyBufferMeter {
     else this._ema = this._emaAlpha * value + (1 - this._emaAlpha) * this._ema;
   }
 
-  _fpw(sizeMs) { // max frames per window
-    return Math.ceil(60 * sizeMs / 1000);
+  _fpw(sizeMs) {
+    // max frames per window
+    return Math.ceil((60 * sizeMs) / 1000);
   }
 }

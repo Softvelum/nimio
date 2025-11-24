@@ -131,6 +131,22 @@ export class StateManager {
     Atomics.store(this._flags, IDX.AUDIO_DECODER_QUEUE, f);
   }
 
+  getMinBufferMs(type) {
+    return Atomics.load(this._flags, this._bufTypeIdx(type));
+  }
+
+  setMinBufferMs(type, val) {
+    return Atomics.store(this._flags, this._bufTypeIdx(type), val);
+  }
+
+  _bufTypeIdx(type) {
+    return type === "short"
+      ? IDX.MIN_BUFFER_SHORT
+      : type === "long"
+        ? IDX.MIN_BUFFER_LONG
+        : IDX.MIN_BUFFER_EMA;
+  }
+
   _atomicLoad64(idxs) {
     const idx = idxs[0];
     while (true) {

@@ -21,7 +21,7 @@ export class SlidingMin {
   }
 
   getMin(timeMs) {
-    this._expire(timeMs)
+    this._expire(timeMs);
 
     if (this._vals.length === 0) return null;
     return this._vals.front;
@@ -41,4 +41,3 @@ export class SlidingMin {
     }
   }
 }
-  

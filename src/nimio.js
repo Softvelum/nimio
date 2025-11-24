@@ -353,12 +353,15 @@ export default class Nimio {
       }
     }
 
-    if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      if (!this._audioContext) {
-        this._setPlaybackStartTs("video");
-      }
+    if (
+      this._noAudio ||
+      (!this._audioContext && this._videoBuffer.getTimeCapacity() >= 0.5)
+    ) {
+      this._setPlaybackStartTs("video");
 
       if (!this._noAudio && this._audioCtxProvider.isRunning()) {
+        // it doesn't make sense to start no audio mode via audio worklet
+        // if audio context is suspended
         await this._startNoAudioMode();
       }
     }
@@ -472,6 +475,7 @@ export default class Nimio {
   async _initAudioProcessor(sampleRate, channels, idle) {
     if (!this._audioContext) {
       this._audioCtxProvider.init(sampleRate);
+      this._logger.debug("Init audio processor", sampleRate, channels);
       this._audioCtxProvider.setChannelCount(channels);
       this._audioContext = this._audioCtxProvider.get();
 
@@ -542,14 +546,15 @@ export default class Nimio {
 
   _setNoVideo(yes) {
     if (yes === undefined) yes = true;
-    this._noVideo = !!yes;
+    this._noVideo = yes;
     this._latencyCtrl.videoEnabled = !yes;
   }
 
   _setNoAudio(yes) {
     if (yes === undefined) yes = true;
-    this._noAudio = !!yes;
+    this._noAudio = yes;
     this._latencyCtrl.audioEnabled = !yes;
+    this._logger.debug("Set no audio:", yes);
   }
 
   async _startNoAudioMode() {
