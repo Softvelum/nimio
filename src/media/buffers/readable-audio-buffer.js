@@ -74,11 +74,11 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       }
       let steppedCount = (expProcCnt / step + 0.5) >>> 0;
       if (steppedCount < outLength) {
-        console.log(
-          `Fixed step to ${expProcCnt / outLength} from ${step}, expected count: ${expProcCnt}, stepped count: ${steppedCount}, accurate stepped cnt: ${expProcCnt / step}`,
-        );
         step = expProcCnt / outLength;
         if (step < 0.95) step = 0.95;
+        console.log(
+          `Fixed step to ${step}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,
+        );
       }
     }
 
