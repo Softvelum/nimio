@@ -25,8 +25,6 @@ export class LatencyController {
 
     this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 50_000; // 50ms
-    this._hysteresis = this._latencyMs < 1000 ? 1.5 : 1.25;
-    this._subHysteresis = this._latencyMs < 1000 ? 0.8 : 0.9;
 
     this._warmupMs = 3000;
     this._holdMs = 500;
@@ -37,6 +35,10 @@ export class LatencyController {
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
 
     this._minLatencyDelta = 40;
+    this._allowedLatencyDelta = params.tolerance - this._latencyMs;
+    if (this._allowedLatencyDelta < this._minLatencyDelta) {
+      this._allowedLatencyDelta = this._minLatencyDelta;
+    }
     this._minRateChangeIntervalMs = 500;
     this._minSeekIntervalMs = 4000; // don't seek more frequently
 
@@ -60,6 +62,7 @@ export class LatencyController {
     this._lastActionTime = -this._minSeekIntervalMs;
     this._audioAvailUs = this._videoAvailUs = undefined;
     this._pendingStableSince = null;
+    this._restoreLatency = false;
   }
 
   start() {
@@ -230,8 +233,12 @@ export class LatencyController {
     const deltaMs = bufMin - this._latencyMs;
     // const stable = Math.abs(bufMin - bufEma) < (this._latencyMs * 0.1);
 
+    if (deltaMs > this._allowedLatencyDelta) {
+      this._restoreLatency = true;
+    }
+
     let goForward = false;
-    if (deltaMs > this._minLatencyDelta) {
+    if (deltaMs > this._minLatencyDelta && this._restoreLatency) {
       // this._logger.debug(`Delta ms=${deltaMs}, buffer ms=${bufMin}, age ms=${age}`);
       // wait for holdMs to avoid acting on single spikes
       if (!this._pendingStableSince) {
@@ -241,6 +248,7 @@ export class LatencyController {
       }
     } else {
       this._pendingStableSince = null;
+      this._restoreLatency = false;
     }
 
     if (this._lastActionTime < 0) {

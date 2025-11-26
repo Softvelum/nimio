@@ -70,8 +70,8 @@ function initLatencySettings(settings, logger) {
   }
 
   if (settings.latencyTolerance === "auto") {
-    settings.latencyTolerance = settings.latency;
-    settings.latencyTolerance += Math.min(settings.latency, 1000);
+    settings.latencyTolerance =
+      settings.latency + Math.min(settings.latency / 4, 200);
   }
 
   if (!["fast-forward", "seek"].includes(settings.latencyAdjustMethod)) {

@@ -30,11 +30,6 @@ class TimestampManager {
     }
   }
 
-  resetTrack(id) {
-    let tv = this._tsValidators.get(id);
-    if (tv) tv.reset();
-  }
-
   removeTrack(id) {
     this._tsValidators.delete(id);
   }
@@ -92,7 +87,7 @@ class TimestampValidator {
           this._dtsDistCompensation += 1;
           dtsDiff = 1;
           data.offset -= this._dtsDistCompensation;
-          Logger.debug(
+          this._logger.debug(
             `Fix zero distance DTS. Total DTS compensation = ${this._dtsDistCompensation}. Offset = ${data.offset}`,
           );
         } else {
@@ -104,7 +99,7 @@ class TimestampValidator {
         let repay = Math.min(this._dtsDistCompensation, dtsDiff - 1);
         dtsDiff -= repay;
         this._dtsDistCompensation -= repay;
-        Logger.debug(
+        this._logger.debug(
           `Complete DTS compensation (${this._dtsDistCompensation}). Ts = ${dts}, offset = ${data.offset}, dtsDiff = ${dtsDiff}`,
           repay,
         );
@@ -174,7 +169,7 @@ class TimestampValidator {
     let result = frameCnt * this._lastChunkDuration - this._dtsDistCompensation;
     this._dtsDistCompensation = 0;
 
-    Logger.debug(
+    this._logger.debug(
       `Rollback DTS distance compensation. Frame count = ${frameCnt}, result = ${result}`,
       this._dtsDistCompensation,
       this._lastChunkDuration,
