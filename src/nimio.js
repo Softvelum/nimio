@@ -9,6 +9,7 @@ import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
+import { TimestampManager } from "./media/decoders/timestamp-manager";
 import { createConfig } from "./player-config";
 import { AudioConfig } from "./audio/config";
 import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
@@ -95,8 +96,12 @@ export default class Nimio {
         this._videoBuffer,
       );
     }
+    this._timestampManager = TimestampManager.getInstance(this._instName);
+    this._timestampManager.init({
+      dropZeroDurationFrames: this._config.dropZeroDurationFrames,
+    });
 
-    this._firstFrameTsUs = 0;
+    this._resetPlaybackTimstamps();
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._ctx = this._ui.canvas.getContext("2d");
 
@@ -205,7 +210,7 @@ export default class Nimio {
     this._state.setVideoLatestTsUs(0);
     this._state.setAudioLatestTsUs(0);
     this._state.resetCurrentTsSmp();
-    this._firstFrameTsUs = 0;
+    this._resetPlaybackTimstamps();
 
     this._ui.drawPlay();
     this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
@@ -259,7 +264,7 @@ export default class Nimio {
     if (this._noVideo || !this._state.isPlaying()) return true;
 
     requestAnimationFrame(this._renderVideoFrame);
-    if (null === this._audioWorkletReady || 0 === this._firstFrameTsUs) {
+    if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
       return true;
     }
 
@@ -274,7 +279,10 @@ export default class Nimio {
     if (this._latencyCtrl.isPending()) return true;
 
     const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
-    if (!frame) return true;
+    if (!frame) {
+      // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+      return true;
+    }
 
     this._ctx.drawImage(
       frame,
@@ -336,16 +344,24 @@ export default class Nimio {
   }
 
   async _onVideoStartTsNotSet(frame) {
-    if (this._firstFrameTsUs !== 0) return true;
-
-    if (this._noAudio || this._videoBuffer.getTimeCapacity() >= 0.5) {
-      this._firstFrameTsUs = frame.timestamp;
-      if (this._videoBuffer.length > 0) {
-        this._firstFrameTsUs = this._videoBuffer.firstFrameTs;
+    if (this._playbackStartTsUs !== 0) return true;
+    if (this._firstVideoFrameTsUs === 0) {
+      this._firstVideoFrameTsUs = frame.timestamp;
+      if (this._firstAudioFrameTsUs > 0) {
+        this._setPlaybackStartTs();
+        return true;
       }
-      this._state.setPlaybackStartTsUs(this._firstFrameTsUs);
+    }
+
+    if (
+      this._noAudio ||
+      (!this._audioContext && this._videoBuffer.getTimeCapacity() >= 0.5)
+    ) {
+      this._setPlaybackStartTs("video");
 
       if (!this._noAudio && this._audioCtxProvider.isRunning()) {
+        // it doesn't make sense to start no audio mode via audio worklet
+        // if audio context is suspended
         await this._startNoAudioMode();
       }
     }
@@ -380,15 +396,38 @@ export default class Nimio {
 
     if (!this._audioContext || !this._audioNode) {
       this._logger.error("Audio context is not initialized. Can't play audio.");
+      this._audioContext = this._audioNode = null;
       return false;
     }
 
-    if (this._firstFrameTsUs === 0) {
-      this._firstFrameTsUs = frame.rawTimestamp;
-      this._state.setPlaybackStartTsUs(frame.rawTimestamp);
+    if (this._firstAudioFrameTsUs === 0) {
+      this._firstAudioFrameTsUs = frame.decTimestamp;
+      if (this._firstVideoFrameTsUs) {
+        this._setPlaybackStartTs();
+      } else if (this._noVideo) {
+        this._setPlaybackStartTs("audio");
+      }
     }
 
     return true;
+  }
+
+  _setPlaybackStartTs(mode) {
+    this._playbackStartTsUs =
+      mode === undefined
+        ? Math.max(this._firstAudioFrameTsUs, this._firstVideoFrameTsUs)
+        : mode === "video"
+          ? this._firstVideoFrameTsUs
+          : this._firstAudioFrameTsUs;
+    this._logger.warn(
+      `set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`,
+    );
+    this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
+  }
+
+  _resetPlaybackTimstamps() {
+    this._playbackStartTsUs = 0;
+    this._firstAudioFrameTsUs = this._firstVideoFrameTsUs = 0;
   }
 
   _onDecodingError(kind) {
@@ -426,6 +465,7 @@ export default class Nimio {
       new AudioGapsProcessor(
         this._audioConfig.sampleCount,
         this._audioConfig.sampleRate,
+        this._logger,
       ),
     );
 
@@ -435,6 +475,7 @@ export default class Nimio {
   async _initAudioProcessor(sampleRate, channels, idle) {
     if (!this._audioContext) {
       this._audioCtxProvider.init(sampleRate);
+      this._logger.debug("Init audio processor", sampleRate, channels);
       this._audioCtxProvider.setChannelCount(channels);
       this._audioContext = this._audioCtxProvider.get();
 
@@ -464,6 +505,8 @@ export default class Nimio {
       sampleRate: sampleRate,
       stateSab: this._sab,
       latency: this._config.latency,
+      latencyTolerance: this._config.latencyTolerance,
+      latencyAdjustMethod: this._config.latencyAdjustMethod,
       idle: idle || false,
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
@@ -503,14 +546,15 @@ export default class Nimio {
 
   _setNoVideo(yes) {
     if (yes === undefined) yes = true;
-    this._noVideo = !!yes;
+    this._noVideo = yes;
     this._latencyCtrl.videoEnabled = !yes;
   }
 
   _setNoAudio(yes) {
     if (yes === undefined) yes = true;
-    this._noAudio = !!yes;
+    this._noAudio = yes;
     this._latencyCtrl.audioEnabled = !yes;
+    this._logger.debug("Set no audio:", yes);
   }
 
   async _startNoAudioMode() {
@@ -553,6 +597,8 @@ export default class Nimio {
       this._audioConfig,
       {
         latency: this._config.latency,
+        tolerance: this._config.latencyTolerance,
+        adjustMethod: this._config.latencyAdjustMethod,
         video: !this._noVideo,
         audio: !this._noAudio,
       },

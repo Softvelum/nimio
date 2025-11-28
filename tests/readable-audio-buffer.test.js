@@ -207,7 +207,7 @@ describe("ReadableAudioBuffer", () => {
     rab.frames[1].fill(0.6);
     rab.setWriteIdx(2);
 
-    const outLength = rab.sampleCount;
+    const outLength = rab.sampleCount * 4;
     const out = [new Float32Array(outLength), new Float32Array(outLength)];
     const step = 4;
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

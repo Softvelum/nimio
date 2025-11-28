@@ -66,6 +66,22 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   _fillOutput(outputChannels, startIdx, endIdx, startOffset, endOffset, step) {
+    let outLength = outputChannels[0].length;
+    if (startIdx !== null && endIdx !== null) {
+      let expProcCnt = endOffset - startOffset;
+      if (startIdx !== endIdx) {
+        expProcCnt = this.sampleCount - startOffset + endOffset;
+      }
+      let steppedCount = (expProcCnt / step + 0.5) >>> 0;
+      if (steppedCount < outLength) {
+        step = expProcCnt / outLength;
+        if (step < 0.95) step = 0.95;
+        console.log(
+          `Fixed step to ${step}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,
+        );
+      }
+    }
+
     let processed = null;
     if (startIdx === endIdx) {
       if (startIdx === null) {
@@ -115,30 +131,20 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     }
 
     if (startCount === null) {
-      console.error(
-        "Fill silence at the start",
-        outputChannels[0].length - endCount,
-      );
-      this._fillSilence(outputChannels, 0, outputChannels[0].length - endCount);
+      console.error("Fill silence at the start", outLength - endCount);
+      this._fillSilence(outputChannels, 0, outLength - endCount);
     } else if (endCount === null) {
-      console.error(
-        "Fill silence at the end",
-        outputChannels[0].length - startCount,
-      );
-      this._fillSilence(
-        outputChannels,
-        startCount,
-        outputChannels[0].length - startCount,
-      );
-    } else if (startCount + endCount < outputChannels[0].length) {
+      console.error("Fill silence at the end", outLength - startCount);
+      this._fillSilence(outputChannels, startCount, outLength - startCount);
+    } else if (startCount + endCount < outLength) {
       console.error(
         "Fill silence in the middle",
-        outputChannels[0].length - startCount - endCount,
+        outLength - startCount - endCount,
       );
       this._fillSilence(
         outputChannels,
         startCount,
-        outputChannels[0].length - startCount - endCount,
+        outLength - startCount - endCount,
       );
     }
 

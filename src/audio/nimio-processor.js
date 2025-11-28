@@ -34,6 +34,8 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._audioConfig,
       {
         latency: this._targetLatencyMs,
+        tolerance: options.processorOptions.latencyTolerance,
+        adjustMethod: options.processorOptions.latencyAdjustMethod,
         video: options.processorOptions.videoEnabled,
         audio: !this._idle,
         port: this.port,
@@ -95,12 +97,6 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
 
   _setSpeed(speed, availableMs) {
     if (this._speed === speed) return;
-
-    let tNow = currentTime;
-    if (speed > this._speed) {
-      if (this._spdSetTime > 0 && tNow - this._spdSetTime < 3) return;
-    }
-    this._spdSetTime = tNow;
     this._speed = speed;
     this._logger.debug(`speed ${speed}`, availableMs, this._targetLatencyMs);
   }

@@ -1,3 +1,4 @@
+import { TimestampManager } from "@/media/decoders/timestamp-manager";
 import { MetricsManager } from "@/metrics/manager";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -8,12 +9,14 @@ export class Prober {
     this._idx = streamIdx;
 
     this._metricsManager = MetricsManager.getInstance(instName);
+    this._timestampManager = TimestampManager.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "Prober");
   }
 
   destroy() {
     if (this._streamId) {
       this._metricsManager.remove(this._streamId);
+      this._timestampManager.removeTrack(this._streamId);
     }
     this._clearBufCheckInterval();
   }
@@ -30,6 +33,7 @@ export class Prober {
     this._logger.debug(`start: ${this._idx}, period: ${this._period}`);
 
     this._metricsManager.add(this._streamId, "probe");
+    this._timestampManager.addTrack(this._streamId, "video");
   }
 
   isEnabled() {

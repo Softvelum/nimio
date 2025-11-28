@@ -7,6 +7,8 @@ const DEFAULTS = {
   width: 476,
   height: 268,
   latency: 200,
+  latencyTolerance: "auto",
+  latencyAdjustMethod: "fast-forward",
   startOffset: 1000,
   pauseTimeout: 3000,
   metricsOverlay: false,
@@ -21,9 +23,11 @@ const DEFAULTS = {
   vuMeter: null,
   workletLogs: false,
   fullscreen: false,
+  dropZeroDurationFrames: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
+const MIN_LATENCY = 100;
 
 function validateRequired(cfg) {
   REQUIRED_KEYS.forEach((key) => {
@@ -32,6 +36,50 @@ function validateRequired(cfg) {
       throw new Error(`Config key "${key}" is required`);
     }
   });
+}
+
+function initLatencySettings(settings, logger) {
+  settings.latency = parseInt(settings.latency);
+  if (isNaN(settings.latency) || settings.latency < MIN_LATENCY) {
+    let err =
+      settings.latency < MIN_LATENCY
+        ? `less than minimum ${MIN_LATENCY} ms`
+        : "invalid";
+    let val = settings.latency < MIN_LATENCY ? MIN_LATENCY : DEFAULTS.latency;
+    logger.error(
+      `Parameter latency=${settings.latency} is ${err}. Setting to ${DEFAULTS.latency} ms`,
+    );
+    settings.latency = val;
+  }
+
+  if (settings.latencyTolerance !== "auto") {
+    settings.latencyTolerance = parseInt(settings.latencyTolerance);
+    if (
+      isNaN(settings.latencyTolerance) ||
+      settings.latencyTolerance < settings.latency
+    ) {
+      let err =
+        settings.latencyTolerance < settings.latency
+          ? `less than latency ${settings.latency} ms`
+          : "invalid";
+      logger.error(
+        `Parameter latencyTolerance=${settings.latencyTolerance} is ${err}. Setting to "auto"`,
+      );
+      settings.latencyTolerance = "auto";
+    }
+  }
+
+  if (settings.latencyTolerance === "auto") {
+    settings.latencyTolerance =
+      settings.latency + Math.min(settings.latency / 4, 200);
+  }
+
+  if (!["fast-forward", "seek"].includes(settings.latencyAdjustMethod)) {
+    logger.error(
+      `Parameter latencyAdjustMethod=${settings.latencyAdjustMethod} is invalid. Setting to default "fast-forward"`,
+    );
+    settings.latencyAdjustMethod = "fast-forward";
+  }
 }
 
 // TODO: make more friendly setting of initialRendition and maxRendition
@@ -140,6 +188,7 @@ export function createConfig(overrides = {}) {
   target.fullBufferMs =
     target.latency + target.startOffset + target.pauseTimeout;
 
+  initLatencySettings(target, logger);
   initAbrSettings(target, logger);
   initVUMeterSettings(target, logger);
 

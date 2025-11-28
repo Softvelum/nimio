@@ -34,6 +34,7 @@ export class DebugView {
     let aDecQueue = this._state.getAudioDecoderQueue();
 
     this._inst.textContent =
+      `Buffer(l/s/e):.${this._state.getMinBufferMs("long").toString().padStart(4, ".")}/${this._state.getMinBufferMs("short").toString()}/${this._state.getMinBufferMs("ema").toString()}ms \n` +
       `Video buffer:....${this._vBuffer.length.toString().padStart(4, ".")}f..${videoMs}ms \n` +
       `Audio buffer:..........${audioMs.toString().padStart(4, ".")}ms \n` +
       `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, ".")}ms \n` +

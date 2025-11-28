@@ -1,3 +1,4 @@
+import { TimestampManager } from "./timestamp-manager";
 import { MetricsManager } from "@/metrics/manager";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -19,6 +20,9 @@ export class DecoderFlow {
     this._timescale = timescale;
     this._metricsManager = MetricsManager.getInstance(instanceName);
     this._metricsManager.add(this._trackId, this._type);
+
+    this._timestampManager = TimestampManager.getInstance(instanceName);
+    this._timestampManager.addTrack(this._trackId, this._type);
 
     this._decoder = new Worker(new URL(url, import.meta.url), {
       type: "module",
@@ -62,14 +66,12 @@ export class DecoderFlow {
         let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
         if (
           srcFirstTsUs !== null &&
-          Math.abs(data.timestamp - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
-          data.timestamp >= srcFirstTsUs
+          Math.abs(data.pts - srcFirstTsUs) < SWITCH_THRESHOLD_US &&
+          data.pts >= srcFirstTsUs
         ) {
           // Source flow already has a frame with this timestamp, cancel input
-          this._logger.debug(
-            `Cancel input for dst from pushChunk ${data.timestamp}`,
-          );
-          this._updateSwitchTimestamps(data.timestamp);
+          this._logger.debug(`Cancel input for dst from pushChunk ${data.pts}`);
+          this._updateSwitchTimestamps(data.pts);
           this._cancelInput();
           return false;
         }
@@ -79,7 +81,7 @@ export class DecoderFlow {
     this._decoder.postMessage(
       {
         type: "chunk",
-        timestamp: data.timestamp,
+        pts: data.pts,
         chunkType: data.chunkType,
         frameWithHeader: data.frameWithHeader,
         framePos: data.framePos,
@@ -101,6 +103,8 @@ export class DecoderFlow {
   switchTo(flow, type = "dst") {
     this._switchPeerFlow = flow;
     if (this._startSwitch(type)) {
+      const peerTrackId = this._switchPeerFlow.trackId;
+      this._timestampManager.updateTimeBase(peerTrackId, this._trackId);
       this._switchPeerFlow.switchTo(this, type === "dst" ? "src" : "dst");
     }
   }
@@ -149,6 +153,7 @@ export class DecoderFlow {
 
     this._isShuttingDown = true;
     this._metricsManager.remove(this._trackId);
+    this._timestampManager.removeTrack(this._trackId);
     this._decoder.postMessage({ type: "shutdown" });
   }
 

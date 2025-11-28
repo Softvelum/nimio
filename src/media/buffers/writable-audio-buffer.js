@@ -27,7 +27,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     for (let i = 0; i < this._preprocessors.length; i++) {
-      this._preprocessors[i].process(audioFrame, this);
+      let pRes = this._preprocessors[i].process(audioFrame, this);
+      if (!pRes) return;
     }
 
     const writeIdx = this.getWriteIdx();
@@ -63,7 +64,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   }
 
   absorb(frameBuffer) {
-    let lastTs = this.getLastTimestampUs();
+    let lastTs = this.lastFrameTs;
     frameBuffer.forEach((frame) => {
       if (frame.decTimestamp > lastTs) {
         this.pushFrame(frame);

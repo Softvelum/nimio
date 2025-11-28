@@ -134,11 +134,15 @@ export const NimioTransport = {
 
   _processChunk(flow, data) {
     if (!flow) return;
+    if (!this._timestampManager.validateChunk(data.trackId, data)) {
+      this._logger.warn("Drop invalid chunk", data.trackId, data.pts);
+      return;
+    }
 
     this._metricsManager.reportBandwidth(
       data.trackId,
       data.frameWithHeader.byteLength,
-      data.timestamp,
+      data.pts,
     );
 
     if (flow.processChunk(data)) return;
@@ -146,7 +150,7 @@ export const NimioTransport = {
     if (this._isNextRenditionTrack(data.trackId)) {
       this._nextRenditionData.decoderFlow.processChunk(data);
     } else if (this._abrController?.isProbing(data.trackId)) {
-      this._abrController.handleChunkTs(data.timestamp);
+      this._abrController.handleChunkTs(data.pts);
     }
   },
 

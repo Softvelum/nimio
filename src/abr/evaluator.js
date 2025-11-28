@@ -103,6 +103,7 @@ export class AbrEvaluator {
         if (0 === this._runsCount && probeTime > 600) probeTime = 600;
         this._logger.debug(`doRun probe during ${probeTime}`);
 
+        // this._curStream.vId
         this._prober = new Prober(this._instName, streamToProbe.idx, probeTime);
         this._prober.callbacks = {
           onStartProbe: this._startProbeCallback,
