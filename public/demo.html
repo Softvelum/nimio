@@ -34,7 +34,7 @@
             type="text"
             class="nimio-input"
             placeholder="wss URL..."
-            value="wss://vd1.wmspanel.com/video_demo_without_ads/stream"
+            value="wss://demo-nimble.softvelum.com/live/bbb"
           />
           <button id="initNimioButton">Load</button>
         </fieldset>
@@ -47,7 +47,7 @@
         <article name="advanced-params">
           <fieldset>
             <label>
-              <input type="checkbox" name="metricsOverlay" checked />
+              <input type="checkbox" name="metricsOverlay" />
               Show overlay with performance metrics
             </label>
             <label class="inline">
@@ -107,20 +107,27 @@
       <script type="module">
         import Nimio from "../src/nimio.js";
         function initNimio() {
+          if (window.nimio) {
+            window.nimio.destroy();
+          }
+
           const streamUrl = document.getElementById("streamURL").value;
 
-          if (undefined === window.nimio) {
-            window.nimio = new Nimio({
-              streamUrl: streamUrl,
-              container: "video",
-              width: 476,
-              height: 268,
-              latency: +document.getElementsByName("targetLatency")[0].value,
-              startOffset: 1000,
-              metricsOverlay:
-                document.getElementsByName("metricsOverlay")[0].checked,
-            });
-          }
+          window.nimio = new Nimio({
+            streamUrl: streamUrl,
+            container: "video",
+            autoplay: true,
+            width: 476,
+            height: 268,
+            latency: +document.getElementsByName("targetLatency")[0].value,
+            latencyTolerance: 2200,
+            startOffset: 2000,
+            metricsOverlay:
+              document.getElementsByName("metricsOverlay")[0].checked,
+            latencyAdjustMethod: "fast-forward",
+            logLevel: "debug",
+            workletLogs: true,
+          });
         }
 
         document
