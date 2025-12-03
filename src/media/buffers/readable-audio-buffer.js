@@ -55,6 +55,13 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       console.warn("No frames found in the requested range");
     }
 
+    let readParams = {readStartIdx, readEndIdx, readStartOffset, readEndOffset, step};
+
+    for (let i = 0; i < this._preprocessors.length; i++) {
+      let pRes = this._preprocessors[i].process(readParams);
+      if (!pRes) return 0;
+    }
+
     return this._fillOutput(
       outputChannels,
       readStartIdx,

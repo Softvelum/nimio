@@ -1,24 +1,6 @@
 import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class WritableAudioBuffer extends SharedAudioBuffer {
-  constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
-    super(sharedBuffer, capacity, sampleRate, numChannels, sampleCount);
-    this._preprocessors = [];
-  }
-
-  addPreprocessor(preprocessor) {
-    this._preprocessors.push(preprocessor);
-    preprocessor.setBufferIface(this);
-  }
-
-  reset() {
-    super.reset();
-    for (let i = 0; i < this._preprocessors.length; i++) {
-      this._preprocessors[i].reset();
-    }
-    this._preprocessors.length = 0;
-  }
-
   pushFrame(audioFrame) {
     if (audioFrame.numberOfFrames !== this.sampleCount) {
       throw new Error(

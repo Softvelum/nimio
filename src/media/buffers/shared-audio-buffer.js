@@ -33,6 +33,8 @@ export class SharedAudioBuffer {
     this.tempF32 = new Float32Array(sharedBuffer, offset, this.frameSize);
     offset += this.frameBytes;
     this.tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
+
+    this._preprocessors = [];
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
@@ -57,9 +59,15 @@ export class SharedAudioBuffer {
     );
   }
 
+  addPreprocessor(preprocessor) {
+    this._preprocessors.push(preprocessor);
+    preprocessor.setBufferIface(this);
+  }
+
   reset() {
     this._setIdx(0, 0);
     this._setIdx(1, 0);
+    this._resetPreprocessing();
   }
 
   getWriteIdx() {
@@ -123,5 +131,12 @@ export class SharedAudioBuffer {
       value -= this.capacity;
     }
     Atomics.store(this.header, idx, value);
+  }
+
+  _resetPreprocessing() {
+    for (let i = 0; i < this._preprocessors.length; i++) {
+      this._preprocessors[i].reset();
+    }
+    this._preprocessors.length = 0;
   }
 }

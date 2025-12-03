@@ -1,8 +1,10 @@
-export class AudioGapsProcessor {
+import { BaseProcessor } from "./base-processor";
+
+export class AudioGapsProcessor extends BaseProcessor {
   constructor(sampleCount, sampleRate, logger) {
+    super(logger);
     this._frameLenUs = (1e6 * sampleCount) / sampleRate;
     this._audioTsShift = 0;
-    this._logger = logger;
   }
 
   process(frame) {
@@ -21,12 +23,8 @@ export class AudioGapsProcessor {
     return true;
   }
 
-  setBufferIface(iface) {
-    this._bufferIface = iface;
-  }
-
   reset() {
+    super.reset();
     this._audioTsShift = 0;
-    this._bufferIface = null;
   }
 }

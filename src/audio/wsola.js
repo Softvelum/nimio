@@ -33,6 +33,20 @@ function l2EnergyArraySegment(arr, offset, length) {
   return res;
 }
 
+function nccScore(ref, view, L) {
+  let num = 0;
+  let eRef = 0;
+  let eView = 0;
 
+  for (let i = 0; i < L; i++) {
+    const r = ref[i];
+    const v = view[i];
+    num += r * v;
+    eRef += r * r;
+    eView += v * v;
+  }
+  const denom = Math.sqrt(eRef * eView) || 1e-12;
 
+  return num / denom;
+}
 
