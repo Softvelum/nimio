@@ -19,11 +19,11 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     this._stateManager = new StateManager(options.processorOptions.stateSab);
     this._sampleRate = options.processorOptions.sampleRate;
     this._channelCount = options.outputChannelCount[0];
-    this._fSampleCount = options.processorOptions.sampleCount;
+    this._sampleCount = options.processorOptions.sampleCount;
     this._audioConfig = new AudioConfig(
       this._sampleRate,
       this._channelCount,
-      this._fSampleCount,
+      this._sampleCount,
     );
 
     this._idle = options.processorOptions.idle;
@@ -49,8 +49,11 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
         options.processorOptions.capacity,
         this._sampleRate,
         this._channelCount,
-        this._fSampleCount,
+        this._sampleCount,
       );
+      this._audioBuffer.addPreprocessor(
+        new WsolaProcessor(this._channelCount, this._sampleCount, this._logger),
+      )
     }
 
     this._speed = 1.0;
@@ -70,13 +73,15 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    let curTsUs = this._latencyCtrl.incAudioSamples(sampleCount);
+    let curTsUs = this._latencyCtrl.loadCurrentTsUs();
     if (this._idle || this._latencyCtrl.isPending()) {
       this._insertSilence(out, chCnt, sampleCount);
     } else {
       let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
       this._audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, this._speed);
     }
+
+    this._latencyCtrl.incCurrentAudioSamples(sampleCount);
 
     return true;
   }

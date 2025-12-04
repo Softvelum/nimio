@@ -9,7 +9,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     for (let i = 0; i < this._preprocessors.length; i++) {
-      let pRes = this._preprocessors[i].process(audioFrame, this);
+      let pRes = this._preprocessors[i].process(audioFrame);
       if (!pRes) return;
     }
 

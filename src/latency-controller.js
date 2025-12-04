@@ -95,17 +95,16 @@ export class LatencyController {
     return (res / 1000 + 0.5) >>> 0;
   }
 
-  incAudioSamples(sampleCount) {
-    this._calculateAvailable();
-    if (this._checkPending()) return this._curTsUs;
+  incCurrentAudioSamples(sampleCount) {
+    if (this.isPending()) return this._curTsUs;
 
     this._stateMgr.incCurrentTsSmp(sampleCount);
     this._adjustPlaybackLatency();
-
     return this._curTsUs;
   }
 
   incCurrentVideoTime(speed) {
+    this._getCurrentTsUs();
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
     this._prevVideoTime = performance.now();
@@ -120,7 +119,8 @@ export class LatencyController {
     return this._curTsUs;
   }
 
-  getCurrentTsUs() {
+  loadCurrentTsUs() {
+    this._getCurrentTsUs();
     this._calculateAvailable();
     this._checkPending();
 
@@ -173,8 +173,6 @@ export class LatencyController {
   }
 
   _calculateAvailable() {
-    this._getCurrentTsUs();
-
     this._availableUs = Number.MAX_VALUE;
     if (this._audio) {
       this._getAudioAvailableUs();

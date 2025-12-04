@@ -55,7 +55,13 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       console.warn("No frames found in the requested range");
     }
 
-    let readParams = {readStartIdx, readEndIdx, readStartOffset, readEndOffset, step};
+    let readParams = {
+      startIdx: readStartIdx,
+      endIdx: readEndIdx,
+      startOffset: readStartOffset,
+      endOffset: readEndOffset,
+      step: step,
+    };
 
     for (let i = 0; i < this._preprocessors.length; i++) {
       let pRes = this._preprocessors[i].process(readParams);
@@ -64,11 +70,11 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
 
     return this._fillOutput(
       outputChannels,
-      readStartIdx,
-      readEndIdx,
-      readStartOffset,
-      readEndOffset,
-      step,
+      readParams.startIdx,
+      readParams.endIdx,
+      readParams.startOffset,
+      readParams.endOffset,
+      readParams.step,
     );
   }
 
