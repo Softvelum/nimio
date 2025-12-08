@@ -5,7 +5,7 @@ export class SharedAudioBuffer {
   // Audio frame structure:
   // [ timestamp: Float64 ][ ch0: Float32[sampleCount] ] ... [ chN: Float32[sampleCount] ]
   constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
-    this.capacity = capacity;
+    this._capacity = capacity;
     this.sampleRate = sampleRate;
     this.numChannels = numChannels;
     this.sampleCount = sampleCount;
@@ -15,33 +15,36 @@ export class SharedAudioBuffer {
     this.frameSize = numChannels * sampleCount;
     this.frameBytes = this.frameSize * Float32Array.BYTES_PER_ELEMENT;
 
-    this.sab = sharedBuffer;
-    this.header = new Int32Array(
+    this._sab = sharedBuffer;
+    this._header = new Int32Array(
       sharedBuffer,
       0,
       SharedAudioBuffer.HEADER_SIZE,
     );
     let offset = SharedAudioBuffer.HEADER_BYTES;
-    this.timestamps = new Float64Array(sharedBuffer, offset, capacity);
-
-    this.frames = new Array(capacity);
+    this._timestamps = new Float64Array(sharedBuffer, offset, capacity);
     offset += capacity * Float64Array.BYTES_PER_ELEMENT;
+
+    this._rates = new Float32Array(sharedBuffer, offset, capacity);
+    offset += capacity * Float32Array.BYTES_PER_ELEMENT;
+
+    this._frames = new Array(capacity);
     for (let i = 0; i < capacity; i++) {
-      this.frames[i] = new Float32Array(sharedBuffer, offset, this.frameSize);
+      this._frames[i] = new Float32Array(sharedBuffer, offset, this.frameSize);
       offset += this.frameBytes;
     }
-    this.tempF32 = new Float32Array(sharedBuffer, offset, this.frameSize);
+    this._tempF32 = new Float32Array(sharedBuffer, offset, this.frameSize);
     offset += this.frameBytes;
-    this.tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
+    this._tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
 
     this._preprocessors = [];
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
     const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
-    // timestamp = 2 Float32 elements + frame size
+    // one frame = Float64 timestamp(2 Float32) + Float32 rate + frame size
     const frameSize =
-      (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
+      (3 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
     // add 2 temp buffers for s16 and f32 data
     const tempSize =
       numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
@@ -86,36 +89,70 @@ export class SharedAudioBuffer {
     this._setIdx(1, value);
   }
 
-  getSize() {
-    const w = this.getWriteIdx();
+  withState(cb) {
     const r = this.getReadIdx();
-    return w >= r ? w - r : this.capacity - r + w;
+    const w = this.getWriteIdx();
+    const size = w >= r ? w - r : this._capacity - r + w;
+    return cb(r, w, size);
+  }
+
+  getSize() {
+    return this.withState(function(r, w, size) { return size });
+  }
+
+  getFrame(idx) {
+    if (idx >= this._capacity) idx -= this._capacity;
+
+    return this.withState(function(r, w, size) {
+      let dist = idx >= r ? idx - r : this._capacity - r + idx;
+      if (dist >= size) return null;
+
+      return {
+        data: this._frames[idx],
+        timestamp: this._timestamps[idx],
+        rate: this._rates[idx],
+      };
+    });
   }
 
   forEach(fn) {
     let idx = this.getReadIdx();
     const size = this.getSize();
     for (let i = 0; i < size; i++) {
-      let res = fn(this.timestamps[idx], this.frames[idx], idx, size - i - 1);
+      let res = fn(
+        this._timestamps[idx],
+        this._rates[idx],
+        this._frames[idx],
+        idx,
+        size - i - 1
+      );
       if (res === false) break;
 
       idx++;
-      if (idx >= this.capacity) idx -= this.capacity;
+      if (idx >= this._capacity) idx -= this._capacity;
     }
   }
 
   get lastFrameTs() {
     let lastIdx = this.getWriteIdx() - 1;
-    if (lastIdx < 0) lastIdx += this.capacity;
-    return this.timestamps[lastIdx] || 0;
+    if (lastIdx < 0) lastIdx += this._capacity;
+    return this._timestamps[lastIdx] || 0;
   }
 
   get buffer() {
-    return this.sab;
+    return this._sab;
+  }
+
+  get frames() {
+    return this._frames;
+  }
+
+  get rates() {
+    return this._rates;
   }
 
   get bufferCapacity() {
-    return this.capacity;
+    return this._capacity;
   }
 
   get isShareable() {
@@ -123,14 +160,14 @@ export class SharedAudioBuffer {
   }
 
   _getIdx(idx) {
-    return Atomics.load(this.header, idx);
+    return Atomics.load(this._header, idx);
   }
 
   _setIdx(idx, value) {
-    if (value >= this.capacity) {
-      value -= this.capacity;
+    if (value >= this._capacity) {
+      value -= this._capacity;
     }
-    Atomics.store(this.header, idx, value);
+    Atomics.store(this._header, idx, value);
   }
 
   _resetPreprocessing() {

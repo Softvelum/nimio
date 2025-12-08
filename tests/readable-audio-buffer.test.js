@@ -11,7 +11,7 @@ function createTestBuffer(options = {}) {
 
   const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
   const frameSize =
-    (2 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
+    (3 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
   const tempSize =
     numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
     numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
@@ -57,8 +57,8 @@ describe("ReadableAudioBuffer", () => {
 
   it("reads data with valid timestamps and fills output", () => {
     const ts = 1000000;
-    rab.timestamps[0] = ts / 1000;
-    rab.frames[0].fill(0.5);
+    rab._timestamps[0] = ts / 1000;
+    rab._frames[0].fill(0.5);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(960), new Float32Array(960)];
@@ -69,10 +69,10 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("reads start and end in different frames", () => {
-    rab.timestamps[0] = 1000;
-    rab.timestamps[1] = 1000 + frameNs / 1000;
-    rab.frames[0].fill(0.3);
-    rab.frames[1].fill(0.7);
+    rab._timestamps[0] = 1000;
+    rab._timestamps[1] = 1000 + frameNs / 1000;
+    rab._frames[0].fill(0.3);
+    rab._frames[1].fill(0.7);
     rab.setWriteIdx(2);
 
     const out = [new Float32Array(960), new Float32Array(960)];
@@ -88,8 +88,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("reads with step > 1", () => {
-    rab.timestamps[0] = 0.0;
-    rab.frames[0].fill(1.0);
+    rab._timestamps[0] = 0.0;
+    rab._frames[0].fill(1.0);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(480), new Float32Array(480)];
@@ -100,8 +100,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("fills silence when only end frame matches", () => {
-    rab.timestamps[0] = frameNs / 1000;
-    rab.frames[0].fill(0.1);
+    rab._timestamps[0] = frameNs / 1000;
+    rab._frames[0].fill(0.1);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(960), new Float32Array(960)];
@@ -112,8 +112,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("fills silence when only start frame matches", () => {
-    rab.timestamps[0] = 0;
-    rab.frames[0].fill(0.2);
+    rab._timestamps[0] = 0;
+    rab._frames[0].fill(0.2);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(1920), new Float32Array(1920)]; // 2 frames
@@ -128,8 +128,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("fills silence if no frame matched but skips index", () => {
-    rab.timestamps[0] = (frameNs * 5) / 1000;
-    rab.frames[0].fill(0.2);
+    rab._timestamps[0] = (frameNs * 5) / 1000;
+    rab._frames[0].fill(0.2);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(960), new Float32Array(960)];
@@ -139,8 +139,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("sets readIdx to skipIdx and warns when no frames matched in range", () => {
-    rab.timestamps[0] = 1000;
-    rab.frames[0].fill(0.5);
+    rab._timestamps[0] = 1000;
+    rab._frames[0].fill(0.5);
     rab.setWriteIdx(1);
 
     // startTsNs after the frame end, so no readStartIdx or readEndIdx
@@ -165,10 +165,10 @@ describe("ReadableAudioBuffer", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // Setup 2 frames with timestamps so partial overlap occurs
-    rab.timestamps[0] = 0;
-    rab.timestamps[1] = frameNs / 1000;
-    rab.frames[0].fill(0.5);
-    rab.frames[1].fill(0.8);
+    rab._timestamps[0] = 0;
+    rab._timestamps[1] = frameNs / 1000;
+    rab._frames[0].fill(0.5);
+    rab._frames[1].fill(0.8);
     rab.setWriteIdx(2);
 
     const out = [new Float32Array(960), new Float32Array(960)];
@@ -178,8 +178,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("fills silence at the start when start frame is null but end frame matches", () => {
-    rab.timestamps[0] = 1000;
-    rab.frames[0].fill(0.5);
+    rab._timestamps[0] = 1000;
+    rab._frames[0].fill(0.5);
     rab.setWriteIdx(1);
 
     const startTsNs = 0;
@@ -201,10 +201,10 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("fills silence in the middle when startCount + endCount < output length", () => {
-    rab.timestamps[0] = 0;
-    rab.timestamps[1] = (frameNs / 1000) * 10; // a gap
-    rab.frames[0].fill(0.4);
-    rab.frames[1].fill(0.6);
+    rab._timestamps[0] = 0;
+    rab._timestamps[1] = (frameNs / 1000) * 10; // a gap
+    rab._frames[0].fill(0.4);
+    rab._frames[1].fill(0.6);
     rab.setWriteIdx(2);
 
     const outLength = rab.sampleCount * 4;
@@ -214,7 +214,7 @@ describe("ReadableAudioBuffer", () => {
 
     const processed = rab.read(
       0,
-      rab.timestamps[1] * 1000 + frameNs / 2,
+      rab._timestamps[1] * 1000 + frameNs / 2,
       out,
       step,
     );

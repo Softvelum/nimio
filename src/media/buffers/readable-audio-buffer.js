@@ -11,7 +11,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let readStartOffset = null;
     let readEndOffset = null;
     let skipIdx = null;
-    this.forEach((frameStartTs, data, idx, left) => {
+    this.forEach((frameStartTs, rate, data, idx, left) => {
       let frameStartTsNs = frameStartTs * 1000;
       let frameEndTsNs = frameStartTsNs + this.frameNs;
       if (endTsNs < frameStartTsNs) {
@@ -60,7 +60,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       endIdx: readEndIdx,
       startOffset: readStartOffset,
       endOffset: readEndOffset,
-      step: step,
+      rate: step,
     };
 
     for (let i = 0; i < this._preprocessors.length; i++) {
@@ -104,7 +104,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         processed = 0;
       } else {
         this._copyChannelsData(
-          this.frames[startIdx],
+          this._frames[startIdx],
           outputChannels,
           startOffset,
           endOffset,
@@ -120,7 +120,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let startCount = null;
     if (startIdx !== null) {
       startCount = this._copyChannelsData(
-        this.frames[startIdx],
+        this._frames[startIdx],
         outputChannels,
         startOffset,
         this.sampleCount,
@@ -133,7 +133,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let endCount = null;
     if (endIdx !== null) {
       endCount = this._copyChannelsData(
-        this.frames[endIdx],
+        this._frames[endIdx],
         outputChannels,
         0,
         endOffset,
@@ -177,7 +177,8 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   _copyChannelsData(data, outputChannels, startIdx, endIdx, offset, step) {
     let copiedCount = 0;
     let channelShift = 0;
-    const dtLength = endIdx - startIdx;
+    let dtLength = endIdx - startIdx;
+    if (step < 1) dtLength = ((dtLength + 1) / step + 0.5) >>> 0;
     for (let c = 0; c < this.numChannels; c++) {
       const channelData = outputChannels[c];
       const chLen = channelData.length;

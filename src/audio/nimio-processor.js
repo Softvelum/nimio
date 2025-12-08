@@ -3,6 +3,7 @@ import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
 import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
+import { WsolaProcessor } from "@/media/processors/wsola-processor";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {

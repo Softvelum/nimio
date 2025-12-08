@@ -14,7 +14,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = audioFrame.decTimestamp;
+    this._timestamps[writeIdx] = audioFrame.decTimestamp;
+    this._rates[writeIdx] = 1.0;
 
     const format = audioFrame.format.split("-");
     if (format[format.length - 1] === "planar") {
@@ -22,7 +23,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       for (let ch = 0; ch < this.numChannels; ch++) {
         this._copyChannelPlanar(
           audioFrame,
-          this.frames[writeIdx].subarray(offset, offset + this.sampleCount),
+          this._frames[writeIdx].subarray(offset, offset + this.sampleCount),
           ch,
           format[0],
         );
@@ -32,12 +33,12 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       if (this.numChannels === 1) {
         this._copyChannelPlanar(
           audioFrame,
-          this.frames[writeIdx],
+          this._frames[writeIdx],
           0,
           format[0],
         );
       } else {
-        this._copyInterleaved(audioFrame, this.frames[writeIdx], format[0]);
+        this._copyInterleaved(audioFrame, this._frames[writeIdx], format[0]);
       }
     }
 
@@ -58,17 +59,18 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   pushSilence(timestamp) {
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = timestamp;
-    this.frames[writeIdx].fill(0.0);
+    this._timestamps[writeIdx] = timestamp;
+    this._rates[writeIdx] = 1.0;
+    this._frames[writeIdx].fill(0.0);
     this.setWriteIdx(writeIdx + 1);
     return true;
   }
 
   _copyChannelPlanar(audioFrame, target, chIdx, format) {
     if (format === "s16") {
-      audioFrame.copyTo(this.tempI16, { layout: "planar", planeIndex: chIdx });
+      audioFrame.copyTo(this._tempI16, { layout: "planar", planeIndex: chIdx });
       for (let i = 0; i < this.sampleCount; i++) {
-        target[i] = this.tempI16[i] / 32768;
+        target[i] = this._tempI16[i] / 32768;
       }
     } else {
       audioFrame.copyTo(target, { layout: "planar", planeIndex: chIdx });
@@ -77,7 +79,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _copyInterleaved(audioFrame, target, format) {
     const isInt16 = format === "s16";
-    let temp = isInt16 ? this.tempI16 : this.tempF32;
+    let temp = isInt16 ? this._tempI16 : this._tempF32;
     audioFrame.copyTo(temp, { layout: "interleaved", planeIndex: 0 });
 
     let channelOffset = 0;
