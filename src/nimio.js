@@ -213,7 +213,8 @@ export default class Nimio {
     this._resetPlaybackTimstamps();
 
     this._ui.drawPlay();
-    this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
+    const { clientWidth, clientHeight } = this._ctx.canvas;
+    this._ctx.clearRect(0, 0, clientWidth, clientHeight);
     this._pauseTimeoutId = null;
 
     this._vuMeterSvc.stop();
@@ -284,13 +285,8 @@ export default class Nimio {
       return true;
     }
 
-    this._ctx.drawImage(
-      frame,
-      0,
-      0,
-      this._ctx.canvas.width,
-      this._ctx.canvas.height,
-    );
+    const { clientWidth, clientHeight } = this._ctx.canvas;
+    this._ctx.drawImage(frame, 0, 0, clientWidth, clientHeight);
     frame.close();
   }
 

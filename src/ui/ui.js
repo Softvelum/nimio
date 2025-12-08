@@ -23,14 +23,11 @@ export class Ui {
     this._baseHeight = opts.height;
 
     this._canvas = document.createElement("canvas");
-    this._updateCanvasSize(this._baseWidth, this._baseHeight);
     this._dpr = window.devicePixelRatio || 1;
+    this._cctx = this._canvas.getContext("2d");
+    this._updateCanvasSize(this._baseWidth, this._baseHeight);
     this._logger.warn("DPR", this._dpr);
 
-    this._cctx = this._canvas.getContext("2d");
-    this._cctx.save();
-    this._cctx.scale(this._dpr, this._dpr);
-    this._cctx.restore();
     Object.assign(this._canvas.style, {
       cursor: "pointer",
       zIndex: 10,
@@ -317,11 +314,15 @@ export class Ui {
   }
 
   _updateCanvasSize(width, height) {
-    // TODO: check if DPR is needed here
-    this._canvas.width = width;
-    this._canvas.height = height;
+    this._dpr = window.devicePixelRatio || 1;
+    const dpr = this._dpr;
     this._canvas.style.width = `${width}px`;
     this._canvas.style.height = `${height}px`;
+    this._canvas.width = Math.round(width * dpr);
+    this._canvas.height = Math.round(height * dpr);
+    if (this._cctx) {
+      this._cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     this._ar = width / height;
   }
 
