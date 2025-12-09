@@ -201,6 +201,7 @@ describe("decoder-video", () => {
     await Promise.resolve();
     expect(isConfigSupportedMock).toHaveBeenCalledTimes(2);
     await Promise.resolve(); // wait for async configure
+    await Promise.resolve();
     expect(configureMock).toHaveBeenCalled();
   });
 
@@ -230,8 +231,8 @@ describe("decoder-video", () => {
       }),
     );
 
-    await Promise.resolve();
-    await Promise.resolve();
+    // wait for 2 isConfigSupported() and configureDecoder to run
+    for (let i = 0; i < 3; i++) await Promise.resolve();
     expect(postMessageMock).toHaveBeenCalledWith({
       type: "decoderError",
       kind: "video",
@@ -325,7 +326,7 @@ describe("decoder-video", () => {
 
   it("emits decoderError message if decoder fails during configure", async () => {
     skipOutput = true;
-    configureMock.mockImplementationOnce(() => {
+    configureMock.mockImplementation(() => {
       throw new Error("Configuration failed");
     });
 
@@ -349,7 +350,7 @@ describe("decoder-video", () => {
       }),
     );
 
-    await Promise.resolve();
+    for (let i = 0; i < 3; i++) await Promise.resolve();
     vi.runAllTimers();
     expect(postMessageMock).toHaveBeenCalledWith({
       type: "decoderError",
