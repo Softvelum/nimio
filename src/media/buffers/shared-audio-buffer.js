@@ -97,13 +97,15 @@ export class SharedAudioBuffer {
   }
 
   getSize() {
-    return this.withState(function(r, w, size) { return size });
+    return this.withState(function (r, w, size) {
+      return size;
+    });
   }
 
   getFrame(idx) {
     if (idx >= this._capacity) idx -= this._capacity;
 
-    return this.withState(function(r, w, size) {
+    return this.withState(function (r, w, size) {
       let dist = idx >= r ? idx - r : this._capacity - r + idx;
       if (dist >= size) return null;
 
@@ -124,7 +126,7 @@ export class SharedAudioBuffer {
         this._rates[idx],
         this._frames[idx],
         idx,
-        size - i - 1
+        size - i - 1,
       );
       if (res === false) break;
 

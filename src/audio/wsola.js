@@ -3,7 +3,7 @@ const WEBAUDIO_BLOCK_SIZE = 128;
 function makeHannWindow(N) {
   let win = new Float32Array(N);
   for (var n = 0; n < N; n++) {
-    win[n] = 0.5 * (1 - Math.cos(2 * Math.PI * n / N));
+    win[n] = 0.5 * (1 - Math.cos((2 * Math.PI * n) / N));
   }
 
   return win;
@@ -52,22 +52,28 @@ function nccScore(ref, view, L) {
 
 class Wsola {
   constructor(opts) {
-
     this.blockSize = opts.blockSize || 1024;
     this.webAudioBlockSize = opts.webAudioBlockSize || 128;
 
     this.hopAnalysis = opts.hopAnalysis || Math.floor(this.blockSize / 2); // Ha
-    this.targetSpeed = (typeof opts.speed === 'number') ? opts.speed : 1.0;
+    this.targetSpeed = typeof opts.speed === "number" ? opts.speed : 1.0;
     this.currentSpeed = this.targetSpeed;
-    this.smoothingFactor = (typeof opts.smoothingFactor === 'number') ? opts.smoothingFactor : 0.02; // 0..1
+    this.smoothingFactor =
+      typeof opts.smoothingFactor === "number" ? opts.smoothingFactor : 0.02; // 0..1
 
     if (this.smoothingFactor < 0) this.smoothingFactor = 0;
     if (this.smoothingFactor > 0.5) this.smoothingFactor = 0.5;
 
-    this.hopSynthesis = Math.max(1, Math.round(this.hopAnalysis / Math.max(0.01, this.currentSpeed)));
+    this.hopSynthesis = Math.max(
+      1,
+      Math.round(this.hopAnalysis / Math.max(0.01, this.currentSpeed)),
+    );
 
     // NCC search
-    this.searchRadius = typeof opts.searchRadius === 'number' ? Math.max(1, Math.floor(opts.searchRadius)) : Math.max(1, Math.floor(0.02 * (opts.sampleRate || sampleRate))); // default 20ms
+    this.searchRadius =
+      typeof opts.searchRadius === "number"
+        ? Math.max(1, Math.floor(opts.searchRadius))
+        : Math.max(1, Math.floor(0.02 * (opts.sampleRate || sampleRate))); // default 20ms
     this.searchCoarseStep = opts.coarseStep || 4;
 
     const marginFrames = 4;
@@ -85,8 +91,9 @@ class Wsola {
     for (let p = 0; p < this.nbOutputs; p++) this._allocOutputPort(p, 1);
 
     this.window = new Float32Array(this.blockSize);
-    for (let n = 0; n < this.blockSize; n++) this.window[n] = 0.5 * (1 - Math.cos((2 * Math.PI * n) / (this.blockSize - 1)));
-
+    for (let n = 0; n < this.blockSize; n++)
+      this.window[n] =
+        0.5 * (1 - Math.cos((2 * Math.PI * n) / (this.blockSize - 1)));
 
     this.frameTmp = new Float32Array(this.blockSize);
     this.overlapRef = new Float32Array(Math.floor(this.hopAnalysis));
@@ -104,23 +111,27 @@ class Wsola {
   _allocInputPort(portIndex, nbChannels) {
     this.inputChannelCounts[portIndex] = nbChannels;
     this.inputRings[portIndex] = new Array(nbChannels);
-    for (let ch = 0; ch < nbChannels; ch++) this.inputRings[portIndex][ch] = new SimpleRingBuffer(this.ringCapacity);
+    for (let ch = 0; ch < nbChannels; ch++)
+      this.inputRings[portIndex][ch] = new SimpleRingBuffer(this.ringCapacity);
   }
 
   _allocOutputPort(portIndex, nbChannels) {
     this.outputChannelCounts[portIndex] = nbChannels;
     this.outputRings[portIndex] = new Array(nbChannels);
-    for (let ch = 0; ch < nbChannels; ch++) this.outputRings[portIndex][ch] = new SimpleRingBuffer(this.ringCapacity);
+    for (let ch = 0; ch < nbChannels; ch++)
+      this.outputRings[portIndex][ch] = new SimpleRingBuffer(this.ringCapacity);
   }
 
   reallocateChannels(inputs, outputs) {
     for (let p = 0; p < this.nbInputs; p++) {
-      const nb = (inputs[p] && inputs[p].length) ? inputs[p].length : 0;
-      if (nb !== this.inputChannelCounts[p]) this._allocInputPort(p, Math.max(1, nb || 1));
+      const nb = inputs[p] && inputs[p].length ? inputs[p].length : 0;
+      if (nb !== this.inputChannelCounts[p])
+        this._allocInputPort(p, Math.max(1, nb || 1));
     }
     for (let p = 0; p < this.nbOutputs; p++) {
-      const nb = (outputs[p] && outputs[p].length) ? outputs[p].length : 0;
-      if (nb !== this.outputChannelCounts[p]) this._allocOutputPort(p, Math.max(1, nb || 1));
+      const nb = outputs[p] && outputs[p].length ? outputs[p].length : 0;
+      if (nb !== this.outputChannelCounts[p])
+        this._allocOutputPort(p, Math.max(1, nb || 1));
     }
   }
 
@@ -160,8 +171,12 @@ class Wsola {
     const available = primaryIn.availableRead();
     if (available < this.blockSize + this.hopAnalysis) return false;
 
-    this.currentSpeed += (this.targetSpeed - this.currentSpeed) * this.smoothingFactor;
-    this.hopSynthesis = Math.max(1, Math.round(this.hopAnalysis / Math.max(0.01, this.currentSpeed)));
+    this.currentSpeed +=
+      (this.targetSpeed - this.currentSpeed) * this.smoothingFactor;
+    this.hopSynthesis = Math.max(
+      1,
+      Math.round(this.hopAnalysis / Math.max(0.01, this.currentSpeed)),
+    );
 
     const L = this.hopSynthesis;
 
@@ -196,11 +211,17 @@ class Wsola {
       const view = primaryIn.viewContiguous(pos, L);
       if (view) {
         const s = this._nccScore(this.overlapRef, view, L);
-        if (s > bestScore) { bestScore = s; bestPos = pos; }
+        if (s > bestScore) {
+          bestScore = s;
+          bestPos = pos;
+        }
       } else {
         primaryIn.copyInto(pos, this.overlapCand, L);
         const s = this._nccScore(this.overlapRef, this.overlapCand, L);
-        if (s > bestScore) { bestScore = s; bestPos = pos; }
+        if (s > bestScore) {
+          bestScore = s;
+          bestPos = pos;
+        }
       }
     }
 
@@ -211,11 +232,17 @@ class Wsola {
       const view = primaryIn.viewContiguous(pos, L);
       if (view) {
         const s = this._nccScore(this.overlapRef, view, L);
-        if (s > bestScore) { bestScore = s; bestPos = pos; }
+        if (s > bestScore) {
+          bestScore = s;
+          bestPos = pos;
+        }
       } else {
         primaryIn.copyInto(pos, this.overlapCand, L);
         const s = this._nccScore(this.overlapRef, this.overlapCand, L);
-        if (s > bestScore) { bestScore = s; bestPos = pos; }
+        if (s > bestScore) {
+          bestScore = s;
+          bestPos = pos;
+        }
       }
     }
 
@@ -253,7 +280,7 @@ class Wsola {
 
         // Build debug object and transfer buffers
         const debugObj = {
-          type: 'wsola_ncc_debug',
+          type: "wsola_ncc_debug",
           timestamp: currentTime ?? Date.now(),
           currentSpeed: this.currentSpeed,
           targetSpeed: this.targetSpeed,
@@ -262,7 +289,7 @@ class Wsola {
           analysisPtr: this.analysisPtr,
           synthesisPtr: this.synthesisPtr,
           refSamples: sendRef.buffer,
-          candSamples: sendCand.buffer
+          candSamples: sendCand.buffer,
         };
       }
     }
@@ -274,7 +301,13 @@ class Wsola {
     this.reallocateChannels(inputs, outputs);
 
     // compute how many WSOLA frames heuristic
-    const framesToAttempt = Math.max(1, Math.floor((this.webAudioBlockSize * (this.blockSize / Math.max(1, this.hopSynthesis))) || 1));
+    const framesToAttempt = Math.max(
+      1,
+      Math.floor(
+        this.webAudioBlockSize *
+          (this.blockSize / Math.max(1, this.hopSynthesis)) || 1,
+      ),
+    );
 
     for (let i = 0; i < framesToAttempt; i++) {
       if (!this._produceWSOLAFrame()) break;

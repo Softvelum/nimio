@@ -3,81 +3,106 @@ import { BaseProcessor } from "./base-processor";
 export class WsolaProcessor extends BaseProcessor {
   constructor(channels, sampleCount, logger) {
     super(logger);
-    this._prevBlocks = new Array(channels);
+
+    this._channels = channels;
     this._interBlocks = new Array(channels);
     for (let i = 0; i < channels; i++) {
-      // TODO: increase buffers size for slow down scenario
-      this._prevBlocks[i] = new Float32Array(sampleCount);
       this._interBlocks[i] = new Float32Array(sampleCount);
     }
 
     this._N = sampleCount;
     this._Ha = this.N >> 1; // 512 (analysis hop)
+    this._minHs = (1 + this._N / 3) >>> 0;
 
-    this._window = this._makeHannWindow(this._N);
+    this._hw = this._makeHannWindow(this._N);
+  }
+
+  _applyOverlapAddTo(frame, oFrame, hs) {
+    let chShift = 0;
+    for (let ch = 0; ch < this._channels; ch++) {
+      let iBlock = this._interBlocks[ch];
+      iBlock.set(frame.subarray(chShift + this._Ha), 0);
+      iBlock.set(oFrame.subarray(chShift, chShift + this._Ha), this._Ha);
+
+      let olaOff = chShift + hs;
+      for (let i = 0; i < hs; i++) {
+        frame[olaOff + i] =
+          (frame[olaOff + i] * this._hw[hs + i] + iBlock[i] * this._hw[i]) /
+          (this._hw[hs + i] + this._hw[i]);
+      }
+      olaOff += hs;
+
+      let trans = this._N - 2 * hs;
+      for (let i = 0; i < trans; i++) {
+        oFrame[chShift + i] =
+          (oFrame[chShift + i] * this._hw[i] +
+            frame[olaOff + i] * this._hw[2 * hs + i] +
+            iBlock[hs + i] * this._hw[hs + i]) /
+          (this._hw[i] + this._hw[hs + i] + this._hw[2 * hs + i]);
+      }
+      for (let i = 0; i < hs; i++) {
+        oFrame[chShift + trans + i] =
+          (oFrame[chShift + trans + i] * this._hw[trans + i] +
+            iBlock[hs + trans + i] * this._hw[hs + trans + i]) /
+          (this._hw[trans + i] + this._hw[hs + trans + i]);
+      }
+      chShift += this._N;
+    }
   }
 
   process(readParams) {
-    // Algorithm:
-    // Compare rates. If params.rate is 1, then check frame's rate. 
-    // If it's also 1 and there's no previous block to sum, skip processing.
-    // If frame's rate isn't 1, replace param.rate with the frame's rate.
-    // If params.rate > 1, check frame's rate
+    if (readParams.rate <= 1) return true;
 
-    let readFrame = {
-      data: this._bufferIface._frames[readParams.startIdx],
-      rate: this._bufferIface._rates[readParams.startIdx],
+    let hs = (this._Ha / readParams.rate + 0.5) >>> 0; // synthesis hop
+    if (hs < this._minHs) {
+      hs = this._minHs;
+      readParams.rate = this._Ha / hs;
+    }
+
+    let startFrame = {
+      data: this._bufferIface.frames[readParams.startIdx],
+      rate: this._bufferIface.rates[readParams.startIdx],
     };
-
-    if (readParams.rate > 1) {
-      return processFastForward();
+    // skip processing if the current frame is already processed or not
+    // suitable for overlapping
+    if (
+      readParams.endIdx === readParams.startIdx &&
+      (startFrame.rate !== 1 || readParams.startOffset > hs)
+    ) {
+      readParams.rate = 1; // use already specified frame's rate
+      return true;
     }
 
-    applyWsola()
-
-    this._bufferIface.getFrame()
-
-    this._Hs = Math.floor(this._Ha / readParams.step); // synthesis hop (integer)
-    if (this._Hs < 1) this._Hs = 1;
-
-    // 
-    for (let i = this._N / 2; i < this._N; i++) {
-
+    let nextFrame = this._bufferIface.getFrame(readParams.endIdx + 1);
+    if (!nextFrame) {
+      // No second frame for wsola algorithm. This isn't generally possible,
+      // but we handle it just in case.
+      readParams.rate = 1;
+      return true;
     }
-    this._bufferIface.frames[readParams.startIdx]
 
-    // this._norm = this._computeNormalization();
+    if (readParams.startIdx === readParams.endIdx) {
+      this._applyOverlapAddTo(startFrame.data, nextFrame.data, hs);
+      startFrame.rate = readParams.rate;
+    } else {
+      let endFrame = {
+        data: this._bufferIface.frames[readParams.endIdx],
+        rate: this._bufferIface.rates[readParams.endIdx],
+      };
+      this._applyOverlapAddTo(endFrame.data, nextFrame.data, hs);
+      endFrame.rate = readParams.rate;
+    }
 
-
+    readParams.rate = 1;
     return true;
-  }
-
-  _computeNormalization() {
-    const N = this._N;
-    const Hs = this._Hs;
-    const K = Math.ceil(N / Hs) + 2;
-    const norm = new Float32Array(N);
-
-    for (let k = -K; k <= K; k++) {
-      const shift = k * Hs;
-      for (let i = 0; i < N; i++) {
-        const src = i - shift;
-        if (src >= 0 && src < N) norm[i] += this._window[src];
-      }
-    }
-
-    // avoid tiny values
-    for (let i = 0; i < N; i++) if (norm[i] < 1e-12) norm[i] = 1.0;
-    return norm;
   }
 
   _makeHannWindow(N) {
     let win = new Float32Array(N);
     for (var n = 0; n < N; n++) {
-      win[n] = 0.5 * (1 - Math.cos(2 * Math.PI * n / N - 1));
+      win[n] = 0.5 * (1 - Math.cos((2 * Math.PI * n) / N - 1));
     }
-  
+
     return win;
   }
-
 }

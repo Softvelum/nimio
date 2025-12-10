@@ -138,9 +138,8 @@ describe("SharedAudioBuffer", () => {
       sab.setWriteIdx(i);
       if (i % 2 === 0) sab.setReadIdx(i / 2);
       const size = sab.getSize();
-      expect(size).toBe(
-        (sab.getWriteIdx() + sab.bufferCapacity - sab.getReadIdx()) % sab.bufferCapacity,
-      );
+      const cap = sab.bufferCapacity;
+      expect(size).toBe((sab.getWriteIdx() + cap - sab.getReadIdx()) % cap);
     }
   });
 

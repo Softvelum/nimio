@@ -15,4 +15,3 @@ export class BaseProcessor {
     this._bufferIface = null;
   }
 }
-  

@@ -54,7 +54,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       );
       this._audioBuffer.addPreprocessor(
         new WsolaProcessor(this._channelCount, this._sampleCount, this._logger),
-      )
+      );
     }
 
     this._speed = 1.0;
@@ -79,7 +79,12 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._insertSilence(out, chCnt, sampleCount);
     } else {
       let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
-      this._audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, this._speed);
+      sampleCount = this._audioBuffer.read(
+        curTsUs * 1000,
+        incTsUs * 1000,
+        out,
+        this._speed,
+      );
     }
 
     this._latencyCtrl.incCurrentAudioSamples(sampleCount);
