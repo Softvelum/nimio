@@ -184,7 +184,12 @@ describe("decoder-video", () => {
       new MessageEvent("message", {
         data: {
           type: "config",
-          config: { codec: "avc1.42e01e", width: 640, height: 480 },
+          config: {
+            codec: "avc1.42e01e",
+            width: 640,
+            height: 480,
+            hardwareAcceleration: true,
+          },
         },
       }),
     );
@@ -217,7 +222,12 @@ describe("decoder-video", () => {
       new MessageEvent("message", {
         data: {
           type: "config",
-          config: { codec: "bogus", width: 1, height: 1 },
+          config: {
+            codec: "bogus",
+            width: 1,
+            height: 1,
+            hardwareAcceleration: true,
+          },
         },
       }),
     );
@@ -336,7 +346,12 @@ describe("decoder-video", () => {
       new MessageEvent("message", {
         data: {
           type: "config",
-          config: { codec: "avc1.42e01e", width: 640, height: 480 },
+          config: {
+            codec: "avc1.42e01e",
+            width: 640,
+            height: 480,
+            hardwareAcceleration: true,
+          },
         },
       }),
     );
