@@ -55,7 +55,9 @@ async function configureDecoder(params) {
   }
 
   try {
-    console.log(`configureDecoder pre-configure, codec=${params.codec}, accel=${params.hardwareAcceleration}`);
+    console.log(
+      `configureDecoder pre-configure, codec=${params.codec}, accel=${params.hardwareAcceleration}`,
+    );
     videoDecoder.configure(params);
     console.log("configureDecoder success");
   } catch (error) {
@@ -107,7 +109,9 @@ self.addEventListener("message", async function (e) {
       }
 
       support = await VideoDecoder.isConfigSupported(params);
-      console.log(`First config support check ${support.support}, ${params.hardwareAcceleration}`);
+      console.log(
+        `First config support check ${support.support}, ${params.hardwareAcceleration}`,
+      );
       if (!support.supported) await fallbackToSoftwareSupport(params);
       await configureDecoder(params);
       break;
