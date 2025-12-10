@@ -54,18 +54,17 @@ async function configureDecoder(params) {
     return handleDecoderError(`Video codec not supported: ${params.codec}`);
   }
 
+  console.log(
+    `configureDecoder codec=${params.codec}, accel=${params.hardwareAcceleration}`,
+  );
+
   try {
-    console.log(
-      `configureDecoder pre-configure, codec=${params.codec}, accel=${params.hardwareAcceleration}`,
-    );
     videoDecoder.configure(params);
-    console.log("configureDecoder success");
   } catch (error) {
-    console.log("configureDecoder error");
     support.supported = false;
+    console.warn("configureDecoder exception raised");
     if (params.hardwareAcceleration === "prefer-hardware") {
       // last ditch attempt
-      console.log("configureDecoder try software support");
       await fallbackToSoftwareSupport(params);
       return await configureDecoder(params);
     }
@@ -102,16 +101,15 @@ self.addEventListener("message", async function (e) {
         codedWidth: config.width,
         codedHeight: config.height,
         // optimizeForLatency: true,
-        // hardwareAcceleration: "prefer-hardware",
       };
+      if (config.hardwareAcceleration) {
+        params.hardwareAcceleration = "prefer-hardware";
+      }
       if (e.data.codecData) {
         params.description = e.data.codecData;
       }
 
       support = await VideoDecoder.isConfigSupported(params);
-      console.log(
-        `First config support check ${support.supported}, ${params.hardwareAcceleration}`,
-      );
       if (!support.supported) await fallbackToSoftwareSupport(params);
       await configureDecoder(params);
       break;

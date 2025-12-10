@@ -20,6 +20,7 @@ export const NimioTransport = {
       return;
     }
 
+    data.config.hardwareAcceleration = this._config.hardwareAcceleration;
     if (this._isNextRenditionTrack(data.trackId)) {
       return this._createNextRenditionFlow("video", data);
     }
