@@ -102,7 +102,7 @@ self.addEventListener("message", async function (e) {
         codedWidth: config.width,
         codedHeight: config.height,
         // optimizeForLatency: true,
-        hardwareAcceleration: "prefer-hardware",
+        // hardwareAcceleration: "prefer-hardware",
       };
       if (e.data.codecData) {
         params.description = e.data.codecData;
@@ -110,7 +110,7 @@ self.addEventListener("message", async function (e) {
 
       support = await VideoDecoder.isConfigSupported(params);
       console.log(
-        `First config support check ${support.support}, ${params.hardwareAcceleration}`,
+        `First config support check ${support.supported}, ${params.hardwareAcceleration}`,
       );
       if (!support.supported) await fallbackToSoftwareSupport(params);
       await configureDecoder(params);
