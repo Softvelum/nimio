@@ -24,6 +24,7 @@ const DEFAULTS = {
   workletLogs: false,
   fullscreen: false,
   dropZeroDurationFrames: false,
+  hardwareAcceleration: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
