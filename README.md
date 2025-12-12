@@ -31,9 +31,23 @@ Read the [first beta release announcement](https://softvelum.com/2025/05/introdu
 
 ## Quick Start
 
+```html
+<div id="player"></div>
+<script type="module">
+  import Nimio from "/src/nimio.js";
+
+  const nimio = new Nimio({
+    streamUrl: "wss://example.com/stream",
+    container: "#player",
+  });
+</script>
+```
+
+## Full Configuration Example
+
 ```javascript
 nimio = new Nimio({
-  streamUrl: "ws://example.com/stream", //SLDP stream URL
+  streamUrl: "wss://example.com/stream", //SLDP stream URL
   container: "#player", // CSS selector or HTMLElement
   //optional parameters:
   width: 476,
@@ -47,6 +61,7 @@ nimio = new Nimio({
   videoOnly: false, // Video only playback
   audioOnly: false, // Audio only playback
   muted: true, // Player is muted on start
+  hardwareAcceleration: false, // Request hardware decoder; falls back to software if unsupported
   adaptiveBitrate: {
     initialRendition: "480p", // Default rendition which the player will set on start
     maxRendition: "1080p", // Maximum rendition that the player will set automatically
