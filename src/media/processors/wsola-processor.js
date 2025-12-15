@@ -11,7 +11,7 @@ export class WsolaProcessor extends BaseProcessor {
     }
 
     this._N = sampleCount;
-    this._Ha = this.N >> 1; // 512 (analysis hop)
+    this._Ha = this._N >> 1; // 512 (analysis hop)
     this._minHs = (1 + this._N / 3) >>> 0;
 
     this._hw = this._makeHannWindow(this._N);
@@ -21,7 +21,7 @@ export class WsolaProcessor extends BaseProcessor {
     let chShift = 0;
     for (let ch = 0; ch < this._channels; ch++) {
       let iBlock = this._interBlocks[ch];
-      iBlock.set(frame.subarray(chShift + this._Ha), 0);
+      iBlock.set(frame.subarray(chShift + this._Ha, chShift + this._N), 0);
       iBlock.set(oFrame.subarray(chShift, chShift + this._Ha), this._Ha);
 
       let olaOff = chShift + hs;
@@ -54,20 +54,16 @@ export class WsolaProcessor extends BaseProcessor {
     if (readParams.rate <= 1) return true;
 
     let hs = (this._Ha / readParams.rate + 0.5) >>> 0; // synthesis hop
-    if (hs < this._minHs) {
-      hs = this._minHs;
-      readParams.rate = this._Ha / hs;
-    }
+    if (hs < this._minHs) hs = this._minHs;
+    readParams.rate = this._Ha / hs;
 
-    let startFrame = {
-      data: this._bufferIface.frames[readParams.startIdx],
-      rate: this._bufferIface.rates[readParams.startIdx],
-    };
+    let startFrame = { data: this._bufferIface.frames[readParams.startIdx] };
+    let startFrameRate = this._bufferIface.rates[readParams.startIdx];
     // skip processing if the current frame is already processed or not
     // suitable for overlapping
     if (
       readParams.endIdx === readParams.startIdx &&
-      (startFrame.rate !== 1 || readParams.startOffset > hs)
+      (startFrameRate !== 1 || readParams.startOffset > hs)
     ) {
       readParams.rate = 1; // use already specified frame's rate
       return true;
@@ -81,16 +77,24 @@ export class WsolaProcessor extends BaseProcessor {
       return true;
     }
 
+    let sCount = (this._N / readParams.rate + 0.5) >>> 0;
     if (readParams.startIdx === readParams.endIdx) {
       this._applyOverlapAddTo(startFrame.data, nextFrame.data, hs);
-      startFrame.rate = readParams.rate;
+      this._bufferIface.rates[readParams.startIdx] = readParams.rate;
+      readParams.startCount = readParams.endCount = sCount;
+      readParams.startOffset = this._bufferIface.calcSamplePos(
+        readParams.startTsNs,
+        readParams.sfStartTsNs,
+        readParams.startCount,
+      );
+      readParams.endOffset = readParams.startOffset + readParams.outLength;
     } else {
-      let endFrame = {
-        data: this._bufferIface.frames[readParams.endIdx],
-        rate: this._bufferIface.rates[readParams.endIdx],
-      };
+      let endFrame = { data: this._bufferIface.frames[readParams.endIdx] };
       this._applyOverlapAddTo(endFrame.data, nextFrame.data, hs);
-      endFrame.rate = readParams.rate;
+      this._bufferIface.rates[readParams.endIdx] = readParams.rate;
+      readParams.endCount = sCount;
+      let rest = readParams.startCount - readParams.startOffset;
+      readParams.endOffset = readParams.outLength - rest;
     }
 
     readParams.rate = 1;

@@ -8,7 +8,7 @@ export class SharedAudioBuffer {
     this._capacity = capacity;
     this.sampleRate = sampleRate;
     this.numChannels = numChannels;
-    this.sampleCount = sampleCount;
+    this._sampleCount = sampleCount;
 
     this.frameNs = (sampleCount * 1e9) / sampleRate; // frame duration in nanoseconds
     this.sampleNs = 1e9 / sampleRate; // sample duration in nanoseconds
@@ -93,7 +93,7 @@ export class SharedAudioBuffer {
     const r = this.getReadIdx();
     const w = this.getWriteIdx();
     const size = w >= r ? w - r : this._capacity - r + w;
-    return cb(r, w, size);
+    return cb.call(this, r, w, size);
   }
 
   getSize() {

@@ -2,9 +2,9 @@ import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class WritableAudioBuffer extends SharedAudioBuffer {
   pushFrame(audioFrame) {
-    if (audioFrame.numberOfFrames !== this.sampleCount) {
+    if (audioFrame.numberOfFrames !== this._sampleCount) {
       throw new Error(
-        `audioFrame must contain ${this.sampleCount} samples, got ${audioFrame.numberOfFrames}`,
+        `audioFrame must contain ${this._sampleCount} samples, got ${audioFrame.numberOfFrames}`,
       );
     }
 
@@ -23,11 +23,11 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       for (let ch = 0; ch < this.numChannels; ch++) {
         this._copyChannelPlanar(
           audioFrame,
-          this._frames[writeIdx].subarray(offset, offset + this.sampleCount),
+          this._frames[writeIdx].subarray(offset, offset + this._sampleCount),
           ch,
           format[0],
         );
-        offset += this.sampleCount;
+        offset += this._sampleCount;
       }
     } else {
       if (this.numChannels === 1) {
@@ -69,7 +69,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   _copyChannelPlanar(audioFrame, target, chIdx, format) {
     if (format === "s16") {
       audioFrame.copyTo(this._tempI16, { layout: "planar", planeIndex: chIdx });
-      for (let i = 0; i < this.sampleCount; i++) {
+      for (let i = 0; i < this._sampleCount; i++) {
         target[i] = this._tempI16[i] / 32768;
       }
     } else {
@@ -85,12 +85,12 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     let channelOffset = 0;
     for (let ch = 0; ch < this.numChannels; ch++) {
       let elOffset = ch;
-      for (let i = 0; i < this.sampleCount; i++) {
+      for (let i = 0; i < this._sampleCount; i++) {
         let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset];
         target[channelOffset + i] = val;
         elOffset += this.numChannels;
       }
-      channelOffset += this.sampleCount;
+      channelOffset += this._sampleCount;
     }
   }
 }

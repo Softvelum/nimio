@@ -68,7 +68,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       return false; // stop processing
     }
 
-    const sampleCount = (out[0].length * this._speed + 0.5) >>> 0;
+    let sampleCount = (out[0].length * this._speed + 0.5) >>> 0;
     if (this._stateManager.isPaused()) {
       this._insertSilence(out, chCnt, sampleCount);
       return true;
