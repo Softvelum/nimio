@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 coverage/*
+ssl/*.key
+ssl/*.crt
 
 # Editor directories and files
 .vscode/*

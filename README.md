@@ -83,8 +83,8 @@ nimio.play();
 
 ## Cross‑Origin Isolation
 
-Nimio uses features (e.g. `SharedArrayBuffer`) that require a fully isolated browsing context.  
-To enable this, your server must send both the **Cross‑Origin‑Opener‑Policy** and **Cross‑Origin‑Embedder‑Policy** headers on any page or asset that loads the player.
+Nimio tries to use `SharedArrayBuffer` for zero‑copy state/audio exchange, but now falls back to a message‑based path when it is unavailable.  
+For best latency you should still enable a fully isolated browsing context by sending both the **Cross‑Origin‑Opener‑Policy** and **Cross‑Origin‑Embedder‑Policy** headers on any page or asset that loads the player.
 
 Add these two headers:
 

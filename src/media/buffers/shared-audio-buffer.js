@@ -1,3 +1,5 @@
+import { createSharedBuffer, isSharedBuffer } from "@/shared/shared-buffer";
+
 export class SharedAudioBuffer {
   static HEADER_SIZE = 2; // writeIdx, readIdx (Int32 each)
   static HEADER_BYTES = this.HEADER_SIZE * Int32Array.BYTES_PER_ELEMENT;
@@ -16,6 +18,8 @@ export class SharedAudioBuffer {
     this.frameBytes = this.frameSize * Float32Array.BYTES_PER_ELEMENT;
 
     this.sab = sharedBuffer;
+    this._useAtomics =
+      typeof Atomics !== "undefined" && isSharedBuffer(sharedBuffer);
     this.header = new Int32Array(
       sharedBuffer,
       0,
@@ -44,7 +48,7 @@ export class SharedAudioBuffer {
     const tempSize =
       numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
       numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
-    const sharedBuffer = new SharedArrayBuffer(
+    const sharedBuffer = createSharedBuffer(
       SharedAudioBuffer.HEADER_BYTES + frameSize * capacity + tempSize,
     );
 
@@ -111,17 +115,21 @@ export class SharedAudioBuffer {
   }
 
   get isShareable() {
-    return true;
+    return this._useAtomics;
   }
 
   _getIdx(idx) {
-    return Atomics.load(this.header, idx);
+    return this._useAtomics ? Atomics.load(this.header, idx) : this.header[idx];
   }
 
   _setIdx(idx, value) {
     if (value >= this.capacity) {
       value -= this.capacity;
     }
-    Atomics.store(this.header, idx, value);
+    if (this._useAtomics) {
+      Atomics.store(this.header, idx, value);
+    } else {
+      this.header[idx] = value;
+    }
   }
 }
