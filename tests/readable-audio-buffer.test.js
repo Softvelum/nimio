@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
+import { createSharedBuffer } from "@/shared/shared-buffer";
 
 function createTestBuffer(options = {}) {
   const {
@@ -15,9 +16,7 @@ function createTestBuffer(options = {}) {
   const tempSize =
     numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
     numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
-  const sharedBuffer = new SharedArrayBuffer(
-    8 + frameSize * capacity + tempSize,
-  );
+  const sharedBuffer = createSharedBuffer(8 + frameSize * capacity + tempSize);
 
   return new ReadableAudioBuffer(
     sharedBuffer,

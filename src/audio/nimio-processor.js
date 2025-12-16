@@ -1,5 +1,6 @@
 import { StateManager } from "@/state-manager";
 import { ReadableAudioBuffer } from "@/media/buffers/readable-audio-buffer";
+import { WritableAudioBuffer } from "@/media/buffers/writable-audio-buffer";
 import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
@@ -16,7 +17,10 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this.port,
     );
 
-    this._stateManager = new StateManager(options.processorOptions.stateSab);
+    this._stateManager = new StateManager(options.processorOptions.stateSab, {
+      shared: options.processorOptions.stateSabShared,
+      port: options.processorOptions.stateSabShared ? null : this.port,
+    });
     this._sampleRate = options.processorOptions.sampleRate;
     this._channelCount = options.outputChannelCount[0];
     this._fSampleCount = options.processorOptions.sampleCount;
@@ -44,13 +48,36 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 
     if (!this._idle) {
-      this._audioBuffer = new ReadableAudioBuffer(
-        options.processorOptions.audioSab,
-        options.processorOptions.capacity,
-        this._sampleRate,
-        this._channelCount,
-        this._fSampleCount,
-      );
+      this._useSharedAudioSab = options.processorOptions.audioSabShared !== false;
+      this._portFramesReceived = 0;
+      if (this._useSharedAudioSab && options.processorOptions.audioSab) {
+        this._audioBuffer = new ReadableAudioBuffer(
+          options.processorOptions.audioSab,
+          options.processorOptions.capacity,
+          this._sampleRate,
+          this._channelCount,
+          this._fSampleCount,
+        );
+      } else {
+        this._audioBufferWriter = WritableAudioBuffer.allocate(
+          options.processorOptions.bufferSec,
+          this._sampleRate,
+          this._channelCount,
+          this._fSampleCount,
+        );
+        this._audioBuffer = new ReadableAudioBuffer(
+          this._audioBufferWriter.buffer,
+          this._audioBufferWriter.bufferCapacity,
+          this._sampleRate,
+          this._channelCount,
+          this._fSampleCount,
+        );
+        this.port.addEventListener(
+          "message",
+          this._handlePortMessage.bind(this),
+        );
+        if (this.port.start) this.port.start();
+      }
     }
 
     this._speed = 1.0;
@@ -75,7 +102,24 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._insertSilence(out, chCnt, sampleCount);
     } else {
       let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
-      this._audioBuffer.read(curTsUs * 1000, incTsUs * 1000, out, this._speed);
+      const available = this._audioBuffer.getSize
+        ? this._audioBuffer.getSize()
+        : undefined;
+      const read = this._audioBuffer.read(
+        curTsUs * 1000,
+        incTsUs * 1000,
+        out,
+        this._speed,
+      );
+      if ((available === 0 || read === 0) && this._portFramesReceived < 3) {
+        this._logger.debug(
+          "Audio read empty",
+          available,
+          read,
+          curTsUs,
+          incTsUs,
+        );
+      }
     }
 
     return true;
@@ -99,6 +143,33 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     if (this._speed === speed) return;
     this._speed = speed;
     this._logger.debug(`speed ${speed}`, availableMs, this._targetLatencyMs);
+  }
+
+  _handlePortMessage(event) {
+    const msg = event.data;
+    if (!msg || msg.type === "log" || !this._audioBufferWriter) return;
+
+    try {
+      if (msg.type === "audio:pcm" && msg.pcm) {
+        const pcm = msg.pcm instanceof Float32Array ? msg.pcm : new Float32Array(msg.pcm);
+        this._audioBufferWriter.pushPcm(msg.timestamp || 0, pcm);
+        this._portFramesReceived++;
+        if (this._portFramesReceived <= 3) {
+          this._logger.debug(
+            "Audio PCM via port",
+            pcm.length,
+            this._audioBufferWriter.sampleRate,
+            `${this._audioBufferWriter.numChannels}ch`,
+          );
+        }
+      } else if (msg.type === "audio:silence") {
+        this._audioBufferWriter.pushSilence(msg.timestamp || 0);
+      } else if (msg.type === "audio:reset") {
+        this._audioBufferWriter.reset();
+      }
+    } catch (err) {
+      this._logger.error("Audio worklet port message failed", msg.type, err);
+    }
   }
 }
 
