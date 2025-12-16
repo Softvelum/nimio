@@ -121,7 +121,10 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
     if (this._pendingMessages.length) {
       for (let i = 0; i < this._pendingMessages.length; i++) {
-        this._postMessage(this._pendingMessages[i].data, this._pendingMessages[i].transfer);
+        this._postMessage(
+          this._pendingMessages[i].data,
+          this._pendingMessages[i].transfer,
+        );
       }
       this._pendingMessages.length = 0;
     }

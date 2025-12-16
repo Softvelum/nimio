@@ -11,8 +11,7 @@ export class StateManager {
     /** @private */
     this._flags = new Uint32Array(sab);
     this._shared =
-      options.shared ??
-      (typeof Atomics !== "undefined" && isSharedBuffer(sab));
+      options.shared ?? (typeof Atomics !== "undefined" && isSharedBuffer(sab));
     this._suppressNotify = false;
     this._port = null;
     this._onPortMessage = this._handlePortMessage.bind(this);
@@ -193,8 +192,7 @@ export class StateManager {
 
       // Only update if the val hasn't changed
       if (
-        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) ===
-          high &&
+        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
         Atomics.compareExchange(this._flags, idx, low, newLow) === low
       ) {
         break;
@@ -246,8 +244,7 @@ export class StateManager {
       }
 
       if (
-        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) ===
-          high &&
+        Atomics.compareExchange(this._flags, idx + 1, high, newHigh) === high &&
         Atomics.compareExchange(this._flags, idx, low, newLow) === low
       ) {
         return low + high * U32POWER;

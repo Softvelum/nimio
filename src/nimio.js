@@ -27,10 +27,7 @@ import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
-import {
-  createSharedBuffer,
-  isSharedBuffer,
-} from "./shared/shared-buffer";
+import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -63,9 +60,7 @@ export default class Nimio {
       total += Array.isArray(val) ? val.length : 1;
       return total;
     }, 0);
-    this._sab = createSharedBuffer(
-      Uint32Array.BYTES_PER_ELEMENT * idxCount,
-    );
+    this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     this._sabShared = isSharedBuffer(this._sab);
     this._state = new StateManager(this._sab, { shared: this._sabShared });
     this._state.stop();
@@ -487,7 +482,9 @@ export default class Nimio {
       this._audioContext = this._audioCtxProvider.get();
 
       if (!this._audioContext) {
-        this._logger.error("Audio context is not initialized. Can't play audio.");
+        this._logger.error(
+          "Audio context is not initialized. Can't play audio.",
+        );
         this._setNoAudio(true);
         return;
       }
@@ -501,7 +498,9 @@ export default class Nimio {
       }
 
       if (!this._audioContext.audioWorklet) {
-        this._logger.error("AudioWorklet is not supported in this environment.");
+        this._logger.error(
+          "AudioWorklet is not supported in this environment.",
+        );
         this._setNoAudio(true);
         return;
       }

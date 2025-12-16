@@ -48,7 +48,8 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 
     if (!this._idle) {
-      this._useSharedAudioSab = options.processorOptions.audioSabShared !== false;
+      this._useSharedAudioSab =
+        options.processorOptions.audioSabShared !== false;
       this._portFramesReceived = 0;
       if (this._useSharedAudioSab && options.processorOptions.audioSab) {
         this._audioBuffer = new ReadableAudioBuffer(
@@ -151,7 +152,8 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
 
     try {
       if (msg.type === "audio:pcm" && msg.pcm) {
-        const pcm = msg.pcm instanceof Float32Array ? msg.pcm : new Float32Array(msg.pcm);
+        const pcm =
+          msg.pcm instanceof Float32Array ? msg.pcm : new Float32Array(msg.pcm);
         this._audioBufferWriter.pushPcm(msg.timestamp || 0, pcm);
         this._portFramesReceived++;
         if (this._portFramesReceived <= 3) {
