@@ -48,17 +48,15 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
 
     if (!this._idle) {
-      this._useSharedAudioSab =
-        options.processorOptions.audioSabShared !== false;
       this._portFramesReceived = 0;
-      if (this._useSharedAudioSab && options.processorOptions.audioSab) {
-        this._audioBuffer = new ReadableAudioBuffer(
-          options.processorOptions.audioSab,
-          options.processorOptions.capacity,
-          this._sampleRate,
-          this._channelCount,
-          this._fSampleCount,
-        );
+      let audioBufferSource = null;
+      let audioBufferCapacity = null;
+      const hasSharedAudioSab =
+        options.processorOptions.audioSabShared !== false &&
+        options.processorOptions.audioSab;
+      if (hasSharedAudioSab) {
+        audioBufferSource = options.processorOptions.audioSab;
+        audioBufferCapacity = options.processorOptions.capacity;
       } else {
         this._audioBufferWriter = WritableAudioBuffer.allocate(
           options.processorOptions.bufferSec,
@@ -66,19 +64,22 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
           this._channelCount,
           this._fSampleCount,
         );
-        this._audioBuffer = new ReadableAudioBuffer(
-          this._audioBufferWriter.buffer,
-          this._audioBufferWriter.bufferCapacity,
-          this._sampleRate,
-          this._channelCount,
-          this._fSampleCount,
-        );
+        audioBufferSource = this._audioBufferWriter.buffer;
+        audioBufferCapacity = this._audioBufferWriter.bufferCapacity;
         this.port.addEventListener(
           "message",
           this._handlePortMessage.bind(this),
         );
         if (this.port.start) this.port.start();
       }
+
+      this._audioBuffer = new ReadableAudioBuffer(
+        audioBufferSource,
+        audioBufferCapacity,
+        this._sampleRate,
+        this._channelCount,
+        this._fSampleCount,
+      );
     }
 
     this._speed = 1.0;

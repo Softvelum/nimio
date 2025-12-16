@@ -99,6 +99,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   }
 
   pushPcm(timestamp, pcmData) {
+    if (timestamp === null || timestamp === undefined) {
+      throw new Error("timestamp is required for pushPcm");
+    }
     if (!(pcmData instanceof Float32Array)) {
       throw new Error("pcmData must be a Float32Array");
     }
@@ -158,7 +161,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
   }
 
-  _sendFrame(audioFrame) {
+  _sendFrame() {
     // Send a copy of PCM data to the worklet to avoid relying on transferable AudioData in non-COOP/COEP mode.
     let idx = this.getWriteIdx() - 1;
     if (idx < 0) idx += this.capacity;

@@ -278,7 +278,7 @@ export class StateManager {
     } else {
       this._flags[idx] = val >>> 0;
     }
-    if (!silent) this._notify("store32", idx, val);
+    if (!silent && !this._shared) this._notify("store32", idx, val);
   }
 
   _add32(idx, val) {
