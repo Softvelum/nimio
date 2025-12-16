@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import copy from "rollup-plugin-copy";
 
 let version = "unknown";
@@ -10,6 +10,16 @@ try {
 } catch (e) {
   console.error("No git tags found, using version = unknown");
 }
+
+const sslKeyPath = resolve(__dirname, "ssl/dev.key");
+const sslCertPath = resolve(__dirname, "ssl/dev.crt");
+const httpsConfig =
+  existsSync(sslKeyPath) && existsSync(sslCertPath)
+    ? {
+        key: readFileSync(sslKeyPath),
+        cert: readFileSync(sslCertPath),
+      }
+    : false;
 
 export default defineConfig({
   base: "./",
@@ -51,10 +61,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
-    https: {
-      key: readFileSync(resolve(__dirname, "ssl/dev.key")),
-      cert: readFileSync(resolve(__dirname, "ssl/dev.crt")),
-    },
+    https: httpsConfig,
   },
   plugins: [
     // {
