@@ -65,6 +65,7 @@ export class WsolaProcessor extends BaseProcessor {
       readParams.endIdx === readParams.startIdx &&
       (startFrameRate !== 1 || readParams.startOffset > hs)
     ) {
+      this._logger.debug(`Desired rate=${readParams.rate}. Use already specified rate ${readParams.startRate}, ${readParams.endRate}`);
       readParams.rate = 1; // use already specified frame's rate
       return true;
     }
@@ -74,6 +75,7 @@ export class WsolaProcessor extends BaseProcessor {
       // No second frame for wsola algorithm. This isn't generally possible,
       // but we handle it just in case.
       readParams.rate = 1;
+      this._logger.error("Impossible!!");
       return true;
     }
 
@@ -82,19 +84,34 @@ export class WsolaProcessor extends BaseProcessor {
       this._applyOverlapAddTo(startFrame.data, nextFrame.data, hs);
       this._bufferIface.rates[readParams.startIdx] = readParams.rate;
       readParams.startCount = readParams.endCount = sCount;
+      readParams.startRate = readParams.endRate = readParams.rate;
       readParams.startOffset = this._bufferIface.calcSamplePos(
         readParams.startTsNs,
         readParams.sfStartTsNs,
         readParams.startCount,
       );
       readParams.endOffset = readParams.startOffset + readParams.outLength;
+    this._logger.debug(`Apply wsola to cur idx=${readParams.startIdx}, start=${readParams.startOffset}, end=${readParams.endOffset}, cnt = ${readParams.startCount}, rate=${readParams.startRate}`);
     } else {
       let endFrame = { data: this._bufferIface.frames[readParams.endIdx] };
       this._applyOverlapAddTo(endFrame.data, nextFrame.data, hs);
       this._bufferIface.rates[readParams.endIdx] = readParams.rate;
       readParams.endCount = sCount;
+      readParams.endRate = readParams.rate;
       let rest = readParams.startCount - readParams.startOffset;
-      readParams.endOffset = readParams.outLength - rest;
+      if (rest >= readParams.outLength) {
+        readParams.endIdx = readParams.startIdx;
+        readParams.endOffset = readParams.startOffset + readParams.outLength;
+        readParams.endCount = readParams.startCount;
+        readParams.endRate = readParams.startRate;
+        if (rest > readParams.outLength) {
+          // get back to previously skipped buffer
+          this._bufferIface.setReadIdx(readParams.endIdx);
+        }
+      } else {
+        readParams.endOffset = readParams.outLength - rest;
+      }
+      this._logger.debug(`Apply wsola to next sidx=${readParams.startIdx}, eidx=${readParams.endIdx}, start=${readParams.startOffset}, start cnt=${readParams.startCount}, end=${readParams.endOffset}, srate=${readParams.startRate}, erate=${readParams.endRate}`);
     }
 
     readParams.rate = 1;
