@@ -147,67 +147,67 @@ These events are used to send commands and data from UI to `Nimio` player.
   Parameters:  
     isPlayClicked: Boolean  
 
-- `ui:mute-unmute-click`
-  Mute/unmute audio.
-  Parameters:
-    mute: Boolean
+- `ui:mute-unmute-click`  
+  Mute/unmute audio.  
+  Parameters:  
+     mute: Boolean  
 
-- `ui:volume-change`
-  Set audio volume.
-  Parameters:
-    volume: Number // Current volume as integer value in the range from 0 to 100.
+- `ui:volume-change`  
+  Set audio volume.  
+  Parameters:  
+     volume: Number // Current volume as integer value in the range from 0 to 100.  
 
-- `ui:rendition-change`
-  Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.
-  Parameters:
-    rendition: {
-      id: Number,  // An integer number with unique rendition ID.
-      name: String // Rendition name.
-    }
+- `ui:rendition-change`  
+  Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.  
+  Parameters:  
+    rendition: {  
+      id: Number,  // An integer number with unique rendition ID.  
+      name: String // Rendition name.  
+    }  
 
 ### Events sent from player to UI
 
 These events are used to send data from `Nimio` player to UI.
 
-- `nimio:play`
-  Playback started.
-  Parameters:
-    instanceName: String // Player instance name
-    containerId: String  // Container ID, where player is rendered
+- `nimio:play`  
+  Playback started.  
+  Parameters:  
+     instanceName: String // Player instance name  
+     containerId: String  // Container ID, where player is rendered  
 
-- `nimio:muted`
-  Audio muted/unmuted.
-  Parameters:
-    muted: Boolean
+- `nimio:muted`  
+  Audio muted/unmuted.  
+  Parameters:  
+     muted: Boolean  
 
-- `nimio:volume-set`
-  Audio volume set.
-  Parameters:
-    volume: Number // Current volume integer value in the range from 0 to 100.
+- `nimio:volume-set`  
+  Audio volume set.  
+  Parameters:  
+     volume: Number // Current volume integer value in the range from 0 to 100.  
 
-- `nimio:abr`
-  Adaptive bitrate enabled/disabled.
-  Parameters:
-    isAbr: Boolean
+- `nimio:abr`  
+  Adaptive bitrate enabled/disabled.  
+  Parameters:  
+     isAbr: Boolean  
 
-- `nimio:rendition-set`
-  ABR rendition set.
-  Parameters:
-    rendition: {
-      id: Number,  // An integer number with unique rendition ID.
-      name: String // Rendition name.
-    }
+- `nimio:rendition-set`  
+  ABR rendition set.  
+  Parameters:  
+     rendition: {  
+       id: Number,  // An integer number with unique rendition ID.  
+       name: String // Rendition name.  
+     }  
 
-- `nimio:rendition-list`
-  An array of ABR renditions available.
-  Parameters:
-    renditions: [
-      {
-        id: Number,  // An integer number with unique rendition ID.
-        name: String // Rendition name.
-      },
-      ...
-    ]
+- `nimio:rendition-list`  
+  An array of ABR renditions available.  
+  Parameters:  
+     renditions: [  
+       {  
+         id: Number,  // An integer number with unique rendition ID.  
+         name: String // Rendition name.  
+       },  
+       ...  
+     ]  
 
 ## Roadmap
 
