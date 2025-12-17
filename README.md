@@ -142,10 +142,10 @@ These methods are available directly on the `Nimio` class.
 
 These events are used to send commands and data from UI to `Nimio` player.
 
-- `ui:play-pause-click`
-  Start/pause playback.
-  Parameters:
-    isPlayClicked: Boolean
+- `ui:play-pause-click`  
+  Start/pause playback.  
+  Parameters:  
+    isPlayClicked: Boolean  
 
 - `ui:mute-unmute-click`
   Mute/unmute audio.
