@@ -207,7 +207,7 @@ These events are used to send data from `Nimio` player to UI.
         name: String // Rendition name.  
       },  
       ...  
-    ]  
+     ]  
 
 ## Roadmap
 
