@@ -159,11 +159,14 @@ These events are used to send commands and data from UI to `Nimio` player.
 
 - `ui:rendition-change`  
   Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.  
-  Parameters:  
-   rendition: {  
-   id: Number, // An integer number with unique rendition ID.  
-   name: String // Rendition name.  
+  Parameters:
+
+```javascript
+   rendition: {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
    }
+```
 
 ### Events sent from player to UI
 
@@ -192,22 +195,28 @@ These events are used to send data from `Nimio` player to UI.
 
 - `nimio:rendition-set`  
   ABR rendition set.  
-  Parameters:  
-   rendition: {  
-   id: Number, // An integer number with unique rendition ID.  
-   name: String // Rendition name.  
+  Parameters:
+
+  ```javascript
+   rendition: {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
    }
+  ```
 
 - `nimio:rendition-list`  
   An array of ABR renditions available.  
-   Parameters:  
-   renditions: [
-  {
-  id: Number, // An integer number with unique rendition ID.
-  name: String // Rendition name.
-  },
-  ...
-  ]
+   Parameters:
+
+```javascript
+  renditions: [
+   {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
+   },
+   ...
+ ]
+```
 
 ## Roadmap
 
