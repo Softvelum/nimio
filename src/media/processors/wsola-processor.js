@@ -65,7 +65,7 @@ export class WsolaProcessor extends BaseProcessor {
       readParams.endIdx === readParams.startIdx &&
       (startFrameRate !== 1 || readParams.startOffset > hs)
     ) {
-      this._logger.debug(`Desired rate=${readParams.rate}. Use already specified rate ${readParams.startRate}, ${readParams.endRate}`);
+      // this._logger.debug(`Desired rate=${readParams.rate}. Use already specified rate ${readParams.startRate}, ${readParams.endRate}`);
       readParams.rate = 1; // use already specified frame's rate
       return true;
     }
@@ -91,7 +91,7 @@ export class WsolaProcessor extends BaseProcessor {
         readParams.startCount,
       );
       readParams.endOffset = readParams.startOffset + readParams.outLength;
-    this._logger.debug(`Apply wsola to cur idx=${readParams.startIdx}, start=${readParams.startOffset}, end=${readParams.endOffset}, cnt = ${readParams.startCount}, rate=${readParams.startRate}`);
+    // this._logger.debug(`Apply wsola to cur idx=${readParams.startIdx}, start=${readParams.startOffset}, end=${readParams.endOffset}, cnt = ${readParams.startCount}, rate=${readParams.startRate}`);
     } else {
       let endFrame = { data: this._bufferIface.frames[readParams.endIdx] };
       this._applyOverlapAddTo(endFrame.data, nextFrame.data, hs);
@@ -111,7 +111,7 @@ export class WsolaProcessor extends BaseProcessor {
       } else {
         readParams.endOffset = readParams.outLength - rest;
       }
-      this._logger.debug(`Apply wsola to next sidx=${readParams.startIdx}, eidx=${readParams.endIdx}, start=${readParams.startOffset}, start cnt=${readParams.startCount}, end=${readParams.endOffset}, srate=${readParams.startRate}, erate=${readParams.endRate}`);
+      // this._logger.debug(`Apply wsola to next sidx=${readParams.startIdx}, eidx=${readParams.endIdx}, start=${readParams.startOffset}, start cnt=${readParams.startCount}, end=${readParams.endOffset}, srate=${readParams.startRate}, erate=${readParams.endRate}`);
     }
 
     readParams.rate = 1;

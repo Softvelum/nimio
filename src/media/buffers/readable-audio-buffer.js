@@ -13,6 +13,22 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       endIdx: null,
       rate: step,
       outLength: outputChannels[0].length,
+      count: function(useRate) {
+        let res = 0;
+        if (this.startIdx === this.endIdx && this.startIdx !== null) {
+          res = this.endOffset - this.startOffset;
+          if (useRate) res *= this.startRate;
+        } else {
+          if (this.startIdx !== null) {
+            res = this.startCount - this.startOffset;
+            if (useRate) res *= this.startRate;
+          }
+          if (this.endIdx !== null) {
+            res += useRate ? this.endOffset * this.endRate : this.endOffset;
+          }
+        }
+        return res;
+      }
     };
     let endTsNs = startTsNs + readPrms.outLength * this.sampleNs * step;
     let skipIdx = null;
@@ -24,6 +40,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       }
 
 
+      if (startTsNs - fEndTsNs > 0 && startTsNs - fEndTsNs < this.sampleNs - 1) {
+        debugger;
+      }
       if (fStartTsNs - this.sampleNs + 10 < startTsNs && startTsNs < fEndTsNs) {
         readPrms.startIdx = idx;
         readPrms.startTsNs = startTsNs;
@@ -48,6 +67,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.endCount,
         );
 
+        if (readPrms.extend) {
+          console.error(`Set extended offset ${readPrms.endOffset} for idx=${readPrms.endIdx}`);
+        }
+
         if (isNaN(readPrms.endOffset) || readPrms.startIdx === null) {
           debugger;
         }
@@ -57,8 +80,20 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.endOffset = readPrms.endCount;
         }
 
-        if (readPrms.rate >= 1 && readPrms.count < readPrms.outLength) {
-          
+        let readCnt = readPrms.count();
+        if (readPrms.rate >= 1 && readCnt < readPrms.outLength) {
+          let toRead = readPrms.outLength - readCnt;
+          let rest = readPrms.endCount - readPrms.endOffset;
+          if (toRead <= rest) {
+            readPrms.endOffset += toRead;
+            readPrms.endTsNs += toRead * this.sampleNs * readPrms.endRate;
+          } else if (left > 0) {
+            endTsNs += this.sampleNs * (rest * (readPrms.endRate - 1) + toRead);
+            console.error(`Increase endTsNs by ${toRead} samples, rest=${rest}`);
+            readPrms.extend = true;
+            skipIdx = idx;
+            return true;
+          }
         }
 
         return false; // range found, stop iterating
@@ -82,9 +117,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       if (!pRes) return 0;
     }
 
-    if (this.#prevPrms.endOffset !== readPrms.startOffset && this.#prevPrms.endOffset !== undefined) {
-      console.log(`prev frame start idx=${this.#prevPrms.startIdx}, off=${this.#prevPrms.startOffset}, end idx=${this.#prevPrms.endIdx}, off=${this.#prevPrms.endOffset}, startTs=${this.#prevPrms.startTsNs / 1000}, endTs=${this.#prevPrms.endTsNs / 1000}`);
-      console.log(`read start idx=${readPrms.startIdx}, off=${readPrms.startOffset}, end idx=${readPrms.endIdx}, off=${readPrms.endOffset}, startTs = ${startTsNs / 1000}, endTs  = ${endTsNs / 1000}`);
+    if (this.#prevPrms.endOffset !== readPrms.startOffset && this.#prevPrms.endOffset !== undefined && this.#prevPrms.endOffset !== this.#prevPrms.endCount) {
+      console.log(`prev frame start idx=${this.#prevPrms.startIdx}, off=${this.#prevPrms.startOffset}, end idx=${this.#prevPrms.endIdx}, off=${this.#prevPrms.endOffset}, count=${this.#prevPrms.endCount}, startTs=${this.#prevPrms.startTsNs / 1000}, endTs=${this.#prevPrms.endTsNs / 1000}`);
+      console.log(`read start idx=${readPrms.startIdx}, off=${readPrms.startOffset}, end idx=${readPrms.endIdx}, off=${readPrms.endOffset}, count=${readPrms.endCount}, startTs = ${startTsNs / 1000}, endTs  = ${endTsNs / 1000}`);
       console.log(`diff samples = ${(startTsNs - this.#prevPrms.startTsNs) / this.sampleNs}`);
     }
 
@@ -94,6 +129,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     this.#prevPrms.endOffset = readPrms.endOffset;
     this.#prevPrms.startTsNs = startTsNs;
     this.#prevPrms.endTsNs = endTsNs;
+    this.#prevPrms.endCount = readPrms.endCount;
 
     return this._fillOutput(outputChannels, readPrms);
   }
@@ -154,14 +190,14 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       }
     }
     if (processed !== null) {
-      if (processed > 128) {
-        console.warn(`Processed ${processed}, idx=${rParams.startIdx}, start off=${rParams.startOffset}, end off=${rParams.endOffset}, cnt=${rParams.startCount}, rate=${rParams.startRate}`);
-      }
+      // if (processed > 128) {
+      //   console.warn(`Processed ${processed}, idx=${rParams.startIdx}, start off=${rParams.startOffset}, end off=${rParams.endOffset}, cnt=${rParams.startCount}, rate=${rParams.startRate}`);
+      // }
       let endTsNs = this.calcSampleTs(rParams.endOffset, rParams.sfStartTsNs, rParams.startCount);
       let altProcessed = ((endTsNs - rParams.startTsNs) / this.sampleNs + 0.5) >>> 0;
-      if (altProcessed !== processed) {
-        console.warn(`Alt processed = ${altProcessed}, processed = ${processed}`);
-      }
+      // if (altProcessed !== processed) {
+      //   console.warn(`Alt processed = ${altProcessed}, processed = ${processed}`);
+      // }
       return altProcessed;
     }
 
@@ -211,14 +247,14 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       processed += outLength - startCount - endCount;
     }
 
-    if (processed > 128) {
-      console.warn(`Processed ${processed}, idx=${rParams.startIdx}, off=${rParams.startOffset}, end idx=${rParams.endIdx}, off=${rParams.endOffset}, start cnt=${rParams.startCount}, startRate=${rParams.startRate}, endRate=${rParams.endRate}`);
-    }
+    // if (processed > 128) {
+    //   console.warn(`Processed ${processed}, idx=${rParams.startIdx}, off=${rParams.startOffset}, end idx=${rParams.endIdx}, off=${rParams.endOffset}, start cnt=${rParams.startCount}, startRate=${rParams.startRate}, endRate=${rParams.endRate}`);
+    // }
     let endTsNs = this.calcSampleTs(rParams.endOffset, rParams.efStartTsNs, rParams.endCount);
     let altProcessed = ((endTsNs - rParams.startTsNs) / this.sampleNs + 0.5) >>> 0;
-    if (altProcessed !== processed) {
-      console.warn(`Alt 2 processed = ${altProcessed}, processed = ${processed}`);
-    }
+    // if (altProcessed !== processed) {
+    //   console.warn(`Alt 2 processed = ${altProcessed}, processed = ${processed}`);
+    // }
 
     return altProcessed;
   }
