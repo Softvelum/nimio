@@ -243,14 +243,10 @@ isAbr: Boolean;
 
 The following features are planned for upcoming releases:
 
-- Adaptive bitrate
-- Volume control
 - Automatic aspect ratio detection
-- Fullscreen playback
 - Picture-in-Picture (PiP)
 - Latency retention for asynchronous renditions
 - CEA-608 closed captions
-- VU meter
 - VOD playback (DVR support)
 - VOD thumbnail previews
 - SEI timecodes support
