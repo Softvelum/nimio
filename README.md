@@ -144,18 +144,27 @@ These events are used to send commands and data from UI to `Nimio` player.
 
 - `ui:play-pause-click`  
   Start/pause playback.  
-  Parameters:  
-   isPlayClicked: Boolean
+  Parameters:
+
+```javascript
+isPlayClicked: Boolean;
+```
 
 - `ui:mute-unmute-click`  
   Mute/unmute audio.  
-  Parameters:  
-   mute: Boolean
+  Parameters:
+
+```javascript
+mute: Boolean;
+```
 
 - `ui:volume-change`  
   Set audio volume.  
-  Parameters:  
-   volume: Number // Current volume as integer value in the range from 0 to 100.
+  Parameters:
+
+```javascript
+volume: Number; // Current volume as integer value in the range from 0 to 100.
+```
 
 - `ui:rendition-change`  
   Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.  
@@ -174,24 +183,36 @@ These events are used to send data from `Nimio` player to UI.
 
 - `nimio:play`  
   Playback started.  
-  Parameters:  
-   instanceName: String // Player instance name  
-   containerId: String // Container ID, where player is rendered
+  Parameters:
+
+```javascript
+instanceName: String; // Player instance name
+containerId: String; // Container ID, where player is rendered
+```
 
 - `nimio:muted`  
   Audio muted/unmuted.  
-  Parameters:  
-   muted: Boolean
+  Parameters:
+
+```javascript
+muted: Boolean;
+```
 
 - `nimio:volume-set`  
   Audio volume set.  
-  Parameters:  
-   volume: Number // Current volume integer value in the range from 0 to 100.
+  Parameters:
+
+```javascript
+volume: Number; // Current volume integer value in the range from 0 to 100.
+```
 
 - `nimio:abr`  
   Adaptive bitrate enabled/disabled.  
-  Parameters:  
-   isAbr: Boolean
+  Parameters:
+
+```javascript
+isAbr: Boolean;
+```
 
 - `nimio:rendition-set`  
   ABR rendition set.  
