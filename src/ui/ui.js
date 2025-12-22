@@ -11,7 +11,10 @@ export class Ui {
     this._logger = opts.logger;
     this._autoAbr = opts.autoAbr;
 
-    this._container = document.getElementById(container);
+    this._container = container;
+    if (!this._container || !this._container.appendChild) {
+      throw new Error("UI container element is not valid");
+    }
     Object.assign(this._container.style, {
       display: "inline-flex",
       position: "relative",

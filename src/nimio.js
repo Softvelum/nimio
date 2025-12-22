@@ -28,6 +28,7 @@ import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
+import { resolveContainer } from "./shared/container";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -53,6 +54,12 @@ export default class Nimio {
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
+    const { element: containerElem, storageKey } = resolveContainer(
+      this._config.container,
+      { logger: this._logger, fallbackId: this._instName },
+    );
+    this._config.container = containerElem;
+    this._config.volumeId = storageKey;
 
     this._eventBus = EventBus.getInstance(this._instName);
 
