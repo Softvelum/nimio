@@ -8,29 +8,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       throw new Error("output channels size must match numChannels");
     }
 
-    let readPrms = {
-      startIdx: null,
-      endIdx: null,
-      rate: step,
-      outLength: outputChannels[0].length,
-      count: function(useRate) {
-        let res = 0;
-        if (this.startIdx === this.endIdx && this.startIdx !== null) {
-          res = this.endOffset - this.startOffset;
-          if (useRate) res *= this.startRate;
-        } else {
-          if (this.startIdx !== null) {
-            res = this.startCount - this.startOffset;
-            if (useRate) res *= this.startRate;
-          }
-          if (this.endIdx !== null) {
-            res += useRate ? this.endOffset * this.endRate : this.endOffset;
-          }
-        }
-        return res;
-      }
-    };
+    let readPrms = this._createReadParams(outputChannels[0].length, step);
     let endTsNs = startTsNs + readPrms.outLength * this.sampleNs * step;
+    let tsMarg = this.sampleNs - 10;
+
     let skipIdx = null;
     this.forEach((fStartTs, rate, data, idx, left) => {
       let fStartTsNs = fStartTs * 1000;
@@ -39,11 +20,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         return false; // stop iterating, all frames are later than endTsNs
       }
 
-
-      if (startTsNs - fEndTsNs > 0 && startTsNs - fEndTsNs < this.sampleNs - 1) {
-        debugger;
-      }
-      if (fStartTsNs - this.sampleNs + 10 < startTsNs && startTsNs < fEndTsNs) {
+      if (fStartTsNs - tsMarg < startTsNs && startTsNs < fEndTsNs) {
         readPrms.startIdx = idx;
         readPrms.startTsNs = startTsNs;
         readPrms.sfStartTsNs = fStartTsNs;
@@ -55,7 +32,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.startCount,
         );
       }
-      if (fStartTsNs < endTsNs && endTsNs < fEndTsNs + this.sampleNs - 10 ) {
+      if (fStartTsNs < endTsNs && endTsNs < fEndTsNs + tsMarg) {
         readPrms.endIdx = idx;
         readPrms.endTsNs = endTsNs;
         readPrms.efStartTsNs = fStartTsNs;
@@ -301,5 +278,30 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     }
 
     return copiedCount;
+  }
+
+  _createReadParams (outLength, rate) {
+    return {
+      startIdx: null,
+      endIdx: null,
+      rate,
+      outLength,
+      count: function(useRate) {
+        let res = 0;
+        if (this.startIdx === this.endIdx && this.startIdx !== null) {
+          res = this.endOffset - this.startOffset;
+          if (useRate) res *= this.startRate;
+        } else {
+          if (this.startIdx !== null) {
+            res = this.startCount - this.startOffset;
+            if (useRate) res *= this.startRate;
+          }
+          if (this.endIdx !== null) {
+            res += useRate ? this.endOffset * this.endRate : this.endOffset;
+          }
+        }
+        return res;
+      }
+    };
   }
 }
