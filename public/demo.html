@@ -104,16 +104,17 @@
     </style>
     <div class="player_wrp">
       <div id="video"></div>
-      <script type="module">
-        import Nimio from "../src/nimio.js";
+      <script type="module" src="../src/nimio.js"></script>
+      <script>
+        var nimio = null;
         function initNimio() {
-          if (window.nimio) {
-            window.nimio.destroy();
+          if (nimio) {
+            nimio.destroy();
           }
 
           const streamUrl = document.getElementById("streamURL").value;
 
-          window.nimio = new Nimio({
+          nimio = new Nimio({
             streamUrl: streamUrl,
             container: "video",
             autoplay: true,

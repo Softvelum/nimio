@@ -32,10 +32,11 @@ Read the [first beta release announcement](https://softvelum.com/2025/05/introdu
 ## Quick Start
 
 ```html
-<div id="player"></div>
-<script type="module">
-  import Nimio from "/src/nimio.js";
+<script type="module" src="/dist/nimio.js"></script>
 
+<div id="player"></div>
+
+<script>
   const nimio = new Nimio({
     streamUrl: "wss://example.com/stream",
     container: "#player",
