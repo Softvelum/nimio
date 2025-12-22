@@ -647,3 +647,8 @@ Object.assign(Nimio.prototype, NimioTransport);
 Object.assign(Nimio.prototype, NimioRenditions);
 Object.assign(Nimio.prototype, NimioAbr);
 Object.assign(Nimio.prototype, NimioVolume);
+
+if (typeof window !== "undefined") {
+  // Expose globally when used via <script type="module"> without manual assignment
+  window.Nimio = Nimio;
+}
