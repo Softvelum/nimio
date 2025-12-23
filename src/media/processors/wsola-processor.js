@@ -11,65 +11,38 @@ export class WsolaProcessor extends BaseProcessor {
     }
 
     this._N = sampleCount;
-    this._Ha = this._N >> 1; // 512 (analysis hop)
-    this._minHs = (1 + this._N / 3) >>> 0;
-    this._maxDelta = 120;
+    this._Ha = this._N;
+    this._minHs = this._N >> 1; // half of frame
 
-    this._hw = this._makeHannWindow(this._N);
+    // this._hw = this._makeHannWindow(this._N);
   }
 
   _applyOverlapAddTo(frame, oFrame, hs) {
-    let bestPos = this._findBestOlaPos(frame, hs, 256);
-    let bestPos2 = hs;
-    // let delta = bestPos - this._Ha;
-    // if (this._prevDelta !== undefined) {
-    //   delta = 0.6 * this._prevDelta + 0.4 * delta;
-    //   bestPos = this._Ha + delta;
-    //   this._prevDelta = delta;
-    // }
+    let bestPos = this._findBestOlaPos(frame, oFrame, hs);
     this._logger.debug("WSOLA best pos", bestPos);
+    let overlap = this._Ha - hs;
+    let fadeStep = 1.0 / overlap;
+
     let chShift = 0;
     for (let ch = 0; ch < this._channels; ch++) {
-      let iBlock = this._interBlocks[ch];
-      iBlock.set(frame.subarray(chShift + bestPos, chShift + this._N), 0);
-      iBlock.set(oFrame.subarray(chShift, chShift + bestPos), this._N - bestPos);
 
-      if (ch === 0) {
-        bestPos2 = this._findBestOlaPos(iBlock, hs, 256);
+      for (let i = 0; i < overlap; i++) {
+        let fadeIn = fadeStep * i;
+        let fadeOut = 1.0 - fadeIn;
+
+        oFrame[chShift + i] = oFrame[chShift + i] * fadeIn + frame[chShift + bestPos + i] * fadeOut;
       }
 
-      let olaOff = chShift + hs;
-      for (let i = 0; i < bestPos2; i++) {
-        frame[olaOff + i] =
-          (frame[olaOff + i] * this._hw[hs + i] + iBlock[i] * this._hw[i]) /
-          (this._hw[hs + i] + this._hw[i]);
-      }
-      olaOff += bestPos2;
-
-      let trans = this._N - hs - bestPos2;
-      for (let i = 0; i < trans; i++) {
-        oFrame[chShift + i] =
-          (oFrame[chShift + i] * this._hw[i] +
-            frame[olaOff + i] * this._hw[hs + bestPos2 + i] +
-            iBlock[bestPos2 + i] * this._hw[bestPos2 + i]) /
-          (this._hw[i] + this._hw[bestPos2 + i] + this._hw[hs + bestPos2 + i]);
-      }
-      for (let i = 0; i < hs; i++) {
-        oFrame[chShift + trans + i] =
-          (oFrame[chShift + trans + i] * this._hw[trans + i] +
-            iBlock[hs + trans + i] * this._hw[hs + trans + i]) /
-          (this._hw[trans + i] + this._hw[hs + trans + i]);
-      }
       chShift += this._N;
     }
 
-    return hs + bestPos2;
+    return this._N - bestPos;
   }
 
   process(readParams) {
     if (readParams.rate <= 1) return true;
 
-    let hs = (this._Ha / readParams.rate + 0.5) >>> 0; // synthesis hop
+    let hs = this._Ha / readParams.rate & ~1; // synthesis hop
     if (hs < this._minHs) hs = this._minHs;
     readParams.rate = this._Ha / hs;
     if (readParams.rate === 1) return true;
@@ -99,7 +72,7 @@ export class WsolaProcessor extends BaseProcessor {
     let sCount = (this._N / readParams.rate + 0.5) >>> 0;
     if (readParams.startIdx === readParams.endIdx) {
       let skip = this._applyOverlapAddTo(startFrame.data, nextFrame.data, hs);
-      readParams.rate = 2 * this._Ha / skip;
+      readParams.rate = this._Ha / skip;
       this._bufferIface.rates[readParams.startIdx] = readParams.rate;
       readParams.startCount = readParams.endCount = sCount;
       readParams.startRate = readParams.endRate = readParams.rate;
@@ -113,7 +86,7 @@ export class WsolaProcessor extends BaseProcessor {
     } else {
       let endFrame = { data: this._bufferIface.frames[readParams.endIdx] };
       let skip = this._applyOverlapAddTo(endFrame.data, nextFrame.data, hs);
-      readParams.rate = 2 * this._Ha / skip;
+      readParams.rate = this._Ha / skip;
       this._bufferIface.rates[readParams.endIdx] = readParams.rate;
       readParams.endCount = sCount;
       readParams.endRate = readParams.rate;
@@ -146,29 +119,25 @@ export class WsolaProcessor extends BaseProcessor {
     return win;
   }
 
-  _findBestOlaPos(frame, hs, L) {
-    const ref = frame.subarray(hs, hs + L);
-  
-    let bestScore = -Infinity;
+  _findBestOlaPos(frame1, frame2, hs) {
+    let overlap = this._Ha - hs;
+    const cand = frame2.subarray(0, overlap);
+
+    let bestDiff = Infinity;
     let bestPos = 0;
-  
-    let sOff = this._Ha - hs - 20;
-    if (sOff < 0) sOff = 0;
-    if (sOff > this._maxDelta) sOff = this._maxDelta;
 
-    let maxPos = this._Ha + this._maxDelta;
-    if (maxPos + L > frame.length) maxPos = frame.length - L;
-    for (let i = this._Ha - sOff; i <= maxPos; i++) {
-      const cand = frame.subarray(i, i + L);
-      const score = this._nccScore(ref, cand, L);
+    let off = hs - Math.min(overlap, 80);
+    if (off < this._minHs) off = this._minHs;
 
-      if (score > bestScore) {
-        bestScore = score;
+    for (let i = off; i <= hs; i++) {
+      const ref = frame1.subarray(i, i + overlap);
+      const diff = this._difference(ref, cand, overlap);
+
+      if (diff < bestDiff) {
+        bestDiff = diff;
         bestPos = i;
       }
     }
-
-    // this._logger.debug("scores", scores);
   
     return bestPos;
   }
@@ -225,6 +194,30 @@ export class WsolaProcessor extends BaseProcessor {
     const denom = Math.sqrt(renergy * cenergy) || 1e-12;
   
     return dot / denom;
+  }
+
+  _overlap(src, dst, len, chCnt) {
+    let fadeStep = 1.0 / len;
+
+    let k = 0;
+    for (let ch = 0; ch < chCnt; ch++) {
+      k = ch * len;
+      for (let i = 0; i < len; i++, k++) {
+        let fadeIn = fadeStep * i;
+        let fadeOut = 1.0 - fadeIn;
+        dst[k] = dst[k] * fadeIn + src[k] * fadeOut;
+      }
+    }
+  }
+
+  _difference(a, b, len) {
+    let diff = 0;
+    for (let i = 0; i < len; i++) {
+      let v = a[i] - b[i];
+      diff += v * v;
+    }
+
+    return diff;
   }
   
 }
