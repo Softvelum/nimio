@@ -110,6 +110,7 @@ export class SharedAudioBuffer {
       if (dist >= size) return null;
 
       return {
+        idx,
         data: this._frames[idx],
         timestamp: this._timestamps[idx],
         rate: this._rates[idx],

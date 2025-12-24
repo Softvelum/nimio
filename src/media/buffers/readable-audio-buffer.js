@@ -24,8 +24,8 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         readPrms.startIdx = idx;
         readPrms.startTsNs = startTsNs;
         readPrms.sfStartTsNs = fStartTsNs;
-        readPrms.startRate = rate;
-        readPrms.startCount = (this._sampleCount / rate + 0.5) >>> 0;
+        readPrms.startRate = rate || 1;
+        readPrms.startCount = (this._sampleCount / (rate || 1) + 0.5) >>> 0;
         readPrms.startOffset = this.calcSamplePos(
           startTsNs,
           fStartTsNs,
@@ -36,8 +36,8 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         readPrms.endIdx = idx;
         readPrms.endTsNs = endTsNs;
         readPrms.efStartTsNs = fStartTsNs;
-        readPrms.endRate = rate;
-        readPrms.endCount = (this._sampleCount / rate + 0.5) >>> 0;
+        readPrms.endRate = rate || 1;
+        readPrms.endCount = (this._sampleCount / (rate || 1) + 0.5) >>> 0;
         readPrms.endOffset = this.calcSamplePos(
           endTsNs,
           fStartTsNs,
@@ -58,7 +58,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         }
 
         let readCnt = readPrms.count();
-        if (readPrms.rate >= 1 && readCnt < readPrms.outLength) {
+        if (readPrms.prelimRate >= 1 && readCnt < readPrms.outLength) {
           let toRead = readPrms.outLength - readCnt;
           let rest = readPrms.endCount - readPrms.endOffset;
           if (toRead <= rest) {
@@ -108,6 +108,12 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     this.#prevPrms.endTsNs = endTsNs;
     this.#prevPrms.endCount = readPrms.endCount;
 
+    // if (readPrms.startIdx === readPrms.endIdx && readPrms.endOffset - readPrms.startOffset > 128) {
+    //   debugger;
+    // }
+
+    if (!readPrms.rate) readPrms.rate = readPrms.prelimRate;
+
     return this._fillOutput(outputChannels, readPrms);
   }
 
@@ -136,7 +142,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       if (steppedCount < outLength) {
         let prevStep = step;
         step = expProcCnt / outLength;
-        if (expProcCnt === 127) {
+        if (expProcCnt !== 128) {
           debugger;
         }
         if (step < 0.95) step = 0.95;
@@ -284,7 +290,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     return {
       startIdx: null,
       endIdx: null,
-      rate,
+      prelimRate: rate,
       outLength,
       count: function(useRate) {
         let res = 0;
