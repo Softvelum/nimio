@@ -5,10 +5,13 @@ export class WsolaProcessor extends BaseProcessor {
     super(logger);
 
     this._channels = channels;
-    this._interBlocks = new Array(channels);
-    for (let i = 0; i < channels; i++) {
-      this._interBlocks[i] = new Float32Array(sampleCount);
-    }
+    this._props.fastForward = true;
+
+    // TODO: delete or restore
+    // this._interBlocks = new Array(channels);
+    // for (let i = 0; i < channels; i++) {
+    //   this._interBlocks[i] = new Float32Array(sampleCount);
+    // }
 
     this._N = sampleCount;
     this._Ha = this._N;
@@ -22,6 +25,8 @@ export class WsolaProcessor extends BaseProcessor {
     hs = this._Ha - overlap;
     let bestPos = this._findBestOlaPos(frame, oFrame, hs);
     this._logger.debug("WSOLA best pos", bestPos);
+
+    overlap = this._Ha - bestPos;
     
     let fadeStep = 1.0 / overlap;
     let chShift = 0;

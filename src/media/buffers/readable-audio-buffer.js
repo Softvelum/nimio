@@ -11,8 +11,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let readPrms = this._createReadParams(outputChannels[0].length, step);
     let endTsNs = startTsNs + readPrms.outLength * this.sampleNs * step;
     let tsMarg = this.sampleNs - 10;
+    let tsErr = this.sampleNs / 10;
 
     let skipIdx = null;
+    let useFF = (step > 1) && this._props.fastForward;
     this.forEach((fStartTs, rate, data, idx, left) => {
       let fStartTsNs = fStartTs * 1000;
       let fEndTsNs = fStartTsNs + this.frameNs;
@@ -20,7 +22,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         return false; // stop iterating, all frames are later than endTsNs
       }
 
-      if (fStartTsNs - tsMarg < startTsNs && startTsNs < fEndTsNs) {
+      if (fStartTsNs - tsMarg < startTsNs && startTsNs < fEndTsNs + tsErr) {
         readPrms.startIdx = idx;
         readPrms.startTsNs = startTsNs;
         readPrms.sfStartTsNs = fStartTsNs;
@@ -31,6 +33,12 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           fStartTsNs,
           readPrms.startCount,
         );
+        if (
+          useFF && rate !== 1 && rate < readPrms.prelimRate &&
+          readPrms.startCount - readPrms.startOffset >= readPrms.outLength
+        ) {
+          endTsNs = startTsNs + (rate || 1) * readPrms.outLength * this.sampleNs;
+        }
       }
       if (fStartTsNs < endTsNs && endTsNs < fEndTsNs + tsMarg) {
         readPrms.endIdx = idx;
@@ -57,6 +65,8 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.endOffset = readPrms.endCount;
         }
 
+        if (readPrms.startIdx === null) return false; // skip further adjustments
+
         let readCnt = readPrms.count();
         if (readPrms.prelimRate >= 1 && readCnt < readPrms.outLength) {
           let toRead = readPrms.outLength - readCnt;
@@ -71,6 +81,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
             skipIdx = idx;
             return true;
           }
+        } else if (useFF && readCnt > readPrms.outLength) {
+          let extr = readCnt - readPrms.outLength;
+          readPrms.endOffset -= extr;
+          readPrms.endTsNs -= extr * this.sampleNs * readPrms.endRate;
         }
 
         return false; // range found, stop iterating
@@ -138,13 +152,13 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       if (rParams.startIdx !== rParams.endIdx) {
         expProcCnt += rParams.startCount;
       }
+      if (expProcCnt !== 128) {
+        debugger;
+      }
       let steppedCount = (expProcCnt / step + 0.5) >>> 0;
       if (steppedCount < outLength) {
         let prevStep = step;
         step = expProcCnt / outLength;
-        if (expProcCnt !== 128) {
-          debugger;
-        }
         if (step < 0.95) step = 0.95;
         console.log(
           `Fixed step from ${prevStep} to ${step}, start=${rParams.startOffset}, end=${rParams.endOffset}, srate=${rParams.startRate}, erate=${rParams.endRate}, scount = ${rParams.startCount}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,

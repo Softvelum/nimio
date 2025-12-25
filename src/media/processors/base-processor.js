@@ -1,6 +1,7 @@
 export class BaseProcessor {
   constructor(logger) {
     this._logger = logger;
+    this._props = {};
   }
 
   process(frame) {
@@ -13,5 +14,9 @@ export class BaseProcessor {
 
   reset() {
     this._bufferIface = null;
+  }
+
+  get props() {
+    return this._props;
   }
 }

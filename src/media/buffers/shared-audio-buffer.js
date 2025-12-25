@@ -38,6 +38,7 @@ export class SharedAudioBuffer {
     this._tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
 
     this._preprocessors = [];
+    this._props = {};
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
@@ -65,6 +66,9 @@ export class SharedAudioBuffer {
   addPreprocessor(preprocessor) {
     this._preprocessors.push(preprocessor);
     preprocessor.setBufferIface(this);
+    for (let p in preprocessor.props) {
+      this._props[p] = preprocessor.props[p];
+    }
   }
 
   reset() {
@@ -178,5 +182,6 @@ export class SharedAudioBuffer {
       this._preprocessors[i].reset();
     }
     this._preprocessors.length = 0;
+    this._props = {};
   }
 }
