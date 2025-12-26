@@ -7,17 +7,9 @@ export class WsolaProcessor extends BaseProcessor {
     this._channels = channels;
     this._props.fastForward = true;
 
-    // TODO: delete or restore
-    // this._interBlocks = new Array(channels);
-    // for (let i = 0; i < channels; i++) {
-    //   this._interBlocks[i] = new Float32Array(sampleCount);
-    // }
-
     this._N = sampleCount;
     this._Ha = this._N;
     this._minHs = this._N >> 1 - 128;
-
-    // this._hw = this._makeHannWindow(this._N);
   }
 
   _applyOverlapAddTo(frame, oFrame, hs) {
@@ -95,6 +87,7 @@ export class WsolaProcessor extends BaseProcessor {
       if (readParams.endOffset > readParams.endCount) {
         readParams.endIdx = nextFrame.idx;
         readParams.endOffset -= readParams.endCount;
+        readParams.efStartTsNs = nextFrame.timestamp * 1000;
       }
       this._logger.debug(`Apply wsola to cur idx=${readParams.startIdx}, start=${readParams.startOffset}, end=${readParams.endOffset}, cnt = ${readParams.startCount}, rate=${readParams.startRate}`);
     } else if (this._bufferIface.rates[readParams.endIdx] === 1) {
@@ -113,6 +106,7 @@ export class WsolaProcessor extends BaseProcessor {
       let rest = readParams.startCount - readParams.startOffset;
       if (rest >= readParams.outLength) {
         readParams.endIdx = readParams.startIdx;
+        readParams.efStartTsNs = readParams.sfStartTsNs;
         readParams.endOffset = readParams.startOffset + readParams.outLength;
         readParams.endCount = readParams.startCount;
         readParams.endRate = readParams.startRate;
@@ -127,15 +121,6 @@ export class WsolaProcessor extends BaseProcessor {
     }
 
     return true;
-  }
-
-  _makeHannWindow(N) {
-    let win = new Float32Array(N);
-    for (var n = 0; n < N; n++) {
-      win[n] = Math.sqrt(0.5 * (1 - Math.cos((2 * Math.PI * n) / N - 1)));
-    }
-
-    return win;
   }
 
   _findBestOlaPos(frame1, frame2, hs) {
@@ -161,60 +146,6 @@ export class WsolaProcessor extends BaseProcessor {
     return bestPos;
   }
 
-  _nccScore(ref, cand, L) {
-    let dot0 = 0, dot1 = 0, dot2 = 0, dot3 = 0;
-    let reng0 = 0, reng1 = 0, reng2 = 0, reng3 = 0;
-    let ceng0 = 0, ceng1 = 0, ceng2 = 0, ceng3 = 0;
-  
-    let i = 0;
-    const limit = L & ~3;
-  
-    // SIMD optimisation
-    for (; i < limit; i += 4) {
-      const r0 = ref[i];
-      const r1 = ref[i + 1];
-      const r2 = ref[i + 2];
-      const r3 = ref[i + 3];
-
-      const c0 = cand[i];
-      const c1 = cand[i + 1];
-      const c2 = cand[i + 2];
-      const c3 = cand[i + 3];
-  
-      dot0 += r0 * c0;
-      dot1 += r1 * c1;
-      dot2 += r2 * c2;
-      dot3 += r3 * c3;
-
-      reng0 += r0 * r0;
-      reng1 += r1 * r1;
-      reng2 += r2 * r2;
-      reng3 += r3 * r3;
-
-      ceng0 += c0 * c0;
-      ceng1 += c1 * c1;
-      ceng2 += c2 * c2;
-      ceng3 += c3 * c3;
-    }
-  
-    let dot = dot0 + dot1 + dot2 + dot3;
-    let renergy = reng0 + reng1 + reng2 + reng3;
-    let cenergy = ceng0 + ceng1 + ceng2 + ceng3;
-  
-    // count tail
-    for (; i < L; i++) {
-      const r = ref[i];
-      const c = cand[i];
-      dot += r * c;
-      renergy += r * r;
-      cenergy += c * c;
-    }
-
-    const denom = Math.sqrt(renergy * cenergy) || 1e-12;
-  
-    return dot / denom;
-  }
-
   _overlap(src, dst, len, chCnt) {
     let fadeStep = 1.0 / len;
 
@@ -230,10 +161,28 @@ export class WsolaProcessor extends BaseProcessor {
   }
 
   _difference(a, b, len) {
-    let diff = 0;
-    for (let i = 0; i < len; i++) {
-      let v = a[i] - b[i];
-      diff += v * v;
+    let diff0 = 0, diff1 = 0, diff2 = 0, diff3 = 0;
+    let v0 = 0, v1 = 0, v2 = 0, v3 = 0;
+
+    let i = 0;
+    const limit = len & ~3;
+    // SIMD optimisation
+    for (; i < limit; i += 4) {
+      v0 = a[i] - b[i];
+      v1 = a[i + 1] - b[i + 1];
+      v2 = a[i + 2] - b[i + 2];
+      v3 = a[i + 3] - b[i + 3];
+      diff0 += v0 * v0;
+      diff1 += v1 * v1;
+      diff2 += v2 * v2;
+      diff3 += v3 * v3;
+    }
+    let diff = diff0 + diff1 + diff2 + diff3;
+
+    // count tail
+    for (; i < len; i++) {
+      v0 = a[i] - b[i];
+      diff += v0 * v0;
     }
 
     return diff;

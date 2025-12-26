@@ -53,7 +53,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         );
 
         if (readPrms.extend) {
-          console.error(`Set extended offset ${readPrms.endOffset} for idx=${readPrms.endIdx}`);
+          console.log(`Set extended offset ${readPrms.endOffset} for idx=${readPrms.endIdx}`);
         }
 
         if (isNaN(readPrms.endOffset) || readPrms.startIdx === null) {
@@ -76,7 +76,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
             readPrms.endTsNs += toRead * this.sampleNs * readPrms.endRate;
           } else if (left > 0) {
             endTsNs += this.sampleNs * (rest * (readPrms.endRate - 1) + toRead);
-            console.error(`Increase endTsNs by ${toRead} samples, rest=${rest}`);
+            console.log(`Increase endTsNs by ${toRead} samples, rest=${rest}`);
             readPrms.extend = true;
             skipIdx = idx;
             return true;
@@ -195,6 +195,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       // if (altProcessed !== processed) {
       //   console.warn(`Alt processed = ${altProcessed}, processed = ${processed}`);
       // }
+      if (altProcessed > 10000) {
+        debugger;
+      }
       return altProcessed;
     }
 
@@ -252,6 +255,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     // if (altProcessed !== processed) {
     //   console.warn(`Alt 2 processed = ${altProcessed}, processed = ${processed}`);
     // }
+    if (altProcessed > 10000) {
+      debugger;
+    }
 
     return altProcessed;
   }
