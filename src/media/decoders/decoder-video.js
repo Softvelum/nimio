@@ -100,6 +100,7 @@ self.addEventListener("message", async function (e) {
         codec: config.codec,
         codedWidth: config.width,
         codedHeight: config.height,
+        hardwareAcceleration: 'prefer-software'
         // optimizeForLatency: true,
       };
       if (config.hardwareAcceleration) {
