@@ -15,6 +15,7 @@ export class StateManager {
     this._suppressNotify = false;
     this._port = null;
     this._onPortMessage = this._handlePortMessage.bind(this);
+    this._sendInit = options.sendInit ?? true;
     if (options.port) {
       this.attachPort(options.port);
     }
@@ -261,7 +262,9 @@ export class StateManager {
     this._port = port;
     this._port.addEventListener("message", this._onPortMessage);
     if (this._port.start) this._port.start();
-    this._notify("init", 0, Array.from(this._flags));
+    if (this._sendInit) {
+      this._notify("init", 0, Array.from(this._flags));
+    }
   }
 
   isShared() {

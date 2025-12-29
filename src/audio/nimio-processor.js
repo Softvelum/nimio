@@ -20,6 +20,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     this._stateManager = new StateManager(options.processorOptions.stateSab, {
       shared: options.processorOptions.stateSabShared,
       port: options.processorOptions.stateSabShared ? null : this.port,
+      sendInit: false,
     });
     this._sampleRate = options.processorOptions.sampleRate;
     this._channelCount = options.outputChannelCount[0];
