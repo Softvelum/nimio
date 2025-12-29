@@ -122,10 +122,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     this.#prevPrms.endTsNs = endTsNs;
     this.#prevPrms.endCount = readPrms.endCount;
 
-    // if (readPrms.startIdx === readPrms.endIdx && readPrms.endOffset - readPrms.startOffset > 128) {
-    //   debugger;
-    // }
-
     if (!readPrms.rate) readPrms.rate = readPrms.prelimRate;
 
     return this._fillOutput(outputChannels, readPrms);
@@ -195,9 +191,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       // if (altProcessed !== processed) {
       //   console.warn(`Alt processed = ${altProcessed}, processed = ${processed}`);
       // }
-      if (altProcessed > 10000) {
-        debugger;
-      }
       return altProcessed;
     }
 
@@ -255,9 +248,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     // if (altProcessed !== processed) {
     //   console.warn(`Alt 2 processed = ${altProcessed}, processed = ${processed}`);
     // }
-    if (altProcessed > 10000) {
-      debugger;
-    }
 
     return altProcessed;
   }

@@ -9,30 +9,19 @@ export class WsolaProcessor extends BaseProcessor {
 
     this._N = sampleCount;
     this._Ha = this._N;
-    this._minHs = this._N >> 1 - 128;
+    this._maxOv = this._N >> 1;
+    this._minHs = this._maxOv - 128;
   }
 
   _applyOverlapAddTo(frame, oFrame, hs) {
     let overlap = 4 * (this._Ha - hs);
+    if (overlap > this._maxOv) overlap = this._maxOv;
     hs = this._Ha - overlap;
+
     let bestPos = this._findBestOlaPos(frame, oFrame, hs);
     this._logger.debug("WSOLA best pos", bestPos);
 
-    overlap = this._Ha - bestPos;
-    
-    let fadeStep = 1.0 / overlap;
-    let chShift = 0;
-    for (let ch = 0; ch < this._channels; ch++) {
-
-      for (let i = 0; i < overlap; i++) {
-        let fadeIn = fadeStep * i;
-        let fadeOut = 1.0 - fadeIn;
-
-        oFrame[chShift + i] = oFrame[chShift + i] * fadeIn + frame[chShift + bestPos + i] * fadeOut;
-      }
-
-      chShift += this._N;
-    }
+    this._overlap(frame, oFrame, bestPos);
 
     return bestPos;
   }
@@ -130,7 +119,7 @@ export class WsolaProcessor extends BaseProcessor {
     let bestDiff = Infinity;
     let bestPos = 0;
 
-    let off = hs - Math.min(overlap, 120);
+    let off = hs - Math.min(overlap, 128);
     if (off < this._minHs) off = this._minHs;
 
     for (let i = off; i <= hs; i++) {
@@ -146,17 +135,22 @@ export class WsolaProcessor extends BaseProcessor {
     return bestPos;
   }
 
-  _overlap(src, dst, len, chCnt) {
-    let fadeStep = 1.0 / len;
+  _overlap(src, dst, pos) {
+    let overlapLen = this._Ha - pos;
+    let fadeStep = 1.0 / overlapLen;
 
-    let k = 0;
-    for (let ch = 0; ch < chCnt; ch++) {
-      k = ch * len;
-      for (let i = 0; i < len; i++, k++) {
-        let fadeIn = fadeStep * i;
-        let fadeOut = 1.0 - fadeIn;
-        dst[k] = dst[k] * fadeIn + src[k] * fadeOut;
+    let chShift = 0;
+    for (let ch = 0; ch < this._channels; ch++) {
+      let sIdx = chShift + pos;
+      let dIdx = chShift;
+      let fadeIn = 0;
+      for (let i = 0; i < overlapLen; i++) {
+        dst[dIdx] = dst[dIdx] * fadeIn + src[sIdx] * (1.0 - fadeIn);
+        dIdx++;
+        sIdx++;
+        fadeIn += fadeStep;
       }
+      chShift += this._N;
     }
   }
 
