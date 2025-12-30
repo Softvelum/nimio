@@ -14,12 +14,8 @@
   <body>
     <main class="container pico">
       <section>
-        <img
-          src="nimio-logo.png"
-          id="logo"
-          alt="Nimio logo"
-          style="height: 60px"
-        />
+        <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
+        <span id="version"></span>
       </section>
       <section>
         <h1>SLDP 2.0 Player</h1>
@@ -139,6 +135,12 @@
           art = document.querySelector("[name=advanced-params]");
         cb.onchange = () => (art.hidden = !cb.checked);
         cb.onchange();
+
+        document.addEventListener("DOMContentLoaded", () => {
+          document.querySelectorAll("#version").forEach((el) => {
+            el.textContent = Nimio.version();
+          });
+        });
       </script>
     </div>
   </body>
