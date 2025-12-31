@@ -92,9 +92,6 @@ let LoggersFactory = (function () {
     create: function (id, prefix, isWorklet) {
       return new Logger(id, prefix, isWorklet);
     },
-    isDebugEnabled: function () {
-      return _level === "debug";
-    },
     setLevel: function (lvl) {
       if (lvl) _level = lvl;
     },
