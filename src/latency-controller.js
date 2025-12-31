@@ -31,7 +31,7 @@ export class LatencyController {
     this._startHoldMs = 100;
     this._minRate = 0.95;
     this._minRateStep = 1 / 128;
-    this._maxRate = 1.5;
+    this._maxRate = 1.25;
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
 
     this._minLatencyDelta = 40;

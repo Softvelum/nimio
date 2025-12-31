@@ -75,9 +75,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
             readPrms.endOffset += toRead;
             readPrms.endTsNs += toRead * this.sampleNs * readPrms.endRate;
           } else if (left > 0) {
-            endTsNs += this.sampleNs * (rest * (readPrms.endRate - 1) + toRead);
+            endTsNs = fEndTsNs + (toRead - rest) * this.sampleNs + tsErr;
             console.log(`Increase endTsNs by ${toRead} samples, rest=${rest}`);
             readPrms.extend = true;
+            readPrms.endOffset = readPrms.endCount;
             skipIdx = idx;
             return true;
           }
