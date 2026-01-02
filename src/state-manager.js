@@ -22,7 +22,7 @@ export class StateManager {
   }
 
   get value() {
-    const val = this._load32(IDX.STATE);
+    return this._load32(IDX.STATE);
   }
 
   set value(newState) {
