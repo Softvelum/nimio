@@ -22,7 +22,7 @@ export class StateManager {
   }
 
   get value() {
-    return Atomics.load(this._flags, IDX.STATE);
+    const val = this._load32(IDX.STATE);
   }
 
   set value(newState) {
