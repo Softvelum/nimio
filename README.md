@@ -82,6 +82,10 @@ nimio = new Nimio({
 nimio.play();
 ```
 
+## Multiple players
+
+Mosaic demo (multiple players on one page): `docs/mosaic-demo.md`
+
 ## Cross‑Origin Isolation
 
 Nimio tries to use `SharedArrayBuffer` for zero‑copy state/audio exchange, but now falls back to a message‑based path when it is unavailable.  
