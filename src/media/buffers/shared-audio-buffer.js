@@ -39,6 +39,7 @@ export class SharedAudioBuffer {
 
     this._preprocessors = [];
     this._props = {};
+    this._deferred = [];
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
@@ -74,6 +75,7 @@ export class SharedAudioBuffer {
   reset() {
     this._setIdx(0, 0);
     this._setIdx(1, 0);
+    this._deferred.length = 0;
     this._resetPreprocessing();
   }
 
@@ -122,22 +124,38 @@ export class SharedAudioBuffer {
     });
   }
 
-  forEach(fn) {
-    let idx = this.getReadIdx();
-    const size = this.getSize();
-    for (let i = 0; i < size; i++) {
-      let res = fn(
-        this._timestamps[idx],
-        this._rates[idx],
-        this._frames[idx],
-        idx,
-        size - i - 1,
-      );
-      if (res === false) break;
+  forEach(fn, from, len) {
+    if (from >= this._capacity) from -= this._capacity;
 
-      idx++;
-      if (idx >= this._capacity) idx -= this._capacity;
+    const fIdx = from >= 0 ? from : this.getReadIdx();
+    const size = len >= 0 ? len : this.getSize();
+    return this._runLoop(fn, fIdx, size);
+  }
+
+  forEachAsync(fn, from, len) {
+    if (from >= this._capacity) from -= this._capacity;
+
+    const w = this.getWriteIdx();
+    const avail = w >= from ? w - from : this._capacity - from + w;
+
+    if (len > avail) {
+      this._deferLoop(fn, from + avail, len - avail);
+      len = avail;
     }
+    if (len === 0) return;
+
+    this._runLoop(fn, from, len);
+  }
+
+  runDeferred() {
+    if (this._deferred.length === 0) return;
+
+    let deferred = this._deferred;
+    this._deferred = [];
+    for (let i = 0; i < deferred.length; i++) {
+      this.forEachAsync(deferred[i].fn, deferred[i].from, deferred[i].len);
+    }
+    deferred.length = 0;
   }
 
   get lastFrameTs() {
@@ -183,5 +201,26 @@ export class SharedAudioBuffer {
     }
     this._preprocessors.length = 0;
     this._props = {};
+  }
+
+  _runLoop(fn, from, len) {
+    let idx = from;
+    for (let i = 0; i < len; i++) {
+      let res = fn(
+        this._timestamps[idx],
+        this._rates[idx],
+        this._frames[idx],
+        idx,
+        len - i - 1,
+      );
+      if (res === false) break;
+
+      idx++;
+      if (idx >= this._capacity) idx -= this._capacity;
+    }
+  }
+
+  _deferLoop(fn, from, len) {
+    this._deferred.push({ fn, from, len });
   }
 }

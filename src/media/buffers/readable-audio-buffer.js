@@ -7,6 +7,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     if (outputChannels.length !== this.numChannels) {
       throw new Error("output channels size must match numChannels");
     }
+    this.runDeferred();
 
     let readPrms = this._createReadParams(outputChannels[0].length, step);
     let endTsNs = startTsNs + readPrms.outLength * this.sampleNs * step;
@@ -135,10 +136,15 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     return (res / 1e9 + 0.5) >>> 0;
   }
 
-  calcSampleTs(offset, fStartTsNs, sCount) {
-    let sRate = sCount * 1e9 / this.frameNs;
-    let res = offset * this.frameNs / sCount + fStartTsNs;
-    return res;
+  _calcProcessedSamples(rp, isSingleFrame) {
+    let frameStart = isSingleFrame ? rp.sfStartTsNs : rp.efStartTsNs;
+    let sCount = isSingleFrame ? rp.startCount : rp.endCount;
+    let endNs = this._calcSampleTs(rp.endOffset, frameStart, sCount);
+    return ((endNs - rp.startTsNs) / this.sampleNs + 0.5) >>> 0;
+  }
+
+  _calcSampleTs(offset, fStartTsNs, sCount) {
+    return offset * this.frameNs / sCount + fStartTsNs;
   }
 
   _fillOutput(outputChannels, rParams) {
@@ -179,23 +185,11 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           0,
           step,
         );
-        processed = rParams.endOffset - rParams.startOffset;
-        processed = (processed * rParams.startRate + 0.5) >>> 0;
+        processed = this._calcProcessedSamples(rParams, true);
       }
-    }
-    if (processed !== null) {
-      // if (processed > 128) {
-      //   console.warn(`Processed ${processed}, idx=${rParams.startIdx}, start off=${rParams.startOffset}, end off=${rParams.endOffset}, cnt=${rParams.startCount}, rate=${rParams.startRate}`);
-      // }
-      let endTsNs = this.calcSampleTs(rParams.endOffset, rParams.sfStartTsNs, rParams.startCount);
-      let altProcessed = ((endTsNs - rParams.startTsNs) / this.sampleNs + 0.5) >>> 0;
-      // if (altProcessed !== processed) {
-      //   console.warn(`Alt processed = ${altProcessed}, processed = ${processed}`);
-      // }
-      return altProcessed;
+      return processed;
     }
 
-    processed = 0;
     let startCount = null;
     if (rParams.startIdx !== null) {
       startCount = this._copyChannelsData(
@@ -206,7 +200,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         0,
         step,
       );
-      processed = (rParams.startCount - rParams.startOffset) * rParams.startRate;
     }
 
     let endCount = null;
@@ -219,18 +212,14 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         -1,
         step,
       );
-      processed += rParams.endOffset * rParams.endRate;
-      processed = (processed + 0.5) >>> 0;
     }
 
     if (startCount === null) {
       console.error("Fill silence (start)", outLength - endCount);
       this._fillSilence(outputChannels, 0, outLength - endCount);
-      processed += outLength - endCount;
     } else if (endCount === null) {
       console.error("Fill silence (end)", outLength - startCount);
       this._fillSilence(outputChannels, startCount, outLength - startCount);
-      processed += outLength - startCount;
     } else if (startCount + endCount < outLength) {
       console.error("Fill silence (middle)", outLength - startCount - endCount);
       this._fillSilence(
@@ -238,19 +227,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         startCount,
         outLength - startCount - endCount,
       );
-      processed += outLength - startCount - endCount;
     }
 
-    // if (processed > 128) {
-    //   console.warn(`Processed ${processed}, idx=${rParams.startIdx}, off=${rParams.startOffset}, end idx=${rParams.endIdx}, off=${rParams.endOffset}, start cnt=${rParams.startCount}, startRate=${rParams.startRate}, endRate=${rParams.endRate}`);
-    // }
-    let endTsNs = this.calcSampleTs(rParams.endOffset, rParams.efStartTsNs, rParams.endCount);
-    let altProcessed = ((endTsNs - rParams.startTsNs) / this.sampleNs + 0.5) >>> 0;
-    // if (altProcessed !== processed) {
-    //   console.warn(`Alt 2 processed = ${altProcessed}, processed = ${processed}`);
-    // }
-
-    return altProcessed;
+    return this._calcProcessedSamples(rParams);
   }
 
   _fillSilence(outputChannels, startIdx, count) {
