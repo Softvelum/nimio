@@ -84,7 +84,7 @@ nimio.play();
 
 ## Multiple players
 
-Mosaic demo (multiple players on one page): `docs/mosaic-demo.md`
+Mosaic demo (multiple players on one page): [docs/mosaic-demo.md](docs/mosaic-demo.md)
 
 ## Cross‑Origin Isolation
 
