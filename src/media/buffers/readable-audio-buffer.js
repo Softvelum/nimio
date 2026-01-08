@@ -1,7 +1,6 @@
 import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class ReadableAudioBuffer extends SharedAudioBuffer {
-
   read(startTsNs, outputChannels, step = 1.0) {
     if (outputChannels.length !== this.numChannels) {
       throw new Error("output channels size must match numChannels");
@@ -14,7 +13,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     let tsErr = this.sampleNs / 10;
 
     let skipIdx = null;
-    let useFF = (step > 1) && this._props.fastForward;
+    let useFF = step > 1 && this._props.fastForward;
     this.forEach((fStartTs, rate, data, idx, left) => {
       let fStartTsNs = fStartTs * 1000;
       let fEndTsNs = fStartTsNs + this.frameNs;
@@ -34,14 +33,19 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.startCount,
         );
         if (readPrms.startOffset >= readPrms.startCount) {
-          console.warn(`Start offset is excessive, capping it: startOffset=${readPrms.startOffset}, startCount=${readPrms.startCount}`);
+          console.warn(
+            `Start offset is excessive, capping it: startOffset=${readPrms.startOffset}, startCount=${readPrms.startCount}`,
+          );
           readPrms.startOffset = readPrms.startCount - 1;
         }
         if (
-          useFF && rate !== 1 && rate < readPrms.prelimRate &&
+          useFF &&
+          rate !== 1 &&
+          rate < readPrms.prelimRate &&
           readPrms.startCount - readPrms.startOffset >= readPrms.outLength
         ) {
-          endTsNs = startTsNs + (rate || 1) * readPrms.outLength * this.sampleNs;
+          endTsNs =
+            startTsNs + (rate || 1) * readPrms.outLength * this.sampleNs;
         }
       }
       if (fStartTsNs < endTsNs && endTsNs < fEndTsNs + tsMarg) {
@@ -56,7 +60,9 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         );
 
         if (readPrms.endOffset > readPrms.endCount) {
-          console.warn(`End offset exceeds sampleCount, capping it: endOffset=${readPrms.endOffset}, endCount=${readPrms.endCount}`);
+          console.warn(
+            `End offset exceeds sampleCount, capping it: endOffset=${readPrms.endOffset}, endCount=${readPrms.endCount}`,
+          );
           readPrms.endOffset = readPrms.endCount;
         }
 
@@ -110,7 +116,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   calcSamplePos(startTsNs, fStartTsNs, sCount) {
-    let sRate = sCount * 1e9 / this.frameNs;
+    let sRate = (sCount * 1e9) / this.frameNs;
     let res = (startTsNs - fStartTsNs) * sRate;
     if (res < 0) res = 0;
     return (res / 1e9 + 0.5) >>> 0;
@@ -202,7 +208,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   _calcSampleTs(offset, fStartTsNs, sCount) {
-    return offset * this.frameNs / sCount + fStartTsNs;
+    return (offset * this.frameNs) / sCount + fStartTsNs;
   }
 
   _calcProcessedSamples(rp, isSingleFrame) {
@@ -259,13 +265,13 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     return copiedCount;
   }
 
-  _createReadParams (outLength, rate) {
+  _createReadParams(outLength, rate) {
     return {
       startIdx: null,
       endIdx: null,
       prelimRate: rate,
       outLength,
-      count: function(useRate) {
+      count: function (useRate) {
         let res = 0;
         if (this.startIdx === this.endIdx && this.startIdx !== null) {
           res = this.endOffset - this.startOffset;
@@ -280,7 +286,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           }
         }
         return res;
-      }
+      },
     };
   }
 }

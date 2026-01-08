@@ -22,17 +22,13 @@ export class WsolaProcessor extends BaseProcessor {
   // segment = overlap * rate / (rate - 1);
 
   process(readParams) {
-    if (
-      readParams.prelimRate <= 1 ||
-      readParams.startIdx === null ||
-      readParams.endIdx === null
-    ) return true;
+    if (this._isUnprocessible(readParams)) return true;
 
     this._calcOverlap(readParams.prelimRate);
     let segLen = this._frameCnt * this._Ha;
     readParams.prelimRate = segLen / (segLen - this._overLen);
     if (readParams.prelimRate === 1) return true;
-    
+
     let hs = this._Ha - this._overLen - this._srchRange;
     if (hs < this._minHs) hs = this._minHs;
     readParams.rate = 1; // from now on read process will be handled by readParams only
@@ -99,12 +95,20 @@ export class WsolaProcessor extends BaseProcessor {
     }
     if (sCount > 0) {
       this._updateFrameCount(sCount, readParams.prelimRate);
-      this._bufferIface.forEachAsync(function (ts, rate, data, idx, left) {
-        bufferRates[idx] = 0;
-      }, nextFrame.idx, this._frameCnt - 1);
+      this._bufferIface.forEachAsync(
+        function (ts, rate, data, idx, left) {
+          bufferRates[idx] = 0;
+        },
+        nextFrame.idx,
+        this._frameCnt - 1,
+      );
     }
 
     return true;
+  }
+
+  _isUnprocessible(rp) {
+    return rp.prelimRate <= 1 || rp.startIdx === null || rp.endIdx === null;
   }
 
   _applyOverlapAddTo(frame, oFrame) {
@@ -132,7 +136,7 @@ export class WsolaProcessor extends BaseProcessor {
         bestPos = i;
       }
     }
-  
+
     // this._logger.debug(`Best pos = ${bestPos}, overlap = ${this._overLen}, frameCnt = ${this._frameCnt}`);
     return bestPos;
   }
@@ -193,8 +197,14 @@ export class WsolaProcessor extends BaseProcessor {
   }
 
   _difference(a, b, len) {
-    let diff0 = 0, diff1 = 0, diff2 = 0, diff3 = 0;
-    let v0 = 0, v1 = 0, v2 = 0, v3 = 0;
+    let diff0 = 0,
+      diff1 = 0,
+      diff2 = 0,
+      diff3 = 0;
+    let v0 = 0,
+      v1 = 0,
+      v2 = 0,
+      v3 = 0;
 
     let i = 0;
     const limit = len & ~3;
