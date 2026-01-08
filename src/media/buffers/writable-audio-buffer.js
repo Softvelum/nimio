@@ -43,7 +43,6 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     this.setWriteIdx(writeIdx + 1);
-    return true;
   }
 
   absorb(frameBuffer) {

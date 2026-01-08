@@ -176,6 +176,10 @@ export class SharedAudioBuffer {
     return this._rates;
   }
 
+  get sampleCount() {
+    return this._sampleCount;
+  }
+
   get bufferCapacity() {
     return this._capacity;
   }

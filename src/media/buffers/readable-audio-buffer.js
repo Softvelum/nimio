@@ -33,6 +33,10 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           fStartTsNs,
           readPrms.startCount,
         );
+        if (readPrms.startOffset >= readPrms.startCount) {
+          console.warn(`Start offset is excessive, capping it: startOffset=${readPrms.startOffset}, startCount=${readPrms.startCount}`);
+          readPrms.startOffset = readPrms.startCount - 1;
+        }
         if (
           useFF && rate !== 1 && rate < readPrms.prelimRate &&
           readPrms.startCount - readPrms.startOffset >= readPrms.outLength
