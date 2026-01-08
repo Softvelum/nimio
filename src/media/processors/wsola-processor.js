@@ -22,7 +22,11 @@ export class WsolaProcessor extends BaseProcessor {
   // segment = overlap * rate / (rate - 1);
 
   process(readParams) {
-    if (readParams.prelimRate <= 1) return true;
+    if (
+      readParams.prelimRate <= 1 ||
+      readParams.startIdx === null ||
+      readParams.endIdx === null
+    ) return true;
 
     this._calcOverlap(readParams.prelimRate);
     let segLen = this._frameCnt * this._Ha;
@@ -135,7 +139,7 @@ export class WsolaProcessor extends BaseProcessor {
 
   _updateFrameCount(overPos, rate) {
     let actOver = this._Ha - overPos;
-    if (actOver < this._overLen * 1.2 || this._frameCnt === this._maxFrameCnt) {
+    if (actOver < this._overLen * 1.1 || this._frameCnt === this._maxFrameCnt) {
       return;
     }
 
@@ -151,10 +155,6 @@ export class WsolaProcessor extends BaseProcessor {
       }
     }
 
-    if (bestAdd > 0) {
-      this._logger.debug(`Updated frame cnt from ${this._frameCnt} to ${this._frameCnt + bestAdd}`);
-    }
-    this._logger.debug(`Current rate = ${bestRate}, overPos = ${overPos}, cnt = ${this._frameCnt}, actOver = ${actOver}`);
     this._frameCnt += bestAdd;
   }
 
@@ -219,5 +219,4 @@ export class WsolaProcessor extends BaseProcessor {
 
     return diff;
   }
-  
 }
