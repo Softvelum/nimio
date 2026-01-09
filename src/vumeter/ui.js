@@ -104,7 +104,7 @@ export class VUMeterUI {
   }
 
   _setParams() {
-    this._tickWidth = this._fontSize * 2.0;
+    this._tickWidth = this._fontSize * 2;
 
     this._elementWidth = this._container.clientWidth;
     this._elementHeight = this._container.clientHeight;

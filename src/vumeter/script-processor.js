@@ -117,7 +117,7 @@ export class ScriptProcessorMeter extends BaseMeter {
     this._channelData.length = 0;
     for (let i = 0; i < this._channels; i++) {
       this._channelData[i] = inputBuffer.getChannelData(i);
-      this._channelValues[i] = 0.0;
+      this._channelValues[i] = 0;
       this._calcChannelValueFor(i);
       this._channelDecibels[i] = this._dbFromVal(this._channelValues[i]);
     }

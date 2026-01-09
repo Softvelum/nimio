@@ -4,6 +4,7 @@ import { WritableAudioBuffer } from "@/media/buffers/writable-audio-buffer";
 import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
+import { WsolaProcessor } from "@/media/processors/wsola-processor";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -24,11 +25,11 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     });
     this._sampleRate = options.processorOptions.sampleRate;
     this._channelCount = options.outputChannelCount[0];
-    this._fSampleCount = options.processorOptions.sampleCount;
+    this._sampleCount = options.processorOptions.sampleCount;
     this._audioConfig = new AudioConfig(
       this._sampleRate,
       this._channelCount,
-      this._fSampleCount,
+      this._sampleCount,
     );
 
     this._idle = options.processorOptions.idle;
@@ -63,7 +64,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
           options.processorOptions.bufferSec,
           this._sampleRate,
           this._channelCount,
-          this._fSampleCount,
+          this._sampleCount,
         );
         audioBufferSource = this._audioBufferWriter.buffer;
         audioBufferCapacity = this._audioBufferWriter.bufferCapacity;
@@ -79,11 +80,14 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
         audioBufferCapacity,
         this._sampleRate,
         this._channelCount,
-        this._fSampleCount,
+        this._sampleCount,
+      );
+      this._audioBuffer.addPreprocessor(
+        new WsolaProcessor(this._channelCount, this._sampleCount, this._logger),
       );
     }
 
-    this._speed = 1.0;
+    this._speed = 1;
   }
 
   process(inputs, outputs) {
@@ -94,36 +98,29 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       return false; // stop processing
     }
 
-    const sampleCount = (out[0].length * this._speed + 0.5) >>> 0;
+    let sampleCount = (out[0].length * this._speed + 0.5) >>> 0;
     if (this._stateManager.isPaused()) {
       this._insertSilence(out, chCnt, sampleCount);
       return true;
     }
 
-    let curTsUs = this._latencyCtrl.incAudioSamples(sampleCount);
+    let curTsUs = this._latencyCtrl.loadCurrentTsUs();
     if (this._idle || this._latencyCtrl.isPending()) {
       this._insertSilence(out, chCnt, sampleCount);
     } else {
-      let incTsUs = curTsUs + this._audioConfig.smpCntToTsUs(sampleCount);
-      const available = this._audioBuffer.getSize
-        ? this._audioBuffer.getSize()
-        : undefined;
-      const read = this._audioBuffer.read(
-        curTsUs * 1000,
-        incTsUs * 1000,
-        out,
-        this._speed,
-      );
-      if ((available === 0 || read === 0) && this._portFramesReceived < 3) {
-        this._logger.debug(
-          "Audio read empty",
-          available,
-          read,
-          curTsUs,
-          incTsUs,
-        );
-      }
+      sampleCount = this._audioBuffer.read(curTsUs * 1000, out, this._speed);
+      // if ((available === 0 || read === 0) && this._portFramesReceived < 3) {
+      //   this._logger.debug(
+      //     "Audio read empty",
+      //     available,
+      //     read,
+      //     curTsUs,
+      //     incTsUs,
+      //   );
+      // }
     }
+
+    this._latencyCtrl.incCurrentAudioSamples(sampleCount);
 
     return true;
   }
@@ -156,7 +153,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       if (msg.type === "audio:pcm" && msg.pcm) {
         const pcm =
           msg.pcm instanceof Float32Array ? msg.pcm : new Float32Array(msg.pcm);
-        this._audioBufferWriter.pushPcm(msg.timestamp || 0, pcm);
+        this._audioBufferWriter.pushPcm(msg.timestamp || 0, msg.rate, pcm);
         this._portFramesReceived++;
         if (this._portFramesReceived <= 3) {
           this._logger.debug(

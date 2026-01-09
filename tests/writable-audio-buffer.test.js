@@ -87,7 +87,7 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(preprocessor.process).toHaveBeenCalledWith(frame, wab);
+    expect(preprocessor.process).toHaveBeenCalledWith(frame);
   });
 
   it("pushFrame copies planar data per channel when format ends with -planar", () => {
@@ -99,7 +99,7 @@ describe("WritableAudioBuffer", () => {
     expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
       expect(spyCopyTo).toHaveBeenCalledWith(
-        wab.frames[wab.getWriteIdx() - 1].subarray(
+        wab._frames[wab.getWriteIdx() - 1].subarray(
           ch * wab.sampleCount,
           (ch + 1) * wab.sampleCount,
         ),
@@ -116,18 +116,18 @@ describe("WritableAudioBuffer", () => {
 
     expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(wab.tempI16, {
+      expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
         layout: "planar",
         planeIndex: ch,
       });
     }
 
-    let lastChannel = wab.frames[wab.getWriteIdx() - 1].subarray(
+    let lastChannel = wab._frames[wab.getWriteIdx() - 1].subarray(
       wab.sampleCount,
       2 * wab.sampleCount,
     );
     for (let i = 0; i < wab.sampleCount; i++) {
-      expect(lastChannel[i]).toBe(wab.tempI16[i] / 32768);
+      expect(lastChannel[i]).toBe(wab._tempI16[i] / 32768);
     }
   });
 
@@ -137,20 +137,20 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(wab.tempF32, {
+    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempF32, {
       layout: "interleaved",
       planeIndex: 0,
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
-    const fBuffer = wab.frames[lastWriteIdx];
+    const fBuffer = wab._frames[lastWriteIdx];
 
     for (let ch = 0; ch < wab.numChannels; ch++) {
       for (let i = 0; i < wab.sampleCount; i++) {
         // fBuffer is arranged by channels, so
         // fBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
         expect(fBuffer[ch * wab.sampleCount + i]).toBe(
-          wab.tempF32[i * wab.numChannels + ch],
+          wab._tempF32[i * wab.numChannels + ch],
         );
       }
     }
@@ -162,20 +162,20 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(wab.tempI16, {
+    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
       layout: "interleaved",
       planeIndex: 0,
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
-    const fBuffer = wab.frames[lastWriteIdx];
+    const fBuffer = wab._frames[lastWriteIdx];
 
     for (let ch = 0; ch < wab.numChannels; ch++) {
       for (let i = 0; i < wab.sampleCount; i++) {
         // fBuffer is arranged by channels, so
         // fBuffer[ch * sampleCount + i] should equal temp[ch + i * numChannels]
         expect(fBuffer[ch * wab.sampleCount + i]).toBe(
-          wab.tempI16[i * wab.numChannels + ch] / 32768,
+          wab._tempI16[i * wab.numChannels + ch] / 32768,
         );
       }
     }
@@ -195,7 +195,7 @@ describe("WritableAudioBuffer", () => {
     singleChannelBuffer.pushFrame(frame);
 
     expect(spyCopyTo).toHaveBeenCalledWith(
-      singleChannelBuffer.frames[singleChannelBuffer.getWriteIdx() - 1],
+      singleChannelBuffer._frames[singleChannelBuffer.getWriteIdx() - 1],
       {
         layout: "planar",
         planeIndex: 0,
@@ -209,19 +209,19 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(wab.timestamps[initialWriteIdx]).toBe(frame.decTimestamp);
-    expect(wab.getWriteIdx()).toBe((initialWriteIdx + 1) % wab.capacity);
+    expect(wab._timestamps[initialWriteIdx]).toBe(frame.decTimestamp);
+    expect(wab.getWriteIdx()).toBe((initialWriteIdx + 1) % wab.bufferCapacity);
   });
 
   it("pushSilence fills frame with zeros, sets timestamp and increments write index", () => {
     const initialWriteIdx = wab.getWriteIdx();
     wab.pushSilence(999999);
 
-    expect(wab.timestamps[initialWriteIdx]).toBe(999999);
-    const frame = wab.frames[initialWriteIdx];
+    expect(wab._timestamps[initialWriteIdx]).toBe(999999);
+    const frame = wab._frames[initialWriteIdx];
     for (let i = 0; i < frame.length; i++) {
       expect(frame[i]).toBe(0);
     }
-    expect(wab.getWriteIdx()).toBe((initialWriteIdx + 1) % wab.capacity);
+    expect(wab.getWriteIdx()).toBe((initialWriteIdx + 1) % wab.bufferCapacity);
   });
 });
