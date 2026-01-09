@@ -41,6 +41,37 @@ function pushChunk(data, time) {
   decodeTimings.set(encodedChunk.timestamp, time);
 }
 
+async function fallbackToSoftwareSupport(params) {
+  console.warn(
+    "Hardware acceleration not supported, falling back to software decoding",
+  );
+  params.hardwareAcceleration = "prefer-software";
+  support = await VideoDecoder.isConfigSupported(params);
+}
+
+async function configureDecoder(params) {
+  if (!support.supported) {
+    return handleDecoderError(`Video codec not supported: ${params.codec}`);
+  }
+
+  console.log(
+    `configureDecoder codec=${params.codec}, accel=${params.hardwareAcceleration}`,
+  );
+
+  try {
+    videoDecoder.configure(params);
+  } catch (error) {
+    support.supported = false;
+    console.warn("configureDecoder exception raised");
+    if (params.hardwareAcceleration === "prefer-hardware") {
+      // last ditch attempt
+      await fallbackToSoftwareSupport(params);
+      return await configureDecoder(params);
+    }
+    handleDecoderError(error.message);
+  }
+}
+
 function shutdownDecoder() {
   try {
     if (typeof videoDecoder.close === "function") {
@@ -69,32 +100,19 @@ self.addEventListener("message", async function (e) {
         codec: config.codec,
         codedWidth: config.width,
         codedHeight: config.height,
+        hardwareAcceleration: "prefer-software",
         // optimizeForLatency: true,
-        hardwareAcceleration: "prefer-hardware",
       };
+      if (config.hardwareAcceleration) {
+        params.hardwareAcceleration = "prefer-hardware";
+      }
       if (e.data.codecData) {
         params.description = e.data.codecData;
       }
 
       support = await VideoDecoder.isConfigSupported(params);
-      if (!support.supported) {
-        console.warn(
-          "Hardware acceleration not supported, falling back to software decoding",
-        );
-        params.hardwareAcceleration = "prefer-software";
-        support = await VideoDecoder.isConfigSupported(params);
-      }
-
-      if (support.supported) {
-        try {
-          videoDecoder.configure(params);
-        } catch (error) {
-          handleDecoderError(error.message);
-        }
-      } else {
-        // handle unsupported codec
-        handleDecoderError(`Video codec not supported: ${config.codec}`);
-      }
+      if (!support.supported) await fallbackToSoftwareSupport(params);
+      await configureDecoder(params);
       break;
     case "chunk":
       const frameWithHeader = new Uint8Array(e.data.frameWithHeader);

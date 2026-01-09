@@ -1,4 +1,5 @@
 import { STATE, IDX } from "./shared/values";
+import { isSharedBuffer } from "./shared/shared-buffer";
 
 const U32POWER = 0x0100000000;
 
@@ -6,17 +7,26 @@ export class StateManager {
   /**
    * @param {SharedArrayBuffer|ArrayBuffer} sab — SharedArrayBuffer
    */
-  constructor(sab) {
+  constructor(sab, options = {}) {
     /** @private */
     this._flags = new Uint32Array(sab);
+    this._shared =
+      options.shared ?? (typeof Atomics !== "undefined" && isSharedBuffer(sab));
+    this._suppressNotify = false;
+    this._port = null;
+    this._onPortMessage = this._handlePortMessage.bind(this);
+    this._sendInit = options.sendInit ?? true;
+    if (options.port) {
+      this.attachPort(options.port);
+    }
   }
 
   get value() {
-    return Atomics.load(this._flags, IDX.STATE);
+    return this._load32(IDX.STATE);
   }
 
   set value(newState) {
-    Atomics.store(this._flags, IDX.STATE, newState);
+    this._store32(IDX.STATE, newState);
   }
 
   isStopped() {
@@ -44,11 +54,11 @@ export class StateManager {
   }
 
   getSilenceUs() {
-    return Atomics.load(this._flags, IDX.SILENCE_USEC);
+    return this._load32(IDX.SILENCE_USEC);
   }
 
   incSilenceUs(durationUs) {
-    Atomics.add(this._flags, IDX.SILENCE_USEC, durationUs);
+    this._add32(IDX.SILENCE_USEC, durationUs);
   }
 
   getCurrentTsSmp() {
@@ -92,51 +102,51 @@ export class StateManager {
   }
 
   getAvailableAudioMs() {
-    return Atomics.load(this._flags, IDX.AVAILABLE_AUDIO);
+    return this._load32(IDX.AVAILABLE_AUDIO);
   }
 
   setAvailableAudioMs(durationMs) {
-    Atomics.store(this._flags, IDX.AVAILABLE_AUDIO, durationMs);
+    this._store32(IDX.AVAILABLE_AUDIO, durationMs);
   }
 
   getAvailableVideoMs() {
-    return Atomics.load(this._flags, IDX.AVAILABLE_VIDEO);
+    return this._load32(IDX.AVAILABLE_VIDEO);
   }
 
   setAvailableVideoMs(durationMs) {
-    Atomics.store(this._flags, IDX.AVAILABLE_VIDEO, durationMs);
+    this._store32(IDX.AVAILABLE_VIDEO, durationMs);
   }
 
   getVideoDecoderQueue() {
-    return Atomics.load(this._flags, IDX.VIDEO_DECODER_QUEUE);
+    return this._load32(IDX.VIDEO_DECODER_QUEUE);
   }
 
   setVideoDecoderQueue(numFrames) {
-    Atomics.store(this._flags, IDX.VIDEO_DECODER_QUEUE, numFrames);
+    this._store32(IDX.VIDEO_DECODER_QUEUE, numFrames);
   }
 
   getVideoDecoderLatency() {
-    return Atomics.load(this._flags, IDX.VIDEO_DECODER_LATENCY);
+    return this._load32(IDX.VIDEO_DECODER_LATENCY);
   }
 
   setVideoDecoderLatency(latency) {
-    Atomics.store(this._flags, IDX.VIDEO_DECODER_LATENCY, latency);
+    this._store32(IDX.VIDEO_DECODER_LATENCY, latency);
   }
 
   getAudioDecoderQueue() {
-    return Atomics.load(this._flags, IDX.AUDIO_DECODER_QUEUE);
+    return this._load32(IDX.AUDIO_DECODER_QUEUE);
   }
 
   setAudioDecoderQueue(f) {
-    Atomics.store(this._flags, IDX.AUDIO_DECODER_QUEUE, f);
+    this._store32(IDX.AUDIO_DECODER_QUEUE, f);
   }
 
   getMinBufferMs(type) {
-    return Atomics.load(this._flags, this._bufTypeIdx(type));
+    return this._load32(this._bufTypeIdx(type));
   }
 
   setMinBufferMs(type, val) {
-    return Atomics.store(this._flags, this._bufTypeIdx(type), val);
+    return this._store32(this._bufTypeIdx(type), val);
   }
 
   _bufTypeIdx(type) {
@@ -149,10 +159,15 @@ export class StateManager {
 
   _atomicLoad64(idxs) {
     const idx = idxs[0];
+    if (!this._shared) {
+      const low = this._load32(idx);
+      const high = this._load32(idx + 1);
+      return low + high * U32POWER;
+    }
     while (true) {
-      const high1 = Atomics.load(this._flags, idx + 1);
-      const low = Atomics.load(this._flags, idx);
-      const high2 = Atomics.load(this._flags, idx + 1);
+      const high1 = this._load32(idx + 1);
+      const low = this._load32(idx);
+      const high2 = this._load32(idx + 1);
 
       if (high1 === high2) {
         return low + high1 * U32POWER;
@@ -166,9 +181,15 @@ export class StateManager {
     const newHigh = (val / U32POWER) >>> 0;
 
     const idx = idxs[0];
+    if (!this._shared) {
+      this._store32(idx, newLow, true);
+      this._store32(idx + 1, newHigh, true);
+      this._notify("store64", idx, val);
+      return;
+    }
     while (true) {
-      const low = Atomics.load(this._flags, idx);
-      const high = Atomics.load(this._flags, idx + 1);
+      const low = this._load32(idx);
+      const high = this._load32(idx + 1);
 
       // Only update if the val hasn't changed
       if (
@@ -187,9 +208,29 @@ export class StateManager {
     }
 
     const idx = idxs[0];
+    if (!this._shared) {
+      const low = this._load32(idx);
+      const high = this._load32(idx + 1);
+      let newLow = low + val;
+      let newHigh = high;
+
+      if (newLow >= U32POWER) {
+        newLow = newLow >>> 0;
+        newHigh = high + 1;
+      }
+
+      if (newHigh >= U32POWER) {
+        throw new Error("Resulting value exceeds 64 bits");
+      }
+
+      this._store32(idx, newLow, true);
+      this._store32(idx + 1, newHigh, true);
+      this._notify("add64", idx, val);
+      return low + high * U32POWER;
+    }
     while (true) {
-      const low = Atomics.load(this._flags, idx);
-      const high = Atomics.load(this._flags, idx + 1);
+      const low = this._load32(idx);
+      const high = this._load32(idx + 1);
 
       let newLow = low + val;
       let newHigh = high;
@@ -211,5 +252,79 @@ export class StateManager {
       }
       // Retry if another thread wrote a new value in the middle
     }
+  }
+
+  attachPort(port) {
+    if (!port) return;
+    if (this._port) {
+      this._detachPort();
+    }
+    this._port = port;
+    this._port.addEventListener("message", this._onPortMessage);
+    if (this._port.start) this._port.start();
+    if (this._sendInit) {
+      this._notify("init", 0, Array.from(this._flags));
+    }
+  }
+
+  isShared() {
+    return this._shared;
+  }
+
+  _load32(idx) {
+    return this._shared ? Atomics.load(this._flags, idx) : this._flags[idx];
+  }
+
+  _store32(idx, val, silent) {
+    if (this._shared) {
+      Atomics.store(this._flags, idx, val);
+    } else {
+      this._flags[idx] = val >>> 0;
+    }
+    if (!silent && !this._shared) this._notify("store32", idx, val);
+  }
+
+  _add32(idx, val) {
+    if (this._shared) {
+      Atomics.add(this._flags, idx, val);
+    } else {
+      this._flags[idx] = (this._flags[idx] + val) >>> 0;
+      this._notify("add32", idx, val);
+    }
+  }
+
+  _notify(op, idx, value) {
+    if (this._shared || !this._port || this._suppressNotify) return;
+    this._port.postMessage({
+      type: "state:update",
+      op,
+      idx,
+      value,
+    });
+  }
+
+  _handlePortMessage(ev) {
+    const msg = ev.data;
+    if (!msg || msg.type !== "state:update") return;
+
+    this._suppressNotify = true;
+    if (msg.op === "init" && Array.isArray(msg.value)) {
+      this._flags.set(msg.value);
+    } else if (msg.op === "store32") {
+      this._store32(msg.idx, msg.value, true);
+    } else if (msg.op === "add32") {
+      this._add32(msg.idx, msg.value);
+    } else if (msg.op === "store64") {
+      this._atomicStore64([msg.idx, msg.idx + 1], msg.value);
+    } else if (msg.op === "add64") {
+      this._atomicAdd64([msg.idx, msg.idx + 1], msg.value);
+    }
+    this._suppressNotify = false;
+  }
+
+  _detachPort() {
+    if (!this._port) return;
+    this._port.removeEventListener("message", this._onPortMessage);
+    this._port = null;
   }
 }

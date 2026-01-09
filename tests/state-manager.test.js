@@ -1,15 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { StateManager } from "@/state-manager";
 import { STATE, IDX } from "@/shared/values";
+import { createSharedBuffer } from "@/shared/shared-buffer";
 
 const bufferLength = 20;
-const buffer = new SharedArrayBuffer(bufferLength * 4);
+const buffer = createSharedBuffer(bufferLength * 4);
 const flags = new Uint32Array(buffer);
 let manager;
+let isShared;
 
 beforeEach(() => {
   flags.fill(0);
   manager = new StateManager(buffer);
+  isShared = manager.isShared();
 });
 
 describe("StateManager", () => {
@@ -126,6 +129,7 @@ describe("StateManager", () => {
   });
 
   it("retries _atomicLoad64 if high parts differ", () => {
+    if (!isShared) return;
     const idx = IDX.CURRENT_TS[0];
     let callCount = 0;
 
@@ -149,6 +153,7 @@ describe("StateManager", () => {
   });
 
   it("retries _atomicStore64 if compareExchange fails", () => {
+    if (!isShared) return;
     const idx = IDX.CURRENT_TS[0];
     let attempts = 0;
 
@@ -173,6 +178,7 @@ describe("StateManager", () => {
   });
 
   it("retries _atomicAdd64 if compareExchange fails", () => {
+    if (!isShared) return;
     const idx = IDX.CURRENT_TS[0];
     let attempts = 0;
 

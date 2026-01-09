@@ -27,6 +27,8 @@ import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
+import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
+import { resolveContainer } from "./shared/container";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -52,6 +54,12 @@ export default class Nimio {
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
+    const { element: containerElem, storageKey } = resolveContainer(
+      this._config.container,
+      { logger: this._logger, fallbackId: this._instName },
+    );
+    this._config.container = containerElem;
+    this._config.volumeId = storageKey;
 
     this._eventBus = EventBus.getInstance(this._instName);
 
@@ -59,8 +67,9 @@ export default class Nimio {
       total += Array.isArray(val) ? val.length : 1;
       return total;
     }, 0);
-    this._sab = new SharedArrayBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
-    this._state = new StateManager(this._sab);
+    this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
+    this._sabShared = isSharedBuffer(this._sab);
+    this._state = new StateManager(this._sab, { shared: this._sabShared });
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
@@ -479,12 +488,28 @@ export default class Nimio {
       this._audioCtxProvider.setChannelCount(channels);
       this._audioContext = this._audioCtxProvider.get();
 
+      if (!this._audioContext) {
+        this._logger.error(
+          "Audio context is not initialized. Can't play audio.",
+        );
+        this._setNoAudio(true);
+        return;
+      }
+
       if (sampleRate !== this._audioContext.sampleRate) {
         this._logger.error(
           "Unsupported sample rate",
           sampleRate,
           this._audioContext.sampleRate,
         );
+      }
+
+      if (!this._audioContext.audioWorklet) {
+        this._logger.error(
+          "AudioWorklet is not supported in this environment.",
+        );
+        this._setNoAudio(true);
+        return;
       }
 
       // load processor
@@ -504,6 +529,7 @@ export default class Nimio {
       instanceName: this._config.instanceName,
       sampleRate: sampleRate,
       stateSab: this._sab,
+      stateSabShared: this._sabShared,
       latency: this._config.latency,
       latencyTolerance: this._config.latencyTolerance,
       latencyAdjustMethod: this._config.latencyAdjustMethod,
@@ -511,12 +537,14 @@ export default class Nimio {
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
       enableLogs: this._config.workletLogs,
+      bufferSec: this._bufferSec * 2,
     };
 
     if (!idle && this._audioBuffer) {
       procOptions.sampleCount = this._audioConfig.sampleCount;
       procOptions.audioSab = this._audioBuffer.buffer;
       procOptions.capacity = this._audioBuffer.bufferCapacity;
+      procOptions.audioSabShared = this._audioBuffer.isShareable;
     }
 
     this._audioNode = new AudioWorkletNode(
@@ -530,6 +558,12 @@ export default class Nimio {
       },
     );
     this._workletLogReceiver.add(this._audioNode);
+    if (!this._state.isShared()) {
+      this._state.attachPort(this._audioNode.port);
+    }
+    if (this._audioBuffer && !this._audioBuffer.isShareable) {
+      this._audioBuffer.setPort(this._audioNode.port);
+    }
 
     this._audioVolumeCtrl.init(this._config);
     this._audioGraphCtrl.setSource(this._audioNode, channels);
@@ -613,3 +647,8 @@ Object.assign(Nimio.prototype, NimioTransport);
 Object.assign(Nimio.prototype, NimioRenditions);
 Object.assign(Nimio.prototype, NimioAbr);
 Object.assign(Nimio.prototype, NimioVolume);
+
+if (typeof window !== "undefined") {
+  // Expose globally when used via <script type="module"> without manual assignment
+  window.Nimio = Nimio;
+}

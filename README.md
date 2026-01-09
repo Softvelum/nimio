@@ -31,9 +31,24 @@ Read the [first beta release announcement](https://softvelum.com/2025/05/introdu
 
 ## Quick Start
 
+```html
+<script type="module" src="/dist/nimio.js"></script>
+
+<div id="player"></div>
+
+<script>
+  const nimio = new Nimio({
+    streamUrl: "wss://example.com/stream",
+    container: "#player",
+  });
+</script>
+```
+
+## Full Configuration Example
+
 ```javascript
 nimio = new Nimio({
-  streamUrl: "ws://example.com/stream", //SLDP stream URL
+  streamUrl: "wss://example.com/stream", //SLDP stream URL
   container: "#player", // CSS selector or HTMLElement
   //optional parameters:
   width: 476,
@@ -47,6 +62,7 @@ nimio = new Nimio({
   videoOnly: false, // Video only playback
   audioOnly: false, // Audio only playback
   muted: true, // Player is muted on start
+  hardwareAcceleration: false, // Request hardware decoder; falls back to software if unsupported
   adaptiveBitrate: {
     initialRendition: "480p", // Default rendition which the player will set on start
     maxRendition: "1080p", // Maximum rendition that the player will set automatically
@@ -66,10 +82,14 @@ nimio = new Nimio({
 nimio.play();
 ```
 
+## Multiple players
+
+Mosaic demo (multiple players on one page): [docs/mosaic-demo.md](docs/mosaic-demo.md)
+
 ## Cross‑Origin Isolation
 
-Nimio uses features (e.g. `SharedArrayBuffer`) that require a fully isolated browsing context.  
-To enable this, your server must send both the **Cross‑Origin‑Opener‑Policy** and **Cross‑Origin‑Embedder‑Policy** headers on any page or asset that loads the player.
+Nimio tries to use `SharedArrayBuffer` for zero‑copy state/audio exchange, but now falls back to a message‑based path when it is unavailable.  
+For best latency you should still enable a fully isolated browsing context by sending both the **Cross‑Origin‑Opener‑Policy** and **Cross‑Origin‑Embedder‑Policy** headers on any page or asset that loads the player.
 
 Add these two headers:
 
@@ -119,18 +139,119 @@ These methods are available directly on the `Nimio` class.
 - `Nimio.version()`  
   Return the current version string (identical to `instance.version()`).
 
+## Events
+
+`Nimio` player uses events to interact with its UI. It allows to create custom UI easily.
+
+### Events sent from UI to player
+
+These events are used to send commands and data from UI to `Nimio` player.
+
+- `ui:play-pause-click`  
+  Start/pause playback.  
+  Parameters:
+
+```javascript
+isPlayClicked: Boolean;
+```
+
+- `ui:mute-unmute-click`  
+  Mute/unmute audio.  
+  Parameters:
+
+```javascript
+mute: Boolean;
+```
+
+- `ui:volume-change`  
+  Set audio volume.  
+  Parameters:
+
+```javascript
+volume: Number; // Current volume as integer value in the range from 0 to 100.
+```
+
+- `ui:rendition-change`  
+  Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.  
+  Parameters:
+
+```javascript
+   rendition: {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
+   }
+```
+
+### Events sent from player to UI
+
+These events are used to send data from `Nimio` player to UI.
+
+- `nimio:play`  
+  Playback started.  
+  Parameters:
+
+```javascript
+instanceName: String; // Player instance name
+containerId: String; // Container ID, where player is rendered
+```
+
+- `nimio:muted`  
+  Audio muted/unmuted.  
+  Parameters:
+
+```javascript
+muted: Boolean;
+```
+
+- `nimio:volume-set`  
+  Audio volume set.  
+  Parameters:
+
+```javascript
+volume: Number; // Current volume integer value in the range from 0 to 100.
+```
+
+- `nimio:abr`  
+  Adaptive bitrate enabled/disabled.  
+  Parameters:
+
+```javascript
+isAbr: Boolean;
+```
+
+- `nimio:rendition-set`  
+  ABR rendition set.  
+  Parameters:
+
+  ```javascript
+   rendition: {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
+   }
+  ```
+
+- `nimio:rendition-list`  
+  An array of ABR renditions available.  
+   Parameters:
+
+```javascript
+  renditions: [
+   {
+     id: Number, // An integer number with unique rendition ID.
+     name: String // Rendition name.
+   },
+   ...
+ ]
+```
+
 ## Roadmap
 
 The following features are planned for upcoming releases:
 
-- Adaptive bitrate
-- Volume control
 - Automatic aspect ratio detection
-- Fullscreen playback
 - Picture-in-Picture (PiP)
 - Latency retention for asynchronous renditions
 - CEA-608 closed captions
-- VU meter
 - VOD playback (DVR support)
 - VOD thumbnail previews
 - SEI timecodes support

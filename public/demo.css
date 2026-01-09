@@ -10,3 +10,15 @@ label.inline {
   align-items: center;
   gap: 0.5rem;
 }
+
+#logo {
+  height: 60px;
+  vertical-align: bottom;
+}
+#version {
+  color: lightgray;
+  display: inline-block;
+  vertical-align: top;
+  line-height: normal;
+  transform: translateY(6px);
+}

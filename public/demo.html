@@ -14,12 +14,8 @@
   <body>
     <main class="container pico">
       <section>
-        <img
-          src="nimio-logo.png"
-          id="logo"
-          alt="Nimio logo"
-          style="height: 60px"
-        />
+        <img src="nimio-logo.png" id="logo" alt="Nimio logo" />
+        <span id="version"></span>
       </section>
       <section>
         <h1>SLDP 2.0 Player</h1>
@@ -104,16 +100,17 @@
     </style>
     <div class="player_wrp">
       <div id="video"></div>
-      <script type="module">
-        import Nimio from "../src/nimio.js";
+      <script type="module" src="../src/nimio.js"></script>
+      <script>
+        var nimio = null;
         function initNimio() {
-          if (window.nimio) {
-            window.nimio.destroy();
+          if (nimio) {
+            nimio.destroy();
           }
 
           const streamUrl = document.getElementById("streamURL").value;
 
-          window.nimio = new Nimio({
+          nimio = new Nimio({
             streamUrl: streamUrl,
             container: "video",
             autoplay: true,
@@ -138,6 +135,12 @@
           art = document.querySelector("[name=advanced-params]");
         cb.onchange = () => (art.hidden = !cb.checked);
         cb.onchange();
+
+        document.addEventListener("DOMContentLoaded", () => {
+          document.querySelectorAll("#version").forEach((el) => {
+            el.textContent = Nimio.version();
+          });
+        });
       </script>
     </div>
   </body>

@@ -1,6 +1,7 @@
 import { AudioContextProvider } from "@/audio/context-provider";
 import { VUMeterUI } from "./ui";
 import { LoggersFactory } from "@/shared/logger";
+import { resolveContainer } from "@/shared/container";
 
 export class BaseMeter {
   constructor(dbRange, rate, instName) {
@@ -58,10 +59,15 @@ export class BaseMeter {
   }
 
   setUI(containerId) {
-    let container = document.getElementById(containerId);
-    if (container) {
-      this._ui = new VUMeterUI(container, this._dbRange);
+    if (!containerId) return;
+    let element;
+    try {
+      ({ element } = resolveContainer(containerId, { logger: this._logger }));
+    } catch (err) {
+      this._logger.error("VU meter UI container not found", err);
+      return;
     }
+    this._ui = new VUMeterUI(element, this._dbRange);
   }
 
   get node() {
