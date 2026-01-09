@@ -64,7 +64,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
           options.processorOptions.bufferSec,
           this._sampleRate,
           this._channelCount,
-          this._fSampleCount,
+          this._sampleCount,
         );
         audioBufferSource = this._audioBufferWriter.buffer;
         audioBufferCapacity = this._audioBufferWriter.bufferCapacity;
@@ -87,7 +87,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       );
     }
 
-    this._speed = 1.0;
+    this._speed = 1;
   }
 
   process(inputs, outputs) {
@@ -153,7 +153,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       if (msg.type === "audio:pcm" && msg.pcm) {
         const pcm =
           msg.pcm instanceof Float32Array ? msg.pcm : new Float32Array(msg.pcm);
-        this._audioBufferWriter.pushPcm(msg.timestamp || 0, pcm);
+        this._audioBufferWriter.pushPcm(msg.timestamp || 0, msg.rate, pcm);
         this._portFramesReceived++;
         if (this._portFramesReceived <= 3) {
           this._logger.debug(

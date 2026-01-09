@@ -1,7 +1,7 @@
 import { SharedAudioBuffer } from "./shared-audio-buffer";
 
 export class ReadableAudioBuffer extends SharedAudioBuffer {
-  read(startTsNs, outputChannels, step = 1.0) {
+  read(startTsNs, outputChannels, step = 1) {
     if (outputChannels.length !== this.numChannels) {
       throw new Error("output channels size must match numChannels");
     }

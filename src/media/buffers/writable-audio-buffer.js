@@ -28,7 +28,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
     const writeIdx = this.getWriteIdx();
     this._timestamps[writeIdx] = audioFrame.decTimestamp;
-    this._rates[writeIdx] = 1.0;
+    this._rates[writeIdx] = 1;
 
     const format = audioFrame.format.split("-");
     if (format[format.length - 1] === "planar") {
@@ -75,21 +75,22 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   pushSilence(timestamp) {
     const writeIdx = this.getWriteIdx();
     this._timestamps[writeIdx] = timestamp;
-    this._rates[writeIdx] = 1.0;
-    this._frames[writeIdx].fill(0.0);
+    this._rates[writeIdx] = 1;
+    this._frames[writeIdx].fill(0);
     this.setWriteIdx(writeIdx + 1);
     if (!this.isShareable) {
       this._sendMessage({
         type: "audio:silence",
         timestamp,
-        sampleCount: this.sampleCount,
+        rate: 1,
+        sampleCount: this._sampleCount,
         channels: this.numChannels,
       });
     }
     return true;
   }
 
-  pushPcm(timestamp, pcmData) {
+  pushPcm(timestamp, rate, pcmData) {
     if (timestamp === null || timestamp === undefined) {
       throw new Error("timestamp is required for pushPcm");
     }
@@ -102,8 +103,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       );
     }
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = timestamp;
-    this.frames[writeIdx].set(pcmData);
+    this._timestamps[writeIdx] = timestamp;
+    this._rates[writeIdx] = rate;
+    this._frames[writeIdx].set(pcmData);
     this.setWriteIdx(writeIdx + 1);
     return true;
   }
@@ -155,12 +157,13 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
   _sendFrame() {
     // Send a copy of PCM data to the worklet to avoid relying on transferable AudioData in non-COOP/COEP mode.
     let idx = this.getWriteIdx() - 1;
-    if (idx < 0) idx += this.capacity;
-    const pcmCopy = this.frames[idx].slice();
+    if (idx < 0) idx += this._capacity;
+    const pcmCopy = this._frames[idx].slice();
     this._sendMessage(
       {
         type: "audio:pcm",
-        timestamp: this.timestamps[idx],
+        timestamp: this._timestamps[idx],
+        rate: this._rates[idx],
         pcm: pcmCopy,
       },
       [pcmCopy.buffer],

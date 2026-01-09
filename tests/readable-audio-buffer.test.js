@@ -82,8 +82,8 @@ describe("ReadableAudioBuffer", () => {
   });
 
   it("reads with step > 1", () => {
-    rab._timestamps[0] = 0.0;
-    rab._frames[0].fill(1.0);
+    rab._timestamps[0] = 0;
+    rab._frames[0].fill(1);
     rab.setWriteIdx(1);
 
     const out = [new Float32Array(480), new Float32Array(480)];

@@ -273,7 +273,7 @@ export class LatencyController {
   }
 
   _zap(goForward, deltaMs, bufMin, now) {
-    let rate = 1.0;
+    let rate = 1;
     if (goForward) {
       if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
         return;
@@ -282,7 +282,7 @@ export class LatencyController {
       this._lastActionTime = now;
     }
 
-    if (Math.abs(rate - 1.0) < this._minRateStep) rate = 1.0; // snap
+    if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
     this._setSpeed(rate, bufMin);
   }
 

@@ -179,7 +179,7 @@ export class WsolaProcessor extends BaseProcessor {
   _overlap(src, dst, pos) {
     // let size = this._Ha - pos;
     let size = this._overLen;
-    let fadeStep = 1.0 / size;
+    let fadeStep = 1 / size;
 
     let chShift = 0;
     for (let ch = 0; ch < this._channels; ch++) {
@@ -187,7 +187,7 @@ export class WsolaProcessor extends BaseProcessor {
       let dIdx = chShift;
       let fadeIn = 0;
       for (let i = 0; i < size; i++) {
-        dst[dIdx] = dst[dIdx] * fadeIn + src[sIdx] * (1.0 - fadeIn);
+        dst[dIdx] = dst[dIdx] * fadeIn + src[sIdx] * (1 - fadeIn);
         dIdx++;
         sIdx++;
         fadeIn += fadeStep;
