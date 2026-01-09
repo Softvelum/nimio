@@ -193,7 +193,9 @@ export class SharedAudioBuffer {
   }
 
   _getIdx(idx) {
-    return this._useAtomics ? Atomics.load(this._header, idx) : this._header[idx];
+    return this._useAtomics
+      ? Atomics.load(this._header, idx)
+      : this._header[idx];
   }
 
   _setIdx(idx, value) {
