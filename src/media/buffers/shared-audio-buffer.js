@@ -1,66 +1,51 @@
-import { createSharedBuffer, isSharedBuffer } from "@/shared/shared-buffer";
+import { createSharedBuffer, isSharedArrayBufferSupported, isSharedBuffer } from "@/shared/shared-buffer";
+
+function audioFrameSize(numChannels, sampleCount) {
+  return numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT;
+}
 
 export class SharedAudioBuffer {
   static HEADER_SIZE = 2; // writeIdx, readIdx (Int32 each)
   static HEADER_BYTES = this.HEADER_SIZE * Int32Array.BYTES_PER_ELEMENT;
 
   // Audio frame structure:
-  // [ timestamp: Float64 ][ ch0: Float32[sampleCount] ] ... [ chN: Float32[sampleCount] ]
-  constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
+  // [ timestamp: Float64 ][ rate: Float32 ][ ch0: Float32[sampleCount] ] ... [ chN: Float32[sampleCount] ]
+  constructor(sharedBuf, capacity, sampleRate, numChannels, sampleCount) {
     this._capacity = capacity;
     this.sampleRate = sampleRate;
     this.numChannels = numChannels;
     this._sampleCount = sampleCount;
 
-    this.frameNs = (sampleCount * 1e9) / sampleRate; // frame duration in nanoseconds
-    this.sampleNs = 1e9 / sampleRate; // sample duration in nanoseconds
-    this.frameSize = numChannels * sampleCount;
-    this.frameBytes = this.frameSize * Float32Array.BYTES_PER_ELEMENT;
-
-    this._sab = sharedBuffer;
-    this._useAtomics =
-      typeof Atomics !== "undefined" && isSharedBuffer(sharedBuffer);
-    this._header = new Int32Array(
-      sharedBuffer,
-      0,
-      SharedAudioBuffer.HEADER_SIZE,
-    );
-    let offset = SharedAudioBuffer.HEADER_BYTES;
-    this._timestamps = new Float64Array(sharedBuffer, offset, capacity);
-    offset += capacity * Float64Array.BYTES_PER_ELEMENT;
-
-    this._rates = new Float32Array(sharedBuffer, offset, capacity);
-    offset += capacity * Float32Array.BYTES_PER_ELEMENT;
-
-    this._frames = new Array(capacity);
-    for (let i = 0; i < capacity; i++) {
-      this._frames[i] = new Float32Array(sharedBuffer, offset, this.frameSize);
-      offset += this.frameBytes;
-    }
-    this._tempF32 = new Float32Array(sharedBuffer, offset, this.frameSize);
-    offset += this.frameBytes;
-    this._tempI16 = new Int16Array(sharedBuffer, offset, this.frameSize);
+    this._frameNs = (sampleCount * 1e9) / sampleRate; // frame duration in nanoseconds
+    this._sampleNs = 1e9 / sampleRate; // sample duration in nanoseconds
+    this._frameSize = numChannels * sampleCount;
+    this._frameBytes = this._frameSize * Float32Array.BYTES_PER_ELEMENT;
 
     this._preprocessors = [];
     this._props = {};
     this._deferred = [];
+
+    this._useAtomics = false;
+    sharedBuf ? this._attachSharedBuffer(sharedBuf) : this._allocBuffers();
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
     const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
+
     // one frame = Float64 timestamp(2 Float32) + Float32 rate + frame size
-    const frameSize =
-      (3 + numChannels * sampleCount) * Float32Array.BYTES_PER_ELEMENT;
-    // add 2 temp buffers for s16 and f32 data
+    const fAuxSize = 3 * capacity * Float32Array.BYTES_PER_ELEMENT;
+    // 2 temp buffers for s16 and f32 data
     const tempSize =
       numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
       numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
-    const sharedBuffer = createSharedBuffer(
-      SharedAudioBuffer.HEADER_BYTES + frameSize * capacity + tempSize,
-    );
+
+    let fullSize = SharedAudioBuffer.HEADER_BYTES + fAuxSize + tempSize;
+    if (isSharedArrayBufferSupported()) {
+      fullSize += audioFrameSize(numChannels, sampleCount) * capacity;
+    }
 
     return new this(
-      sharedBuffer,
+      createSharedBuffer(fullSize),
       capacity,
       sampleRate,
       numChannels,
@@ -190,6 +175,44 @@ export class SharedAudioBuffer {
 
   get isShareable() {
     return this._useAtomics;
+  }
+
+  get isPreallocated() {
+    return true;
+  }
+
+  _attachSharedBuffer(sab) {
+    this._sab = sab;
+    this._useAtomics = typeof Atomics !== "undefined" && isSharedBuffer(sab);
+
+    this._header = new Int32Array(sab, 0, SharedAudioBuffer.HEADER_SIZE);
+    let offset = SharedAudioBuffer.HEADER_BYTES;
+
+    this._timestamps = new Float64Array(sab, offset, this._capacity);
+    offset += this._capacity * Float64Array.BYTES_PER_ELEMENT;
+
+    this._rates = new Float32Array(sab, offset, this._capacity);
+    offset += this._capacity * Float32Array.BYTES_PER_ELEMENT;
+
+    this._frames = new Array(this._capacity);
+    if (this._useAtomics) {
+      for (let i = 0; i < this._capacity; i++) {
+        this._frames[i] = new Float32Array(sab, offset, this._frameSize);
+        offset += this._frameBytes;
+      }
+    } else {
+      for (let i = 0; i < this._capacity; i++) {
+        this._frames[i] = new Float32Array(this._frameSize);
+      }
+    }
+    this._sabOffset = offset;
+  }
+
+  _allocBuffers() {
+    this._header = new Int32Array(SharedAudioBuffer.HEADER_SIZE);
+    this._timestamps = new Float64Array(this._capacity);
+    this._rates = new Float32Array(this._capacity);
+    this._frames = new Array(this._capacity);
   }
 
   _getIdx(idx) {
