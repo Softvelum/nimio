@@ -87,6 +87,9 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
 
     if (!this._idle) {
       this._stateManager.incSilenceUs(this._samplesDurationUs(sampleCount));
+      if (!this._audioBuffer.isShareable) {
+        this._audioBuffer.ensureCapacity();
+      }
     }
   }
 

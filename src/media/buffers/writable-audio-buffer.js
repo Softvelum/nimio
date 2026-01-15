@@ -47,7 +47,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       }
     }
 
-    this.setWriteIdx(writeIdx + 1);
+    this._incWriteIdx(writeIdx);
     return writeIdx;
   }
 
@@ -56,7 +56,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     this._timestamps[writeIdx] = timestamp;
     this._rates[writeIdx] = 1;
     this._frames[writeIdx].fill(0);
-    this.setWriteIdx(writeIdx + 1);
+    this._incWriteIdx(writeIdx);
     return writeIdx;
   }
 
@@ -108,6 +108,15 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
         elOffset += this.numChannels;
       }
       channelOffset += this._sampleCount;
+    }
+  }
+
+  _incWriteIdx(writeIdx) {
+    let wIdx = this.setWriteIdx(writeIdx + 1);
+    let rIdx = this.getReadIdx();
+    if (rIdx === wIdx) {
+      console.warn(`wIdx = ${wIdx}, rIdx = ${rIdx}, increment rIdx to ${rIdx + this._overflowShift}`);
+      this.setReadIdx(rIdx + this._overflowShift);
     }
   }
 }

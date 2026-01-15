@@ -5,6 +5,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   constructor(sharedBuf, capacity, sampleRate, numChannels, sampleCount) {
     super(sharedBuf, capacity, sampleRate, numChannels, sampleCount);
     this._initMessaging();
+    this._minFreeSpan = this._overflowShift - 1;
   }
 
   read(startTsNs, outputChannels, step = 1) {
@@ -13,6 +14,18 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
     this._sendReadStatus(curIdx);
 
     return processed;
+  }
+
+  ensureCapacity() {
+    const r = this.getReadIdx();
+    const w = this.getWriteIdx();
+    const free = r >= w ? r - w : this._capacity - w + r;
+    if (free < this._minFreeSpan) {
+      console.warn("ensure Capacity!");
+      this.setReadIdx(r + this._overflowShift);
+      this._sendReadStatus(r);
+    }
+
   }
 
   reset() {
@@ -61,15 +74,6 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
         this._rates[msg.idx] = msg.rate;
         this._frames[msg.idx] = msg.frame;
         this.setWriteIdx(msg.idx);
-        // this._portFramesReceived++;
-        // if (this._portFramesReceived <= 3) {
-        //   console.debug(
-        //     "Audio PCM via port",
-        //     pcm.length,
-        //     this._audioBuffer.sampleRate,
-        //     `${this._audioBuffer.numChannels}ch`,
-        //   );
-        // }
       } else if (msg.type === "tb:reset") {
         this.reset();
       }

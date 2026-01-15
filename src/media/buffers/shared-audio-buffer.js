@@ -25,6 +25,8 @@ export class SharedAudioBuffer {
     this._props = {};
     this._deferred = [];
 
+    this._setOverflowShift();
+
     this._useAtomics = false;
     sharedBuf ? this._attachSharedBuffer(sharedBuf) : this._allocBuffers();
   }
@@ -77,11 +79,11 @@ export class SharedAudioBuffer {
   }
 
   setWriteIdx(value) {
-    this._setIdx(0, value);
+    return this._setIdx(0, value);
   }
 
   setReadIdx(value) {
-    this._setIdx(1, value);
+    return this._setIdx(1, value);
   }
 
   withState(cb) {
@@ -230,6 +232,8 @@ export class SharedAudioBuffer {
     } else {
       this._header[idx] = value;
     }
+
+    return value;
   }
 
   _resetPreprocessing() {
@@ -259,5 +263,13 @@ export class SharedAudioBuffer {
 
   _deferLoop(fn, from, len) {
     this._deferred.push({ fn, from, len });
+  }
+
+  _setOverflowShift() {
+    this._overflowShift = (this.sampleRate / this._sampleCount + 0.5) >>> 0;
+    let maxShift = (this._capacity / 5 + 0.5) >>> 0;
+    if (this._overflowShift > maxShift) {
+      this._overflowShift = maxShift;
+    }
   }
 }

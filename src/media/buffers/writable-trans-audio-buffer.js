@@ -14,13 +14,19 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
   }
 
   pushFrame(audioFrame) {
-    const writeIdx = super.pushFrame(audioFrame);
-    this._sendFrame(writeIdx);
+    if (this._isDetached()) return -1;
+
+    const writtenIdx = super.pushFrame(audioFrame);
+    this._sendFrame(writtenIdx);
+    return writtenIdx;
   }
 
   pushSilence(timestamp) {
-    const writeIdx = super.pushSilence(timestamp);
-    this._sendFrame(writeIdx);
+    if (this._isDetached()) return -1;
+
+    const writtenIdx = super.pushSilence(timestamp);
+    this._sendFrame(writtenIdx);
+    return writtenIdx;
   }
 
   _sendFrame(idx) {
@@ -36,6 +42,15 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
     );
   }
 
+  _isDetached() {
+    const writeIdx = this.getWriteIdx();
+    if (this._frames[writeIdx].length === 0) {
+      console.warn(`Can't write to detached buffer ${writeIdx}. Read idx = ${this.getReadIdx()}. Skip it.`);
+      return true;
+    }
+    return false;
+  }
+
   _handlePortMessage(event) {
     const msg = event.data;
     // if (msg && msg.type === "log") {
@@ -46,6 +61,12 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
 
     try {
       if (msg.type === "tb:read") {
+        let rIdx = this.getReadIdx();
+        let wIdx = this.getWriteIdx();
+        console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
+        if (rIdx !== msg.start) {
+          console.error(`Wrong read idx received: start=${msg.start}, end=${msg.end}, cur read idx is ${rIdx}`);
+        }
         let fCount = msg.end - msg.start;
         if (fCount < 0) fCount += this._capacity;
         let idx = msg.start;
@@ -54,15 +75,12 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
           if (idx === this._capacity) idx = 0;
         }
         this.setReadIdx(msg.end);
-        // this._portFramesReceived++;
-        // if (this._portFramesReceived <= 3) {
-        //   console.debug(
-        //     "Audio PCM via port",
-        //     pcm.length,
-        //     this._audioBuffer.sampleRate,
-        //     `${this._audioBuffer.numChannels}ch`,
-        //   );
-        // }
+        if (fCount === this._overflowShift) {
+          let w = this.getWriteIdx();
+          let r = this.getReadIdx();
+          let free = r >= w ? r - w : this._capacity - w + r;
+          console.log(`Returned ${this._overflowShift} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
+        }
       } else if (msg.type === "tb:reset") {
         this.reset();
       }
