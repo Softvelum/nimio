@@ -49,7 +49,9 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
         let wIdx = this.getWriteIdx();
         // console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
         if (rIdx !== msg.start) {
-          console.error(`Wrong read idx received: start=${msg.start}, end=${msg.end}, cur read idx is ${rIdx}`);
+          console.error(
+            `Wrong read idx received: start=${msg.start}, end=${msg.end}, cur read idx is ${rIdx}`,
+          );
         }
         let fCount = msg.end - msg.start;
         if (fCount < 0) fCount += this._capacity;
@@ -76,7 +78,9 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
   _isDetached() {
     const writeIdx = this.getWriteIdx();
     if (this._frames[writeIdx].length === 0) {
-      console.warn(`Can't write to detached buffer ${writeIdx}. Read idx = ${this.getReadIdx()}. Skip it.`);
+      console.warn(
+        `Can't write to detached buffer ${writeIdx}. Read idx = ${this.getReadIdx()}. Skip it.`,
+      );
       return true;
     }
     return false;

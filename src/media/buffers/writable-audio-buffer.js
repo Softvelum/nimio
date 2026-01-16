@@ -115,7 +115,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     let wIdx = this.setWriteIdx(writeIdx + 1);
     let rIdx = this.getReadIdx();
     if (rIdx === wIdx) {
-      console.warn(`wIdx = ${wIdx}, rIdx = ${rIdx}, increment rIdx to ${rIdx + this._overflowShift}`);
+      console.warn(
+        `wIdx = ${wIdx}, rIdx = ${rIdx}, increment rIdx to ${rIdx + this._overflowShift}`,
+      );
       this.setReadIdx(rIdx + this._overflowShift);
     }
   }

@@ -13,7 +13,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
     this._initMessaging();
     this._startMsgDispatcher();
     this._minFreeSpan = this._overflowShift / 2;
-    this._msgIvalMs = 3 * 1000 * this._sampleCount / this.sampleRate; // 3 frames
+    this._msgIvalMs = (3 * 1000 * this._sampleCount) / this.sampleRate; // 3 frames
   }
 
   reset() {

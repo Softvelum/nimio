@@ -1,4 +1,8 @@
-import { createSharedBuffer, isSharedArrayBufferSupported, isSharedBuffer } from "@/shared/shared-buffer";
+import {
+  createSharedBuffer,
+  isSharedArrayBufferSupported,
+  isSharedBuffer,
+} from "@/shared/shared-buffer";
 
 function audioFrameSize(numChannels, sampleCount) {
   return numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT;
