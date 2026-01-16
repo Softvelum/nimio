@@ -4,12 +4,22 @@ import { PortMessaging } from "@/shared/port-messaging";
 export class WritableTransAudioBuffer extends WritableAudioBuffer {
   constructor(sharedBuf, capacity, sampleRate, numChannels, sampleCount) {
     super(sharedBuf, capacity, sampleRate, numChannels, sampleCount);
-    this._initMessaging();
+    this.init();
   }
 
-  reset() {
+  init() {
+    this._initMessaging();
+    this._startMsgDispatcher();
+  }
+
+  reset(final) {
+    if (!final) {
+      this._stopMsgDispatcher();
+      this._sendMessage({ type: "tb:reset" });
+      return;
+    }
+
     super.reset();
-    this._sendMessage({ type: "tb:reset" });
     this._resetMessaging();
   }
 
@@ -17,7 +27,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
     if (this._isDetached()) return -1;
 
     const writtenIdx = super.pushFrame(audioFrame);
-    this._sendFrame(writtenIdx);
+    this._scheduleFrame(writtenIdx);
     return writtenIdx;
   }
 
@@ -25,30 +35,8 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
     if (this._isDetached()) return -1;
 
     const writtenIdx = super.pushSilence(timestamp);
-    this._sendFrame(writtenIdx);
+    this._scheduleFrame(writtenIdx);
     return writtenIdx;
-  }
-
-  _sendFrame(idx) {
-    this._sendMessage(
-      {
-        idx,
-        type: "tb:frame",
-        ts: this._timestamps[idx],
-        rate: this._rates[idx],
-        frame: this._frames[idx],
-      },
-      [this._frames[idx].buffer],
-    );
-  }
-
-  _isDetached() {
-    const writeIdx = this.getWriteIdx();
-    if (this._frames[writeIdx].length === 0) {
-      console.warn(`Can't write to detached buffer ${writeIdx}. Read idx = ${this.getReadIdx()}. Skip it.`);
-      return true;
-    }
-    return false;
   }
 
   _handlePortMessage(event) {
@@ -71,18 +59,79 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
           if (idx === this._capacity) idx = 0;
         }
         this.setReadIdx(msg.end);
-        if (fCount === this._overflowShift) {
-          let w = this.getWriteIdx();
-          let r = this.getReadIdx();
-          let free = r >= w ? r - w : this._capacity - w + r;
-          console.log(`Returned ${this._overflowShift} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
-        }
+        // if (fCount === this._overflowShift) {
+        //   let w = this.getWriteIdx();
+        //   let r = this.getReadIdx();
+        //   let free = this._dist(w, r);
+        //   console.log(`Returned ${this._overflowShift} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
+        // }
       } else if (msg.type === "tb:reset") {
-        this.reset();
+        this.reset(true);
       }
     } catch (err) {
       console.error("Port message failed", msg.type, err);
     }
+  }
+
+  _isDetached() {
+    const writeIdx = this.getWriteIdx();
+    if (this._frames[writeIdx].length === 0) {
+      console.warn(`Can't write to detached buffer ${writeIdx}. Read idx = ${this.getReadIdx()}. Skip it.`);
+      return true;
+    }
+    return false;
+  }
+
+  _scheduleFrame(idx) {
+    this._dispData.tss.push(this._timestamps[idx]);
+    this._dispData.idxs.push(idx);
+    this._dispData.rates.push(this._rates[idx]);
+    this._dispData.frames.push(this._frames[idx]);
+    this._dispData.buffers.push(this._frames[idx].buffer);
+  }
+
+  _sendFrames() {
+    if (this._dispData.idxs.length === 0) return;
+
+    this._sendMessage(
+      {
+        idxs: this._dispData.idxs,
+        type: "tb:frames",
+        tss: this._dispData.tss,
+        rates: this._dispData.rates,
+        frames: this._dispData.frames,
+      },
+      this._dispData.buffers,
+    );
+
+    this._dispData.tss = [];
+    this._dispData.idxs = [];
+    this._dispData.rates = [];
+    this._dispData.frames = [];
+    this._dispData.buffers = [];
+  }
+
+  _startMsgDispatcher() {
+    this._dispData = { tss: [], idxs: [], rates: [], frames: [], buffers: [] };
+    this._runMsgDispatcher = this._sendFrames.bind(this);
+    this._msgDispTimer = setInterval(this._runMsgDispatcher, 40);
+  }
+
+  _stopMsgDispatcher() {
+    this._clearMsgDispatcherData();
+    if (this._msgDispTimer) {
+      clearInterval(this._msgDispTimer);
+      this._msgDispTimer = undefined;
+      this._runMsgDispatcher = undefined;
+    }
+  }
+
+  _clearMsgDispatcherData() {
+    this._dispData.tss.length = 0;
+    this._dispData.idxs.length = 0;
+    this._dispData.rates.length = 0;
+    this._dispData.frames.length = 0;
+    this._dispData.buffers.length = 0;
   }
 }
 

@@ -89,7 +89,7 @@ export class SharedAudioBuffer {
   withState(cb) {
     const r = this.getReadIdx();
     const w = this.getWriteIdx();
-    const size = w >= r ? w - r : this._capacity - r + w;
+    const size = this._dist(r, w);
     return cb.call(this, r, w, size);
   }
 
@@ -103,7 +103,7 @@ export class SharedAudioBuffer {
     if (idx >= this._capacity) idx -= this._capacity;
 
     return this.withState(function (r, w, size) {
-      let dist = idx >= r ? idx - r : this._capacity - r + idx;
+      let dist = this._dist(r, idx);
       if (dist >= size) return null;
 
       return {
@@ -127,7 +127,7 @@ export class SharedAudioBuffer {
     if (from >= this._capacity) from -= this._capacity;
 
     const w = this.getWriteIdx();
-    const avail = w >= from ? w - from : this._capacity - from + w;
+    const avail = this._dist(from, w);
 
     if (len > avail) {
       this._deferLoop(fn, from + avail, len - avail);
@@ -271,5 +271,9 @@ export class SharedAudioBuffer {
     if (this._overflowShift > maxShift) {
       this._overflowShift = maxShift;
     }
+  }
+
+  _dist(start, end) {
+    return end >= start ? end - start : this._capacity - start + end;
   }
 }
