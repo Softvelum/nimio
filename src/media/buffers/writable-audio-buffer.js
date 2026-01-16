@@ -3,41 +3,32 @@ import { SharedAudioBuffer } from "./shared-audio-buffer";
 export class WritableAudioBuffer extends SharedAudioBuffer {
   constructor(sharedBuffer, capacity, sampleRate, numChannels, sampleCount) {
     super(sharedBuffer, capacity, sampleRate, numChannels, sampleCount);
-    this._preprocessors = [];
     this._port = null;
     this._pendingMessages = [];
   }
 
-  addPreprocessor(preprocessor) {
-    this._preprocessors.push(preprocessor);
-    preprocessor.setBufferIface(this);
-  }
-
   reset() {
     super.reset();
-    for (let i = 0; i < this._preprocessors.length; i++) {
-      this._preprocessors[i].reset();
-    }
-    this._preprocessors.length = 0;
     if (!this.isShareable) {
       this._sendMessage({ type: "audio:reset" });
     }
   }
 
   pushFrame(audioFrame) {
-    if (audioFrame.numberOfFrames !== this.sampleCount) {
+    if (audioFrame.numberOfFrames !== this._sampleCount) {
       throw new Error(
-        `audioFrame must contain ${this.sampleCount} samples, got ${audioFrame.numberOfFrames}`,
+        `audioFrame must contain ${this._sampleCount} samples, got ${audioFrame.numberOfFrames}`,
       );
     }
 
     for (let i = 0; i < this._preprocessors.length; i++) {
-      let pRes = this._preprocessors[i].process(audioFrame, this);
+      let pRes = this._preprocessors[i].process(audioFrame);
       if (!pRes) return;
     }
 
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = audioFrame.decTimestamp;
+    this._timestamps[writeIdx] = audioFrame.decTimestamp;
+    this._rates[writeIdx] = 1;
 
     const format = audioFrame.format.split("-");
     if (format[format.length - 1] === "planar") {
@@ -45,22 +36,22 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       for (let ch = 0; ch < this.numChannels; ch++) {
         this._copyChannelPlanar(
           audioFrame,
-          this.frames[writeIdx].subarray(offset, offset + this.sampleCount),
+          this._frames[writeIdx].subarray(offset, offset + this._sampleCount),
           ch,
           format[0],
         );
-        offset += this.sampleCount;
+        offset += this._sampleCount;
       }
     } else {
       if (this.numChannels === 1) {
         this._copyChannelPlanar(
           audioFrame,
-          this.frames[writeIdx],
+          this._frames[writeIdx],
           0,
           format[0],
         );
       } else {
-        this._copyInterleaved(audioFrame, this.frames[writeIdx], format[0]);
+        this._copyInterleaved(audioFrame, this._frames[writeIdx], format[0]);
       }
     }
 
@@ -68,7 +59,6 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     if (!this.isShareable) {
       this._sendFrame(audioFrame);
     }
-    return true;
   }
 
   absorb(frameBuffer) {
@@ -84,21 +74,23 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   pushSilence(timestamp) {
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = timestamp;
-    this.frames[writeIdx].fill(0.0);
+    this._timestamps[writeIdx] = timestamp;
+    this._rates[writeIdx] = 1;
+    this._frames[writeIdx].fill(0);
     this.setWriteIdx(writeIdx + 1);
     if (!this.isShareable) {
       this._sendMessage({
         type: "audio:silence",
         timestamp,
-        sampleCount: this.sampleCount,
+        rate: 1,
+        sampleCount: this._sampleCount,
         channels: this.numChannels,
       });
     }
     return true;
   }
 
-  pushPcm(timestamp, pcmData) {
+  pushPcm(timestamp, rate, pcmData) {
     if (timestamp === null || timestamp === undefined) {
       throw new Error("timestamp is required for pushPcm");
     }
@@ -111,8 +103,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       );
     }
     const writeIdx = this.getWriteIdx();
-    this.timestamps[writeIdx] = timestamp;
-    this.frames[writeIdx].set(pcmData);
+    this._timestamps[writeIdx] = timestamp;
+    this._rates[writeIdx] = rate;
+    this._frames[writeIdx].set(pcmData);
     this.setWriteIdx(writeIdx + 1);
     return true;
   }
@@ -135,9 +128,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _copyChannelPlanar(audioFrame, target, chIdx, format) {
     if (format === "s16") {
-      audioFrame.copyTo(this.tempI16, { layout: "planar", planeIndex: chIdx });
-      for (let i = 0; i < this.sampleCount; i++) {
-        target[i] = this.tempI16[i] / 32768;
+      audioFrame.copyTo(this._tempI16, { layout: "planar", planeIndex: chIdx });
+      for (let i = 0; i < this._sampleCount; i++) {
+        target[i] = this._tempI16[i] / 32768;
       }
     } else {
       audioFrame.copyTo(target, { layout: "planar", planeIndex: chIdx });
@@ -146,30 +139,31 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _copyInterleaved(audioFrame, target, format) {
     const isInt16 = format === "s16";
-    let temp = isInt16 ? this.tempI16 : this.tempF32;
+    let temp = isInt16 ? this._tempI16 : this._tempF32;
     audioFrame.copyTo(temp, { layout: "interleaved", planeIndex: 0 });
 
     let channelOffset = 0;
     for (let ch = 0; ch < this.numChannels; ch++) {
       let elOffset = ch;
-      for (let i = 0; i < this.sampleCount; i++) {
+      for (let i = 0; i < this._sampleCount; i++) {
         let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset];
         target[channelOffset + i] = val;
         elOffset += this.numChannels;
       }
-      channelOffset += this.sampleCount;
+      channelOffset += this._sampleCount;
     }
   }
 
   _sendFrame() {
     // Send a copy of PCM data to the worklet to avoid relying on transferable AudioData in non-COOP/COEP mode.
     let idx = this.getWriteIdx() - 1;
-    if (idx < 0) idx += this.capacity;
-    const pcmCopy = this.frames[idx].slice();
+    if (idx < 0) idx += this._capacity;
+    const pcmCopy = this._frames[idx].slice();
     this._sendMessage(
       {
         type: "audio:pcm",
-        timestamp: this.timestamps[idx],
+        timestamp: this._timestamps[idx],
+        rate: this._rates[idx],
         pcm: pcmCopy,
       },
       [pcmCopy.buffer],

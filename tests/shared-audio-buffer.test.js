@@ -35,9 +35,9 @@ describe("SharedAudioBuffer", () => {
       expect(sab.buffer).toBeInstanceOf(ArrayBuffer);
     }
     expect(sab.sampleRate).toBe(48000);
-    expect(sab.capacity).toBe(50); // 1 second at 48000Hz with 960 samples per frame
-    expect(Array.isArray(sab.frames)).toBe(true);
-    expect(sab.frames.length).toBe(sab.capacity);
+    expect(sab.bufferCapacity).toBe(50); // 1 second at 48000Hz with 960 samples per frame
+    expect(Array.isArray(sab._frames)).toBe(true);
+    expect(sab._frames.length).toBe(sab.bufferCapacity);
   });
 
   it("resets read and write indexes", () => {
@@ -56,18 +56,18 @@ describe("SharedAudioBuffer", () => {
 
   it("computes size correctly for wrapped case", () => {
     sab.setWriteIdx(2);
-    sab.setReadIdx(sab.capacity - 2);
+    sab.setReadIdx(sab.bufferCapacity - 2);
     expect(sab.getSize()).toBe(4);
   });
 
   it("wraps around index when setting values beyond capacity", () => {
-    sab.setWriteIdx(sab.capacity + 1);
+    sab.setWriteIdx(sab.bufferCapacity + 1);
     expect(sab.getWriteIdx()).toBe(1);
   });
 
   it("returns correct last timestamp", () => {
     sab.setWriteIdx(1);
-    sab.timestamps[0] = 123456;
+    sab._timestamps[0] = 123456;
     expect(sab.lastFrameTs).toBe(123456);
   });
 
@@ -80,9 +80,9 @@ describe("SharedAudioBuffer", () => {
     const calls = [];
     sab.setWriteIdx(3);
     sab.setReadIdx(0);
-    sab.timestamps[0] = 1;
-    sab.timestamps[1] = 2;
-    sab.timestamps[2] = 3;
+    sab._timestamps[0] = 1;
+    sab._timestamps[1] = 2;
+    sab._timestamps[2] = 3;
 
     sab.forEach((ts, frame, idx, remaining) => {
       calls.push({ ts, idx, remaining });
@@ -99,9 +99,9 @@ describe("SharedAudioBuffer", () => {
     const calls = [];
     sab.setWriteIdx(2);
     sab.setReadIdx(capacity - 1);
-    sab.timestamps[capacity - 1] = 1;
-    sab.timestamps[0] = 2;
-    sab.timestamps[1] = 3;
+    sab._timestamps[capacity - 1] = 1;
+    sab._timestamps[0] = 2;
+    sab._timestamps[1] = 3;
 
     sab.forEach((ts, frame, idx, remaining) => {
       calls.push({ ts, idx, remaining });
@@ -118,7 +118,7 @@ describe("SharedAudioBuffer", () => {
     sab.setWriteIdx(3);
     sab.setReadIdx(0);
 
-    sab.forEach((ts, frame, idx, remaining) => {
+    sab.forEach((ts, rate, frame, idx, remaining) => {
       calls.push(idx);
       if (idx === 1) return false;
     });
@@ -136,24 +136,19 @@ describe("SharedAudioBuffer", () => {
     for (let i = 0; i < iterations; i++) {
       sab.setWriteIdx(i);
       const readIdx = sab.getWriteIdx();
-      expect(readIdx).toBe(i % sab.capacity);
+      expect(readIdx).toBe(i % sab.bufferCapacity);
     }
   });
 
   it("handles concurrent-like read/write index contention", () => {
-    const iterations = sab.capacity * 2;
+    const iterations = sab.bufferCapacity * 2;
     for (let i = 0; i < iterations; i++) {
       sab.setWriteIdx(i);
       if (i % 2 === 0) sab.setReadIdx(i / 2);
       const size = sab.getSize();
-      expect(size).toBe(
-        (sab.getWriteIdx() + sab.capacity - sab.getReadIdx()) % sab.capacity,
-      );
+      const cap = sab.bufferCapacity;
+      expect(size).toBe((sab.getWriteIdx() + cap - sab.getReadIdx()) % cap);
     }
-  });
-
-  it("returns correct buffer capacity", () => {
-    expect(sab.bufferCapacity).toBe(sab.capacity);
   });
 
   it("returns the buffer is shareable", () => {

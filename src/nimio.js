@@ -281,7 +281,7 @@ export default class Nimio {
     if (this._audioCtxProvider.isSuspended()) {
       curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
     } else {
-      curPlayedTsUs = this._latencyCtrl.getCurrentTsUs();
+      curPlayedTsUs = this._latencyCtrl.loadCurrentTsUs();
     }
     this._updateBufferLevelMetrics();
 
@@ -637,7 +637,7 @@ export default class Nimio {
         audio: !this._noAudio,
       },
     );
-    this._speed = 1.0;
+    this._speed = 1;
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
   }
 }

@@ -31,7 +31,7 @@ export class LatencyController {
     this._startHoldMs = 100;
     this._minRate = 0.95;
     this._minRateStep = 1 / 128;
-    this._maxRate = 1.1;
+    this._maxRate = 1.25;
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
 
     this._minLatencyDelta = 40;
@@ -95,17 +95,16 @@ export class LatencyController {
     return (res / 1000 + 0.5) >>> 0;
   }
 
-  incAudioSamples(sampleCount) {
-    this._calculateAvailable();
-    if (this._checkPending()) return this._curTsUs;
+  incCurrentAudioSamples(sampleCount) {
+    if (this.isPending()) return this._curTsUs;
 
     this._stateMgr.incCurrentTsSmp(sampleCount);
     this._adjustPlaybackLatency();
-
     return this._curTsUs;
   }
 
   incCurrentVideoTime(speed) {
+    this._getCurrentTsUs();
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
     this._prevVideoTime = performance.now();
@@ -120,7 +119,8 @@ export class LatencyController {
     return this._curTsUs;
   }
 
-  getCurrentTsUs() {
+  loadCurrentTsUs() {
+    this._getCurrentTsUs();
     this._calculateAvailable();
     this._checkPending();
 
@@ -173,8 +173,6 @@ export class LatencyController {
   }
 
   _calculateAvailable() {
-    this._getCurrentTsUs();
-
     this._availableUs = Number.MAX_VALUE;
     if (this._audio) {
       this._getAudioAvailableUs();
@@ -275,7 +273,7 @@ export class LatencyController {
   }
 
   _zap(goForward, deltaMs, bufMin, now) {
-    let rate = 1.0;
+    let rate = 1;
     if (goForward) {
       if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
         return;
@@ -284,7 +282,7 @@ export class LatencyController {
       this._lastActionTime = now;
     }
 
-    if (Math.abs(rate - 1.0) < this._minRateStep) rate = 1.0; // snap
+    if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
     this._setSpeed(rate, bufMin);
   }
 
