@@ -11,21 +11,24 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   read(startTsNs, outputChannels, step = 1) {
     let curIdx = this.getReadIdx();
     let processed = super.read(startTsNs, outputChannels, step);
-    this._sendReadStatus(curIdx);
+    if (this.ensureCapacity(curIdx)) {
+      return processed;
+    }
 
+    this._sendReadStatus(curIdx);
     return processed;
   }
 
-  ensureCapacity() {
+  ensureCapacity(prevReadIdx) {
     const r = this.getReadIdx();
     const w = this.getWriteIdx();
     const free = r >= w ? r - w : this._capacity - w + r;
     if (free < this._minFreeSpan) {
-      console.warn("ensure Capacity!");
       this.setReadIdx(r + this._overflowShift);
-      this._sendReadStatus(r);
+      this._sendReadStatus(prevReadIdx ?? r);
+      return true;
     }
-
+    return false;
   }
 
   reset() {
@@ -62,11 +65,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    // if (msg && msg.type === "log") {
-    //   console.warn("handlePortMessage readable log");
-    // }
-
-    if (!msg || msg.type === "log") return;
+    if (!msg) return;
 
     try {
       if (msg.type === "tb:frame" && msg.frame) {

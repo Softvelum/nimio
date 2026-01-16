@@ -79,6 +79,7 @@ let LoggersFactory = (function () {
       if (this._workletPort) {
         return this._workletPort.postMessage({
           type: "log",
+          log: true,
           lf: this._lf,
           args: Array.prototype.slice.call(arguments),
         });

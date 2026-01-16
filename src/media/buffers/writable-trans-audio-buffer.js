@@ -53,17 +53,13 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    // if (msg && msg.type === "log") {
-    //   console.warn("handlePortMessage writable log");
-    // }
-
-    if (!msg || msg.type === "log") return;
+    if (!msg || msg.log) return;
 
     try {
       if (msg.type === "tb:read") {
         let rIdx = this.getReadIdx();
         let wIdx = this.getWriteIdx();
-        console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
+        // console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
         if (rIdx !== msg.start) {
           console.error(`Wrong read idx received: start=${msg.start}, end=${msg.end}, cur read idx is ${rIdx}`);
         }
