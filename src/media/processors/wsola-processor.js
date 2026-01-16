@@ -70,6 +70,8 @@ export class WsolaProcessor extends BaseProcessor {
         readParams.endIdx = nextFrame.idx;
         readParams.endOffset -= readParams.endCount;
         readParams.efStartTsNs = nextFrame.timestamp * 1000;
+        readParams.endCount = this._N;
+        readParams.endRate = 1;
       }
     } else if (bufferRates[readParams.endIdx] === 1) {
       let endFrame = { data: this._bufferIface.frames[readParams.endIdx] };
@@ -97,6 +99,8 @@ export class WsolaProcessor extends BaseProcessor {
       this._updateFrameCount(sCount, readParams.prelimRate);
       this._bufferIface.forEachAsync(
         function (ts, rate, data, idx, left) {
+          // setting frame's rate to 0 means that it's read with rate 1,
+          // but the frame is skipped by WSOLA algorithm
           bufferRates[idx] = 0;
         },
         nextFrame.idx,
