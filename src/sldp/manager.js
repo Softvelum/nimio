@@ -1,5 +1,6 @@
 import { PlaybackContext } from "@/playback/context";
 import { LoggersFactory } from "@/shared/logger";
+import { EventBus } from "@/event-bus";
 
 export class SLDPManager {
   constructor(instName) {
@@ -11,6 +12,7 @@ export class SLDPManager {
 
     this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
+    this._eventBus = EventBus.getInstance(this._instName);
     // TODO: set from config.syncBuffer
     this._useSteady = false;
   }
@@ -42,19 +44,22 @@ export class SLDPManager {
     });
   }
 
-  stop(closeConnection) {
-    let sns = this._curStreams.map((s) => s.sn);
+  stop(opts = {}) {
     this._transport.send("stop", {
-      close: !!closeConnection,
-      sns: sns,
+      close: !!opts.closeConnection,
+      sns: this.resetCurrentStreams(),
     });
+  }
 
+  resetCurrentStreams() {
+    const sns = this._curStreams.map((s) => s.sn);
     for (let i = 0; i < sns.length; i++) {
       delete this._reqStreams[sns[i]];
     }
     this._curStreams = [];
 
     this._transport.send("removeTimescale", sns);
+    return sns;
   }
 
   requestStream(type, idx, offset) {
@@ -194,6 +199,16 @@ export class SLDPManager {
     this._transport.runCallback("videoSetup", vsetup);
     this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
+
+    // name - application and stream name, e.g. 'live/stream'
+    // width - stream width in pixels if video is present
+    // height - stream height in pixels if video is present
+    // vcodec - stream video codec if present
+    // video - either 'supported' or 'not supported' depending on browser capabilities
+    // acodec - stream audio codec if present
+    // audio - either 'supported' or 'not supported' depending on browser capabilities
+    // bandwidth - stream bandwidth expressed in bits per second
+    this._eventBus.emit("nimio:connection-established", streams);
   }
 
   _pushCurStream(type, stream) {

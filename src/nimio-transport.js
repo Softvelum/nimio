@@ -11,7 +11,20 @@ export const NimioTransport = {
       audioSetup: this._onAudioSetupReceived.bind(this),
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
+      disconnect: this._onDisconnect.bind(this),
     };
+  },
+
+  _onDisconnect(data) {
+    this._logger.debug("Disconnect", data.code);
+    this._state.stop();
+    this._sldpManager.resetCurrentStreams();
+    if (this._isAutoAbr()) {
+      this._abrController.stop({ hard: true });
+    }
+    this._resetPlayback();
+
+    this.play();
   },
 
   _onVideoSetupReceived(data) {

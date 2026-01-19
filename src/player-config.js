@@ -25,6 +25,7 @@ const DEFAULTS = {
   fullscreen: false,
   dropZeroDurationFrames: false,
   hardwareAcceleration: false,
+  reconnects: 10,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
