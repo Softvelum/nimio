@@ -30,6 +30,7 @@ import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 import { resolveContainer } from "./shared/container";
+import { Reconnector } from "./reconnector";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -120,6 +121,7 @@ export default class Nimio {
     this._context = PlaybackContext.getInstance(this._instName);
     this._sldpManager = new SLDPManager(this._instName);
     this._sldpManager.init(this._transport, this._config);
+    this._reconnect = new Reconnector(this._instName, this._config.reconnects);
 
     this._audioWorkletReady = null;
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
@@ -134,8 +136,9 @@ export default class Nimio {
 
     this._createLatencyController();
 
+    this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
-      setTimeout(() => this.play(), 0);
+      setTimeout(this._playCb, 0);
       setTimeout(() => {
         this._ui.hideControls(true);
       }, 1000);
@@ -143,8 +146,9 @@ export default class Nimio {
   }
 
   play() {
-    const initialPlay = !this._state.isPaused();
+    if (this._state.isPlaying()) return;
 
+    const initialPlay = !this._state.isPaused();
     this._cancelPauseTimeout();
 
     this._state.start();
@@ -169,8 +173,11 @@ export default class Nimio {
   }
 
   pause() {
+    if (this._state.isPaused()) return;
+
     this._state.pause();
     this._latencyCtrl.pause();
+    this._reconnect.stop();
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
@@ -181,6 +188,7 @@ export default class Nimio {
   stop(closeConnection) {
     this._state.stop();
     this._sldpManager.stop({ closeConnection });
+    this._reconnect.reset();
     if (this._debugView) this._debugView.stop();
 
     if (this._isAutoAbr()) {

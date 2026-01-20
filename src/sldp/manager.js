@@ -12,7 +12,7 @@ export class SLDPManager {
 
     this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
-    this._eventBus = EventBus.getInstance(this._instName);
+    this._eventBus = EventBus.getInstance(instName);
     // TODO: set from config.syncBuffer
     this._useSteady = false;
   }

@@ -16,15 +16,17 @@ export const NimioTransport = {
   },
 
   _onDisconnect(data) {
-    this._logger.debug("Disconnect", data.code);
     this._state.stop();
     this._sldpManager.resetCurrentStreams();
     if (this._isAutoAbr()) {
       this._abrController.stop({ hard: true });
     }
     this._resetPlayback();
-
-    this.play();
+    if (!this._reconnect.schedule(this._playCb)) {
+      this._logger.debug("Stop reconnecting");
+      return this._ui.drawPlay();
+    }
+    this._logger.debug("Attempt to reconnect");
   },
 
   _onVideoSetupReceived(data) {
