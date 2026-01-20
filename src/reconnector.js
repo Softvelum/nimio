@@ -1,13 +1,13 @@
 import { EventBus } from "@/event-bus";
 
 export class Reconnector {
-  constructor (instName, count) {
+  constructor(instName, count) {
     this._count = count;
     this._eventBus = EventBus.getInstance(instName);
     this._eventBus.on("nimio:connection-established", () => this.reset());
     this.reset();
   }
-  
+
   reset() {
     this.stop();
     this._done = 0;
@@ -24,7 +24,7 @@ export class Reconnector {
 
     if (!this._timer) {
       const inst = this;
-      this._timer = setTimeout(function() {
+      this._timer = setTimeout(function () {
         inst._done++;
         cb();
         inst._timer = undefined;
@@ -36,4 +36,4 @@ export class Reconnector {
   _timeout() {
     return this._done < 5 ? 1000 : 5000;
   }
-};
+}

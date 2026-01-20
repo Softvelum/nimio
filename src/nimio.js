@@ -292,7 +292,10 @@ export default class Nimio {
         ? this._onVideoStartTsNotSet.bind(this)
         : this._onAudioStartTsNotSet.bind(this);
     decoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    decoderFlow.onSwitchResult = (done) => {
+    decoderFlow.onSwitchResult = (done, msg) => {
+      if (msg && !done) {
+        this._logger.error(msg);
+      }
       this._onRenditionSwitchResult(type, done);
     };
     decoderFlow.onInputCancel = () => {
