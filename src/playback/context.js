@@ -162,6 +162,29 @@ class PlaybackContext {
     return this._curConf[type] && idx === this._curConf[type].idx;
   }
 
+  getStreamsConfig() {
+    let res = [];
+    for (let i = 0; i < this._streams.length; i++) {
+      const streamInfo = this._streams[i].stream_info;
+      let strm = {
+        name: this._streams[i].stream,
+        bandwidth: streamInfo.bandwidth,
+      };
+      if (streamInfo.vcodec) {
+        strm.width = streamInfo.width;
+        strm.height = streamInfo.height;
+        strm.vcodec = streamInfo.vcodec;
+        strm.video = streamInfo.vcodecSupported ? "supported" : "not supported";
+      }
+      if (streamInfo.acodec) {
+        strm.acodec = streamInfo.acodec;
+        strm.audio = streamInfo.acodecSupported ? "supported" : "not supported";
+      }
+      res.push(strm);
+    }
+    return res;
+  }
+
   get streams() {
     return this._streams;
   }
