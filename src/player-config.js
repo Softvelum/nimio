@@ -26,6 +26,7 @@ const DEFAULTS = {
   dropZeroDurationFrames: false,
   hardwareAcceleration: false,
   reconnects: 10,
+  syncBuffer: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -165,6 +166,33 @@ function initVUMeterSettings(settings, logger) {
   }
 }
 
+function initSyncBufferSetting(settings, logger) {
+  if(undefined !== settings.syncBuffer) {
+    settings.syncBuffer = parseInt(settings.syncBuffer);
+    if(isNaN(settings.syncBuffer)) {
+      settings.syncBuffer = null;
+      return;
+    }
+
+    if( settings.syncBuffer < 500 ) {
+      settings.syncBuffer = 500;
+    }
+    if( settings.latencyTolerance ) {
+      logger.warn(
+        "Playback synchronization is set up. \"latencyTolerance\" parameter doesn't take any effect and is omitted.",
+      );
+      settings.latencyTolerance = 0;
+    }
+    if( settings.startOffset ) {
+      logger.warn(
+        "Playback synchronization is set up. \"startOffset\" parameter doesn't take any effect and is omitted.",
+      );
+    }
+    settings.latency = settings.syncBuffer - 50;
+    settings.startOffset = settings.syncBuffer;
+  }
+}
+
 export function createConfig(overrides = {}) {
   const filtered = {};
   const unknown = [];
@@ -186,6 +214,8 @@ export function createConfig(overrides = {}) {
   for (let i = 0; i < unknown.length; i++) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);
   }
+
+  initSyncBufferSetting(target, logger);
 
   target.fullBufferMs =
     target.latency + target.startOffset + target.pauseTimeout;

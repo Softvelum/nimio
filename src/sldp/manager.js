@@ -24,6 +24,7 @@ export class SLDPManager {
     }
 
     this._startOffset = config.startOffset || 0;
+    this._useSteady = config.syncBuffer > 0;
     this._hasVideo = !config.audioOnly;
     this._hasAudio = !config.videoOnly;
     this._initRend = config.adaptiveBitrate?.initialRendition;
