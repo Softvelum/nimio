@@ -59,7 +59,7 @@ function initLatencySettings(settings, logger) {
     settings.latencyTolerance = parseInt(settings.latencyTolerance);
     if (
       isNaN(settings.latencyTolerance) ||
-      settings.latencyTolerance < settings.latency
+      settings.latencyTolerance < settings.latency && !settings.syncBuffer
     ) {
       let err =
         settings.latencyTolerance < settings.latency

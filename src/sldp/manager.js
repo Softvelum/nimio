@@ -13,7 +13,6 @@ export class SLDPManager {
     this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
     this._eventBus = EventBus.getInstance(instName);
-    // TODO: set from config.syncBuffer
     this._useSteady = false;
   }
 
@@ -31,7 +30,7 @@ export class SLDPManager {
 
     this._transport = transport;
     this._transport.setCallback("status", async (msg) => {
-      await this._processStatus(msg);
+      await this._processStatus(msg.info, msg.steady, msg.system);
       this._play(this._curStreams);
     });
   }
@@ -120,7 +119,7 @@ export class SLDPManager {
     this._transport.send("play", { streams });
   }
 
-  async _processStatus(streams) {
+  async _processStatus(streams, steadyTime, systemTime) {
     await this._context.setStreams(streams);
 
     let gotVideo = !this._hasVideo;
@@ -246,6 +245,7 @@ export class SLDPManager {
       type: type,
       offset: offset,
     };
+    if (this._useSteady) res.steady = true;
 
     return res;
   }
