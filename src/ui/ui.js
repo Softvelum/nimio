@@ -38,7 +38,6 @@ export class Ui {
       cursor: "pointer",
       zIndex: 10,
       margin: "auto",
-      "background-color": "grey",
     });
     this._container.appendChild(this._canvas);
 
@@ -60,6 +59,10 @@ export class Ui {
     if (opts.fullscreen) {
       this._toggleFullscreen();
     }
+    if (opts.splashScreen) {
+      this._splashScreenUrl = `url('${opts.splashScreen}')`;
+    }
+    this._setBackground();
   }
 
   destroy() {
@@ -75,6 +78,16 @@ export class Ui {
     while (this._container.firstChild) {
       this._container.removeChild(this._container.firstChild);
     }
+  }
+
+  onPlaybackStarting() {
+    this._unsetBackground();
+    this.drawPause();
+  }
+
+  onPlaybackStopped() {
+    this._setBackground();
+    this.drawPlay();
   }
 
   drawPlay() {
@@ -421,5 +434,26 @@ export class Ui {
       this._logger.warn("No fullscreen API is available");
     }
     if (e) e.stopPropagation();
+  }
+
+  _setBackground() {
+    if (this._splashScreenUrl) {
+      this._canvas.style.removeProperty('background-color');
+      setTimeout(() => {
+        // misterious chrome bug
+        this._canvas.style['background-color'] = '#000';
+        this._canvas.style['background-image'] = this._splashScreenUrl;
+        this._canvas.style['background-size'] = 'cover';
+      }, 0);
+    } else {
+      this._canvas.style['background-color'] = '#000';
+    }
+  }
+
+  _unsetBackground() {
+    if (this._splashScreenUrl) {
+      this._canvas.style['background-image'] = '';
+      this._canvas.style['background-size'] = '';
+    }
   }
 }

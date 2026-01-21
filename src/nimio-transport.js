@@ -24,7 +24,8 @@ export const NimioTransport = {
     this._resetPlayback();
     if (!this._reconnect.schedule(this._playCb)) {
       this._logger.debug("Stop reconnecting");
-      return this._ui.drawPlay();
+      this._ui.onPlaybackStopped();
+      return;
     }
     this._logger.debug("Attempt to reconnect");
   },

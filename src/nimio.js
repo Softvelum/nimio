@@ -95,6 +95,7 @@ export default class Nimio {
         logger: LoggersFactory.create(this._instName, "Nimio UI"),
         autoAbr: !!this._config.adaptiveBitrate,
         fullscreen: !!this._config.fullscreen && !this._noVideo,
+        splashScreen: this._config.splashScreen,
       },
       this._eventBus,
     );
@@ -169,7 +170,7 @@ export default class Nimio {
       this._audioCtxProvider.get().resume();
     }
 
-    this._ui.drawPause();
+    this._ui.onPlaybackStarting();
   }
 
   pause() {
@@ -196,7 +197,7 @@ export default class Nimio {
     }
     this._resetPlayback();
 
-    this._ui.drawPlay();
+    this._ui.onPlaybackStopped();
   }
 
   destroy() {
