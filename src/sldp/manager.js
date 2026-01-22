@@ -13,7 +13,7 @@ export class SLDPManager {
     this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
     this._eventBus = EventBus.getInstance(instName);
-    this._useSteady = false;
+    this._useSyncMode = false;
   }
 
   init(transport, config) {
@@ -23,14 +23,17 @@ export class SLDPManager {
     }
 
     this._startOffset = config.startOffset || 0;
-    this._useSteady = config.syncBuffer > 0;
+    this._useSyncMode = config.syncBuffer > 0;
     this._hasVideo = !config.audioOnly;
     this._hasAudio = !config.videoOnly;
     this._initRend = config.adaptiveBitrate?.initialRendition;
 
     this._transport = transport;
-    this._transport.setCallback("status", async (msg) => {
-      await this._processStatus(msg.info, msg.steady, msg.system);
+    this._transport.setCallback("status", async (status) => {
+      if (this._useSyncMode) {
+        this._checkSyncParams(status);
+      }
+      await this._processStatus(status.info);
       this._play(this._curStreams);
     });
   }
@@ -40,7 +43,7 @@ export class SLDPManager {
     this._transport.send("start", {
       url: url,
       protocols: ["sldp.softvelum.com"],
-      useSteady: this._useSteady,
+      syncMode: this._useSyncMode,
     });
   }
 
@@ -119,7 +122,7 @@ export class SLDPManager {
     this._transport.send("play", { streams });
   }
 
-  async _processStatus(streams, steadyTime, systemTime) {
+  async _processStatus(streams) {
     await this._context.setStreams(streams);
 
     let gotVideo = !this._hasVideo;
@@ -240,7 +243,7 @@ export class SLDPManager {
       type: type,
       offset: offset,
     };
-    if (this._useSteady) res.steady = true;
+    if (this._useSyncMode) res.steady = true;
 
     return res;
   }
@@ -272,5 +275,21 @@ export class SLDPManager {
     }
 
     return res;
+  }
+
+  _checkSyncParams(status) {
+    if (!status.steady || !status.system) {
+      this._logger.error(
+        'Playback synchronization is set up but target Nimble Streamer doesn\'t have "sldp_add_steady_timestamps" config parameter set up. Add sldp_add_steady_timestamps = true to /etc/nimble/nimble.conf file and restart Nimble Streamer.',
+      );
+      return;
+    }
+    status.steady = parseInt(status.steady);
+    status.system = parseInt(status.system);
+
+    this._clientTimeMs = performance.now();
+    this._steadyTimeUs = status.steady;
+    this._baseSyncTimeMs = (showTimeUs - this._steadyTimeUs) / 1000 - ptsMs;
+    this._timeShiftMs = this._baseSyncTimeMs + this._clientTimeMs;
   }
 }

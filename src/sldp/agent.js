@@ -11,8 +11,8 @@ const IS_SEQUENCE_HEADER = [
 export class SLDPAgent {
   constructor() {
     this._timescale = {};
-    this._useSteady = false;
-    this._steady = false;
+    this._syncMode = false;
+    this._hasShowTime = false;
     this._codecDataStatus = {};
   }
 
@@ -29,7 +29,7 @@ export class SLDPAgent {
       timestamp = ByteReader.readUint(frameWthHdr, dtPos, 8);
       dtPos += 8;
 
-      if (this._steady) {
+      if (this._hasShowTime) {
         showTime = ByteReader.readUint(frameWthHdr, dtPos, 8);
         dtPos += 8;
       }
@@ -42,7 +42,7 @@ export class SLDPAgent {
       return;
     }
 
-    let ptsSec, ptsUs;
+    let ptsMs, ptsUs;
     let isKey = false;
     switch (frameType) {
       case WEB.AAC_SEQUENCE_HEADER:
@@ -64,8 +64,8 @@ export class SLDPAgent {
           this._sendCodecData(trackId, codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
-        ptsSec = timestamp / (timescale / 1000);
-        ptsUs = Math.round(1000 * ptsSec);
+        ptsMs = timestamp / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsMs);
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
         break;
       case WEB.AVC_KEY_FRAME:
@@ -81,10 +81,10 @@ export class SLDPAgent {
           dtPos += 4;
         }
 
-        ptsSec = (timestamp + compositionOffset) / (timescale / 1000);
-        ptsUs = Math.round(1000 * ptsSec);
+        ptsMs = (timestamp + compositionOffset) / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsMs);
         let dtsUs = (1000 * timestamp) / (timescale / 1000);
-        let offUs = Math.round(1000 * ptsSec - dtsUs);
+        let offUs = Math.round(1000 * ptsMs - dtsUs);
 
         // console.debug(`V frame uts: ${ptsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
         this._sendVideoChunk(frameWthHdr, ptsUs, offUs, isKey, dtPos, showTime);
@@ -98,8 +98,8 @@ export class SLDPAgent {
         isKey = true;
       case WEB.VP8_FRAME:
       case WEB.VP9_FRAME:
-        ptsSec = timestamp / (timescale / 1000);
-        ptsUs = Math.round(1000 * ptsSec);
+        ptsMs = timestamp / (timescale / 1000);
+        ptsUs = Math.round(1000 * ptsMs);
         this._sendVideoChunk(frameWthHdr, ptsUs, 0, isKey, dtPos, showTime);
         break;
       default:
@@ -119,8 +119,8 @@ export class SLDPAgent {
       return;
     }
 
-    if (this._useSteady) {
-      this._steady = !!status.steady;
+    if (this._syncMode) {
+      this._hasShowTime = !!status.steady;
     }
 
     self.postMessage({ type: "status", data: status });
@@ -145,12 +145,12 @@ export class SLDPAgent {
     }
   }
 
-  get useSteady() {
-    return this._useSteady;
+  get syncMode() {
+    return this._syncMode;
   }
 
-  set useSteady(value) {
-    this._useSteady = value;
+  set syncMode(value) {
+    this._syncMode = value;
   }
 
   _sendCodecData(trackId, data, type, frameType) {
