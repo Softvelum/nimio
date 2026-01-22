@@ -200,15 +200,10 @@ export class SLDPManager {
     this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
 
-    // name - application and stream name, e.g. 'live/stream'
-    // width - stream width in pixels if video is present
-    // height - stream height in pixels if video is present
-    // vcodec - stream video codec if present
-    // video - either 'supported' or 'not supported' depending on browser capabilities
-    // acodec - stream audio codec if present
-    // audio - either 'supported' or 'not supported' depending on browser capabilities
-    // bandwidth - stream bandwidth expressed in bits per second
-    this._eventBus.emit("nimio:connection-established", streams);
+    this._eventBus.emit(
+      "nimio:connection-established",
+      this._context.getStreamsConfig(),
+    );
   }
 
   _pushCurStream(type, stream) {
