@@ -11,17 +11,19 @@
 ### Get Larix apps
 
 **Larix Player**  
-<a href="https://itunes.apple.com/app/sldp-player/id1238237026">
-<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="40" style="padding: 10px">
-</a>&nbsp;&nbsp;
+&nbsp;&nbsp;<a href="https://itunes.apple.com/app/sldp-player/id1238237026">
+<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="45">
+</a>
+
 <a href="https://play.google.com/store/apps/details?id=com.softvelum.sldp_player">
 <img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="60">
 </a>
 
 **Larix Broadcaster**  
-<a href="https://apps.apple.com/us/app/larix-broadcaster-live-stream/id1042474385">
-<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="40" style="padding: 10px">
-</a>&nbsp;&nbsp;
+&nbsp;&nbsp;<a href="https://apps.apple.com/us/app/larix-broadcaster-live-stream/id1042474385">
+<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="45">
+</a>
+
 <a href="https://play.google.com/store/apps/details?id=com.wmspanel.larix_broadcaster">
 <img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="60">
 </a>
