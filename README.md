@@ -1,5 +1,27 @@
 <img src="public/nimio-logo.png" alt="Nimio Logo" height="60"/>
 
+## SLDP ecosystem
+
+[SLDP (Softvelum Low Delay Protocol)](https://softvelum.com/sldp/) is a part of **Larix** product family, which provides a complete solution for mobile contribution and low-latency playback.
+
+- **Nimio** — lightweight JavaScript **SLDP** player for the web built on WebCodecs.
+- **Larix Player** — playback including **SLDP** (iOS / Apple TV / Android)
+- **Larix Broadcaster** — mobile contribution; supports **SLDP** talkback (iOS / Android)
+
+### Get Larix apps
+
+**Larix Broadcaster**  
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/app/larix-broadcaster/id1042474385)
+<a href="https://play.google.com/store/apps/details?id=com.wmspanel.larix_broadcaster">
+<img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="60">
+</a>
+
+**Larix Player**  
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://itunes.apple.com/app/sldp-player/id1238237026)
+<a href="https://play.google.com/store/apps/details?id=com.softvelum.sldp_player">
+<img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="60">
+</a>
+
 ## Overview
 
 **Nimio** is a lightweight, flexible JavaScript player for the SLDP 2.0 protocol built on the WebCodecs API. It offers low-latency streaming, full control over audio/video pipelines, and easy integration into modern web apps.
