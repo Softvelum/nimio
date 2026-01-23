@@ -12,7 +12,7 @@
 
 **Larix Player**  
 &nbsp;&nbsp;<a href="https://itunes.apple.com/app/sldp-player/id1238237026">
-<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="45">
+<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">
 </a>
 
 <a href="https://play.google.com/store/apps/details?id=com.softvelum.sldp_player">
@@ -21,7 +21,7 @@
 
 **Larix Broadcaster**  
 &nbsp;&nbsp;<a href="https://apps.apple.com/us/app/larix-broadcaster-live-stream/id1042474385">
-<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="45">
+<img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">
 </a>
 
 <a href="https://play.google.com/store/apps/details?id=com.wmspanel.larix_broadcaster">
