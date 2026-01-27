@@ -59,7 +59,7 @@ export class SyncModeClock {
 export function retrieveSyncModeClockOffset(port, clockFn, resFn) {
   const handler = function (e) {
     const msg = e.data;
-    if (!msg || msg.aux) return;
+    if (!msg || !msg.aux) return;
     if (msg.type === "sm-clock") {
       port.postMessage({
         type: "sm-clock-reply",

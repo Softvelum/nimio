@@ -109,6 +109,9 @@ export class LatencyController {
 
     this._stateMgr.incCurrentTsSmp(sampleCount);
     this._adjustPlaybackLatency();
+
+    let expPos = this._getCurTimeMs() - this._smClockOffsetMs - this._syncModePtsOffsetMs;
+    this._logger.debug(`Diff = ${this._curTsUs - expPos * 1000}, cur ts = ${this._curTsUs}`);
     return this._curTsUs;
   }
 
@@ -214,6 +217,7 @@ export class LatencyController {
 
     let curSmpCnt = this._stateMgr.getCurrentTsSmp();
     this._curTsUs = this._audioConfig.smpCntToTsUs(curSmpCnt) + this._startTsUs;
+    return this._curTsUs;
   }
 
   _getVideoAvailableUs() {
@@ -316,7 +320,7 @@ export class LatencyController {
 
   _setSyncModeClockOffset(offset) {
     this._logger.debug(`Sync mode clock offset = ${offset}`);
-    this._smClockOffset = offset;
+    this._smClockOffsetMs = offset;
   }
 
   _retrieveSyncModeParams() {
@@ -327,7 +331,9 @@ export class LatencyController {
       if (!msg || msg.aux) return;
       if (msg.type === "sync-mode-params") {
         this._syncModePtsOffsetMs = msg.ptsOffsetMs;
-        debugger;
+        // let expPos = this._getCurTimeMs() - this._smClockOffsetMs - this._syncModePtsOffsetMs;
+        // this._logger.debug(`Exp pos = ${expPos}, curTime = ${this._getCurTimeMs()}, pts offset = ${this._syncModePtsOffsetMs}`);
+        // this._logger.debug(`Diff = ${this._getCurrentTsUs() - expPos * 1000}, curTsUs = ${this._curTsUs}`);
         this._params.port.removeEventListener("message", this._smParamsHandler);
         this._smParamsHandler = undefined;
       }
