@@ -97,7 +97,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    if (!msg) return;
+    if (!msg || msg.aux) return;
 
     try {
       if (msg.type === "tb:frames") {

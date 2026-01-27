@@ -2,6 +2,7 @@ import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
 import { currentTimeGetterMs } from "@/shared/helpers";
 import { clamp } from "@/shared/helpers";
+import { retrieveSyncModeClockOffset } from "@/sync-mode/clock";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -43,6 +44,10 @@ export class LatencyController {
     this._minSeekIntervalMs = 4000; // don't seek more frequently
 
     this._getCurTimeMs = currentTimeGetterMs();
+    if (params.syncBuffer > 0 && params.port) {
+      const setFn = this._setSyncModeClockOffset.bind(this);
+      retrieveSyncModeClockOffset(params.port, this._getCurTimeMs, setFn);
+    }
 
     this.reset();
 
@@ -63,18 +68,22 @@ export class LatencyController {
     this._audioAvailUs = this._videoAvailUs = undefined;
     this._pendingStableSince = null;
     this._restoreLatency = false;
+
+    if (this._params.syncBuffer > 0 && this._params.port) {
+      this._retrieveSyncModeParams();
+    }
   }
 
   start() {
     if (this._pauseTime > 0) {
-      let pauseDuration = performance.now() - this._pauseTime;
+      let pauseDuration = this._getCurTimeMs() - this._pauseTime;
       this._prevVideoTime += pauseDuration;
       this._pauseTime = 0;
     }
   }
 
   pause() {
-    this._pauseTime = performance.now();
+    this._pauseTime = this._getCurTimeMs();
   }
 
   availableMs(type) {
@@ -107,12 +116,12 @@ export class LatencyController {
     this._getCurrentTsUs();
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
-    this._prevVideoTime = performance.now();
+    this._prevVideoTime = this._getCurTimeMs();
     if (this._checkPending() || prevVideoTime === 0) {
       return this._curTsUs;
     }
 
-    let timeUsPast = (performance.now() - prevVideoTime) * speed * 1000;
+    let timeUsPast = (this._getCurTimeMs() - prevVideoTime) * speed * 1000;
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(timeUsPast));
     this._adjustPlaybackLatency();
 
@@ -149,6 +158,10 @@ export class LatencyController {
 
   set audioEnabled(val) {
     this._audio = val;
+  }
+
+  set syncModePtsOffset(val) {
+    this._syncModePtsOffsetMs = val;
   }
 
   _checkPending() {
@@ -287,12 +300,8 @@ export class LatencyController {
   }
 
   _seek(goForward, deltaMs, bufMin, now) {
-    if (!goForward) return;
-
-    if (goForward) {
-      if (now - this._lastActionTime < this._minSeekIntervalMs) {
-        return;
-      }
+    if (!goForward || now - this._lastActionTime < this._minSeekIntervalMs) {
+      return;
     }
     this._lastActionTime = now;
 
@@ -303,5 +312,26 @@ export class LatencyController {
     if (this._video) this._videoAvailUs -= deltaUs;
     if (this._audio) this._audioAvailUs -= deltaUs;
     this._availableUs -= deltaUs;
+  }
+
+  _setSyncModeClockOffset(offset) {
+    this._logger.debug(`Sync mode clock offset = ${offset}`);
+    this._smClockOffset = offset;
+  }
+
+  _retrieveSyncModeParams() {
+    if (this._smParamsHandler) return;
+
+    this._smParamsHandler = (e) => {
+      const msg = e.data;
+      if (!msg || msg.aux) return;
+      if (msg.type === "sync-mode-params") {
+        this._syncModePtsOffsetMs = msg.ptsOffsetMs;
+        debugger;
+        this._params.port.removeEventListener("message", this._smParamsHandler);
+        this._smParamsHandler = undefined;
+      }
+    };
+    this._params.port.addEventListener("message", this._smParamsHandler);
   }
 }

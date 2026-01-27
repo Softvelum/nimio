@@ -155,6 +155,10 @@ export const NimioTransport = {
       return;
     }
 
+    if (this._syncModeParams && !this._syncModeParams.inited) {
+      this._initSyncModeParams(data);
+    }
+
     this._metricsManager.reportBandwidth(
       data.trackId,
       data.frameWithHeader.byteLength,

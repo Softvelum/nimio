@@ -31,7 +31,7 @@ export class SLDPManager {
     this._transport = transport;
     this._transport.setCallback("status", async (status) => {
       if (this._useSyncMode) {
-        this._checkSyncParams(status);
+        this._handleSyncParams(status);
       }
       await this._processStatus(status.info);
       this._play(this._curStreams);
@@ -277,19 +277,17 @@ export class SLDPManager {
     return res;
   }
 
-  _checkSyncParams(status) {
-    if (!status.steady || !status.system) {
+  _handleSyncParams(status) {
+    if (!status.steady) {
       this._logger.error(
         'Playback synchronization is set up but target Nimble Streamer doesn\'t have "sldp_add_steady_timestamps" config parameter set up. Add sldp_add_steady_timestamps = true to /etc/nimble/nimble.conf file and restart Nimble Streamer.',
       );
       return;
     }
-    status.steady = parseInt(status.steady);
-    status.system = parseInt(status.system);
 
-    this._clientTimeMs = performance.now();
-    this._steadyTimeUs = status.steady;
-    this._baseSyncTimeMs = (showTimeUs - this._steadyTimeUs) / 1000 - ptsMs;
-    this._timeShiftMs = this._baseSyncTimeMs + this._clientTimeMs;
+    this._eventBus.emit("nimio:sync-mode-params", {
+      playerTimeMs: performance.now(),
+      serverTimeMs: parseInt(status.steady),
+    });
   }
 }

@@ -59,7 +59,7 @@ function initLatencySettings(settings, logger) {
     settings.latencyTolerance = parseInt(settings.latencyTolerance);
     if (
       isNaN(settings.latencyTolerance) ||
-      settings.latencyTolerance < settings.latency && !settings.syncBuffer
+      (settings.latencyTolerance < settings.latency && !settings.syncBuffer)
     ) {
       let err =
         settings.latencyTolerance < settings.latency
@@ -167,25 +167,25 @@ function initVUMeterSettings(settings, logger) {
 }
 
 function initSyncBufferSetting(settings, logger) {
-  if(undefined !== settings.syncBuffer) {
+  if (undefined !== settings.syncBuffer) {
     settings.syncBuffer = parseInt(settings.syncBuffer);
-    if(isNaN(settings.syncBuffer)) {
+    if (isNaN(settings.syncBuffer)) {
       settings.syncBuffer = null;
       return;
     }
 
-    if( settings.syncBuffer < 500 ) {
+    if (settings.syncBuffer < 500) {
       settings.syncBuffer = 500;
     }
-    if( settings.latencyTolerance ) {
+    if (settings.latencyTolerance) {
       logger.warn(
-        "Playback synchronization is set up. \"latencyTolerance\" parameter doesn't take any effect and is omitted.",
+        'Playback synchronization is set up. "latencyTolerance" parameter doesn\'t take any effect and is omitted.',
       );
       settings.latencyTolerance = 0;
     }
-    if( settings.startOffset ) {
+    if (settings.startOffset) {
       logger.warn(
-        "Playback synchronization is set up. \"startOffset\" parameter doesn't take any effect and is omitted.",
+        'Playback synchronization is set up. "startOffset" parameter doesn\'t take any effect and is omitted.',
       );
     }
     settings.latency = settings.syncBuffer - 50;

@@ -31,6 +31,7 @@ import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 import { resolveContainer } from "./shared/container";
 import { Reconnector } from "./reconnector";
+import { SyncModeClock } from "./sync-mode/clock";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -135,6 +136,9 @@ export default class Nimio {
     this._createVUMeter();
 
     this._createLatencyController();
+    if (this._config.syncBuffer > 0) {
+      this._createSyncModeParams();
+    }
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -423,6 +427,7 @@ export default class Nimio {
       this._audioBuffer.reset();
     }
     this._latencyCtrl.reset();
+    this._syncModeParams = null;
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
@@ -567,6 +572,9 @@ export default class Nimio {
       if (this._audioBuffer.isShareable) {
         procOptions.audioSab = this._audioBuffer.buffer;
       }
+      if (this._config.syncBuffer > 0) {
+        procOptions.syncBuffer = this._config.syncBuffer;
+      }
     }
 
     this._audioNode = new AudioWorkletNode(
@@ -593,6 +601,12 @@ export default class Nimio {
     this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
     if (this._audioCtxProvider.isSuspended()) {
       this._audioContext.resume();
+    }
+
+    if (this._config.syncBuffer > 0) {
+      let smc = new SyncModeClock(this._audioNode.port);
+      await smc.sync();
+      this._applySyncModeParams();
     }
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
@@ -661,6 +675,35 @@ export default class Nimio {
     );
     this._speed = 1;
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
+  }
+
+  _createSyncModeParams() {
+    this._syncModeParams = { buffer: this._config.syncBuffer };
+    this._eventBus.on("nimio:sync-mode-params", (data) => {
+      this._syncModeParams.playerTimeMs = data.playerTimeMs;
+      this._syncModeParams.serverTimeMs = data.serverTimeMs;
+    });
+  }
+
+  _initSyncModeParams(frame) {
+    if (frame.chunkType === "key" || this._noVideo) {
+      let srvTimeDiffMs = frame.showTime - this._syncModeParams.serverTimeMs;
+      this._syncModeParams.ptsOffsetMs =
+        this._syncModeParams.playerTimeMs + srvTimeDiffMs - frame.pts / 1000;
+      this._syncModeParams.inited = true;
+      this._applySyncModeParams();
+    }
+  }
+
+  _applySyncModeParams() {
+    if (this._syncModeParams.applied || !this._audioNode) return;
+
+    this._latencyCtrl.syncModePtsOffset = this._syncModeParams.ptsOffsetMs;
+    this._audioNode.port.postMessage({
+      type: "sync-mode-params",
+      ptsOffsetMs: this._syncModeParams.ptsOffsetMs,
+    });
+    this._syncModeParams.applied = true;
   }
 }
 

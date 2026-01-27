@@ -41,7 +41,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    if (!msg || msg.log) return;
+    if (!msg || msg.log || msg.aux) return;
 
     try {
       if (msg.type === "tb:read") {
