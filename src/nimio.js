@@ -672,6 +672,7 @@ export default class Nimio {
         adjustMethod: this._config.latencyAdjustMethod,
         video: !this._noVideo,
         audio: !this._noAudio,
+        syncBuffer: this._config.syncBuffer,
       },
     );
     this._speed = 1;

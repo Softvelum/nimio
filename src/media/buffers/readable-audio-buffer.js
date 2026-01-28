@@ -137,7 +137,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       if (steppedCount < outLength) {
         let prevStep = step;
         step = expProcCnt / outLength;
-        if (step < 0.95) step = 0.95;
+        if (step > 0 && step < 0.95) step = 0.95;
         console.log(
           `Fixed step from ${prevStep} to ${step}, start=${rParams.startOffset}, end=${rParams.endOffset}, srate=${rParams.startRate}, erate=${rParams.endRate}, scount = ${rParams.startCount}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,
         );
@@ -146,7 +146,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
 
     let processed = null;
     if (rParams.startIdx === rParams.endIdx) {
-      if (rParams.startIdx === null) {
+      if (rParams.startIdx === null || step === 0) {
         for (let c = 0; c < this.numChannels; c++) {
           outputChannels[c].fill(0);
         }

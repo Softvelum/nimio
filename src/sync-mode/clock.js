@@ -11,13 +11,13 @@ export class SyncModeClock {
     return new Promise(resolve => {
       const handler = e => {
         const msg = e.data;
-        if (!msg || !msg.aux || msg.type !== "sm-clock-reply") return;
+        if (!msg || !msg.aux || msg.type !== "clock-reply") return;
 
         const timeMainRecv = performance.now();
         const { timeMainSend, timeWorker } = msg;
 
         const rttMs = timeMainRecv - timeMainSend;
-        const offset = timeWorker - timeMainSend + rttMs / 2;
+        const offset = timeMainSend - timeWorker + rttMs / 2;
 
         this._results.push({ offset, rttMs });
 
@@ -35,7 +35,7 @@ export class SyncModeClock {
           }
 
           this._port.postMessage({
-            type: "sm-clock-offset",
+            type: "clock-offset",
             offset: this._results[mIdx].offset,
             aux: true, 
           });
@@ -47,7 +47,7 @@ export class SyncModeClock {
       this._port.addEventListener("message", handler);
       for (let i = 0; i < this._attempts; i++) {
         this._port.postMessage({
-          type: "sm-clock",
+          type: "clock",
           timeMainSend: performance.now(),
           aux: true,
         });
@@ -56,18 +56,18 @@ export class SyncModeClock {
   }
 }
 
-export function retrieveSyncModeClockOffset(port, clockFn, resFn) {
+export function retrieveClockOffset(port, clockFn, resFn) {
   const handler = function (e) {
     const msg = e.data;
     if (!msg || !msg.aux) return;
-    if (msg.type === "sm-clock") {
+    if (msg.type === "clock") {
       port.postMessage({
-        type: "sm-clock-reply",
+        type: "clock-reply",
         aux: true,
         timeMainSend: msg.timeMainSend,
         timeWorker: clockFn(),
       });
-    } else if (msg.type === "sm-clock-offset") {
+    } else if (msg.type === "clock-offset") {
       port.removeEventListener("message", handler);
       resFn(msg.offset);
     }

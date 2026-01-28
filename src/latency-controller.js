@@ -2,7 +2,7 @@ import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
 import { currentTimeGetterMs } from "@/shared/helpers";
 import { clamp } from "@/shared/helpers";
-import { retrieveSyncModeClockOffset } from "@/sync-mode/clock";
+import { SyncModePolicy } from "./sync-mode/policy";
 
 export class LatencyController {
   constructor(instName, stateMgr, audioConfig, params) {
@@ -44,14 +44,15 @@ export class LatencyController {
     this._minSeekIntervalMs = 4000; // don't seek more frequently
 
     this._getCurTimeMs = currentTimeGetterMs();
-    if (params.syncBuffer > 0 && params.port) {
-      const setFn = this._setSyncModeClockOffset.bind(this);
-      retrieveSyncModeClockOffset(params.port, this._getCurTimeMs, setFn);
-    }
-
     this.reset();
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
+    if (params.syncBuffer > 0) {
+      this._syncModePolicy = new SyncModePolicy(
+        params.syncBuffer, params.port, this._logger
+      );
+    }
+
     this._logger.debug(
       `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,
     );
@@ -68,10 +69,6 @@ export class LatencyController {
     this._audioAvailUs = this._videoAvailUs = undefined;
     this._pendingStableSince = null;
     this._restoreLatency = false;
-
-    if (this._params.syncBuffer > 0 && this._params.port) {
-      this._retrieveSyncModeParams();
-    }
   }
 
   start() {
@@ -110,8 +107,6 @@ export class LatencyController {
     this._stateMgr.incCurrentTsSmp(sampleCount);
     this._adjustPlaybackLatency();
 
-    let expPos = this._getCurTimeMs() - this._smClockOffsetMs - this._syncModePtsOffsetMs;
-    this._logger.debug(`Diff = ${this._curTsUs - expPos * 1000}, cur ts = ${this._curTsUs}`);
     return this._curTsUs;
   }
 
@@ -164,7 +159,13 @@ export class LatencyController {
   }
 
   set syncModePtsOffset(val) {
-    this._syncModePtsOffsetMs = val;
+    if (!this._syncModePolicy) {
+      this._logger.error(
+        "Attempt to set pts offset, while sync mode is disabled",
+      );
+      return;
+    }
+    this._syncModePolicy.ptsOffset = val;
   }
 
   _checkPending() {
@@ -204,7 +205,6 @@ export class LatencyController {
     }
 
     // this._logger.debug(`Available ms=${this._availableUs / 1000}, start time=${this._startTimeMs}`);
-
     if (this._startTimeMs >= 0) {
       this._bufferMeter.update(this._availableUs / 1000, this._getCurTimeMs());
     }
@@ -266,12 +266,19 @@ export class LatencyController {
       this._restoreLatency = false;
     }
 
-    if (this._lastActionTime < 0) {
+    if (age < this._warmupMs / 2 && this._lastActionTime < 0) {
       // Do seek on startup if possible
       if (this._tryInitialSeek(deltaMs, bufMin, now)) return;
     }
 
     this._adjustFn(goForward, deltaMs, bufMin, now);
+  }
+
+  _syncPlaybackLatency() {
+    if (this._startTimeMs < 0) return; // not started yet
+
+    let curTimeMs = this._curTsUs / 1000;
+
   }
 
   _startingBufferLevel() {
@@ -281,7 +288,7 @@ export class LatencyController {
   _tryInitialSeek(deltaMs, buf, now) {
     if (deltaMs > this._latencyMs) {
       let stableTime = now - this._pendingStableSince;
-      if (stableTime >= this._startHoldMs && stableTime < this._warmupMs) {
+      if (stableTime >= this._startHoldMs) {
         this._seek(true, deltaMs, buf, now);
         return true;
       }
@@ -289,7 +296,7 @@ export class LatencyController {
     return false;
   }
 
-  _zap(goForward, deltaMs, bufMin, now) {
+  _zap(goForward, deltaMs, curBuf, now) {
     let rate = 1;
     if (goForward) {
       if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
@@ -300,44 +307,21 @@ export class LatencyController {
     }
 
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
-    this._setSpeed(rate, bufMin);
+    this._setSpeed(rate, curBuf);
   }
 
-  _seek(goForward, deltaMs, bufMin, now) {
+  _seek(goForward, deltaMs, curBuf, now) {
     if (!goForward || now - this._lastActionTime < this._minSeekIntervalMs) {
       return;
     }
     this._lastActionTime = now;
 
-    this._logger.debug(`Seek forward by ${deltaMs}ms, cur bufer ms=${bufMin}`);
+    this._logger.debug(`Seek forward by ${deltaMs}ms, cur bufer ms=${curBuf}`);
 
     let deltaUs = deltaMs * 1000;
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(deltaUs));
     if (this._video) this._videoAvailUs -= deltaUs;
     if (this._audio) this._audioAvailUs -= deltaUs;
     this._availableUs -= deltaUs;
-  }
-
-  _setSyncModeClockOffset(offset) {
-    this._logger.debug(`Sync mode clock offset = ${offset}`);
-    this._smClockOffsetMs = offset;
-  }
-
-  _retrieveSyncModeParams() {
-    if (this._smParamsHandler) return;
-
-    this._smParamsHandler = (e) => {
-      const msg = e.data;
-      if (!msg || msg.aux) return;
-      if (msg.type === "sync-mode-params") {
-        this._syncModePtsOffsetMs = msg.ptsOffsetMs;
-        // let expPos = this._getCurTimeMs() - this._smClockOffsetMs - this._syncModePtsOffsetMs;
-        // this._logger.debug(`Exp pos = ${expPos}, curTime = ${this._getCurTimeMs()}, pts offset = ${this._syncModePtsOffsetMs}`);
-        // this._logger.debug(`Diff = ${this._getCurrentTsUs() - expPos * 1000}, curTsUs = ${this._curTsUs}`);
-        this._params.port.removeEventListener("message", this._smParamsHandler);
-        this._smParamsHandler = undefined;
-      }
-    };
-    this._params.port.addEventListener("message", this._smParamsHandler);
   }
 }

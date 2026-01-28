@@ -9,9 +9,9 @@ export const NimioSyncMode = {
 
   _initSyncModeParams(frame) {
     if (frame.chunkType === "key" || this._noVideo) {
-      let srvTimeDiffMs = frame.showTime - this._syncModeParams.serverTimeMs;
+      let srvTimeDiffUs = frame.showTime - this._syncModeParams.serverTimeMs;
       this._syncModeParams.ptsOffsetMs =
-        this._syncModeParams.playerTimeMs + srvTimeDiffMs - frame.pts / 1000;
+        this._syncModeParams.playerTimeMs + (srvTimeDiffUs - frame.pts) / 1000;
       this._syncModeParams.inited = true;
       this._applySyncModeParams();
     }
