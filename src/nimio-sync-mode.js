@@ -1,6 +1,6 @@
 export const NimioSyncMode = {
   _createSyncModeParams() {
-    this._syncModeParams = { buffer: this._config.syncBuffer };
+    this._syncModeParams = {};
     this._eventBus.on("nimio:sync-mode-params", (data) => {
       this._syncModeParams.playerTimeMs = data.playerTimeMs;
       this._syncModeParams.serverTimeMs = data.serverTimeMs;

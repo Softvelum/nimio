@@ -2,88 +2,93 @@ import { currentTimeGetterMs } from "@/shared/helpers";
 import { retrieveClockOffset } from "@/sync-mode/clock";
 
 export class SyncModePolicy {
-  constructor(bufferMs, port, logger) {
+  constructor(bufferMs, port) {
     this._bufferMs = bufferMs;
     this._port = port;
-    this._logger = logger;
 
     this._getCurTimeMs = currentTimeGetterMs();
     this._clockOffsetMs = 0;
-    if (port) {
-      retrieveClockOffset(port, this._getCurTimeMs, (offset) => {
+    if (this._port) {
+      retrieveClockOffset(this._port, this._getCurTimeMs, (offset) => {
+        this._logger.debug(`Set clock offset = ${offset}ms`);
         this._clockOffsetMs = offset;
       });
     }
+    this.reset();
+
+    this._periodMs = 4000;
+    this._integralDistPeriodMs = 15000;
+    this._syncBorderMs = 40; // check if still necessary _detector.isIOS() ? 52 : 40;
   }
 
   reset() {
     if (this._port) {
       this._retrieveParams();
     }
+
+    this._integralDistMs = 0;
+    this._startMs = undefined;
   }
 
-  computeAdjustment(curTimeMs, availableMs) {
-    var now = this._getCurTimeMs();
-    // perform zapping no more than once every 4 seconds
-    if( now - _syncParams.lastZapTime > _syncParams.PERIOD ) {
-      var expPosMs = this._getSyncModeCurPos();
-      if( expPosMs > curTimeMs ) {
-        var minRest = Math.min(this._params.syncBuffer - 50, 500); // 500 msec seems minimum possible buffer size for MSE to keep playing
-        var availPos = curTimeMs + availableMs - minRest;
-        // this._logger.debug(`_syncPlayback availPos = ${availPos}, curTimeMs = ${curTimeMs}`);
-        if( availPos <= curTimeMs ) {
-          expPosMs = curTimeMs;
-        } else if( availPos < expPosMs ) {
-          expPosMs = availPos;
-        }
-      }
-      var dist = expPosMs - curTimeMs;
-      var absDist = Math.abs(dist);
-      var shouldSync = false;
+  computeAdjustment(curTsMs, availableMs) {
+    let result = 0;
 
-      // this._logger.debug('syncPlayback absDist', absDist);
-      if( absDist > 0.1 ) {
-        shouldSync = true;
-      } else if( absDist > _syncParams.SYNC_BORDER ) {
-        _syncParams.integralDist += dist;
-        this._logger.debug('Integral distance for zapping', _syncParams.integralDist, absDist);
-        if( undefined === _syncParams.start ) {
-          _syncParams.start = now;
-        }
-        if( now - _syncParams.start > 15000 ) {
-          _syncParams.start = now;
-          _syncParams.integralDist = dist;
-        } else if( (Math.abs(_syncParams.integralDist ) >= 4) && (absDist >= 0.02) ) {
-          shouldSync = true;
-          this._logger.debug('zapping by integral decision', _syncParams.integralDist);
-        }
-      }
-
-      if( shouldSync ) {
-        _syncParams.integralDist = 0;
-        _syncParams.start = undefined;
-
-        if( absDist > 3 ) {
-          // seek
-        } else {
-          _syncParams.lastZapTime = now;
-          _zap(dist);
-        }
+    let curTimeMs = this._getCurTimeMs();
+    let curClockTimeMs = curTimeMs + this._clockOffsetMs;
+    let expPosMs = curClockTimeMs - this._ptsOffsetMs - this._bufferMs;
+    // this._logger.debug(
+    //   `Diff = ${expPosMs - curTsMs}ms, exp pos = ${expPosMs}, cur ts = ${curTsMs}`,
+    // );
+    if( expPosMs > curTsMs ) {
+      let minRest = Math.min(this._bufferMs - 50, 500); // 500 msec seems minimum possible buffer size for MSE to keep playing
+      let availPos = curTsMs + availableMs - minRest;
+      // this._logger.debug(`_syncPlayback availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`);
+      if( availPos <= curTsMs ) {
+        expPosMs = curTsMs;
+      } else if( availPos < expPosMs ) {
+        expPosMs = availPos;
       }
     }
+    let distMs = expPosMs - curTsMs;
+    let absDistMs = Math.abs(distMs);
+    // this._logger.debug(`Compute adjustment for sync, distance = ${distMs}`);
+
+    let shouldSync = false;
+    if( absDistMs > 100 ) {
+      shouldSync = true;
+    } else if( absDistMs > this._syncBorderMs ) {
+      this._integralDistMs += distMs;
+      // this._logger.debug(
+      //   `Integral sync distance = ${this._integralDistMs}, distance = ${distMs}`,
+      // );
+      if( undefined === this._startMs ) {
+        this._startMs = curTimeMs;
+      }
+      if (curTimeMs - this._startMs > this._integralDistPeriodMs) {
+        this._startMs = curTimeMs;
+        this._integralDistMs = distMs;
+      } else if ((Math.abs(this._integralDistMs) >= this._periodMs) && (absDistMs >= 20)) {
+        shouldSync = true;
+        this._logger.debug(`Sync by integral dist = ${this._integralDistMs}`);
+      }
+    }
+
+    if( shouldSync ) {
+      this._integralDistMs = 0;
+      this._startMs = undefined;
+      result = distMs;
+      this._logger.debug(`Should sync delta = ${distMs}`);
+    }
+
+    return result;
+  }
+
+  set logger(lgr) {
+    this._logger = lgr;
   }
 
   set ptsOffset(val) {
     this._ptsOffsetMs = val;
-  }
-
-  _getSyncModeCurPos() {
-    const nowMs = this._getCurTimeMs() + this._clockOffsetMs;
-    let expPosMs = nowMs - this._ptsOffsetMs - this._bufferMs;
-    this._logger.debug(
-      `Diff = ${this._curTsUs / 1000 - expPosMs}, exp pos = ${expPosMs}, cur ts = ${this._curTsUs}`
-    );
-    return expPosMs;
   }
 
   _retrieveParams() {
@@ -94,7 +99,7 @@ export class SyncModePolicy {
       const msg = e.data;
       if (!msg || msg.aux) return;
       if (msg.type === "sync-mode-params") {
-        this._logger.debug(`Set sync mode pts offset = ${msg.ptsOffsetMs}`);
+        this._logger.debug(`Set sync mode pts offset = ${msg.ptsOffsetMs}ms`);
         this._ptsOffsetMs = msg.ptsOffsetMs;
         this._port.removeEventListener("message", this._smParamsHandler);
         this._smParamsHandler = undefined;

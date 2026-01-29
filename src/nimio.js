@@ -428,7 +428,7 @@ export default class Nimio {
       this._audioBuffer.reset();
     }
     this._latencyCtrl.reset();
-    this._syncModeParams = null;
+    this._syncModeParams = {};
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {

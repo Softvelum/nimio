@@ -30,10 +30,11 @@ export class LatencyController {
     this._warmupMs = 3000;
     this._holdMs = 500;
     this._startHoldMs = 100;
-    this._minRate = 0.95;
+    this._minRate = 0.9;
     this._minRateStep = 1 / 128;
     this._maxRate = 1.25;
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
+    this._rateK = 0.0002;
 
     this._minLatencyDelta = 40;
     this._allowedLatencyDelta = params.tolerance - this._latencyMs;
@@ -48,9 +49,8 @@ export class LatencyController {
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
     if (params.syncBuffer > 0) {
-      this._syncModePolicy = new SyncModePolicy(
-        params.syncBuffer, params.port, this._logger
-      );
+      this._syncModePolicy = new SyncModePolicy(params.syncBuffer, params.port);
+      this._syncModePolicy.logger = this._logger;
     }
 
     this._logger.debug(
@@ -105,7 +105,8 @@ export class LatencyController {
     if (this.isPending()) return this._curTsUs;
 
     this._stateMgr.incCurrentTsSmp(sampleCount);
-    this._adjustPlaybackLatency();
+    // this._adjustPlaybackLatency();
+    this._syncPlaybackLatency();
 
     return this._curTsUs;
   }
@@ -121,7 +122,8 @@ export class LatencyController {
 
     let timeUsPast = (this._getCurTimeMs() - prevVideoTime) * speed * 1000;
     this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(timeUsPast));
-    this._adjustPlaybackLatency();
+    // this._adjustPlaybackLatency();
+    this._syncPlaybackLatency();
 
     return this._curTsUs;
   }
@@ -276,9 +278,21 @@ export class LatencyController {
 
   _syncPlaybackLatency() {
     if (this._startTimeMs < 0) return; // not started yet
+    const now = this._getCurTimeMs();
+
+    const shortB = this._bufferMeter.short(now);
+    this._stateMgr.setMinBufferMs("short", shortB);
+    const longB = this._bufferMeter.long(now);
+    this._stateMgr.setMinBufferMs("long", longB);
+    const emaB = this._bufferMeter.ema();
+    this._stateMgr.setMinBufferMs("ema", emaB);
 
     let curTimeMs = this._curTsUs / 1000;
+    let availMs = this._availableUs / 1000;
+    let deltaMs = this._syncModePolicy.computeAdjustment(curTimeMs, availMs);
+    let goForward = deltaMs !== 0;
 
+    this._zap(goForward, deltaMs, availMs, now);
   }
 
   _startingBufferLevel() {
@@ -305,8 +319,12 @@ export class LatencyController {
       rate = clamp(1 + this._rateK * deltaMs, this._minRate, this._maxRate);
       this._lastActionTime = now;
     }
-
+    
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
+
+    if (goForward) {
+      this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
+    }
     this._setSpeed(rate, curBuf);
   }
 
