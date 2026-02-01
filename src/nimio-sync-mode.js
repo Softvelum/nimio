@@ -18,17 +18,16 @@ export const NimioSyncMode = {
   },
 
   _applySyncModeParams() {
-    if (
-      !this._syncModeParams.inited ||
-      this._syncModeParams.applied ||
-      !this._audioNode
-    ) return;
+    let smParams = this._syncModeParams;
+    if (!smParams.inited || smParams.applied || !this._audioNode) {
+      return;
+    }
 
-    this._latencyCtrl.syncModePtsOffset = this._syncModeParams.ptsOffsetMs;
+    this._latencyCtrl.syncModePtsOffset = smParams.ptsOffsetMs;
     this._audioNode.port.postMessage({
       type: "sync-mode-params",
-      ptsOffsetMs: this._syncModeParams.ptsOffsetMs,
+      ptsOffsetMs: smParams.ptsOffsetMs,
     });
-    this._syncModeParams.applied = true;
+    smParams.applied = true;
   },
 };

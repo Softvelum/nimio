@@ -22,7 +22,6 @@ export class LatencyController {
       this._shortWindowMs,
       this._longWindowMs,
     );
-    this._adjustFn = params.adjustMethod === "seek" ? this._seek : this._zap;
 
     this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 50_000; // 50ms
@@ -48,7 +47,10 @@ export class LatencyController {
     this.reset();
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
+    this._latencyControlFn = this._adjustPlaybackLatency;
+    this._adjustFn = params.adjustMethod === "seek" ? this._seek : this._zap;
     if (params.syncBuffer > 0) {
+      this._latencyControlFn = this._syncPlaybackLatency;
       this._syncModePolicy = new SyncModePolicy(params.syncBuffer, params.port);
       this._syncModePolicy.logger = this._logger;
     }
@@ -103,10 +105,9 @@ export class LatencyController {
 
   incCurrentAudioSamples(sampleCount) {
     if (this.isPending()) return this._curTsUs;
-
-    this._stateMgr.incCurrentTsSmp(sampleCount);
-    // this._adjustPlaybackLatency();
-    this._syncPlaybackLatency();
+    let samplesUs = this._audioConfig.smpCntToTsUs(sampleCount);
+    this._moveCurrentPosition(samplesUs, sampleCount);
+    this._latencyControlFn();
 
     return this._curTsUs;
   }
@@ -121,9 +122,9 @@ export class LatencyController {
     }
 
     let timeUsPast = (this._getCurTimeMs() - prevVideoTime) * speed * 1000;
-    this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(timeUsPast));
-    // this._adjustPlaybackLatency();
-    this._syncPlaybackLatency();
+    this._moveCurrentPosition(timeUsPast);
+
+    this._latencyControlFn();
 
     return this._curTsUs;
   }
@@ -236,17 +237,10 @@ export class LatencyController {
     if (this._startTimeMs < 0) return; // not started yet
 
     const now = this._getCurTimeMs();
+    this._updateBufferLevels(now);
+
     const age = now - this._startTimeMs;
-    const useShort = age < this._warmupMs;
-
-    const shortB = this._bufferMeter.short(now);
-    this._stateMgr.setMinBufferMs("short", shortB);
-    const longB = this._bufferMeter.long(now);
-    this._stateMgr.setMinBufferMs("long", longB);
-    const emaB = this._bufferMeter.ema();
-    this._stateMgr.setMinBufferMs("ema", emaB);
-
-    const bufMin = useShort ? shortB : longB;
+    const bufMin = age < this._warmupMs ? this._shortB : this._longB;
     const deltaMs = bufMin - this._latencyMs;
     // const stable = Math.abs(bufMin - bufEma) < (this._latencyMs * 0.1);
 
@@ -254,14 +248,14 @@ export class LatencyController {
       this._restoreLatency = true;
     }
 
-    let goForward = false;
+    let goMove = false;
     if (deltaMs > this._minLatencyDelta && this._restoreLatency) {
       // this._logger.debug(`Delta ms=${deltaMs}, buffer ms=${bufMin}, age ms=${age}`);
       // wait for holdMs to avoid acting on single spikes
       if (!this._pendingStableSince) {
         this._pendingStableSince = now;
       } else if (now - this._pendingStableSince > this._holdMs) {
-        goForward = true;
+        goMove = true;
       }
     } else {
       this._pendingStableSince = null;
@@ -273,26 +267,24 @@ export class LatencyController {
       if (this._tryInitialSeek(deltaMs, bufMin, now)) return;
     }
 
-    this._adjustFn(goForward, deltaMs, bufMin, now);
+    this._adjustFn(goMove, deltaMs, bufMin, now);
   }
 
   _syncPlaybackLatency() {
     if (this._startTimeMs < 0) return; // not started yet
-    const now = this._getCurTimeMs();
 
-    const shortB = this._bufferMeter.short(now);
-    this._stateMgr.setMinBufferMs("short", shortB);
-    const longB = this._bufferMeter.long(now);
-    this._stateMgr.setMinBufferMs("long", longB);
-    const emaB = this._bufferMeter.ema();
-    this._stateMgr.setMinBufferMs("ema", emaB);
+    const now = this._getCurTimeMs();
+    this._updateBufferLevels(now);
 
     let curTimeMs = this._curTsUs / 1000;
     let availMs = this._availableUs / 1000;
     let deltaMs = this._syncModePolicy.computeAdjustment(curTimeMs, availMs);
-    let goForward = deltaMs !== 0;
 
-    this._zap(goForward, deltaMs, availMs, now);
+    if (Math.abs(deltaMs) >= 2000) {
+      this._seek(true, deltaMs, availMs, now);
+    } else {
+      this._zap(deltaMs !== 0, deltaMs, availMs, now);
+    }
   }
 
   _startingBufferLevel() {
@@ -310,36 +302,57 @@ export class LatencyController {
     return false;
   }
 
-  _zap(goForward, deltaMs, curBuf, now) {
+  _zap(goMove, deltaMs, curBuf, now) {
     let rate = 1;
-    if (goForward) {
+    if (goMove) {
       if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
         return;
       }
       rate = clamp(1 + this._rateK * deltaMs, this._minRate, this._maxRate);
+      if (deltaMs < -0.6) {
+        rate = 0; // stop reading samples to adjust latency faster
+      }
       this._lastActionTime = now;
     }
-    
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
 
-    if (goForward) {
+    if (goMove) {
       this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
     }
     this._setSpeed(rate, curBuf);
   }
 
-  _seek(goForward, deltaMs, curBuf, now) {
-    if (!goForward || now - this._lastActionTime < this._minSeekIntervalMs) {
+  _seek(goMove, deltaMs, curBuf, now) {
+    if (
+      !goMove ||
+      deltaMs === 0 ||
+      now - this._lastActionTime < this._minSeekIntervalMs
+    ) {
       return;
     }
     this._lastActionTime = now;
+    this._logger.debug(`Seek by ${deltaMs}ms, cur bufer ms=${curBuf}`);
 
-    this._logger.debug(`Seek forward by ${deltaMs}ms, cur bufer ms=${curBuf}`);
+    this._moveCurrentPosition(deltaMs * 1000);
+  }
 
-    let deltaUs = deltaMs * 1000;
-    this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(deltaUs));
+  _moveCurrentPosition(deltaUs, deltaSmpCnt) {
+    if (deltaSmpCnt === undefined) {
+      deltaSmpCnt = this._audioConfig.tsUsToSmpCnt(deltaUs);
+    }
+
+    this._stateMgr.incCurrentTsSmp(deltaSmpCnt);
     if (this._video) this._videoAvailUs -= deltaUs;
     if (this._audio) this._audioAvailUs -= deltaUs;
     this._availableUs -= deltaUs;
+  }
+
+  _updateBufferLevels(now) {
+    this._shortB = this._bufferMeter.short(now);
+    this._stateMgr.setMinBufferMs("short", this._shortB);
+    this._longB = this._bufferMeter.long(now);
+    this._stateMgr.setMinBufferMs("long", this._longB);
+    this._emaB = this._bufferMeter.ema();
+    this._stateMgr.setMinBufferMs("ema", this._emaB);
   }
 }

@@ -216,7 +216,11 @@ export class StateManager {
 
       if (newLow >= U32POWER) {
         newLow = newLow >>> 0;
-        newHigh = high + 1;
+        newHigh++;
+      } else if (newLow < 0) {
+        // Resulting negative number isn't expected, store 0 as a failback
+        newHigh = high > 0 ? high - 1 : 0;
+        newLow = high > 0 ? newLow + U32POWER : 0;
       }
 
       if (newHigh >= U32POWER) {
@@ -228,6 +232,7 @@ export class StateManager {
       this._notify("add64", idx, val);
       return low + high * U32POWER;
     }
+
     while (true) {
       const low = this._load32(idx);
       const high = this._load32(idx + 1);
@@ -237,7 +242,11 @@ export class StateManager {
 
       if (newLow >= U32POWER) {
         newLow = newLow >>> 0;
-        newHigh = high + 1;
+        newHigh++;
+      } else if (newLow < 0) {
+        // Resulting negative number isn't expected, store 0 as a failback
+        newHigh = high > 0 ? high - 1 : 0;
+        newLow = high > 0 ? newLow + U32POWER : 0;
       }
 
       if (newHigh >= U32POWER) {

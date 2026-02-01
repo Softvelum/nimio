@@ -39,13 +39,15 @@ export class SyncModePolicy {
     // this._logger.debug(
     //   `Diff = ${expPosMs - curTsMs}ms, exp pos = ${expPosMs}, cur ts = ${curTsMs}`,
     // );
-    if( expPosMs > curTsMs ) {
+    if (expPosMs > curTsMs) {
       let minRest = Math.min(this._bufferMs - 50, 500); // 500 msec seems minimum possible buffer size for MSE to keep playing
       let availPos = curTsMs + availableMs - minRest;
-      // this._logger.debug(`_syncPlayback availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`);
-      if( availPos <= curTsMs ) {
+      // this._logger.debug(
+      //   `_syncPlayback availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`
+      // );
+      if (availPos <= curTsMs) {
         expPosMs = curTsMs;
-      } else if( availPos < expPosMs ) {
+      } else if (availPos < expPosMs) {
         expPosMs = availPos;
       }
     }
@@ -53,31 +55,36 @@ export class SyncModePolicy {
     let absDistMs = Math.abs(distMs);
     // this._logger.debug(`Compute adjustment for sync, distance = ${distMs}`);
 
-    let shouldSync = false;
-    if( absDistMs > 100 ) {
-      shouldSync = true;
-    } else if( absDistMs > this._syncBorderMs ) {
+    let goMove = false;
+    if (absDistMs > 100) {
+      this._integralDistMs = 0;
+      goMove = true;
+    } else if (absDistMs > this._syncBorderMs) {
       this._integralDistMs += distMs;
       // this._logger.debug(
       //   `Integral sync distance = ${this._integralDistMs}, distance = ${distMs}`,
       // );
-      if( undefined === this._startMs ) {
+      if (undefined === this._startMs) {
         this._startMs = curTimeMs;
       }
       if (curTimeMs - this._startMs > this._integralDistPeriodMs) {
         this._startMs = curTimeMs;
         this._integralDistMs = distMs;
-      } else if ((Math.abs(this._integralDistMs) >= this._periodMs) && (absDistMs >= 20)) {
-        shouldSync = true;
+      } else if (
+        Math.abs(this._integralDistMs) >= this._periodMs &&
+        absDistMs >= 20
+      ) {
+        goMove = true;
         this._logger.debug(`Sync by integral dist = ${this._integralDistMs}`);
       }
+    } else {
+      this._integralDistMs = 0;
     }
 
-    if( shouldSync ) {
-      this._integralDistMs = 0;
+    if (goMove) {
       this._startMs = undefined;
       result = distMs;
-      this._logger.debug(`Should sync delta = ${distMs}`);
+      this._logger.debug(`Do sync, delta = ${distMs}`);
     }
 
     return result;

@@ -8,8 +8,8 @@ export class SyncModeClock {
   async sync() {
     this._results.length = 0;
 
-    return new Promise(resolve => {
-      const handler = e => {
+    return new Promise((resolve) => {
+      const handler = (e) => {
         const msg = e.data;
         if (!msg || !msg.aux || msg.type !== "clock-reply") return;
 
@@ -37,7 +37,7 @@ export class SyncModeClock {
           this._port.postMessage({
             type: "clock-offset",
             offset: this._results[mIdx].offset,
-            aux: true, 
+            aux: true,
           });
 
           resolve(this._results[mIdx]);

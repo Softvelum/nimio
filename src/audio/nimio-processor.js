@@ -87,15 +87,12 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     }
 
     if (!this._idle) {
-      this._stateManager.incSilenceUs(this._samplesDurationUs(sampleCount));
+      let durUs = (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
+      this._stateManager.incSilenceUs(durUs);
       if (!this._audioBuffer.isShareable) {
         this._audioBuffer.ensureCapacity();
       }
     }
-  }
-
-  _samplesDurationUs(sampleCount) {
-    return (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
   }
 
   _setSpeed(speed, availableMs) {
