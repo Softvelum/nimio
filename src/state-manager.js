@@ -149,6 +149,14 @@ export class StateManager {
     return this._store32(this._bufTypeIdx(type), val);
   }
 
+  getCurrentSpeed() {
+    return this._load32(IDX.CURRENT_SPEED);
+  }
+
+  setCurrentSpeed(val) {
+    return this._store32(IDX.CURRENT_SPEED, val * 10_000);
+  }
+
   _bufTypeIdx(type) {
     return type === "short"
       ? IDX.MIN_BUFFER_SHORT

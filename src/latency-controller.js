@@ -319,6 +319,7 @@ export class LatencyController {
     if (goMove) {
       this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
     }
+    this._stateMgr.setCurrentSpeed(rate);
     this._setSpeed(rate, curBuf);
   }
 

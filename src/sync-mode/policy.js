@@ -40,7 +40,8 @@ export class SyncModePolicy {
     //   `Diff = ${expPosMs - curTsMs}ms, exp pos = ${expPosMs}, cur ts = ${curTsMs}`,
     // );
     if (expPosMs > curTsMs) {
-      let minRest = Math.min(this._bufferMs - 50, 500); // 500 msec seems minimum possible buffer size for MSE to keep playing
+      // 500 msec seems minimum reasonable buffer size to keep playing in sync
+      let minRest = Math.min(this._bufferMs - 50, 500);
       let availPos = curTsMs + availableMs - minRest;
       // this._logger.debug(
       //   `_syncPlayback availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`
@@ -53,13 +54,13 @@ export class SyncModePolicy {
     }
     let distMs = expPosMs - curTsMs;
     let absDistMs = Math.abs(distMs);
-    // this._logger.debug(`Compute adjustment for sync, distance = ${distMs}`);
+    // this._logger.debug(`Sync mode distance = ${distMs}`);
 
     let goMove = false;
     if (absDistMs > 100) {
       this._integralDistMs = 0;
       goMove = true;
-    } else if (absDistMs > this._syncBorderMs) {
+    } else if (distMs < 0 || distMs > this._syncBorderMs) {
       this._integralDistMs += distMs;
       // this._logger.debug(
       //   `Integral sync distance = ${this._integralDistMs}, distance = ${distMs}`,
@@ -70,10 +71,7 @@ export class SyncModePolicy {
       if (curTimeMs - this._startMs > this._integralDistPeriodMs) {
         this._startMs = curTimeMs;
         this._integralDistMs = distMs;
-      } else if (
-        Math.abs(this._integralDistMs) >= this._periodMs &&
-        absDistMs >= 20
-      ) {
+      } else if (Math.abs(this._integralDistMs) >= this._periodMs) {
         goMove = true;
         this._logger.debug(`Sync by integral dist = ${this._integralDistMs}`);
       }

@@ -111,7 +111,6 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     }
 
     if (!readPrms.rate) readPrms.rate = readPrms.prelimRate;
-
     return this._fillOutput(outputChannels, readPrms);
   }
 
@@ -123,26 +122,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   _fillOutput(outputChannels, rParams) {
-    let step = rParams.rate;
-    let outLength = rParams.outLength;
-    if (rParams.startIdx !== null && rParams.endIdx !== null) {
-      let expProcCnt = rParams.endOffset - rParams.startOffset;
-      if (rParams.startIdx !== rParams.endIdx) {
-        expProcCnt += rParams.startCount;
-      }
-      if (expProcCnt !== outLength) {
-        console.error(`fillOutput exp sample count = ${expProcCnt}`);
-      }
-      let steppedCount = (expProcCnt / step + 0.5) >>> 0;
-      if (steppedCount < outLength) {
-        let prevStep = step;
-        step = expProcCnt / outLength;
-        if (step > 0 && step < 0.9) step = 0.9;
-        console.log(
-          `Fixed step from ${prevStep} to ${step}, start=${rParams.startOffset}, end=${rParams.endOffset}, srate=${rParams.startRate}, erate=${rParams.endRate}, scount = ${rParams.startCount}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,
-        );
-      }
-    }
+    let step = this._getReadStep(rParams);
 
     let processed = null;
     if (rParams.startIdx === rParams.endIdx) {
@@ -150,7 +130,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         for (let c = 0; c < this.numChannels; c++) {
           outputChannels[c].fill(0);
         }
-        processed = (outLength * step + 0.5) >>> 0;
+        processed = (rParams.outLength * step + 0.5) >>> 0;
       } else {
         this._copyChannelsData(
           this._frames[rParams.startIdx],
@@ -191,20 +171,43 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
 
     let fillCount;
     if (startCount === null) {
-      fillCount = outLength - endCount;
+      fillCount = rParams.outLength - endCount;
       console.error("Fill silence (start)", fillCount);
       this._fillSilence(outputChannels, 0, fillCount);
     } else if (endCount === null) {
-      fillCount = outLength - startCount;
+      fillCount = rParams.outLength - startCount;
       console.error("Fill silence (end)", fillCount);
       this._fillSilence(outputChannels, startCount, fillCount);
-    } else if (startCount + endCount < outLength) {
-      fillCount = outLength - startCount - endCount;
+    } else if (startCount + endCount < rParams.outLength) {
+      fillCount = rParams.outLength - startCount - endCount;
       console.error("Fill silence (middle)", fillCount);
       this._fillSilence(outputChannels, startCount, fillCount);
     }
 
     return this._calcProcessedSamples(rParams);
+  }
+
+  _getReadStep(rParams) {
+    let step = rParams.rate;
+    if (rParams.startIdx === null && rParams.endIdx === null || step === 0) {
+      return step;
+    }
+
+    let expProcCnt = rParams.endOffset - rParams.startOffset;
+    if (rParams.startIdx !== rParams.endIdx) {
+      expProcCnt += rParams.startCount;
+    }
+    let steppedCount = (expProcCnt / step + 0.5) >>> 0;
+    if (steppedCount < rParams.outLength) {
+      let curStep = step;
+      step = expProcCnt / rParams.outLength;
+      if (step > 0 && step < 0.9) step = 0.9;
+      console.log(
+        `Fixed step from ${curStep} to ${step}, start=${rParams.startOffset}, end=${rParams.endOffset}, srate=${rParams.startRate}, erate=${rParams.endRate}, scount = ${rParams.startCount}, expected count: ${expProcCnt}, stepped count: ${steppedCount}`,
+      );
+    }
+
+    return step;
   }
 
   _calcSampleTs(offset, fStartTsNs, sCount) {
