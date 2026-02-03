@@ -43,7 +43,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   ensureCapacity() {
     const r = this.getReadIdx();
     const w = this.getWriteIdx();
-    if (r === 0 && w === 0) return false;
+    if (r === w) return false;
 
     const minr = this._dispData.rIdx ?? r;
     const free = this._dist(w, minr);

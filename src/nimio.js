@@ -564,7 +564,6 @@ export default class Nimio {
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
       enableLogs: this._config.workletLogs,
-      bufferSec: this._bufferSec * 2,
     };
 
     if (!idle && this._audioBuffer) {
