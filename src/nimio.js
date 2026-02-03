@@ -370,7 +370,7 @@ export default class Nimio {
     // if (this._audioConfig.numberOfChannels === 0) {
     //   this._audioConfig.numberOfChannels = frame.numberOfChannels;
     //   if (this._audioBuffer) this._audioBuffer.reset();
-    //   if (!this._prepareAudioOutput(this._audioConfig.get())) {
+    //   if (!this._prepareAudioOutput()) {
     //     return false;
     //   }
     //   this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
@@ -473,9 +473,9 @@ export default class Nimio {
     }
   }
 
-  _prepareAudioOutput(config) {
+  _prepareAudioOutput() {
     this._logger.debug("prepareAudioOutput");
-    if (!config || config.numberOfChannels < 1) {
+    if (this._audioConfig.numberOfChannels < 1) {
       if (!this._noAudio) {
         this._startNoAudioMode();
       }
@@ -487,23 +487,25 @@ export default class Nimio {
       this._stopAudio();
     }
 
-    let AudioBufferClass = this._sabShared
-      ? WritableAudioBuffer
-      : WritableTransAudioBuffer;
-    this._audioBuffer = AudioBufferClass.allocate(
-      this._bufferSec * 2, // reserve 2 times buffer size for development (TODO: reduce later)
-      config.sampleRate,
-      config.numberOfChannels,
-      config.sampleCount,
-    );
-
-    this._audioBuffer.addPreprocessor(
-      new AudioGapsProcessor(
-        this._audioConfig.sampleCount,
+    if (!this._audioBuffer) {
+      let AudioBufferClass = this._sabShared
+        ? WritableAudioBuffer
+        : WritableTransAudioBuffer;
+      this._audioBuffer = AudioBufferClass.allocate(
+        this._bufferSec * 6, // reserve 2 times buffer size for development (TODO: reduce later)
         this._audioConfig.sampleRate,
-        this._logger,
-      ),
-    );
+        this._audioConfig.numberOfChannels,
+        this._audioConfig.sampleCount,
+      );
+
+      this._audioBuffer.addPreprocessor(
+        new AudioGapsProcessor(
+          this._audioConfig.sampleCount,
+          this._audioConfig.sampleRate,
+          this._logger,
+        ),
+      );
+    }
 
     return true;
   }
@@ -638,6 +640,9 @@ export default class Nimio {
     if (this._audioContext) {
       this._audioContext.close();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
+    }
+    if (this._audioBuffer) {
+      this._audioBuffer.reset();
     }
     this._setNoAudio(false);
   }

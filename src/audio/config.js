@@ -25,7 +25,7 @@ export class AudioConfig {
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount;
 
-    return config;
+    return this;
   }
 
   smpCntToTsUs(smpCnt) {

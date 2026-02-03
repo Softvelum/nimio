@@ -89,6 +89,7 @@ self.addEventListener("message", async function (e) {
       support = null;
       break;
     case "codecData":
+      if (videoDecoder) support = null;
       videoDecoder = new VideoDecoder({
         output: (frame) => {
           processDecodedFrame(frame);

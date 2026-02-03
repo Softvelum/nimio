@@ -59,6 +59,7 @@ self.addEventListener("message", async function (e) {
       support = null;
       break;
     case "codecData":
+      if (audioDecoder) support = null;
       audioDecoder = new AudioDecoder({
         output: (audioFrame) => {
           processDecodedFrame(audioFrame);

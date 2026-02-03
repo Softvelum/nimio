@@ -1,3 +1,4 @@
+import { AudioConfig } from "./audio/config";
 import { TransportAdapter } from "./transport/adapter";
 
 export const NimioTransport = {
@@ -99,30 +100,41 @@ export const NimioTransport = {
   _onAudioCodecDataReceived(data) {
     this._runMetrics(data);
 
-    let audioAvailable = true;
-    let curConfigVals = this._audioConfig.get();
-    let newConfigVals = this._audioConfig.parse(data.data, data.family);
-    let decoderFlow, buffer;
+    let audioAvailable, decoderFlow, buffer;
+    let newCfg = new AudioConfig().parse(data.data, data.family);
     if (this._isNextRenditionTrack(data.trackId)) {
-      if (!newConfigVals || !this._audioConfig.isCompatible(curConfigVals)) {
+      if (!this._audioConfig.isCompatible(newCfg)) {
         this._logger.warn(
-          "Received incompatible audio config for next rendition",
+          "Incompatible audio config for rendition switch",
           data.trackId,
-          curConfigVals,
-          newConfigVals,
+          this._audioConfig.get(),
+          newCfg.get(),
         );
-        this._audioConfig.set(curConfigVals);
+
         this._nextRenditionData.decoderFlow.destroy();
         this._onRenditionSwitchResult("audio", false);
         this._sldpManager.cancelStream(data.trackId);
         return;
       }
 
-      decoderFlow = this._nextRenditionData.decoderFlow;
+      audioAvailable = true;
+      this._audioConfig = newCfg;
       buffer = this._tempBuffer;
+      decoderFlow = this._nextRenditionData.decoderFlow;
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
-      audioAvailable = this._prepareAudioOutput(newConfigVals);
+      if (!this._audioBuffer || this._audioConfig.isCompatible(newCfg)) {
+        this._audioConfig = newCfg;
+        audioAvailable = this._prepareAudioOutput();
+      } else {
+        this._logger.warn(
+          "Incompatible audio config update",
+          data.trackId,
+          this._audioConfig.get(),
+          newCfg.get(),
+        );
+      }
+
       if (audioAvailable) {
         decoderFlow = this._decoderFlows["audio"];
         buffer = this._audioBuffer;
@@ -135,7 +147,7 @@ export const NimioTransport = {
     }
 
     if (audioAvailable) {
-      decoderFlow.setCodecData({ codecData: data.data, config: newConfigVals });
+      decoderFlow.setCodecData({ codecData: data.data, config: newCfg.get() });
       decoderFlow.setBuffer(buffer, this._state);
     }
   },
