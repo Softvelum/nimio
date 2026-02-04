@@ -22,7 +22,7 @@ class AudioVolumeController {
 
     this._storageId = settings.volumeId;
     this._lastVolume = this._getStoredVolume();
-    if (settings.muted) {
+    if (settings.muted || this._muted) {
       this._gainer.gain.value = 0;
       this._muted = true;
       this._eventBus.emit("nimio:muted", true);

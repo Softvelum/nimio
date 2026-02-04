@@ -426,6 +426,7 @@ export default class Nimio {
     this._noAudio = this._config.videoOnly;
     if (this._audioBuffer) {
       this._audioBuffer.reset();
+      this._audioBuffer = null;
     }
     this._latencyCtrl.reset();
     this._syncModeParams = {};

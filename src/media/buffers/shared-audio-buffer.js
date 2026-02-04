@@ -36,6 +36,10 @@ export class SharedAudioBuffer {
   }
 
   static allocate(bufferSec, sampleRate, numChannels, sampleCount) {
+    const isShared = isSharedArrayBufferSupported();
+    if (!isShared) {
+      bufferSec += 2; // add 2 seconds for overflow prevention
+    }
     const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
 
     // one frame = Float64 timestamp(2 Float32) + Float32 rate + frame size
@@ -46,7 +50,7 @@ export class SharedAudioBuffer {
       numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
 
     let fullSize = SharedAudioBuffer.HEADER_BYTES + fAuxSize + tempSize;
-    if (isSharedArrayBufferSupported()) {
+    if (isShared) {
       fullSize += audioFrameSize(numChannels, sampleCount) * capacity;
     }
 
