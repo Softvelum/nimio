@@ -8,15 +8,15 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     this.runDeferred();
 
     let readPrms = this._createReadParams(outputChannels[0].length, step);
-    let endTsNs = startTsNs + readPrms.outLength * this.sampleNs * step;
-    let tsMarg = this.sampleNs - 10;
-    let tsErr = this.sampleNs / 10;
+    let endTsNs = startTsNs + readPrms.outLength * this._sampleNs * step;
+    let tsMarg = this._sampleNs - 10;
+    let tsErr = this._sampleNs / 10;
 
     let skipIdx = null;
     let useFF = step > 1 && this._props.fastForward;
     this.forEach((fStartTs, rate, data, idx, left) => {
       let fStartTsNs = fStartTs * 1000;
-      let fEndTsNs = fStartTsNs + this.frameNs;
+      let fEndTsNs = fStartTsNs + this._frameNs;
       if (endTsNs < fStartTsNs) {
         return false; // stop iterating, all frames are later than endTsNs
       }
@@ -45,7 +45,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           readPrms.startCount - readPrms.startOffset >= readPrms.outLength
         ) {
           endTsNs =
-            startTsNs + (rate || 1) * readPrms.outLength * this.sampleNs;
+            startTsNs + (rate || 1) * readPrms.outLength * this._sampleNs;
         }
       }
       if (fStartTsNs < endTsNs && endTsNs < fEndTsNs + tsMarg) {
@@ -78,7 +78,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
           if (toRead <= rest) {
             readPrms.endOffset += toRead;
           } else if (left > 0) {
-            endTsNs = fEndTsNs + (toRead - rest) * this.sampleNs + tsErr;
+            endTsNs = fEndTsNs + (toRead - rest) * this._sampleNs + tsErr;
             readPrms.endOffset = readPrms.endCount;
             skipIdx = idx;
             return true;
@@ -116,7 +116,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   calcSamplePos(startTsNs, fStartTsNs, sCount) {
-    let sRate = (sCount * 1e9) / this.frameNs;
+    let sRate = (sCount * 1e9) / this._frameNs;
     let res = (startTsNs - fStartTsNs) * sRate;
     if (res < 0) res = 0;
     return (res / 1e9 + 0.5) >>> 0;
@@ -208,7 +208,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
   }
 
   _calcSampleTs(offset, fStartTsNs, sCount) {
-    return (offset * this.frameNs) / sCount + fStartTsNs;
+    return (offset * this._frameNs) / sCount + fStartTsNs;
   }
 
   _calcProcessedSamples(rp, isSingleFrame) {
@@ -218,7 +218,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
       let sCount = isSingleFrame ? rp.startCount : rp.endCount;
       endTsNs = this._calcSampleTs(rp.endOffset, frameStart, sCount);
     }
-    return ((endTsNs - rp.startTsNs) / this.sampleNs + 0.5) >>> 0;
+    return ((endTsNs - rp.startTsNs) / this._sampleNs + 0.5) >>> 0;
   }
 
   _fillSilence(outputChannels, startIdx, count) {

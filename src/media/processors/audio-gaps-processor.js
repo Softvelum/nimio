@@ -14,7 +14,9 @@ export class AudioGapsProcessor extends BaseProcessor {
       const fillCnt = (tsDiff / this._frameLenUs) >>> 0;
       for (let i = 0; i < fillCnt; i++) {
         let silenceTs = frame.decTimestamp + this._audioTsShift;
-        this._bufferIface.pushSilence(silenceTs);
+        if (this._bufferIface.pushSilence(silenceTs) === -1) {
+          return false;
+        }
         this._audioTsShift += this._frameLenUs;
         this._lastSilenceTs = silenceTs;
       }

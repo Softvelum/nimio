@@ -7,6 +7,7 @@ import { PlaybackContext } from "./playback/context";
 import { Ui } from "./ui/ui";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
+import { WritableTransAudioBuffer } from "./media/buffers/writable-trans-audio-buffer";
 import { DecoderFlowVideo } from "./media/decoders/flow-video";
 import { DecoderFlowAudio } from "./media/decoders/flow-audio";
 import { TimestampManager } from "./media/decoders/timestamp-manager";
@@ -463,7 +464,10 @@ export default class Nimio {
       this._stopAudio();
     }
 
-    this._audioBuffer = WritableAudioBuffer.allocate(
+    let AudioBufferClass = this._sabShared
+      ? WritableAudioBuffer
+      : WritableTransAudioBuffer;
+    this._audioBuffer = AudioBufferClass.allocate(
       this._bufferSec * 2, // reserve 2 times buffer size for development (TODO: reduce later)
       config.sampleRate,
       config.numberOfChannels,
@@ -542,9 +546,10 @@ export default class Nimio {
 
     if (!idle && this._audioBuffer) {
       procOptions.sampleCount = this._audioConfig.sampleCount;
-      procOptions.audioSab = this._audioBuffer.buffer;
       procOptions.capacity = this._audioBuffer.bufferCapacity;
-      procOptions.audioSabShared = this._audioBuffer.isShareable;
+      if (this._audioBuffer.isShareable) {
+        procOptions.audioSab = this._audioBuffer.buffer;
+      }
     }
 
     this._audioNode = new AudioWorkletNode(
@@ -561,7 +566,7 @@ export default class Nimio {
     if (!this._state.isShared()) {
       this._state.attachPort(this._audioNode.port);
     }
-    if (this._audioBuffer && !this._audioBuffer.isShareable) {
+    if (!procOptions.audioSab) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
 

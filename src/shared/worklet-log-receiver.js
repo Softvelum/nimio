@@ -17,7 +17,7 @@ export class WorkletLogReceiver {
     let exMsgHandler = worklet.port.onmessage;
     worklet.port.onmessage = function (ev) {
       let msg = ev.data;
-      if (msg?.type === "log") {
+      if (msg?.log) {
         console[msg.lf].apply(console, msg.args);
         return;
       }

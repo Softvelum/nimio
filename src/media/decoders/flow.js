@@ -289,7 +289,7 @@ export class DecoderFlow {
 
   _pushToBuffer(frame) {
     this._buffer.pushFrame(frame);
-    if (this._buffer.isShareable) {
+    if (this._buffer.isPreallocated) {
       frame.close();
     }
   }
