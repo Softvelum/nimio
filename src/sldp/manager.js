@@ -1,5 +1,6 @@
 import { PlaybackContext } from "@/playback/context";
 import { LoggersFactory } from "@/shared/logger";
+import { EventBus } from "@/event-bus";
 
 export class SLDPManager {
   constructor(instName) {
@@ -11,6 +12,7 @@ export class SLDPManager {
 
     this._context = PlaybackContext.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
+    this._eventBus = EventBus.getInstance(instName);
     // TODO: set from config.syncBuffer
     this._useSteady = false;
   }
@@ -42,19 +44,22 @@ export class SLDPManager {
     });
   }
 
-  stop(closeConnection) {
-    let sns = this._curStreams.map((s) => s.sn);
+  stop(opts = {}) {
     this._transport.send("stop", {
-      close: !!closeConnection,
-      sns: sns,
+      close: !!opts.closeConnection,
+      sns: this.resetCurrentStreams(),
     });
+  }
 
+  resetCurrentStreams() {
+    const sns = this._curStreams.map((s) => s.sn);
     for (let i = 0; i < sns.length; i++) {
       delete this._reqStreams[sns[i]];
     }
     this._curStreams = [];
 
     this._transport.send("removeTimescale", sns);
+    return sns;
   }
 
   requestStream(type, idx, offset) {
@@ -194,6 +199,11 @@ export class SLDPManager {
     this._transport.runCallback("videoSetup", vsetup);
     this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
+
+    this._eventBus.emit(
+      "nimio:connection-established",
+      this._context.getStreamsConfig(),
+    );
   }
 
   _pushCurStream(type, stream) {

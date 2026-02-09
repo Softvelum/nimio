@@ -209,14 +209,18 @@ export class DecoderFlow {
 
     let srcFirstTsUs = this._switchPeerFlow.firstSwitchTsUs;
     if (srcFirstTsUs !== null) {
-      if (Math.abs(frame.timestamp - srcFirstTsUs) >= SWITCH_THRESHOLD_US) {
+      let absDiff = Math.abs(frame.timestamp - srcFirstTsUs);
+      if (absDiff >= SWITCH_THRESHOLD_US) {
         this._logger.debug(
           `Handle dst switch frame - excessive diff dst ts: ${frame.timestamp}, src ts: ${srcFirstTsUs}`,
         );
         this._switchContext = null;
         this._switchPeerFlow.destroy();
         this._switchPeerFlow = null;
-        this._onSwitchResult(false);
+        this._onSwitchResult(
+          false,
+          `Rendition switch isn't possible, because timestamps of renditions aren't in sync: the gap is approximately ${(absDiff / 1_000_000).toFixed(1)} seconds. Please check your ABR setup.`,
+        );
         return;
       }
 

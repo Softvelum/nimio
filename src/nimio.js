@@ -30,6 +30,7 @@ import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 import { resolveContainer } from "./shared/container";
+import { Reconnector } from "./reconnector";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -111,7 +112,7 @@ export default class Nimio {
       dropZeroDurationFrames: this._config.dropZeroDurationFrames,
     });
 
-    this._resetPlaybackTimstamps();
+    this._resetPlaybackTimestamps();
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this._ctx = this._ui.canvas.getContext("2d");
 
@@ -120,6 +121,7 @@ export default class Nimio {
     this._context = PlaybackContext.getInstance(this._instName);
     this._sldpManager = new SLDPManager(this._instName);
     this._sldpManager.init(this._transport, this._config);
+    this._reconnect = new Reconnector(this._instName, this._config.reconnects);
 
     this._audioWorkletReady = null;
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
@@ -134,8 +136,9 @@ export default class Nimio {
 
     this._createLatencyController();
 
+    this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
-      setTimeout(() => this.play(), 0);
+      setTimeout(this._playCb, 0);
       setTimeout(() => {
         this._ui.hideControls(true);
       }, 1000);
@@ -143,12 +146,10 @@ export default class Nimio {
   }
 
   play() {
-    const initialPlay = !this._state.isPaused();
+    if (this._state.isPlaying()) return;
 
-    if (this._pauseTimeoutId !== null) {
-      clearTimeout(this._pauseTimeoutId);
-      this._pauseTimeoutId = null;
-    }
+    const initialPlay = !this._state.isPaused();
+    this._cancelPauseTimeout();
 
     this._state.start();
     this._latencyCtrl.start();
@@ -172,8 +173,11 @@ export default class Nimio {
   }
 
   pause() {
+    if (this._state.isPaused()) return;
+
     this._state.pause();
     this._latencyCtrl.pause();
+    this._reconnect.stop();
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
@@ -183,53 +187,16 @@ export default class Nimio {
 
   stop(closeConnection) {
     this._state.stop();
+    this._sldpManager.stop({ closeConnection });
+    this._reconnect.reset();
+    if (this._debugView) this._debugView.stop();
+
     if (this._isAutoAbr()) {
       this._abrController.stop({ hard: true });
     }
-
-    this._sldpManager.stop(!!closeConnection);
-    if (this._debugView) {
-      this._debugView.stop();
-    }
-
-    this._videoBuffer.reset();
-    this._noVideo = this._config.audioOnly;
-
-    this._stopAudio();
-    this._noAudio = this._config.videoOnly;
-    if (this._audioBuffer) {
-      this._audioBuffer.reset();
-    }
-    this._latencyCtrl.reset();
-
-    if (this._nextRenditionData) {
-      if (this._nextRenditionData.decoderFlow) {
-        this._nextRenditionData.decoderFlow.destroy();
-      }
-      this._nextRenditionData = null;
-    }
-
-    ["video", "audio"].forEach((type) => {
-      if (this._decoderFlows[type]) {
-        this._decoderFlows[type].destroy();
-        this._decoderFlows[type] = null;
-      }
-    });
-
-    this._state.setPlaybackStartTsUs(0);
-    this._state.setVideoLatestTsUs(0);
-    this._state.setAudioLatestTsUs(0);
-    this._state.resetCurrentTsSmp();
-    this._resetPlaybackTimstamps();
+    this._resetPlayback();
 
     this._ui.drawPlay();
-    this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
-    this._pauseTimeoutId = null;
-
-    this._vuMeterSvc.stop();
-    this._audioGraphCtrl.dismantle();
-    this._audioCtxProvider.reset();
-    this._workletLogReceiver.reset();
   }
 
   destroy() {
@@ -325,7 +292,10 @@ export default class Nimio {
         ? this._onVideoStartTsNotSet.bind(this)
         : this._onAudioStartTsNotSet.bind(this);
     decoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    decoderFlow.onSwitchResult = (done) => {
+    decoderFlow.onSwitchResult = (done, msg) => {
+      if (msg && !done) {
+        this._logger.error(msg);
+      }
       this._onRenditionSwitchResult(type, done);
     };
     decoderFlow.onInputCancel = () => {
@@ -435,7 +405,54 @@ export default class Nimio {
     this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
   }
 
-  _resetPlaybackTimstamps() {
+  _cancelPauseTimeout() {
+    if (this._pauseTimeoutId === null) return;
+    clearTimeout(this._pauseTimeoutId);
+    this._pauseTimeoutId = null;
+  }
+
+  _resetPlayback() {
+    this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
+
+    this._videoBuffer.reset();
+    this._noVideo = this._config.audioOnly;
+
+    this._stopAudio();
+    this._noAudio = this._config.videoOnly;
+    if (this._audioBuffer) {
+      this._audioBuffer.reset();
+    }
+    this._latencyCtrl.reset();
+
+    if (this._nextRenditionData) {
+      if (this._nextRenditionData.decoderFlow) {
+        this._nextRenditionData.decoderFlow.destroy();
+      }
+      this._nextRenditionData = null;
+    }
+
+    ["video", "audio"].forEach((type) => {
+      if (this._decoderFlows[type]) {
+        this._decoderFlows[type].destroy();
+        this._decoderFlows[type] = null;
+      }
+    });
+
+    this._state.setPlaybackStartTsUs(0);
+    this._state.setVideoLatestTsUs(0);
+    this._state.setAudioLatestTsUs(0);
+    this._state.resetCurrentTsSmp();
+    this._resetPlaybackTimestamps();
+
+    this._vuMeterSvc.stop();
+    this._audioGraphCtrl.dismantle();
+    this._audioCtxProvider.reset();
+
+    this._cancelPauseTimeout();
+    this._workletLogReceiver.reset();
+  }
+
+  _resetPlaybackTimestamps() {
     this._playbackStartTsUs = 0;
     this._firstAudioFrameTsUs = this._firstVideoFrameTsUs = 0;
   }

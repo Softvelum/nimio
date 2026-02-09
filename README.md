@@ -285,13 +285,10 @@ The following features are planned for upcoming releases:
 - SEI timecodes support
 - WebTransport protocol
 - Nimble Advertizer integration
-- Automatic reconnection
 - Sync mode
 - Screenshot capture
 - Splash/startup image
 - Extended Player API
-- Muted autoplay
-- Dynamic latency adjustment
 - OffscreenCanvas rendering
 - Resume from pause in DVR mode (no auto-jump to live)
 
