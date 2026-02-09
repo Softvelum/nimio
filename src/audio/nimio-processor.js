@@ -105,6 +105,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     const AudioBufferClass = params.audioSab
       ? ReadableAudioBuffer
       : ReadableTransAudioBuffer;
+
     this._audioBuffer = new AudioBufferClass(
       params.audioSab,
       params.capacity,
