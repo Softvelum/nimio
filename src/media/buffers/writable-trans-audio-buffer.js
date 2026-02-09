@@ -47,7 +47,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
       if (msg.type === "tb:read") {
         let rIdx = this.getReadIdx();
         let wIdx = this.getWriteIdx();
-        console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
+        // console.log(`Released ${msg.start} - ${msg.end}, rIdx = ${rIdx}, wIdx = ${wIdx}`);
         if (rIdx !== msg.start) {
           console.error(
             `Wrong read idx received: start=${msg.start}, end=${msg.end}, cur read idx is ${rIdx}`,
@@ -61,12 +61,12 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
           if (idx === this._capacity) idx = 0;
         }
         this.setReadIdx(msg.end);
-        if (fCount === this._overflowShift * 2) {
-          let w = this.getWriteIdx();
-          let r = this.getReadIdx();
-          let free = this._dist(w, r);
-          console.log(`Returned ${this._overflowShift * 2} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
-        }
+        // if (fCount === this._overflowShift * 2) {
+        //   let w = this.getWriteIdx();
+        //   let r = this.getReadIdx();
+        //   let free = this._dist(w, r);
+        //   console.log(`Returned ${this._overflowShift * 2} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
+        // }
       } else if (msg.type === "tb:reset") {
         this.reset(true);
       }

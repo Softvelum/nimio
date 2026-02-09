@@ -80,6 +80,7 @@ export const NimioTransport = {
 
   _onVideoCodecDataReceived(data) {
     this._runMetrics(data);
+    this._timestampManager.rebaseTrack(data.trackId);
 
     if (this._abrController?.isProbing(data.trackId)) {
       return this._abrController.handleCodecData(data);
@@ -99,6 +100,7 @@ export const NimioTransport = {
 
   _onAudioCodecDataReceived(data) {
     this._runMetrics(data);
+    this._timestampManager.rebaseTrack(data.trackId);
 
     let audioAvailable, decoderFlow, buffer;
     let newCfg = new AudioConfig().parse(data.data, data.family);

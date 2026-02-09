@@ -14,7 +14,6 @@ export class SLDPAgent {
     this._syncMode = false;
     this._hasShowTime = false;
     this._codecDataStatus = {};
-    this._initSwitchData = {};
   }
 
   processFrame(data) {
@@ -67,7 +66,6 @@ export class SLDPAgent {
       case WEB.AAC_FRAME:
         ptsMs = timestamp / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsMs);
-        this._initSwitchData.audioTsUs = ptsUs;
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
         break;
       case WEB.AVC_KEY_FRAME:
@@ -87,9 +85,10 @@ export class SLDPAgent {
         ptsUs = Math.round(1000 * ptsMs);
         let dtsUs = (1000 * timestamp) / (timescale / 1000);
         let offUs = Math.round(1000 * ptsMs - dtsUs);
-        this._initSwitchData.videoTsUs = ptsUs;
 
-        // console.debug(`V frame uts: ${ptsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`);
+        // console.debug(
+        //   `V frame uts: ${ptsUs}, pts: ${timestamp + compositionOffset}, dts: ${timestamp}, off: ${compositionOffset}`
+        // );
         this._sendVideoChunk(frameWthHdr, ptsUs, offUs, isKey, dtPos, showTime);
         break;
       case WEB.VP8_KEY_FRAME:
