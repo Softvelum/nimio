@@ -316,9 +316,9 @@ export class LatencyController {
     }
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
 
-    if (goMove) {
-      this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
-    }
+    // if (goMove) {
+    //   this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
+    // }
     this._stateMgr.setCurrentSpeed(rate);
     this._setSpeed(rate, curBuf);
   }

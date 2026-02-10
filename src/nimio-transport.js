@@ -14,6 +14,14 @@ export const NimioTransport = {
       audioChunk: this._onAudioChunkReceived.bind(this),
       disconnect: this._onDisconnect.bind(this),
     };
+    this._eventBus.on("transp:init-switch", this._onInitSegSwitch.bind(this));
+  },
+
+  _onInitSegSwitch(data) {
+    if (this._audioNode) {
+      this._audioNode.port.postMessage({ type: "transp-init-switch", data });
+    }
+
   },
 
   _onDisconnect(data) {

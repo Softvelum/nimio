@@ -1,5 +1,6 @@
 import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
+import { EventBus } from "@/event-bus";
 
 const DISCONT_THRESH_US = 10_000_000;
 
@@ -7,6 +8,8 @@ class TimestampManager {
   constructor(instName) {
     this._instName = instName;
     this._tsValidators = new Map();
+    this._eventBus = EventBus.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, "TimestampManager");
   }
 
   init(settings) {
@@ -21,7 +24,7 @@ class TimestampManager {
   rebaseTrack(id) {
     let tv = this._tsValidators.get(id);
     if (!tv) return false;
-    console.log(`Rebase track ${id}`);
+    this._logger.debug(`Rebase track ${id}`);
     if (tv.timeBase) {
       if (!this._baseSwitch) this._baseSwitch = { ids: {}, cnt: 0, rcnt: 0 };
       if (this._baseSwitch.ids[id] === 0) {
@@ -36,6 +39,8 @@ class TimestampManager {
   validateChunk(id, chunk) {
     let tv = this._tsValidators.get(id);
     if (!tv) return false;
+
+    // check if new init segment arrived (advertizer)
     this._checkBaseSwitch(tv, id, chunk);
     return tv.validateChunk(chunk);
   }
@@ -55,23 +60,33 @@ class TimestampManager {
   _checkBaseSwitch(tv, id, chunk) {
     if (!this._baseSwitch || this._baseSwitch.ids[id] !== 1) return;
 
-    let chDts = chunk.pts - chunk.offset;
     let tbase = tv.timeBase;
+
+    let chDts = chunk.pts - chunk.offset;
     let dtsDiff = chDts - tbase.rawDts;
-    console.log(
+    let switchData = {
+      trackId: id,
+      fromPtsUs: tbase.dts + tbase.offset,
+      toPtsUs: tbase.dts + dtsDiff + chunk.offset,
+    };
+    this._logger.debug(
       `checkBaseSwitch track ${id}, dts diff = ${dtsDiff}, cur chunk pts = ${chunk.pts}, prev chunk dts = ${tbase.dts}, rawDts = ${tbase.rawDts}`
     );
+
     if (dtsDiff < 0 || dtsDiff > DISCONT_THRESH_US) {
       let newTbase = { rawDts: chDts };
       if (this._baseSwitch.tb === undefined) {
         newTbase.dts = tbase.dts + 3_000_000;
         this._baseSwitch.tb = newTbase;
       } else {
-        let rawDtsDiff = chDts - this._baseSwitch.tb.rawDts;
-        newTbase.dts = this._baseSwitch.tb.dts + rawDtsDiff;
+        let bsDtsDiff = chDts - this._baseSwitch.tb.rawDts;
+        newTbase.dts = this._baseSwitch.tb.dts + bsDtsDiff;
       }
-      console.error("Set base switch time base", id, newTbase);
+      this._logger.debug(
+        `Apply base switch time for ${id}, new time base: dts = ${newTbase.dts}, rawDts = ${newTbase.rawDts}`,
+      );
       tv.timeBase = newTbase;
+      switchData.toPtsUs = newTbase.dts + chunk.offset;
     }
     this._baseSwitch.ids[id] = 0;
     this._baseSwitch.cnt--;
@@ -81,6 +96,7 @@ class TimestampManager {
     ) {
       this._baseSwitch = undefined;
     }
+    this._eventBus.emit("transp:init-switch", switchData);
   }
 }
 
@@ -180,6 +196,7 @@ class TimestampValidator {
   }
 
   set timeBase(tb) {
+    this._lastChunk = null;
     this._timeBase = tb;
   }
 
@@ -188,6 +205,7 @@ class TimestampValidator {
     return {
       dts: this._lastChunk.dts,
       rawDts: this._lastChunk.rawDts,
+      offset: this._lastChunk.offset,
     };
   }
 
