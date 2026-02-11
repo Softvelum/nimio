@@ -278,16 +278,13 @@ The following features are planned for upcoming releases:
 
 - Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
-- Latency retention for asynchronous renditions
 - CEA-608 closed captions
 - VOD playback (DVR support)
 - VOD thumbnail previews
 - SEI timecodes support
 - WebTransport protocol
 - Nimble Advertizer integration
-- Sync mode
 - Screenshot capture
-- Splash/startup image
 - Extended Player API
 - OffscreenCanvas rendering
 - Resume from pause in DVR mode (no auto-jump to live)

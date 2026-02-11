@@ -346,6 +346,7 @@ export class LatencyController {
     if (this._video) this._videoAvailUs -= deltaUs;
     if (this._audio) this._audioAvailUs -= deltaUs;
     this._availableUs -= deltaUs;
+    this._curTsUs += deltaUs;
   }
 
   _updateBufferLevels(now) {

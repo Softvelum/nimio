@@ -64,13 +64,12 @@ class TimestampManager {
 
     let chDts = chunk.pts - chunk.offset;
     let dtsDiff = chDts - tbase.rawDts;
-    let switchData = {
-      trackId: id,
+    let data = {
       fromPtsUs: tbase.dts + tbase.offset,
       toPtsUs: tbase.dts + dtsDiff + chunk.offset,
     };
     this._logger.debug(
-      `checkBaseSwitch track ${id}, dts diff = ${dtsDiff}, cur chunk pts = ${chunk.pts}, prev chunk dts = ${tbase.dts}, rawDts = ${tbase.rawDts}`
+      `checkBaseSwitch track ${id}, dts diff = ${dtsDiff}, cur chunk pts = ${chunk.pts}, prev chunk dts = ${tbase.dts}, rawDts = ${tbase.rawDts}`,
     );
 
     if (dtsDiff < 0 || dtsDiff > DISCONT_THRESH_US) {
@@ -86,7 +85,7 @@ class TimestampManager {
         `Apply base switch time for ${id}, new time base: dts = ${newTbase.dts}, rawDts = ${newTbase.rawDts}`,
       );
       tv.timeBase = newTbase;
-      switchData.toPtsUs = newTbase.dts + chunk.offset;
+      data.toPtsUs = newTbase.dts + chunk.offset;
     }
     this._baseSwitch.ids[id] = 0;
     this._baseSwitch.cnt--;
@@ -96,7 +95,7 @@ class TimestampManager {
     ) {
       this._baseSwitch = undefined;
     }
-    this._eventBus.emit("transp:init-switch", switchData);
+    this._eventBus.emit("transp:track-action", { op: "init-switch", id, data });
   }
 }
 

@@ -33,6 +33,7 @@ import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 import { resolveContainer } from "./shared/container";
 import { Reconnector } from "./reconnector";
 import { SyncModeClock } from "./sync-mode/clock";
+import { AdvertizerEvaluator } from "./advertizer/evaluator";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -140,6 +141,7 @@ export default class Nimio {
     if (this._config.syncBuffer > 0) {
       this._createSyncModeParams();
     }
+    this._advertizerEval = new AdvertizerEvaluator(this._instName);
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -307,6 +309,11 @@ export default class Nimio {
       this._sldpManager.cancelStream(decoderFlow.trackId);
     };
     decoderFlow.setConfig(data.config);
+    this._eventBus.emit("transp:track-action", {
+      op: "main",
+      id: data.trackId,
+      type,
+    });
   }
 
   _createNextRenditionFlow(type, data) {
@@ -430,6 +437,7 @@ export default class Nimio {
     }
     this._latencyCtrl.reset();
     this._syncModeParams = {};
+    this._advertizerEval.reset();
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
@@ -610,6 +618,17 @@ export default class Nimio {
       let smc = new SyncModeClock(this._audioNode.port);
       await smc.sync();
       this._applySyncModeParams();
+    }
+
+    if (this._advertizerEval.hasPendingActions()) {
+      let pa = this._advertizerEval.pendingActions;
+      for (let i = 0; i < pa.length; i++) {
+        this._audioNode.port.postMessage({
+          type: "transp-track-action",
+          data: pa[i],
+        });
+      }
+      this._advertizerEval.clearPendingActions();
     }
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {

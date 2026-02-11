@@ -48,10 +48,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
     const free = this._dist(w, minr);
     if (free < this._overflowShift) {
       let freeSize = 2 * this._overflowShift;
-      if (
-        r === minr ||
-        this._dist(minr, w) - this._dist(r, w) < freeSize
-      ) {
+      if (r === minr || this._dist(minr, w) - this._dist(r, w) < freeSize) {
         this.setReadIdx(minr + freeSize);
       }
       this._sendReadStatus(minr);

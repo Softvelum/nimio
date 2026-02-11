@@ -14,14 +14,17 @@ export const NimioTransport = {
       audioChunk: this._onAudioChunkReceived.bind(this),
       disconnect: this._onDisconnect.bind(this),
     };
-    this._eventBus.on("transp:init-switch", this._onInitSegSwitch.bind(this));
+    this._eventBus.on("transp:track-action", this._onTrackAction.bind(this));
   },
 
-  _onInitSegSwitch(data) {
-    if (this._audioNode) {
-      this._audioNode.port.postMessage({ type: "transp-init-switch", data });
+  _onTrackAction(data) {
+    this._advertizerEval.handleAction(data);
+    if (!this._audioNode) {
+      this._advertizerEval.pendingActions.push(data);
+      return;
     }
 
+    this._audioNode.port.postMessage({ type: "transp-track-action", data });
   },
 
   _onDisconnect(data) {

@@ -5,6 +5,7 @@ import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
 import { WsolaProcessor } from "@/media/processors/wsola-processor";
+import { AdvertizerEvaluator } from "@/advertizer/evaluator";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -53,6 +54,10 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     if (!this._idle) {
       this._createAudioBuffer(options.processorOptions);
     }
+    this._advertizerEval = new AdvertizerEvaluator(
+      options.processorOptions.instanceName,
+      this.port,
+    );
 
     this._speed = 1;
   }
