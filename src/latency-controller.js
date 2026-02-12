@@ -5,15 +5,17 @@ import { clamp } from "@/shared/helpers";
 import { SyncModePolicy } from "./sync-mode/policy";
 
 export class LatencyController {
-  constructor(instName, stateMgr, audioConfig, params) {
+  constructor(instName, stateMgr, audioConfig, discontinuityEval, params) {
     this._instName = instName;
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
+    this._discontEval = discontinuityEval;
 
     this._params = params;
     this._audio = !!this._params.audio;
     this._video = !!this._params.video;
     this._latencyMs = this._params.latency;
+    this._discontEval.bufferToKeep = this._latencyMs * 1000;
 
     this._shortWindowMs = 300;
     this._longWindowMs = 1500;
@@ -107,7 +109,10 @@ export class LatencyController {
     if (this.isPending()) return this._curTsUs;
     let samplesUs = this._audioConfig.smpCntToTsUs(sampleCount);
     this._moveCurrentPosition(samplesUs, sampleCount);
-    this._latencyControlFn();
+
+    if (!this._handleDiscontinuity()) {
+      this._latencyControlFn();
+    }
 
     return this._curTsUs;
   }
@@ -124,7 +129,9 @@ export class LatencyController {
     let timeUsPast = (this._getCurTimeMs() - prevVideoTime) * speed * 1000;
     this._moveCurrentPosition(timeUsPast);
 
-    this._latencyControlFn();
+    if (!this._handleDiscontinuity()) {
+      this._latencyControlFn();
+    }
 
     return this._curTsUs;
   }
@@ -300,6 +307,17 @@ export class LatencyController {
       }
     }
     return false;
+  }
+
+  _handleDiscontinuity() {
+    if (!this._discontEval.isApplicable()) return false;
+    let shUs = this._discontEval.computeShift(this._curTsUs, this._availableUs);
+    if (shUs > 0) {
+      const now = this._getCurTimeMs();
+      this._seek(true, shUs / 1000, this._availableUs / 1000, now);
+    }
+
+    return shUs > 0;
   }
 
   _zap(goMove, deltaMs, curBuf, now) {

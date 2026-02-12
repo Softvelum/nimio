@@ -137,11 +137,11 @@ export default class Nimio {
     }
     this._createVUMeter();
 
+    this._advertizerEval = new AdvertizerEvaluator(this._instName);
     this._createLatencyController();
     if (this._config.syncBuffer > 0) {
       this._createSyncModeParams();
     }
-    this._advertizerEval = new AdvertizerEvaluator(this._instName);
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -690,6 +690,7 @@ export default class Nimio {
       this._config.instanceName,
       this._state,
       this._audioConfig,
+      this._advertizerEval,
       {
         latency: this._config.latency,
         tolerance: this._config.latencyTolerance,

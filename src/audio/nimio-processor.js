@@ -33,12 +33,18 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._sampleCount,
     );
 
+    this._advertizerEval = new AdvertizerEvaluator(
+      options.processorOptions.instanceName,
+      this.port,
+    );
+
     this._idle = options.processorOptions.idle;
     this._targetLatencyMs = options.processorOptions.latency;
     this._latencyCtrl = new LatencyController(
       options.processorOptions.instanceName,
       this._stateManager,
       this._audioConfig,
+      this._advertizerEval,
       {
         latency: this._targetLatencyMs,
         tolerance: options.processorOptions.latencyTolerance,
@@ -54,10 +60,6 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     if (!this._idle) {
       this._createAudioBuffer(options.processorOptions);
     }
-    this._advertizerEval = new AdvertizerEvaluator(
-      options.processorOptions.instanceName,
-      this.port,
-    );
 
     this._speed = 1;
   }
