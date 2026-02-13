@@ -2,6 +2,7 @@ import { LoggersFactory } from "@/shared/logger";
 
 export class AdvertizerEvaluator {
   #types = [];
+  #confIvalUs = 2_000_000;
 
   constructor(instName, port) {
     this._tracks = {};
@@ -29,27 +30,57 @@ export class AdvertizerEvaluator {
     // skip for a while if a track is being switched
     if (this._tracks.video === null || this._tracks.audio === null) return 0;
 
-    // debugger;
     let res = 0;
-    let shiftPos = 0;
-    let matches = [];
+    let preMatches = [];
+    let win = [Infinity, 0];
+    let del = {};
     for (let j = 0; j < this.#types.length; j++) {
-      let switches = this._switches[ this._tracks[ this.#types[j] ] ];
+      let trackId = this._tracks[this.#types[j]];
+      let switches = this._switches[trackId];
+      if (!switches) {
+        this._logger.debug(`No switches for ${this.#types[j]}`);
+        break;
+      }
+
       for (let i = 0; i < switches.length; i++) {
-        if (switches[i].from > curTsUs) break;
-        if (switches[i].to < curTsUs) continue;
-        if (switches[i].to > shiftPos) shiftPos = switches[i].to;
-        matches.push(i);
+        if (switches[i].to < curTsUs) {
+          this._logger.debug(
+            `Skip switch ${this.#types[j]}, Cur ts = ${curTsUs}, to = ${switches[i].to}`,
+          );
+          del[trackId] = i;
+          continue;
+        }
+        if (switches[i].from - curTsUs > this.#confIvalUs) {
+          this._logger.debug(
+            `Switch ${this.#types[j]} is yet far ${(switches[i].from - curTsUs) / 1000}. Cur ts = ${curTsUs}, from = ${switches[i].from}`,
+          );
+          break;
+        }
+        if (win[0] > switches[i].from) win[0] = switches[i].from;
+        if (win[1] < switches[i].to) win[1] = switches[i].to;
+        preMatches.push(i);
       }
     }
-    if (matches.length === this.#types.length) {
-      let delta = shiftPos - curTsUs;
+    if (preMatches.length === this.#types.length && win[0] - curTsUs < 3_000) {
+      let delta = win[1] - curTsUs;
       if (delta + this._bufToKeep <= availUs) {
         for (let j = 0; j < this.#types.length; j++) {
-          let switches = this._switches[ this._tracks[ this.#types[j] ] ];
-          switches.splice(0, matches[j] + 1);
+          let switches = this._switches[this._tracks[this.#types[j]]];
+          switches.splice(0, preMatches[j] + 1);
+          this._logger.debug(
+            `Remove ${this.#types[j]} switches till ${preMatches[j] + 1}. Cur ts = ${curTsUs}. Left ${switches.length}`,
+          );
         }
+        del = null;
         res = delta;
+      }
+    }
+    if (del) {
+      for (let tId in del) {
+        this._switches[tId].splice(0, del[tId] + 1);
+        this._logger.debug(
+          `Remove ${tId} switches till ${del[tId] + 1}. Cur ts = ${curTsUs}. Left ${this._switches[tId].length}`,
+        );
       }
     }
 
@@ -103,7 +134,7 @@ export class AdvertizerEvaluator {
   }
 
   set bufferToKeep(valUs) {
-    this._bufToKeep = Math.min(200_000, valUs);
+    this._bufToKeep = valUs;
   }
 
   _portMessageHandler(event) {

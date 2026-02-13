@@ -43,7 +43,7 @@ export class LatencyController {
       this._allowedLatencyDelta = this._minLatencyDelta;
     }
     this._minRateChangeIntervalMs = 500;
-    this._minSeekIntervalMs = 4000; // don't seek more frequently
+    this._minSeekIntervalMs = 3000; // don't seek more frequently
 
     this._getCurTimeMs = currentTimeGetterMs();
     this.reset();
@@ -203,14 +203,12 @@ export class LatencyController {
     this._availableUs = Number.MAX_VALUE;
     if (this._audio) {
       this._getAudioAvailableUs();
-      let availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableAudioMs(availableMs);
+      this._setAudioAvailableMs();
       this._availableUs = this._audioAvailUs;
     }
     if (this._video) {
       this._getVideoAvailableUs();
-      let availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableVideoMs(availableMs);
+      this._setVideoAvailableMs();
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
 
@@ -235,9 +233,19 @@ export class LatencyController {
     if (this._videoAvailUs < 0) this._videoAvailUs = 0;
   }
 
+  _setVideoAvailableMs() {
+    let availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
+    this._stateMgr.setAvailableVideoMs(availableMs);
+  }
+
   _getAudioAvailableUs() {
     this._audioAvailUs = this._stateMgr.getAudioLatestTsUs() - this._curTsUs;
     if (this._audioAvailUs < 0) this._audioAvailUs = 0;
+  }
+
+  _setAudioAvailableMs() {
+    let availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
+    this._stateMgr.setAvailableAudioMs(availableMs);
   }
 
   _adjustPlaybackLatency() {
@@ -347,11 +355,12 @@ export class LatencyController {
       deltaMs === 0 ||
       now - this._lastActionTime < this._minSeekIntervalMs
     ) {
+      this._logger.debug(`Skip seek by ${deltaMs}ms because of excessive frequency`);
       return;
     }
+
     this._lastActionTime = now;
     this._logger.debug(`Seek by ${deltaMs}ms, cur bufer ms=${curBuf}`);
-
     this._moveCurrentPosition(deltaMs * 1000);
   }
 
@@ -361,8 +370,14 @@ export class LatencyController {
     }
 
     this._stateMgr.incCurrentTsSmp(deltaSmpCnt);
-    if (this._video) this._videoAvailUs -= deltaUs;
-    if (this._audio) this._audioAvailUs -= deltaUs;
+    if (this._video) {
+      this._videoAvailUs -= deltaUs;
+      this._setVideoAvailableMs();
+    }
+    if (this._audio) {
+      this._audioAvailUs -= deltaUs;
+      this._setAudioAvailableMs();
+    }
     this._availableUs -= deltaUs;
     this._curTsUs += deltaUs;
   }
