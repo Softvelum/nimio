@@ -27,6 +27,24 @@ export const NimioTransport = {
     this._audioNode.port.postMessage({ type: "transp-track-action", data });
   },
 
+  _sendPendingAdvertizerActions() {
+    if (this._advertizerEval.hasPendingActions()) {
+      const hdlr = (event) => {
+        if (event.data != "transp-discont-eval-ready") return;
+        let pa = this._advertizerEval.pendingActions;
+        for (let i = 0; i < pa.length; i++) {
+          this._audioNode.port.postMessage({
+            type: "transp-track-action",
+            data: pa[i],
+          });
+        }
+        this._advertizerEval.clearPendingActions();
+        this._audioNode.port.removeEventListener("message", hdlr);
+      };
+      this._audioNode.port.addEventListener("message", hdlr);
+    }
+  },
+
   _onDisconnect(data) {
     this._state.stop();
     this._sldpManager.resetCurrentStreams();

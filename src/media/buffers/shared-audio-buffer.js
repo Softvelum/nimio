@@ -71,6 +71,10 @@ export class SharedAudioBuffer {
     }
   }
 
+  halt() {
+    this._halt = true;
+  }
+
   reset() {
     this._setIdx(0, 0);
     this._setIdx(1, 0);

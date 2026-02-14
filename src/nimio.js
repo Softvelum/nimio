@@ -501,7 +501,7 @@ export default class Nimio {
         ? WritableAudioBuffer
         : WritableTransAudioBuffer;
       this._audioBuffer = AudioBufferClass.allocate(
-        this._bufferSec * 6, // reserve 2 times buffer size for development (TODO: reduce later)
+        this._bufferSec * 6, // reserve 6 times buffer size for development (TODO: reduce later)
         this._audioConfig.sampleRate,
         this._audioConfig.numberOfChannels,
         this._audioConfig.sampleCount,
@@ -598,6 +598,8 @@ export default class Nimio {
         processorOptions: procOptions,
       },
     );
+
+    this._audioNode.port.start();
     this._workletLogReceiver.add(this._audioNode);
     if (!this._state.isShared()) {
       this._state.attachPort(this._audioNode.port);
@@ -619,17 +621,7 @@ export default class Nimio {
       await smc.sync();
       this._applySyncModeParams();
     }
-
-    if (this._advertizerEval.hasPendingActions()) {
-      let pa = this._advertizerEval.pendingActions;
-      for (let i = 0; i < pa.length; i++) {
-        this._audioNode.port.postMessage({
-          type: "transp-track-action",
-          data: pa[i],
-        });
-      }
-      this._advertizerEval.clearPendingActions();
-    }
+    this._sendPendingAdvertizerActions();
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
       this._vuMeterSvc.start();

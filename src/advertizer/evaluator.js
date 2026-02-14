@@ -11,6 +11,7 @@ export class AdvertizerEvaluator {
 
     if (port) {
       port.addEventListener("message", this._portMessageHandler.bind(this));
+      port.postMessage("transp-discont-eval-ready");
     } else {
       this._pendingActions = [];
     }
@@ -62,7 +63,9 @@ export class AdvertizerEvaluator {
       }
     }
     if (preMatches.length === this.#types.length && win[0] - curTsUs < 3_000) {
+      win[1] += 150_000;
       let delta = win[1] - curTsUs;
+      this._logger.debug(`Switch delta is ${delta / 1000}ms, curTs = ${curTsUs/1000}, to = ${win[1] / 1000}, from = ${win[0] / 1000}`);
       if (delta + this._bufToKeep <= availUs) {
         for (let j = 0; j < this.#types.length; j++) {
           let switches = this._switches[this._tracks[this.#types[j]]];
@@ -72,7 +75,11 @@ export class AdvertizerEvaluator {
           );
         }
         del = null;
+        // res = delta + availUs - this._bufToKeep;
         res = delta;
+        this._logger.debug(`Going to seek by ${res/1000} to ${win[1] / 1000}`);
+      } else {
+        this._logger.debug(`Not enough buffer to switch delta = ${delta/1000}ms, availMs = ${availUs/1000}`);
       }
     }
     if (del) {
@@ -134,7 +141,7 @@ export class AdvertizerEvaluator {
   }
 
   set bufferToKeep(valUs) {
-    this._bufToKeep = valUs;
+    this._bufToKeep = Math.min(valUs, 200_000);
   }
 
   _portMessageHandler(event) {

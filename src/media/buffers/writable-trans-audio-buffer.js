@@ -24,6 +24,8 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
   }
 
   pushFrame(audioFrame) {
+    if (this._halt) return -1;
+
     if (this._isDetached()) return -1;
 
     const writtenIdx = super.pushFrame(audioFrame);
@@ -32,6 +34,8 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
   }
 
   pushSilence(timestamp) {
+    if (this._halt) return -1;
+
     if (this._isDetached()) return -1;
 
     const writtenIdx = super.pushSilence(timestamp);

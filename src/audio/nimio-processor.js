@@ -11,6 +11,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
+    this.port.start();
     LoggersFactory.setLevel(options.processorOptions.logLevel);
     LoggersFactory.toggleWorkletLogs(options.processorOptions.enableLogs);
     this._logger = LoggersFactory.create(
@@ -18,7 +19,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       "AudioNimioProcessor",
       this.port,
     );
-
+  
     this._stateManager = new StateManager(options.processorOptions.stateSab, {
       shared: options.processorOptions.stateSabShared,
       port: options.processorOptions.stateSabShared ? null : this.port,

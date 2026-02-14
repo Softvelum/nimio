@@ -69,7 +69,8 @@ export class LatencyController {
     this._bufferMeter.reset();
 
     this._startTimeMs = -1;
-    this._lastActionTime = -this._minSeekIntervalMs;
+    this._lastSeekTime = -this._minSeekIntervalMs;
+    this._lastZapTime = -this._minRateChangeIntervalMs;
     this._audioAvailUs = this._videoAvailUs = undefined;
     this._pendingStableSince = null;
     this._restoreLatency = false;
@@ -277,7 +278,7 @@ export class LatencyController {
       this._restoreLatency = false;
     }
 
-    if (age < this._warmupMs / 2 && this._lastActionTime < 0) {
+    if (age < this._warmupMs / 2 && this._lastSeekTime < 0) {
       // Do seek on startup if possible
       if (this._tryInitialSeek(deltaMs, bufMin, now)) return;
     }
@@ -331,14 +332,14 @@ export class LatencyController {
   _zap(goMove, deltaMs, curBuf, now) {
     let rate = 1;
     if (goMove) {
-      if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
+      if (now - this._lastZapTime < this._minRateChangeIntervalMs) {
         return;
       }
       rate = clamp(1 + this._rateK * deltaMs, this._minRate, this._maxRate);
       if (deltaMs < -0.6) {
         rate = 0; // stop reading samples to adjust latency faster
       }
-      this._lastActionTime = now;
+      this._lastZapTime = now;
     }
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
 
@@ -353,13 +354,13 @@ export class LatencyController {
     if (
       !goMove ||
       deltaMs === 0 ||
-      now - this._lastActionTime < this._minSeekIntervalMs
+      now - this._lastSeekTime < this._minSeekIntervalMs
     ) {
       this._logger.debug(`Skip seek by ${deltaMs}ms because of excessive frequency`);
       return;
     }
 
-    this._lastActionTime = now;
+    this._lastSeekTime = now;
     this._logger.debug(`Seek by ${deltaMs}ms, cur bufer ms=${curBuf}`);
     this._moveCurrentPosition(deltaMs * 1000);
   }

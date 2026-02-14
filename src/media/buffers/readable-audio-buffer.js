@@ -107,6 +107,7 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
         `No frames found in the requested range: ${startTsNs}..${endTsNs}, skipIdx = ${skipIdx}. Size = ${this.getSize()}. Last ts = ${lastTs}, dist=${(lastTs - startTsNs / 1000) / 1000}ms`,
       );
       if (skipCnt > 500) {
+        this.halt();
         debugger;
       }
     }
@@ -180,14 +181,29 @@ export class ReadableAudioBuffer extends SharedAudioBuffer {
     if (startCount === null) {
       fillCount = rParams.outLength - endCount;
       console.error("Fill silence (start)", fillCount);
+      if (fillCount > 70) {
+        this.halt();
+        console.log(`Read idx = ${this.getReadIdx()}, writeIdx = ${this.getWriteIdx()}`);
+        debugger;
+      }
       this._fillSilence(outputChannels, 0, fillCount);
     } else if (endCount === null) {
       fillCount = rParams.outLength - startCount;
       console.error("Fill silence (end)", fillCount);
+      if (fillCount > 70) {
+        this.halt();
+        console.log(`Read idx = ${this.getReadIdx()}, writeIdx = ${this.getWriteIdx()}`);
+        debugger;
+      }
       this._fillSilence(outputChannels, startCount, fillCount);
     } else if (startCount + endCount < rParams.outLength) {
       fillCount = rParams.outLength - startCount - endCount;
       console.error("Fill silence (middle)", fillCount);
+      if (fillCount > 70) {
+        this.halt();
+        console.log(`Read idx = ${this.getReadIdx()}, writeIdx = ${this.getWriteIdx()}`);
+        debugger;
+      }
       this._fillSilence(outputChannels, startCount, fillCount);
     }
 
