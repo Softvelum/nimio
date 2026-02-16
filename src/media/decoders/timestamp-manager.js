@@ -86,7 +86,6 @@ class TimestampManager {
       );
       tv.timeBase = newTbase;
       data.toPtsUs = newTbase.dts + chunk.offset;
-      debugger;
     }
     this._baseSwitch.ids[id] = 0;
     this._baseSwitch.cnt--;

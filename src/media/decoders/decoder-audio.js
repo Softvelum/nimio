@@ -4,8 +4,8 @@ import { adjustCodecId } from "./checker";
 let audioDecoder;
 let support;
 
-let lastTimestampUs;
-let frameDurationUs;
+let lastTimestampUs = null;
+let frameDurationUs = null;
 let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
 
 const buffered = [];
@@ -14,7 +14,7 @@ let config = {};
 function processDecodedFrame(audioFrame) {
   let rawTimestamp = timestampBuffer.pop();
   let decTimestamp = audioFrame.timestamp;
-  if (decTimestamp === rawTimestamp && lastTimestampUs !== undefined) {
+  if (decTimestamp === rawTimestamp && lastTimestampUs !== null) {
     decTimestamp = lastTimestampUs + frameDurationUs;
   }
   lastTimestampUs = decTimestamp;
@@ -22,10 +22,10 @@ function processDecodedFrame(audioFrame) {
   self.postMessage(
     {
       type: "decodedFrame",
-      audioFrame: audioFrame,
       decoderQueue: audioDecoder.decodeQueueSize,
-      rawTimestamp: rawTimestamp,
-      decTimestamp: decTimestamp,
+      audioFrame,
+      rawTimestamp,
+      decTimestamp,
     },
     [audioFrame],
   );
@@ -59,7 +59,12 @@ self.addEventListener("message", async function (e) {
       support = null;
       break;
     case "codecData":
-      if (audioDecoder) support = null;
+      if (audioDecoder) {
+        support = null;
+        await audioDecoder.flush();
+        shutdownDecoder();
+        lastTimestampUs = null;
+      }
       audioDecoder = new AudioDecoder({
         output: (audioFrame) => {
           processDecodedFrame(audioFrame);

@@ -63,7 +63,7 @@ export class AdvertizerEvaluator {
       }
     }
     if (preMatches.length === this.#types.length && win[0] - curTsUs < 3_000) {
-      win[1] += 150_000;
+      // win[1] += 150_000;
       let delta = win[1] - curTsUs;
       this._logger.debug(`Switch delta is ${delta / 1000}ms, curTs = ${curTsUs/1000}, to = ${win[1] / 1000}, from = ${win[0] / 1000}`);
       if (delta + this._bufToKeep <= availUs) {
