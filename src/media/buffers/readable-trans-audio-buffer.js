@@ -24,9 +24,6 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   }
 
   read(startTsNs, outputChannels, step = 1) {
-    if (this._halt) return 0;
-
-
     if (this._dispData.rIdx === undefined) {
       this._dispData.rIdx = this.getReadIdx();
     }

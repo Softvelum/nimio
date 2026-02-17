@@ -283,7 +283,6 @@ The following features are planned for upcoming releases:
 - VOD thumbnail previews
 - SEI timecodes support
 - WebTransport protocol
-- Nimble Advertizer integration
 - Screenshot capture
 - Extended Player API
 - OffscreenCanvas rendering

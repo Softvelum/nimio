@@ -15,7 +15,6 @@ export class LatencyController {
     this._audio = !!this._params.audio;
     this._video = !!this._params.video;
     this._latencyMs = this._params.latency;
-    this._discontEval.bufferToKeep = this._latencyMs * 1000;
 
     this._shortWindowMs = 300;
     this._longWindowMs = 1500;
@@ -27,6 +26,7 @@ export class LatencyController {
 
     this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 50_000; // 50ms
+    this._discontEval.bufferToKeep = this._latencyMs * 900; // 0.9 of latency
 
     this._warmupMs = 3000;
     this._holdMs = 500;

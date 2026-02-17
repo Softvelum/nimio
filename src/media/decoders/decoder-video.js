@@ -89,7 +89,6 @@ self.addEventListener("message", async function (e) {
       support = null;
       break;
     case "codecData":
-      console.log("New video codec data received");
       if (videoDecoder) {
         support = null;
         const vd = videoDecoder;
@@ -97,15 +96,12 @@ self.addEventListener("message", async function (e) {
           if (typeof vd.close === "function") vd.close();
         });
       }
-
       videoDecoder = new VideoDecoder({
         output: (frame) => {
           processDecodedFrame(frame);
         },
         error: (e) => handleDecoderError(e.message),
       });
-
-      console.log("New video decoder created");
 
       let params = {
         codec: config.codec,
@@ -122,10 +118,8 @@ self.addEventListener("message", async function (e) {
       }
 
       support = await VideoDecoder.isConfigSupported(params);
-      console.log(`Video decoder config support = ${support.supported}`);
       if (!support.supported) await fallbackToSoftwareSupport(params);
       await configureDecoder(params);
-      console.log("Video decoder is configured");
       break;
     case "chunk":
       const frameWithHeader = new Uint8Array(e.data.frameWithHeader);

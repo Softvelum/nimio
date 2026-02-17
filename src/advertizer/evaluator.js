@@ -38,34 +38,26 @@ export class AdvertizerEvaluator {
     for (let j = 0; j < this.#types.length; j++) {
       let trackId = this._tracks[this.#types[j]];
       let switches = this._switches[trackId];
-      if (!switches) {
-        this._logger.debug(`No switches for ${this.#types[j]}`);
-        break;
-      }
+      if (!switches) break;
 
       for (let i = 0; i < switches.length; i++) {
         if (switches[i].to < curTsUs) {
-          this._logger.debug(
-            `Skip switch ${this.#types[j]}, Cur ts = ${curTsUs}, to = ${switches[i].to}`,
-          );
           del[trackId] = i;
           continue;
         }
         if (switches[i].from - curTsUs > this.#confIvalUs) {
-          this._logger.debug(
-            `Switch ${this.#types[j]} is yet far ${(switches[i].from - curTsUs) / 1000}. Cur ts = ${curTsUs}, from = ${switches[i].from}`,
-          );
           break;
         }
-        if (win[0] > switches[i].from) win[0] = switches[i].from;
+        if (win[0] > switches[i].from || win[0] < curTsUs) {
+          win[0] = switches[i].from;
+        }
         if (win[1] < switches[i].to) win[1] = switches[i].to;
         preMatches.push(i);
       }
     }
     if (preMatches.length === this.#types.length && win[0] - curTsUs < 3_000) {
-      // win[1] += 150_000;
       let delta = win[1] - curTsUs;
-      this._logger.debug(`Switch delta is ${delta / 1000}ms, curTs = ${curTsUs/1000}, to = ${win[1] / 1000}, from = ${win[0] / 1000}`);
+      // this._logger.debug(`Switch delta is ${delta / 1000}ms, curTs = ${curTsUs/1000}, to = ${win[1] / 1000}, from = ${win[0] / 1000}`);
       if (delta + this._bufToKeep <= availUs) {
         for (let j = 0; j < this.#types.length; j++) {
           let switches = this._switches[this._tracks[this.#types[j]]];
@@ -75,11 +67,10 @@ export class AdvertizerEvaluator {
           );
         }
         del = null;
-        // res = delta + availUs - this._bufToKeep;
         res = delta;
-        this._logger.debug(`Going to seek by ${res/1000} to ${win[1] / 1000}`);
-      } else {
-        this._logger.debug(`Not enough buffer to switch delta = ${delta/1000}ms, availMs = ${availUs/1000}`);
+        this._logger.debug(
+          `Computed init switch shift ${res / 1000}ms to ${win[1]}`,
+        );
       }
     }
     if (del) {
@@ -95,7 +86,6 @@ export class AdvertizerEvaluator {
   }
 
   handleAction(data) {
-    this._logger.debug(`handleAction`, data);
     switch (data.op) {
       case "init-switch":
         if (!this._switches[data.id]) {
@@ -141,7 +131,7 @@ export class AdvertizerEvaluator {
   }
 
   set bufferToKeep(valUs) {
-    this._bufToKeep = Math.min(valUs, 200_000);
+    this._bufToKeep = valUs;
   }
 
   _portMessageHandler(event) {
