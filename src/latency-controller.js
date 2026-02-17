@@ -356,7 +356,7 @@ export class LatencyController {
       deltaMs === 0 ||
       now - this._lastSeekTime < this._minSeekIntervalMs
     ) {
-      this._logger.debug(`Skip seek by ${deltaMs}ms because of excessive frequency`);
+      this._logger.debug(`Skip seek by ${deltaMs}ms (too frequent)`);
       return;
     }
 
