@@ -27,10 +27,12 @@ const DEFAULTS = {
   hardwareAcceleration: false,
   reconnects: 10,
   syncBuffer: null,
+  vod: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
 const MIN_LATENCY = 100;
+const DEFAULT_HLSJS_SOURCE_URL = "https://cdn.jsdelivr.net/npm/hls.js@1";
 
 function validateRequired(cfg) {
   REQUIRED_KEYS.forEach((key) => {
@@ -193,6 +195,80 @@ function initSyncBufferSetting(settings, logger) {
   }
 }
 
+function initVodSettings(settings) {
+  if (!settings.vod) return;
+  if (settings.vod === true) {
+    settings.vod = {};
+  }
+  if (!(settings.vod instanceof Object)) {
+    settings.vod = undefined;
+    return;
+  }
+
+  let vod = settings.vod;
+  if (!vod.hlsjs) vod.hlsjs = {};
+
+  if (vod.hlsjs === 'local') {
+    vod.hlsjs = { source: null };
+  } else if (vod.hlsjs === 'cdn' || !vod.hlsjs instanceof Object) {
+    vod.hlsjs = { source: DEFAULT_HLSJS_SOURCE_URL };
+  }
+
+  if (vod.hlsjs.source === undefined) {
+    vod.hlsjs.source = DEFAULT_HLSJS_SOURCE_URL;
+  }
+
+  if (!vod.url) {
+    vod.url = defaultVodUrl(settings);
+    vod.isDefault = true;
+  }
+
+  if (vod.startupVodFailover === undefined) {
+    vod.startupVodFailover = true;
+  }
+  if (vod.liveFailover === undefined) {
+    vod.liveFailover = true;
+  }
+  vod.thumbnails = settings.audioOnly ? false : !!vod.thumbnails;
+  if (vod.thumbnails) {
+    setThumbnailBaseUrl(vod);
+  }
+
+  vod.initialResolution = settings.initialResolution;
+  vod.adaptiveBitrate = settings.adaptiveBitrate;
+  vod.autoplay = settings.autoplay;
+  vod.timecodes = settings.timecodes;
+}
+
+function defaultVodUrl (settings) {
+  let vodProtocol = 'http';
+
+  let url = settings.streamUrl;
+  let prPos = url.indexOf('://');
+  if (prPos > 0) {
+    let protocol = url.slice(0, prPos);
+    if ('wss' === protocol) {
+      vodProtocol = 'https';
+    }
+    url = url.slice(prPos + 3);
+  }
+
+  return vodProtocol + '://' + url + '/playlist_dvr.m3u8';
+}
+
+function setThumbnailBaseUrl (vodStngs) {
+  let url = vodStngs.url.trim();
+  if (url) {
+    let plPos = url.indexOf('.m3u8');
+    if (plPos > 0) {
+      plPos = url.lastIndexOf('/', plPos);
+      if (plPos > 0) {
+        vodStngs.thumbnailBaseUrl = url.slice(0, plPos + 1) + 'dvr_thumbnail_';
+      }
+    }
+  }
+}
+
 export function createConfig(overrides = {}) {
   const filtered = {};
   const unknown = [];
@@ -223,6 +299,7 @@ export function createConfig(overrides = {}) {
   initLatencySettings(target, logger);
   initAbrSettings(target, logger);
   initVUMeterSettings(target, logger);
+  initVodSettings(target);
 
   // ID for storing the last volume level
   target.volumeId = target.container;
