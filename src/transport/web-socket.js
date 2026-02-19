@@ -77,7 +77,7 @@ self.onmessage = (e) => {
 
       if (wsEv.target.id === curSocketId) {
         socket = undefined;
-        self.postMessage({ type: "disconnect" });
+        self.postMessage({ type: "disconnect", data: { code: codeHuman } });
       }
     };
     return;

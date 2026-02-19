@@ -11,7 +11,22 @@ export const NimioTransport = {
       audioSetup: this._onAudioSetupReceived.bind(this),
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
+      disconnect: this._onDisconnect.bind(this),
     };
+  },
+
+  _onDisconnect(data) {
+    this._state.stop();
+    this._sldpManager.resetCurrentStreams();
+    if (this._isAutoAbr()) {
+      this._abrController.stop({ hard: true });
+    }
+    this._resetPlayback();
+    if (!this._reconnect.schedule(this._playCb)) {
+      this._logger.debug("Stop reconnecting");
+      return this._ui.drawPlay();
+    }
+    this._logger.debug("Attempt to reconnect");
   },
 
   _onVideoSetupReceived(data) {
