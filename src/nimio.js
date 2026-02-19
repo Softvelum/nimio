@@ -54,6 +54,23 @@ export default class Nimio {
     this._livePlayer = undefined;
   }
 
+  seekVod(position) {
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      return _sdkPlaybackProgressProxy.seekVod(position);
+    }
+
+    return this._runVodFromStart(position);
+  };
+
+  seekLive(buffer) {
+    if (buffer === undefined || buffer === null) buffer = 0;
+    return _sdkPlaybackProgressProxy.seekLive(buffer);
+  };
+
+  getVodPlayerHandler() {
+    return this._vodPlayer?.isLoaded() ? this._vodPlayer.getHandler() : null;
+  };
+
   version() {
     return __NIMIO_VERSION__;
   }
@@ -69,6 +86,75 @@ export default class Nimio {
   }
 
   _onVUMeterUpdate(magnitudes, decibels) {}
+
+  _runVodFromStart(pos) {
+    if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
+      this._vodPlayer.initialize(_ui.mediaElement).then(() => {
+        let isCurPlaying = this._context.getState().playing;
+        this._switchToVod(pos);
+        this._context.setState(isCurPlaying, false);
+        this._context.setStateInitial(true);
+        this._context.setAutoAbr(!!this._config.adaptiveBitrate);
+      });
+
+      return true;
+    }
+
+    return false;
+  }
+
+  _onVodPlaybackError (error) {
+    // Switch to SLDP player for now.
+    // TODO: expand this behavior as new options appear
+    this._logger.warn('VOD playback error: ' + error);
+    // _runSdkCallback( 'onError', error, {type: 'vod'});
+    if (this._config.vod?.liveFailover) {
+      this._switchToLive(0);
+    } else {
+      this._ui.showNotPlaying();
+    }
+  }
+
+  _onPlaybackPositionChange (type, value) {
+    this._logger.debug(`_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${_mode}`);
+    if (this._mode === 'pend') return false;
+
+    if (type === this._mode) {
+      return this._actPlayer.goto(value);
+    }
+
+    return (type === 'vod') ? this._switchToVod(value) : this._switchToLive(value);
+  }
+
+  _switchToVod(position) {
+    if (!this._vodPlayer || this._mode === 'vod') return false;
+    this._mode = 'pend';
+
+    return this._sldpPlayer.detach(() => {
+      // TODO: re-check parameters
+      this._actPlayer = this._vodPlayer;
+      this._actPlayer.attach(this._ui, position, () => {
+        this._mode = 'vod';
+      });
+    });
+
+  }
+
+  _switchToLive(buffering) {
+    if (!this._vodPlayer || this._mode === 'live') return false;
+    this._mode = 'pend';
+
+    this._logger.debug('Attach live with buffering = ' + buffering);
+
+    // pbError shows that VOD player couldn't play stream on start
+    // that means that there is no playable stream source at the moment
+    let pbError = this._context.getState().initial && this._vodPlayer.hasPlaybackErrors();
+    return this._vodPlayer.detach(function () {
+      this._actPlayer = this._sldpPlayer;
+      this._actPlayer.attach(this._ui, {buffering, pbError});
+      this._mode = 'live';
+    });
+  }
 }
 
 Object.assign(Nimio.prototype, NimioEvents);

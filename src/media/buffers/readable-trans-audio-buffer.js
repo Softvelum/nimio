@@ -1,6 +1,6 @@
 import { ReadableAudioBuffer } from "./readable-audio-buffer";
 import { PortMessaging } from "@/shared/port-messaging";
-import { currentTimeGetterMs } from "@/shared/helpers";
+import { currentTimeGetterMs } from "@/shared/time-helpers";
 
 export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   constructor(sharedBuf, capacity, sampleRate, numChannels, sampleCount) {

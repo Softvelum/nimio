@@ -1,6 +1,6 @@
 import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
-import { currentTimeGetterMs } from "@/shared/helpers";
+import { currentTimeGetterMs } from "@/shared/time-helpers";
 import { clamp } from "@/shared/helpers";
 import { SyncModePolicy } from "./sync-mode/policy";
 

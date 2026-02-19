@@ -1,7 +1,7 @@
 import { multiInstanceService } from "./shared/service";
 import LoggersFactory from 'shared/logger'
 
-class PlaybackProgressService {
+export class PlaybackProgressService {
   constructor (instanceName) {
     this._logger = LoggersFactory.create(instanceName, 'Progress Service');
     this._vodPosition = 0;

@@ -1,5 +1,7 @@
-import LoggersFactory from './shared/logger'
 import { VUMeterService } from './vumeter/service';
+import { LoggersFactory } from './shared/logger';
+import { PlaybackContext } from './playback/context';
+import { throttler } from './shared/helpers';
 
 const VOD_STATE = {
   NULL: 0,
@@ -16,46 +18,45 @@ export class NimioVod {
     this._context = PlaybackContext.getInstance(this._instName);
 
     this._state = VOD_STATE.NULL;
-
     this._config = config;
-    if (this._config) {
-      // TODO: populate some settings if needed. Check default worker path.
-      this._loadSourcePromise = this._addScriptTag(this._config.hlsjs.source);
-      this._loadSourcePromise.then((script) => {
-        this._pHandler = new Hls({
-          // autoStartLoad: false,
-          // workerPath: this._workerPath,
-          // debug: true,
-        });
-        this._playerScript = script;
-        this._state = VOD_STATE.INIT;
-        this._playbackStarted = false;
-        this._playbackErrCnt = 0;
+    if (!this._config) return;
 
-        this._progressSvc = PlaybackProgressService.getInstance(instanceId);
-        this._vuMeterSvc = VUMeterService.getInstance(instanceId);
-        this._audCtxProvider = AudioContextProvider.getInstance(instanceId);
-        this._mediaControlSvc = MediaControlService.getInstance(instanceId);
-        this._segmentTracker = PlaybackSegmentTracker.getInstance(instanceId);
-
-        if (this._config.timecodes) {
-          this._spsHolder = SPSHolder.getInstance(instanceId);
-          this._nalProcessor = NalProcessor.getInstance(instanceId);
-          this._seiProcessor = SeiProcessor.getInstance(instanceId);
-        }
-
-        this._onProgress = Utils.throttler(this, function () {
-          if (!this._ui) return;
-
-          this._progressSvc.updateVodProgress(
-            this._ui.mediaElement.currentTime,
-            this._ui.mediaElement.duration,
-          );
-        }, 100);
-      }).catch((script) => {
-        this._logger.error('Can not load HLS.js library from given source', script);
+    // TODO: populate some settings if needed. Check default worker path.
+    this._loadSourcePromise = this._addScriptTag(this._config.hlsjs.source);
+    this._loadSourcePromise.then((script) => {
+      this._pHandler = new Hls({
+        // autoStartLoad: false,
+        // workerPath: this._workerPath,
+        // debug: true,
       });
-    }
+      this._playerScript = script;
+      this._state = VOD_STATE.INIT;
+      this._playbackStarted = false;
+      this._playbackErrCnt = 0;
+
+      this._progressSvc = PlaybackProgressService.getInstance(this._instName);
+      this._vuMeterSvc = VUMeterService.getInstance(this._instName);
+      this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
+      this._mediaControlSvc = MediaControlService.getInstance(this._instName);
+      this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+
+      if (this._config.timecodes) {
+        this._spsHolder = SPSHolder.getInstance(this._instName);
+        this._nalProcessor = NalProcessor.getInstance(this._instName);
+        this._seiProcessor = SeiProcessor.getInstance(this._instName);
+      }
+
+      this._onProgress = throttler(this, function () {
+        if (!this._ui) return;
+
+        this._progressSvc.updateVodProgress(
+          this._ui.mediaElement.currentTime,
+          this._ui.mediaElement.duration,
+        );
+      }, 100);
+    }).catch((script) => {
+      this._logger.error('Can not load HLS.js library from given source', script);
+    });
   }
 
   destroy () {
