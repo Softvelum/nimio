@@ -445,11 +445,11 @@ export class NimioLive {
   }
 
   _onDecodingError(kind) {
-    // TODO: show error message in UI
     if (kind === "video") this._setNoVideo();
     if (kind === "audio") this._setNoAudio();
 
     if (this._noVideo && this._noAudio) {
+      // TODO: show error message in UI
       this.stop(true);
     }
   }
@@ -576,7 +576,7 @@ export class NimioLive {
     if (!this._state.isShared()) {
       this._state.attachPort(this._audioNode.port);
     }
-    if (!procOptions.audioSab) {
+    if (!procOptions.audioSab && this._audioBuffer) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
 
