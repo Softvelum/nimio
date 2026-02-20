@@ -61,8 +61,8 @@ export const NimioTransport = {
 
   _onAudioSetupReceived(data) {
     if (!data || !data.config) {
-      this._startNoAudioMode();
-      return;
+      // TODO: show UI error notification if noVideo
+      return this._noVideo ? this.stop(true) : this._startNoAudioMode();
     }
 
     if (this._isNextRenditionTrack(data.trackId)) {
