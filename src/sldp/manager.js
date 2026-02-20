@@ -175,6 +175,7 @@ export class SLDPManager {
       // If no audio in the video renditions, take the first audio rendition
       if (this._context.audioRenditions.length > 0) {
         aIdx = this._context.audioRenditions[0].idx;
+        gotAudio = true;
       }
     }
 

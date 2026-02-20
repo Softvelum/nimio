@@ -86,7 +86,9 @@ class PlaybackContext {
 
       if (streamInfo.acodec) {
         streamInfo.acodecSupported = this._cSupport.audio[streamInfo.acodec];
-        this._ordVideoRenditions[vIdx].hasAudio = streamInfo.acodecSupported;
+        if (vIdx !== null && this._ordVideoRenditions[vIdx]) {
+          this._ordVideoRenditions[vIdx].hasAudio = streamInfo.acodecSupported;
+        }
       }
     }
 
