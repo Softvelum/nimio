@@ -21,25 +21,30 @@ export class Ui {
     });
     this._container.classList.add("nimio-container");
 
-    // todo if no options, get from container
+    // TODO: if no options, get from container
     this._baseWidth = opts.width;
     this._baseHeight = opts.height;
+    // TODO: get from frame properties
+    this._ar = this._baseWidth / this._baseHeight;
 
     this._canvas = document.createElement("canvas");
-    this._updateCanvasSize(this._baseWidth, this._baseHeight);
-    this._dpr = window.devicePixelRatio || 1;
-    this._logger.warn("DPR", this._dpr);
-
-    this._cctx = this._canvas.getContext("2d");
-    this._cctx.save();
-    this._cctx.scale(this._dpr, this._dpr);
-    this._cctx.restore();
     Object.assign(this._canvas.style, {
       cursor: "pointer",
       zIndex: 10,
       margin: "auto",
       "background-color": "grey",
     });
+    this._bCanvas = new OffscreenCanvas(0, 0);
+
+    this._cctx = this._canvas.getContext("2d");
+    this._bctx = this._bCanvas.getContext("2d");
+    this._updateCanvasSize(this._baseWidth, this._baseHeight);
+    this._logger.debug(`Device DPR = ${this._dpr}`);
+
+    this._cctx.save();
+    this._cctx.scale(this._dpr, this._dpr);
+    this._cctx.restore();
+
     this._container.appendChild(this._canvas);
 
     this._btnPlayPause = document.createElement("div");
@@ -93,6 +98,10 @@ export class Ui {
     this._buttonPlayPause.querySelector(".icon-pause").style.display = "block";
   }
 
+  drawFrame(frame) {
+    this._cctx.drawImage(frame, 0, 0, this._curWidth, this._curHeight);
+  }
+
   showControls(anim) {
     this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._btnPlayPause.style.opacity = "0.7";
@@ -107,6 +116,10 @@ export class Ui {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "0";
+  }
+
+  clear() {
+    this._cctx.clearRect(0, 0, this._curWidth, this._curHeight);
   }
 
   appendDebugOverlay(state, videoBuffer) {
@@ -301,6 +314,16 @@ export class Ui {
   }
 
   _handleResize() {
+    if (this._resizeQueued) return;
+
+    this._resizeQueued = true;
+    requestAnimationFrame(() => {
+      this._resizeQueued = false;
+      this._resizeAndRedraw();
+    });
+  }
+
+  _resizeAndRedraw() {
     if (this._isPlayerFullscreen()) {
       const screenAspect = window.innerWidth / window.innerHeight;
 
@@ -319,13 +342,28 @@ export class Ui {
     }
   }
 
-  _updateCanvasSize(width, height) {
-    // TODO: check if DPR is needed here
-    this._canvas.width = width;
-    this._canvas.height = height;
-    this._canvas.style.width = `${width}px`;
-    this._canvas.style.height = `${height}px`;
-    this._ar = width / height;
+  _updateCanvasSize(w, h) {
+    // DPR can change when dragging window between monitors, browser zoom, external display attach/detach
+    this._dpr = window.devicePixelRatio || 1;
+
+    let devW = w * this._dpr;
+    let devH = h * this._dpr;
+    if (this._canvas.width === devW && this._canvas.height === devH) return;
+
+    this._bCanvas.width = devW;
+    this._bCanvas.height = devH;
+    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._bctx.drawImage(this._canvas, 0, 0);
+
+    this._canvas.width = devW;
+    this._canvas.height = devH;
+    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+
+    this._curWidth = w;
+    this._curHeight = h;
+    this._canvas.style.width = `${this._curWidth}px`;
+    this._canvas.style.height = `${this._curHeight}px`;
+    this._cctx.drawImage(this._bCanvas, 0, 0, this._curWidth, this._curHeight);
   }
 
   _handleOrientChange(e) {

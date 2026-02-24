@@ -98,7 +98,6 @@ export class NimioLive {
 
     this._resetPlaybackTimestamps();
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
-    this._ctx = this._ui.canvas.getContext("2d");
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -240,13 +239,7 @@ export class NimioLive {
       return true;
     }
 
-    this._ctx.drawImage(
-      frame,
-      0,
-      0,
-      this._ctx.canvas.width,
-      this._ctx.canvas.height,
-    );
+    this._ui.drawFrame(frame);
     frame.close();
   }
 
@@ -396,8 +389,7 @@ export class NimioLive {
   }
 
   _resetPlayback() {
-    this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
-
+    this._ui.clear();
     this._videoBuffer.reset();
     this._noVideo = this._config.audioOnly;
 
@@ -408,7 +400,7 @@ export class NimioLive {
       this._audioBuffer = null;
     }
     this._latencyCtrl.reset();
-    this._syncModeParams = {};
+    if (this._syncModeParams) this._syncModeParams = {};
     this._advertizerEval.reset();
 
     if (this._nextRenditionData) {

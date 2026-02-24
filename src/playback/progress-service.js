@@ -1,7 +1,7 @@
-import { multiInstanceService } from "./shared/service";
-import LoggersFactory from 'shared/logger'
+import { multiInstanceService } from "@/shared/service";
+import { LoggersFactory } from '@/shared/logger';
 
-export class PlaybackProgressService {
+class PlaybackProgressService {
   constructor (instanceName) {
     this._logger = LoggersFactory.create(instanceName, 'Progress Service');
     this._vodPosition = 0;
@@ -169,4 +169,5 @@ PlaybackProgressService.prototype.updateLivePosition = function (buffer) {
   return res;
 };
 
-export default multiInstanceService(PlaybackProgressService);
+PlaybackProgressService = multiInstanceService(PlaybackProgressService);
+export { PlaybackProgressService };

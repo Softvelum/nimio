@@ -4,6 +4,7 @@ import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
 import { createConfig } from "./player-config";
+import { PlaybackContext } from "./playback/context";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 
@@ -32,6 +33,7 @@ export default class Nimio {
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
 
+    this._context = PlaybackContext.getInstance(this._instName);
     this._createVUMeter();
 
     this._livePlayer = new NimioLive(this._instName, this._config);

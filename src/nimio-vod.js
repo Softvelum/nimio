@@ -1,6 +1,8 @@
 import { VUMeterService } from './vumeter/service';
 import { LoggersFactory } from './shared/logger';
 import { PlaybackContext } from './playback/context';
+import { PlaybackProgressService } from './playback/progress-service';
+import { AudioContextProvider } from './audio/context-provider';
 import { throttler } from './shared/helpers';
 
 const VOD_STATE = {
@@ -37,13 +39,13 @@ export class NimioVod {
       this._progressSvc = PlaybackProgressService.getInstance(this._instName);
       this._vuMeterSvc = VUMeterService.getInstance(this._instName);
       this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
-      this._mediaControlSvc = MediaControlService.getInstance(this._instName);
-      this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+      // this._mediaControlSvc = MediaControlService.getInstance(this._instName);
+      // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
       if (this._config.timecodes) {
-        this._spsHolder = SPSHolder.getInstance(this._instName);
-        this._nalProcessor = NalProcessor.getInstance(this._instName);
-        this._seiProcessor = SeiProcessor.getInstance(this._instName);
+        // this._spsHolder = SPSHolder.getInstance(this._instName);
+        // this._nalProcessor = NalProcessor.getInstance(this._instName);
+        // this._seiProcessor = SeiProcessor.getInstance(this._instName);
       }
 
       this._onProgress = throttler(this, function () {
