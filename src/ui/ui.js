@@ -3,6 +3,9 @@ import { DebugView } from "./debug-view";
 import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
 
+const UI_CANVAS = 0;
+const UI_MEDIA = 1;
+
 export class Ui {
   constructor(container, opts, eventBus) {
     this._state = "pause";
@@ -27,25 +30,28 @@ export class Ui {
     // TODO: get from frame properties
     this._ar = this._baseWidth / this._baseHeight;
 
-    this._canvas = document.createElement("canvas");
-    Object.assign(this._canvas.style, {
-      cursor: "pointer",
-      zIndex: 10,
-      margin: "auto",
-      "background-color": "grey",
-    });
-    this._bCanvas = new OffscreenCanvas(0, 0);
+    this._mode = UI_CANVAS;
+    this._outputs = [];
+    this._createCanvas();
+    if (opts.dualMode) this._createMediaElement();
 
-    this._cctx = this._canvas.getContext("2d");
-    this._bctx = this._bCanvas.getContext("2d");
-    this._updateCanvasSize(this._baseWidth, this._baseHeight);
+    this._outputs.forEach((elem) => {
+      Object.assign(elem.style, {
+        cursor: "pointer",
+        zIndex: 10,
+        margin: "auto",
+        "background-color": "grey",
+      });
+    });
+
+    this._updateOutputSize(this._baseWidth, this._baseHeight);
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
     this._cctx.save();
     this._cctx.scale(this._dpr, this._dpr);
     this._cctx.restore();
 
-    this._container.appendChild(this._canvas);
+    this._outputs.forEach((elem) => this._container.appendChild(elem));
 
     this._btnPlayPause = document.createElement("div");
     this._btnPlayPause.classList.add("play-pause");
@@ -133,6 +139,23 @@ export class Ui {
   get size() {
     let box = this._canvas.getBoundingClientRect();
     return [box.width, box.height];
+  }
+
+  _createCanvas() {
+    this._canvas = document.createElement("canvas");
+    this._bCanvas = new OffscreenCanvas(0, 0);
+    this._cctx = this._canvas.getContext("2d");
+    this._bctx = this._bCanvas.getContext("2d");
+
+    this._outputs.push(this._canvas);
+  }
+
+  _createMediaElement(audioOnly) {
+    let type = audioOnly ? "audio" : "video";
+    this._mediaElement = document.createElement(type);
+    this._mediaElement.setAttribute("playsinline", "playsinline");
+    this._mediaElement.style.display = "none";
+    this._outputs.push(this._mediaElement);
   }
 
   _createControls() {
@@ -336,10 +359,22 @@ export class Ui {
         newHeight = Math.round(newWidth / this._ar);
       }
 
-      this._updateCanvasSize(newWidth, newHeight);
+      this._updateOutputSize(newWidth, newHeight);
     } else {
-      this._updateCanvasSize(this._baseWidth, this._baseHeight);
+      this._updateOutputSize(this._baseWidth, this._baseHeight);
     }
+  }
+
+  _updateOutputSize(w, h) {
+    if (this._mode === UI_CANVAS) {
+      this._updateCanvasSize(w, h);
+    }
+    this._outputs.forEach((elem) => {
+      elem.style.width = `${w}px`;
+      elem.style.height = `${h}px`;
+    });
+    this._curWidth = w;
+    this._curHeight = h;
   }
 
   _updateCanvasSize(w, h) {
@@ -358,12 +393,7 @@ export class Ui {
     this._canvas.width = devW;
     this._canvas.height = devH;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-
-    this._curWidth = w;
-    this._curHeight = h;
-    this._canvas.style.width = `${this._curWidth}px`;
-    this._canvas.style.height = `${this._curHeight}px`;
-    this._cctx.drawImage(this._bCanvas, 0, 0, this._curWidth, this._curHeight);
+    this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
   }
 
   _handleOrientChange(e) {

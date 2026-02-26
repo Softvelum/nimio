@@ -1,10 +1,14 @@
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
+import { Ui } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
 import { createConfig } from "./player-config";
+import { resolveContainer } from "./shared/container";
 import { PlaybackContext } from "./playback/context";
+import { PlaybackProgressService } from "./playback/progress-service";
+import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 
@@ -33,17 +37,52 @@ export default class Nimio {
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
 
+    const { element: containerElem, storageKey } = resolveContainer(
+      this._config.container,
+      { logger: this._logger, fallbackId: this._instName },
+    );
+    this._config.container = containerElem;
+    this._config.volumeId = storageKey;
+
+    this._ui = new Ui(
+      this._config.container,
+      {
+        width: this._config.width, //TODO: get from video?
+        height: this._config.height,
+        metricsOverlay: this._config.metricsOverlay,
+        logger: LoggersFactory.create(this._instName, "UI"),
+        autoAbr: !!this._config.adaptiveBitrate,
+        fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
+        audioOnly: this._config.audioOnly,
+        dualMode: !!this._config.vod,
+      },
+      this._eventBus,
+    );
+
     this._context = PlaybackContext.getInstance(this._instName);
     this._createVUMeter();
 
-    this._livePlayer = new NimioLive(this._instName, this._config);
+    this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
     if (this._config.vod) {
       this._vodPlayer = new NimioVod(this._instName, this._config.vod);
     }
+
+    this._actPlayer = this._livePlayer;
+    this._mode = 'live';
+
+    this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
+    this._playProgressSvc.positionChangeCb = this._onPlaybackPositionChange;
+    this._playProgressProxy = new PlaybackProgressProxy(
+      this._eventBus,
+      this._playProgressSvc,
+    );
   }
 
   destroy() {
-    if (!this._livePlayer) return;
+    if (!this._ui) return;
+
+    this._ui.destroy();
+    this._ui = undefined;
 
     this._vuMeterSvc.clear();
 
@@ -58,20 +97,20 @@ export default class Nimio {
 
   seekVod(position) {
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
-      return _sdkPlaybackProgressProxy.seekVod(position);
+      return this._playProgressProxy.seekVod(position);
     }
 
     return this._runVodFromStart(position);
-  };
+  }
 
   seekLive(buffer) {
     if (buffer === undefined || buffer === null) buffer = 0;
-    return _sdkPlaybackProgressProxy.seekLive(buffer);
-  };
+    return this._playProgressProxy.seekLive(buffer);
+  }
 
   getVodPlayerHandler() {
     return this._vodPlayer?.isLoaded() ? this._vodPlayer.getHandler() : null;
-  };
+  }
 
   version() {
     return __NIMIO_VERSION__;
@@ -84,10 +123,10 @@ export default class Nimio {
   _createVUMeter() {
     this._vuMeterSvc = VUMeterService.getInstance(this._instName);
     const onUpdate = this._onVUMeterUpdate.bind(this);
-    this._vuMeterSvc.init(this._config.vuMeter, onUpdate);
+    this._vuMeterSvc.init(this._config.vuMeter, (magnitudes, decibels) => {
+      this._eventBus.emit("nimio:vumeter-update", { magnitudes, decibels });
+    });
   }
-
-  _onVUMeterUpdate(magnitudes, decibels) {}
 
   _runVodFromStart(pos) {
     if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
@@ -105,10 +144,10 @@ export default class Nimio {
     return false;
   }
 
-  _onVodPlaybackError (error) {
+  _onVodPlaybackError(error) {
     // Switch to SLDP player for now.
     // TODO: expand this behavior as new options appear
-    this._logger.warn('VOD playback error: ' + error);
+    this._logger.warn("VOD playback error: " + error);
     // _runSdkCallback( 'onError', error, {type: 'vod'});
     if (this._config.vod?.liveFailover) {
       this._switchToLive(0);
@@ -117,46 +156,50 @@ export default class Nimio {
     }
   }
 
-  _onPlaybackPositionChange (type, value) {
-    this._logger.debug(`_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${_mode}`);
-    if (this._mode === 'pend') return false;
-
-    if (type === this._mode) {
-      return this._actPlayer.goto(value);
-    }
-
-    return (type === 'vod') ? this._switchToVod(value) : this._switchToLive(value);
-  }
-
   _switchToVod(position) {
-    if (!this._vodPlayer || this._mode === 'vod') return false;
-    this._mode = 'pend';
+    if (!this._vodPlayer || this._mode === "vod") return false;
+    this._mode = "pend";
 
     return this._sldpPlayer.detach(() => {
       // TODO: re-check parameters
       this._actPlayer = this._vodPlayer;
       this._actPlayer.attach(this._ui, position, () => {
-        this._mode = 'vod';
+        this._mode = "vod";
       });
     });
-
   }
 
   _switchToLive(buffering) {
-    if (!this._vodPlayer || this._mode === 'live') return false;
-    this._mode = 'pend';
+    if (!this._vodPlayer || this._mode === "live") return false;
+    this._mode = "pend";
 
-    this._logger.debug('Attach live with buffering = ' + buffering);
+    this._logger.debug("Attach live with buffering = " + buffering);
 
     // pbError shows that VOD player couldn't play stream on start
     // that means that there is no playable stream source at the moment
-    let pbError = this._context.getState().initial && this._vodPlayer.hasPlaybackErrors();
-    return this._vodPlayer.detach(function () {
+    let pbError =
+      this._context.getState().initial && this._vodPlayer.hasPlaybackErrors();
+    return this._vodPlayer.detach(() => {
       this._actPlayer = this._sldpPlayer;
-      this._actPlayer.attach(this._ui, {buffering, pbError});
-      this._mode = 'live';
+      this._actPlayer.attach(this._ui, { buffering, pbError });
+      this._mode = "live";
     });
   }
+
+  _onPlaybackPositionChange = function (type, value) {
+    this._logger.debug(
+      `_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${_mode}`,
+    );
+    if (this._mode === "pend") return false;
+
+    if (type === this._mode) {
+      return this._actPlayer.goto(value);
+    }
+
+    return type === "vod"
+      ? this._switchToVod(value)
+      : this._switchToLive(value);
+  }.bind(this);
 }
 
 Object.assign(Nimio.prototype, NimioEvents);

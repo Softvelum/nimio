@@ -10,7 +10,7 @@ export function clamp(val, lo, hi) {
   return Math.max(lo, Math.min(hi, val));
 }
 
-export function fillTemplateStr (templateStr, params) {
+export function fillTemplateStr(templateStr, params) {
   return templateStr.replace(/\$\{(\w+)\}/g, (match, key) => {
     return key in params ? params[key] : match;
   });
@@ -19,7 +19,7 @@ export function fillTemplateStr (templateStr, params) {
 export function throttler(inst, func, ms) {
   let timer;
   let lastArgs;
-  function wrapper () {
+  function wrapper() {
     if (undefined === timer) {
       lastArgs = undefined;
       timer = setTimeout(function () {
@@ -41,7 +41,7 @@ export function debouncer(inst, func, ms) {
   let timer;
   let args;
 
-  function wrapper () {
+  function wrapper() {
     args = arguments;
     if (timer) clearTimeout(timer);
     timer = setTimeout(function () {

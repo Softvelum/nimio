@@ -4,7 +4,6 @@ import { IDX } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
-import { Ui } from "./ui/ui";
 import { FrameBuffer } from "./media/buffers/frame-buffer";
 import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
 import { WritableTransAudioBuffer } from "./media/buffers/writable-trans-audio-buffer";
@@ -27,26 +26,19 @@ import { AudioVolumeController } from "./audio/volume-controller";
 import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
-import { resolveContainer } from "./shared/container";
 import { Reconnector } from "./reconnector";
 import { SyncModeClock } from "./sync-mode/clock";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
 
 export class NimioLive {
-  constructor(instanceName, config) {
+  constructor(instanceName, ui, config) {
     this._instName = instanceName;
     this._config = config;
+    this._ui = ui;
 
     this._logger = LoggersFactory.create(this._instName, "Nimio Live");
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
-    const { element: containerElem, storageKey } = resolveContainer(
-      this._config.container,
-      { logger: this._logger, fallbackId: this._instName },
-    );
-    this._config.container = containerElem;
-    this._config.volumeId = storageKey;
-
     this._eventBus = EventBus.getInstance(this._instName);
 
     const idxCount = Object.values(IDX).reduce((total, val) => {
@@ -63,26 +55,13 @@ export class NimioLive {
     this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
     this._noVideo = this._config.audioOnly;
     this._noAudio = this._config.videoOnly;
-    if (this._noVideo && this._noAudio) {
-      this._logger.warn("Both video and audio only modes are set. Skipping.");
-      this._config.videoOnly = this._config.audioOnly = false;
-      this._noVideo = this._noAudio = false;
-    }
-
-    this._addUiEventHandlers();
-    this._ui = new Ui(
-      this._config.container,
-      {
-        width: this._config.width, //todo get from video?
-        height: this._config.height,
-        metricsOverlay: this._config.metricsOverlay,
-        logger: LoggersFactory.create(this._instName, "Nimio UI"),
-        autoAbr: !!this._config.adaptiveBitrate,
-        fullscreen: !!this._config.fullscreen && !this._noVideo,
-      },
-      this._eventBus,
-    );
     this._pauseTimeoutId = null;
+
+    this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
+    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._onRenditionChange = this._onRenditionChange.bind(this);
+    this._addUiEventHandlers();
 
     this._metricsManager = MetricsManager.getInstance(this._instName);
     if (this._config.metricsOverlay) {
@@ -188,16 +167,10 @@ export class NimioLive {
 
   destroy() {
     this.stop(true);
-    this._ui.destroy();
     this._removeUiEventHandlers();
   }
 
   _addUiEventHandlers() {
-    this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
-    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
-    this._onVolumeChange = this._onVolumeChange.bind(this);
-    this._onRenditionChange = this._onRenditionChange.bind(this);
-
     this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
     this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
     this._eventBus.on("ui:volume-change", this._onVolumeChange);
@@ -394,6 +367,7 @@ export class NimioLive {
     this._noVideo = this._config.audioOnly;
 
     this._stopAudio();
+    this._vuMeterSvc.stop();
     this._noAudio = this._config.videoOnly;
     if (this._audioBuffer) {
       this._audioBuffer.reset();
@@ -422,10 +396,6 @@ export class NimioLive {
     this._state.setAudioLatestTsUs(0);
     this._state.resetCurrentTsSmp();
     this._resetPlaybackTimestamps();
-
-    this._vuMeterSvc.stop();
-    this._audioGraphCtrl.dismantle();
-    this._audioCtxProvider.reset();
 
     this._cancelPauseTimeout();
     this._workletLogReceiver.reset();
@@ -616,6 +586,8 @@ export class NimioLive {
     if (this._audioContext) {
       this._audioContext.close();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
+      this._audioGraphCtrl.dismantle();
+      this._audioCtxProvider.reset();
     }
     if (this._audioBuffer) {
       this._audioBuffer.reset();

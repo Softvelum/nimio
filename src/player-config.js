@@ -208,9 +208,9 @@ function initVodSettings(settings) {
   let vod = settings.vod;
   if (!vod.hlsjs) vod.hlsjs = {};
 
-  if (vod.hlsjs === 'local') {
+  if (vod.hlsjs === "local") {
     vod.hlsjs = { source: null };
-  } else if (vod.hlsjs === 'cdn' || !vod.hlsjs instanceof Object) {
+  } else if (vod.hlsjs === "cdn" || (!vod.hlsjs) instanceof Object) {
     vod.hlsjs = { source: DEFAULT_HLSJS_SOURCE_URL };
   }
 
@@ -240,30 +240,30 @@ function initVodSettings(settings) {
   vod.timecodes = settings.timecodes;
 }
 
-function defaultVodUrl (settings) {
-  let vodProtocol = 'http';
+function defaultVodUrl(settings) {
+  let vodProtocol = "http";
 
   let url = settings.streamUrl;
-  let prPos = url.indexOf('://');
+  let prPos = url.indexOf("://");
   if (prPos > 0) {
     let protocol = url.slice(0, prPos);
-    if ('wss' === protocol) {
-      vodProtocol = 'https';
+    if ("wss" === protocol) {
+      vodProtocol = "https";
     }
     url = url.slice(prPos + 3);
   }
 
-  return vodProtocol + '://' + url + '/playlist_dvr.m3u8';
+  return vodProtocol + "://" + url + "/playlist_dvr.m3u8";
 }
 
-function setThumbnailBaseUrl (vodStngs) {
+function setThumbnailBaseUrl(vodStngs) {
   let url = vodStngs.url.trim();
   if (url) {
-    let plPos = url.indexOf('.m3u8');
+    let plPos = url.indexOf(".m3u8");
     if (plPos > 0) {
-      plPos = url.lastIndexOf('/', plPos);
+      plPos = url.lastIndexOf("/", plPos);
       if (plPos > 0) {
-        vodStngs.thumbnailBaseUrl = url.slice(0, plPos + 1) + 'dvr_thumbnail_';
+        vodStngs.thumbnailBaseUrl = url.slice(0, plPos + 1) + "dvr_thumbnail_";
       }
     }
   }
@@ -289,6 +289,11 @@ export function createConfig(overrides = {}) {
   const logger = LoggersFactory.create(target.instanceName, "Player config");
   for (let i = 0; i < unknown.length; i++) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);
+  }
+
+  if (target.videoOnly && target.audioOnly) {
+    logger.warn("Both video and audio only modes are set. Skipping.");
+    target.videoOnly = target.audioOnly = false;
   }
 
   initSyncBufferSetting(target, logger);

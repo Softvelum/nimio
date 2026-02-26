@@ -8,9 +8,12 @@ class AudioContextProvider {
   }
 
   init(sampleRate) {
-    if (this._audioCtx && this._suspended) {
-      this._logger.debug("Trying to resume suspended audio context");
-      return this._audioCtx.resume();
+    if (this._audioCtx) {
+      if (this._suspended) {
+        this._logger.debug("Trying to resume suspended audio context");
+        this._audioCtx.resume();
+      }
+      return;
     }
 
     let AudioCtxClass = window.AudioContext || window.webkitAudioContext;

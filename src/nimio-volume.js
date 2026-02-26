@@ -22,5 +22,4 @@ export const NimioVolume = {
   _onMuteUnmuteClick(mute) {
     mute ? this._audioVolumeCtrl.mute() : this._audioVolumeCtrl.unmute();
   },
-
 };

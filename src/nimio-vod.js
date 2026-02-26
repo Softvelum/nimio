@@ -1,9 +1,9 @@
-import { VUMeterService } from './vumeter/service';
-import { LoggersFactory } from './shared/logger';
-import { PlaybackContext } from './playback/context';
-import { PlaybackProgressService } from './playback/progress-service';
-import { AudioContextProvider } from './audio/context-provider';
-import { throttler } from './shared/helpers';
+import { VUMeterService } from "./vumeter/service";
+import { LoggersFactory } from "./shared/logger";
+import { PlaybackContext } from "./playback/context";
+import { PlaybackProgressService } from "./playback/progress-service";
+import { AudioContextProvider } from "./audio/context-provider";
+import { throttler } from "./shared/helpers";
 
 const VOD_STATE = {
   NULL: 0,
@@ -13,10 +13,9 @@ const VOD_STATE = {
 };
 
 export class NimioVod {
-
-  constructor (instanceName, config) {
+  constructor(instanceName, config) {
     this._instName = instanceName;
-    this._logger = LoggersFactory.create(this._instName, 'Nimio VOD');
+    this._logger = LoggersFactory.create(this._instName, "Nimio VOD");
     this._context = PlaybackContext.getInstance(this._instName);
 
     this._state = VOD_STATE.NULL;
@@ -25,59 +24,96 @@ export class NimioVod {
 
     // TODO: populate some settings if needed. Check default worker path.
     this._loadSourcePromise = this._addScriptTag(this._config.hlsjs.source);
-    this._loadSourcePromise.then((script) => {
-      this._pHandler = new Hls({
-        // autoStartLoad: false,
-        // workerPath: this._workerPath,
-        // debug: true,
-      });
-      this._playerScript = script;
-      this._state = VOD_STATE.INIT;
-      this._playbackStarted = false;
-      this._playbackErrCnt = 0;
+    this._loadSourcePromise
+      .then((script) => {
+        this._pHandler = new Hls({
+          // autoStartLoad: false,
+          // workerPath: this._workerPath,
+          // debug: true,
+        });
+        this._playerScript = script;
+        this._state = VOD_STATE.INIT;
+        this._playbackStarted = false;
+        this._playbackErrCnt = 0;
 
-      this._progressSvc = PlaybackProgressService.getInstance(this._instName);
-      this._vuMeterSvc = VUMeterService.getInstance(this._instName);
-      this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
-      // this._mediaControlSvc = MediaControlService.getInstance(this._instName);
-      // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+        this._progressSvc = PlaybackProgressService.getInstance(this._instName);
+        this._vuMeterSvc = VUMeterService.getInstance(this._instName);
+        this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
+        // this._mediaControlSvc = MediaControlService.getInstance(this._instName);
+        // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
-      if (this._config.timecodes) {
-        // this._spsHolder = SPSHolder.getInstance(this._instName);
-        // this._nalProcessor = NalProcessor.getInstance(this._instName);
-        // this._seiProcessor = SeiProcessor.getInstance(this._instName);
-      }
+        if (this._config.timecodes) {
+          // this._spsHolder = SPSHolder.getInstance(this._instName);
+          // this._nalProcessor = NalProcessor.getInstance(this._instName);
+          // this._seiProcessor = SeiProcessor.getInstance(this._instName);
+        }
 
-      this._onProgress = throttler(this, function () {
-        if (!this._ui) return;
+        this._onProgress = throttler(
+          this,
+          function () {
+            if (!this._ui) return;
 
-        this._progressSvc.updateVodProgress(
-          this._ui.mediaElement.currentTime,
-          this._ui.mediaElement.duration,
+            this._progressSvc.updateVodProgress(
+              this._ui.mediaElement.currentTime,
+              this._ui.mediaElement.duration,
+            );
+          },
+          100,
         );
-      }, 100);
-    }).catch((script) => {
-      this._logger.error('Can not load HLS.js library from given source', script);
-    });
+      })
+      .catch((script) => {
+        this._logger.error(
+          "Can not load HLS.js library from given source",
+          script,
+        );
+      });
   }
 
-  destroy () {
+  destroy() {
     if (this._state === VOD_STATE.NULL) return;
 
     if (this._pHandler) {
       if (this._url) {
         this._pHandler.stopLoad();
         this._pHandler.detachMedia();
-        this._pHandler.off(Hls.Events.MANIFEST_PARSED, this._onManifestParsed, this);
+        this._pHandler.off(
+          Hls.Events.MANIFEST_PARSED,
+          this._onManifestParsed,
+          this,
+        );
         this._pHandler.off(Hls.Events.LEVEL_LOADED, this._onLevelLoaded, this);
-        this._pHandler.off(Hls.Events.MEDIA_DETACHED, this._onMediaDetached, this);
-        this._pHandler.off(Hls.Events.MEDIA_ATTACHED, this._onMediaAttached, this);
-        this._pHandler.off(Hls.Events.BUFFER_CODECS, this._onBufferCodecs, this);
-        this._pHandler.off(Hls.Events.LEVEL_SWITCHED, this._onLevelSwitched, this);
+        this._pHandler.off(
+          Hls.Events.MEDIA_DETACHED,
+          this._onMediaDetached,
+          this,
+        );
+        this._pHandler.off(
+          Hls.Events.MEDIA_ATTACHED,
+          this._onMediaAttached,
+          this,
+        );
+        this._pHandler.off(
+          Hls.Events.BUFFER_CODECS,
+          this._onBufferCodecs,
+          this,
+        );
+        this._pHandler.off(
+          Hls.Events.LEVEL_SWITCHED,
+          this._onLevelSwitched,
+          this,
+        );
         this._pHandler.off(Hls.Events.ERROR, this._onError, this);
 
-        this._pHandler.off(Hls.Events.FRAG_PARSING_INIT_SEGMENT, this._onFragParsingInitSegment, this);
-        this._pHandler.off(Hls.Events.BUFFER_APPENDING, this._onBufferAppending, this);
+        this._pHandler.off(
+          Hls.Events.FRAG_PARSING_INIT_SEGMENT,
+          this._onFragParsingInitSegment,
+          this,
+        );
+        this._pHandler.off(
+          Hls.Events.BUFFER_APPENDING,
+          this._onBufferAppending,
+          this,
+        );
 
         // this._pHandler.off(Hls.Events.LEVEL_SWITCHING, this._onLevelSwitching, this);
         // this._pHandler.off(Hls.Events.FRAG_PARSING_USERDATA, this._onFragParsingUserData, this);
@@ -94,7 +130,7 @@ export class NimioVod {
       this._pHandler.destroy();
       this._pHandler = undefined;
 
-      if (this._state >= VOD_STATE.SYNC ) {
+      if (this._state >= VOD_STATE.SYNC) {
         this._vuMeterSvc.stop();
         this._mediaControlSvc.clear();
         this._vodMedia.clear();
@@ -123,7 +159,7 @@ export class NimioVod {
     }
   }
 
-  play () {
+  play() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
     let played = this._ui.triggerPlay();
@@ -135,18 +171,18 @@ export class NimioVod {
     this._context.setState(true, false);
   }
 
-  pause () {
+  pause() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
     this._ui.triggerPause();
   }
 
-  stop (callback) {
+  stop(callback) {
     if (this._state < VOD_STATE.SYNC) return;
 
     this._pHandler.stopLoad();
     if (this._ui) {
-      this._ui.triggerPause( true );
+      this._ui.triggerPause(true);
       this._setDetachedState(callback);
       return;
     }
@@ -154,13 +190,13 @@ export class NimioVod {
     if (callback) callback();
   }
 
-  startAbr () {
+  startAbr() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
     this._startAbr();
   }
 
-  stopAbr () {
+  stopAbr() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
     this._context.setAutoAbr(false);
@@ -170,77 +206,77 @@ export class NimioVod {
     this._pHandler.nextLevel = curLvl.idx;
   }
 
-  isAbr () {
+  isAbr() {
     return this._context.getAutoAbr();
   }
 
-  isRunning () {
+  isRunning() {
     return this._state >= VOD_STATE.SYNC;
   }
 
-  isPlaying () {
+  isPlaying() {
     return this._state === VOD_STATE.PLAY;
   }
 
-  isLoaded () {
+  isLoaded() {
     return this._state !== VOD_STATE.NULL;
   }
 
-  getHandler () {
+  getHandler() {
     return this._pHandler;
   }
 
-  getRenditions () {
+  getRenditions() {
     let renditions = [];
     let ords = this._context.orderedLevels();
     let lvls = this._context.levels();
-    for( let i = 0; i < ords.length; i++ ) {
-      renditions.push( lvls[ ords[i] ].rend );
+    for (let i = 0; i < ords.length; i++) {
+      renditions.push(lvls[ords[i]].rend);
     }
 
     return renditions;
   }
 
-  getCurrentRendition () {
+  getCurrentRendition() {
     let curLvl = this._context.getCurrentLevel();
     if (curLvl) return curLvl.rend;
   }
 
-  changeRendition (rendition) {
+  changeRendition(rendition) {
     return this.onChangeRendition(rendition, 0);
   }
 
-  _formatLevel (lvl) {
+  _formatLevel(lvl) {
     let stream;
     if (lvl) {
       stream = {
-        name:      lvl.name,
+        name: lvl.name,
         bandwidth: lvl.data.bitrate,
       };
-      if (lvl.data.width > 0) stream.width  = lvl.data.width;
+      if (lvl.data.width > 0) stream.width = lvl.data.width;
       if (lvl.data.height > 0) stream.height = lvl.data.height;
     }
 
     return stream;
   }
 
-  getStreams () {
+  getStreams() {
     let streams = [];
     let ords = this._context.orderedLevels();
     let lvls = this._context.levels();
-    for( let i = 0; i < ords.length; i++ ) {
-      streams.push( this._formatLevel(lvls[ ords[i] ]) );
+    for (let i = 0; i < ords.length; i++) {
+      streams.push(this._formatLevel(lvls[ords[i]]));
     }
 
     return streams;
   }
 
-  getCurrentStream () {
+  getCurrentStream() {
     let curLvl = this._context.getCurrentLevel();
     if (curLvl) return this._formatLevel(curLvl);
   }
 
-  changeStream (streamName) {
+  changeStream(streamName) {
     let lvl = this._context.getLevelByName(streamName);
     if (lvl) {
       return this.onChangeRendition(lvl.rend, lvl.rIdx);
@@ -249,65 +285,77 @@ export class NimioVod {
     return false;
   }
 
-  getCurrentStreamBandwidth () {
+  getCurrentStreamBandwidth() {
     return 0;
   }
 
   // TODO: handle CC related methods
-  getCaptionTracks () {
+  getCaptionTracks() {
     return [];
   }
 
-  getCurrentCaptionTrack () {
+  getCurrentCaptionTrack() {
     return {};
   }
 
-  setCaptionTrack (name) {
+  setCaptionTrack(name) {
     return false;
   }
 
-  initialize (mediaElement) {
-    return this._loadSourcePromise.then(() => {
-      if (
-        this._state === VOD_STATE.NULL || this._state === VOD_STATE.PLAY ||
-        this._url === this._config.url
-      ) return;
+  initialize(mediaElement) {
+    return this._loadSourcePromise
+      .then(() => {
+        if (
+          this._state === VOD_STATE.NULL ||
+          this._state === VOD_STATE.PLAY ||
+          this._url === this._config.url
+        )
+          return;
 
-      if (this._state === VOD_STATE.INIT) {
-        this._pHandler.on(Hls.Events.MANIFEST_PARSED, this._onManifestParsed);
-        this._pHandler.on(Hls.Events.LEVEL_LOADED, this._onLevelLoaded);
-        this._pHandler.on(Hls.Events.MEDIA_DETACHED, this._onMediaDetached);
-        this._pHandler.on(Hls.Events.MEDIA_ATTACHED, this._onMediaAttached);
-        this._pHandler.on(Hls.Events.BUFFER_CODECS, this._onBufferCodecs);
-        this._pHandler.on(Hls.Events.LEVEL_SWITCHED, this._onLevelSwitched);
-        this._pHandler.on(Hls.Events.ERROR, this._onError);
+        if (this._state === VOD_STATE.INIT) {
+          this._pHandler.on(Hls.Events.MANIFEST_PARSED, this._onManifestParsed);
+          this._pHandler.on(Hls.Events.LEVEL_LOADED, this._onLevelLoaded);
+          this._pHandler.on(Hls.Events.MEDIA_DETACHED, this._onMediaDetached);
+          this._pHandler.on(Hls.Events.MEDIA_ATTACHED, this._onMediaAttached);
+          this._pHandler.on(Hls.Events.BUFFER_CODECS, this._onBufferCodecs);
+          this._pHandler.on(Hls.Events.LEVEL_SWITCHED, this._onLevelSwitched);
+          this._pHandler.on(Hls.Events.ERROR, this._onError);
 
-        this._pHandler.on(Hls.Events.FRAG_PARSING_INIT_SEGMENT, this._onFragParsingInitSegment);
-        this._pHandler.on(Hls.Events.BUFFER_APPENDING, this._onBufferAppending);
+          this._pHandler.on(
+            Hls.Events.FRAG_PARSING_INIT_SEGMENT,
+            this._onFragParsingInitSegment,
+          );
+          this._pHandler.on(
+            Hls.Events.BUFFER_APPENDING,
+            this._onBufferAppending,
+          );
 
-        // this._pHandler.on(Hls.Events.LEVEL_SWITCHING, this._onLevelSwitching);
-        // this._pHandler.on(Hls.Events.FRAG_PARSING_USERDATA, this._onFragParsingUserData);
-        // this._pHandler.on(Hls.Events.FRAG_PARSING_METADATA, this._onFragParsingMetaData);
-        // this._pHandler.on(Hls.Events.FRAG_PARSED, this._onFragParsed);
-        // this._pHandler.on(Hls.Events.FRAG_LOADING, this._onFragLoading);
-        // this._pHandler.on(Hls.Events.FRAG_LOADED, this._onFragLoaded);
-        // this._pHandler.on(Hls.Events.FRAG_BUFFERED, this._onFragBuffered);
+          // this._pHandler.on(Hls.Events.LEVEL_SWITCHING, this._onLevelSwitching);
+          // this._pHandler.on(Hls.Events.FRAG_PARSING_USERDATA, this._onFragParsingUserData);
+          // this._pHandler.on(Hls.Events.FRAG_PARSING_METADATA, this._onFragParsingMetaData);
+          // this._pHandler.on(Hls.Events.FRAG_PARSED, this._onFragParsed);
+          // this._pHandler.on(Hls.Events.FRAG_LOADING, this._onFragLoading);
+          // this._pHandler.on(Hls.Events.FRAG_LOADED, this._onFragLoaded);
+          // this._pHandler.on(Hls.Events.FRAG_BUFFERED, this._onFragBuffered);
 
-        this._vodMedia = new VodMedia(this._instName);
-        if (mediaElement) {
-          this._mediaControlSvc.init(mediaElement);
+          this._vodMedia = new VodMedia(this._instName);
+          if (mediaElement) {
+            this._mediaControlSvc.init(mediaElement);
+          }
+          this._state = VOD_STATE.SYNC;
         }
-        this._state = VOD_STATE.SYNC;
-      }
 
-      this._url = this._config.url;
-      this._pHandler.loadSource(this._fullUrl());
-    }).catch(() => {
-      this._logger.error('Can not initialize VOD player because HLS.js library was not loaded');
-    });
+        this._url = this._config.url;
+        this._pHandler.loadSource(this._fullUrl());
+      })
+      .catch(() => {
+        this._logger.error(
+          "Can not initialize VOD player because HLS.js library was not loaded",
+        );
+      });
   }
 
-  attach (ui, position, callback) {
+  attach(ui, position, callback) {
     if (this._state < VOD_STATE.SYNC) return false;
 
     if (callback && !this._mediaAttachedCallback) {
@@ -316,7 +364,7 @@ export class NimioVod {
 
     this._ui = ui;
     this._vodMedia.init(ui.mediaElement);
-    this._mediaControlSvc.useApi('vod', this._vodMedia);
+    this._mediaControlSvc.useApi("vod", this._vodMedia);
     this._setMediaControlCallbacks();
     this._ui.clearMediaElement();
     this._state = VOD_STATE.PLAY;
@@ -327,15 +375,15 @@ export class NimioVod {
       this._reloadLevels = true;
     }
 
-    this._logger.debug('Attach VOD player', this._fullUrl());
+    this._logger.debug("Attach VOD player", this._fullUrl());
     this._pHandler.loadSource(this._fullUrl());
     this._pHandler.pauseBuffering();
     this._pHandler.attachMedia(this._ui.mediaElement);
-    this._ui.mediaElement.addEventListener('progress', this._onProgress);
-    this._ui.mediaElement.addEventListener('timeupdate', this._onProgress);
+    this._ui.mediaElement.addEventListener("progress", this._onProgress);
+    this._ui.mediaElement.addEventListener("timeupdate", this._onProgress);
 
     if (position !== undefined) {
-      this._logger.debug('after attach should go to ' + position);
+      this._logger.debug("after attach should go to " + position);
       this.goto(position);
       return true;
     }
@@ -343,7 +391,7 @@ export class NimioVod {
     return false;
   }
 
-  detach (callback) {
+  detach(callback) {
     if (this._state !== VOD_STATE.PLAY) return false;
 
     this._setDetachedState(callback);
@@ -359,13 +407,13 @@ export class NimioVod {
     return true;
   }
 
-  _setDetachedState (callback) {
+  _setDetachedState(callback) {
     if (callback && !this._mediaDetachedCallback) {
       this._mediaDetachedCallback = callback;
     }
 
     this._mediaControlSvc.keepPlaybackState(this._context);
-    this._mediaControlSvc.clear({keepPlayback: true});
+    this._mediaControlSvc.clear({ keepPlayback: true });
 
     this._pHandler.detachMedia();
     this._vuMeterSvc.stop();
@@ -377,18 +425,18 @@ export class NimioVod {
     this._detachUI();
   }
 
-  _detachUI () {
+  _detachUI() {
     if (!this._ui) return;
 
-    this._ui.mediaElement.removeEventListener('progress', this._onProgress);
-    this._ui.mediaElement.removeEventListener('timeupdate', this._onProgress);
+    this._ui.mediaElement.removeEventListener("progress", this._onProgress);
+    this._ui.mediaElement.removeEventListener("timeupdate", this._onProgress);
     this._ui = undefined;
   }
 
-  goto (position) {
+  goto(position) {
     if (this._state !== VOD_STATE.PLAY) return false;
 
-    this._logger.debug('goto ' + position);
+    this._logger.debug("goto " + position);
     this._mediaControlSvc.resumeTo(position);
     if (this._nalProcessor) {
       this._nalProcessor.reset();
@@ -396,7 +444,7 @@ export class NimioVod {
     return true;
   }
 
-  switchToCurrentRendition () {
+  switchToCurrentRendition() {
     if (this._state !== VOD_STATE.SYNC) return;
 
     if (this._context.hasVod()) {
@@ -405,15 +453,15 @@ export class NimioVod {
     }
   }
 
-  onUserAction () {
+  onUserAction() {
     return this._state === VOD_STATE.PLAY;
   }
 
-  setCallbacks (cbs) {
-    if( cbs.onPlay ) {
+  setCallbacks(cbs) {
+    if (cbs.onPlay) {
       this._sdk.onPlay = cbs.onPlay;
     }
-    if( cbs.onPause ) {
+    if (cbs.onPause) {
       this._sdk.onPause = cbs.onPause;
     }
     if (cbs.onTimecodeArrived) {
@@ -424,24 +472,24 @@ export class NimioVod {
     }
   }
 
-  setInterCallbacks (cbs) {
+  setInterCallbacks(cbs) {
     this._onRenditionSwitchCallback = cbs.onRenditionSwitch;
     this._onRenditionSwitchedCallback = cbs.onRenditionSwitched;
     this._onPlaybackErrorCallback = cbs.onError;
   }
 
-  hasPlaybackErrors () {
+  hasPlaybackErrors() {
     return this._playbackErrCnt > 0;
   }
 
-  _setMediaControlCallbacks () {
+  _setMediaControlCallbacks() {
     this._mediaControlSvc.callbacks = {
       onPlayStarted: this._onPlayStarted,
       onPlayFinished: this._onPlayFinished,
-    }
+    };
   }
 
-  _startAbr () {
+  _startAbr() {
     this._context.setAutoAbr(true);
     this._setCurrentRendition(true);
     this._pHandler.autoLevelCapping = -1;
@@ -449,11 +497,11 @@ export class NimioVod {
     this._pHandler.nextLevel = -1;
   }
 
-  onChangeRendition (quality, idx) {
+  onChangeRendition(quality, idx) {
     if (this._state === VOD_STATE.PLAY && !this._switchInProgress) {
-      if ('Auto' === quality) {
+      if ("Auto" === quality) {
         if (this._onRenditionSwitchCallback) {
-          this._onRenditionSwitchCallback('Auto');
+          this._onRenditionSwitchCallback("Auto");
         }
         this._startAbr();
         return true;
@@ -478,50 +526,48 @@ export class NimioVod {
       return true;
     }
 
-    this._logger.warn('Rendition change isn\'t available at the moment');
+    this._logger.warn("Rendition change isn't available at the moment");
     return false;
   }
 
-  onPlay (isGesture) {
+  onPlay(isGesture) {
     if (this._state !== VOD_STATE.PLAY) return;
 
     this._mediaControlSvc.handlePlay(isGesture, true);
   }
 
-  onPause () {
+  onPause() {
     if (this._state !== VOD_STATE.PLAY) return;
 
     this._mediaControlSvc.handlePause(true);
   }
 
-  onPauseEvent () {
+  onPauseEvent() {
     this._mediaControlSvc.handlePauseEvent();
   }
 
-  onPlayEvent () {
+  onPlayEvent() {
     this._mediaControlSvc.handlePlayEvent();
   }
 
-  onResize () {
+  onResize() {}
 
-  }
-
-  onEnterPip () {
+  onEnterPip() {
     this._mediaControlSvc.handleEnterPip();
   }
 
-  onLeavePip () {
+  onLeavePip() {
     this._mediaControlSvc.handleLeavePip(true);
   }
 
-  _addScriptTag (url) {
+  _addScriptTag(url) {
     return new Promise(function (resolve, reject) {
       if (!url) {
         return resolve();
       }
 
-      let script = document.createElement('script');
-      script.type = 'text/javascript';
+      let script = document.createElement("script");
+      script.type = "text/javascript";
       script.src = url;
 
       script.onload = () => resolve(script);
@@ -531,23 +577,23 @@ export class NimioVod {
     });
   }
 
-  _updatePlaylistDuration (details) {
+  _updatePlaylistDuration(details) {
     this._progressSvc.updateVodPlaylistDuration(details.totalduration);
     // this._logger.warn('TOTAL DURATION', details.totalduration); // details.edge,
   }
 
-  _fullUrl () {
+  _fullUrl() {
     if (this._url) {
-      return this._url + (this._sessionParam ? `?${this._sessionParam}` : '');
+      return this._url + (this._sessionParam ? `?${this._sessionParam}` : "");
     }
   }
 
-  _loadCurrentLevel () {
+  _loadCurrentLevel() {
     let currentLevel = this._context.getCurrentLevel();
     if (currentLevel) {
       this._pHandler.loadSource(currentLevel.data.url[0]);
     } else {
-      this._logger.error('Unable to load current level');
+      this._logger.error("Unable to load current level");
     }
   }
 
@@ -563,8 +609,8 @@ export class NimioVod {
         if (this._config.initial_resolution) {
           for (let i = 0; i < data.levels.length; i++) {
             if (
-              data.levels[i].height && 
-              (data.levels[i].height + 'p') === this._config.initial_resolution
+              data.levels[i].height &&
+              data.levels[i].height + "p" === this._config.initial_resolution
             ) {
               initialLvl = i;
               break;
@@ -581,7 +627,7 @@ export class NimioVod {
       this._sessionParam = currentLevel.session;
 
       if (this._state === VOD_STATE.PLAY) {
-        this._ui.setupRenditions( this._prepareQualities() );
+        this._ui.setupRenditions(this._prepareQualities());
         this._pHandler.currentLevel = currentLevel.idx;
         if (this._context.getAutoAbr()) {
           this._pHandler.autoLevelCapping = -1;
@@ -647,11 +693,15 @@ export class NimioVod {
   _onLevelSwitched = (event, data) => {
     let lvl = this._context.levels()[data.level];
     if (!lvl) {
-      this._logger.error('Switch level error, level not found', data.level, this._context.levels());
+      this._logger.error(
+        "Switch level error, level not found",
+        data.level,
+        this._context.levels(),
+      );
       return;
     }
 
-    this._logger.debug('Rendition switched to', lvl.rend, lvl.name);
+    this._logger.debug("Rendition switched to", lvl.rend, lvl.name);
     if (this._onRenditionSwitchedCallback) {
       this._onRenditionSwitchedCallback(lvl.rend, lvl.name);
     }
@@ -661,9 +711,9 @@ export class NimioVod {
     this._ui.adjustAspectRatio();
   };
 
-  _setCurrentRendition (skipInitResolution) {
+  _setCurrentRendition(skipInitResolution) {
     let curLvl = this._context.getCurrentLevel();
-    if( undefined !== curLvl ) {
+    if (undefined !== curLvl) {
       if (!skipInitResolution) {
         this._config.initial_resolution = curLvl.rend;
         let stream = this._context.getStreamByName(curLvl.name);
@@ -698,7 +748,6 @@ export class NimioVod {
 
   _onBufferCodecs = (event, data) => {
     if (data && data.audio) {
-
       let channels = 2;
       if (data.audio.metadata && data.audio.metadata.channelCount > 0) {
         channels = data.audio.metadata.channelCount;
@@ -709,9 +758,12 @@ export class NimioVod {
         data.audio.initSegment,
       );
       if (audioConfig.audioChannels !== channels) {
-        this._logger.error(`Error parsing init segment for ${data.audio.codec}. Hls returns ${channels} channels, while parsing returns channels = ${audioConfig.audioChannels} and samplerate = ${audioConfig.samplingRate}`);
+        this._logger.error(
+          `Error parsing init segment for ${data.audio.codec}. Hls returns ${channels} channels, while parsing returns channels = ${audioConfig.audioChannels} and samplerate = ${audioConfig.samplingRate}`,
+        );
       }
 
+      this._audCtxProvider.init(audioConfig.samplingRate);
       this._audCtxProvider.setChannelCount(channels);
       this._vuMeterSvc.setAudioInfo({
         samplingRate: audioConfig.samplingRate,
@@ -742,7 +794,7 @@ export class NimioVod {
           break;
       }
     }
-  }
+  };
 
   _onPlayStarted = () => {
     if (this._ui) {
@@ -757,18 +809,26 @@ export class NimioVod {
   };
 
   _onTimecodeArrived = (frameTs, clockTs, stringTs) => {
-    this._runSdkCallback('onTimecodeArrived', frameTs, clockTs, stringTs, {vod: true});
+    this._runSdkCallback("onTimecodeArrived", frameTs, clockTs, stringTs, {
+      vod: true,
+    });
   };
 
   _onFragParsingInitSegment = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
     if (this._config.timecodes) {
       let prevCodec = this._spsHolder.getCodec();
-      if (!data.tracks || !data.tracks.video || !data.tracks.video.initSegment) {
+      if (
+        !data.tracks ||
+        !data.tracks.video ||
+        !data.tracks.video.initSegment
+      ) {
         return;
       }
 
-      let cd = VideoHelper.getCodecDataFromInitSegment(data.tracks.video.initSegment);
+      let cd = VideoHelper.getCodecDataFromInitSegment(
+        data.tracks.video.initSegment,
+      );
       if (!cd.codec || !cd.data) return;
 
       this._timescale = cd.timescale;
@@ -787,12 +847,12 @@ export class NimioVod {
       this._nalProcessor.setCodec(cd.codec);
       this._seiProcessor.init();
       this._seiProcessor.setCodec(cd.codec);
-      this._nalProcessor.addNalHandler(this._seiProcessor, 'SEI');
+      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
       this._initPicTimingProcessor();
     }
-  }
+  };
 
-  _initPicTimingProcessor () {
+  _initPicTimingProcessor() {
     this._picTimingProcessor = this._seiProcessor.getPicTimingHandler();
     if (!this._picTimingProcessor) {
       this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
@@ -805,18 +865,18 @@ export class NimioVod {
 
   _onBufferAppending = (name, buffer) => {
     if (this._config.timecodes) {
-      if (buffer.type !== 'video') return;
+      if (buffer.type !== "video") return;
 
       let frames = VideoHelper.getFramesFromDataSegment(
         buffer.data,
         this._timescale,
-        this._trackId
+        this._trackId,
       );
       for (let i = 0; i < frames.length; i++) {
         this._nalProcessor.handleFrame(frames[i][0], frames[i][1]);
       }
     }
-  }
+  };
 
   // _onFragParsingUserData = (name, data) => {
   //   console.log('Frag parsing user data', name, data);
@@ -838,24 +898,26 @@ export class NimioVod {
   //   console.log('Frag loaded', data, this._pHandler);
   // }
 
-  _runSdkCallback( callback, ...params ) {
-    if(this._sdk[callback] ) {
-      this._sdk[callback]( ...params );
+  _runSdkCallback(callback, ...params) {
+    if (this._sdk[callback]) {
+      this._sdk[callback](...params);
     }
   }
 
-  _prepareQualities () {
+  _prepareQualities() {
     let ords = this._context.orderedLevels();
     let levels = this._context.levels();
 
-    let idx = 0, result = [];
+    let idx = 0,
+      result = [];
     let fmt = this._config.adaptive_bitrate.format;
     for (let i = 0; i < ords.length; i++) {
-      let params = {rendition: levels[ords[i]].data.height + 'p'};
+      let params = { rendition: levels[ords[i]].data.height + "p" };
       if (fmt) {
         params.width = levels[ords[i]].data.width;
         params.height = levels[ords[i]].data.height;
-        params.codec = VideoHelper.getVideoCodecGen(levels[ords[i]].data.videoCodec) || '';
+        params.codec =
+          VideoHelper.getVideoCodecGen(levels[ords[i]].data.videoCodec) || "";
       }
       result[i] = {
         name: params.rendition,
@@ -870,5 +932,4 @@ export class NimioVod {
 
     return result;
   }
-
 }
