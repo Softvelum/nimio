@@ -45,12 +45,12 @@ export default class Nimio {
     this._config.volumeId = storageKey;
 
     this._ui = new Ui(
+      this._instName,
       this._config.container,
       {
         width: this._config.width, //TODO: get from video?
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
-        logger: LoggersFactory.create(this._instName, "UI"),
         autoAbr: !!this._config.adaptiveBitrate,
         fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
         audioOnly: this._config.audioOnly,
@@ -122,7 +122,6 @@ export default class Nimio {
 
   _createVUMeter() {
     this._vuMeterSvc = VUMeterService.getInstance(this._instName);
-    const onUpdate = this._onVUMeterUpdate.bind(this);
     this._vuMeterSvc.init(this._config.vuMeter, (magnitudes, decibels) => {
       this._eventBus.emit("nimio:vumeter-update", { magnitudes, decibels });
     });
@@ -148,7 +147,7 @@ export default class Nimio {
     // Switch to SLDP player for now.
     // TODO: expand this behavior as new options appear
     this._logger.warn("VOD playback error: " + error);
-    // _runSdkCallback( 'onError', error, {type: 'vod'});
+    this._eventBus.emit("nimio:playback-error", { type: "vod", error });
     if (this._config.vod?.liveFailover) {
       this._switchToLive(0);
     } else {

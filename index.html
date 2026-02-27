@@ -58,7 +58,11 @@
           },
           workletLogs: true,
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
-          syncBuffer: 3000,
+          // syncBuffer: 3000,
+          vod: {
+            startup_vod_failover: true,
+            thumbnails: true,
+          },
         });
 
         window.nimio.on("nimio:play", (inst, contId) => {

@@ -2,16 +2,18 @@ import {} from "./ui.css";
 import { DebugView } from "./debug-view";
 import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
+import { UIProgressBar } from "./progress-bar";
+import { LoggersFactory } from "@/shared/logger";
 
 const UI_CANVAS = 0;
 const UI_MEDIA = 1;
 
 export class Ui {
-  constructor(container, opts, eventBus) {
+  constructor(instName, container, opts, eventBus) {
     this._state = "pause";
     this._muted = false;
+    this._instName = instName;
     this._eventBus = eventBus;
-    this._logger = opts.logger;
     this._autoAbr = opts.autoAbr;
 
     this._container = container;
@@ -23,6 +25,8 @@ export class Ui {
       position: "relative",
     });
     this._container.classList.add("nimio-container");
+
+    this._logger = LoggersFactory.create(this._instName, "UI");
 
     // TODO: if no options, get from container
     this._baseWidth = opts.width;
@@ -172,6 +176,7 @@ export class Ui {
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
     this._menuPopover = this._controlsBar.querySelector(".menu-popover");
     this._menuSection = this._menuPopover.querySelector(".menu-section");
+    this._progressBar = new UIProgressBar(this._instName, this._controlsBar);
     this._addControlsEventHandlers();
 
     this._onFullscreenClick = this._toggleFullscreen.bind(this);

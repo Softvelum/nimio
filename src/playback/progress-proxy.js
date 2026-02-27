@@ -2,7 +2,7 @@ export class PlaybackProgressProxy {
   constructor(eventBus, playbackIface) {
     this._eventBus = eventBus;
     this._playbackIface = playbackIface;
-    this._playbackIface.setExtProgressNotifier(this);
+    this._playbackIface.extProgressNotifier = this;
   }
 
   vodProgress(position, duration) {
