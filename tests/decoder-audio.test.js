@@ -7,14 +7,24 @@ let configureMock;
 let isConfigSupportedMock;
 let AudioDecoderMock;
 let EncodedAudioChunkMock;
-let timestampBufferMock;
 let skipOutput;
 let outputSecondFrame;
 let errorCallback;
+let popFunc;
 
 vi.mock("@/shared/ring-buffer.js", () => {
   return {
-    RingBuffer: vi.fn().mockImplementation(() => timestampBufferMock),
+    RingBuffer: vi.fn().mockImplementation(class RingBuffer {
+      reset () {
+        return vi.fn();
+      }
+      push () {
+        return vi.fn();
+      }
+      pop () {
+        return vi.fn(() => 1000);
+      }
+    }),
   };
 });
 
@@ -26,22 +36,17 @@ function setupWorkerGlobals() {
   globalThis.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
 
   globalThis.postMessage = postMessageMock = vi.fn();
-  globalThis.performance = { now: (nowMock = vi.fn(() => 1000)) };
+  globalThis.performance = { now: (nowMock = vi.fn(function () { return 1000; })) };
 
   decodeMock = vi.fn();
   configureMock = vi.fn();
-  isConfigSupportedMock = vi.fn(async () => ({ supported: true }));
-  timestampBufferMock = {
-    reset: vi.fn(),
-    push: vi.fn(),
-    pop: vi.fn(() => 1000),
-  };
+  isConfigSupportedMock = vi.fn(async function () { return { supported: true }; });
 
   EncodedAudioChunkMock = vi.fn(function (data) {
     Object.assign(this, data);
   });
 
-  AudioDecoderMock = vi.fn(({ output, error }) => {
+  AudioDecoderMock = vi.fn(function ({ output, error }) {
     errorCallback = error;
     setTimeout(() => {
       if (skipOutput) return;
@@ -161,10 +166,7 @@ describe("decoder-audio", () => {
   });
 
   it("passes computed timestamp if decoded one is different", async () => {
-    timestampBufferMock.pop = vi
-      .fn()
-      .mockReturnValueOnce(999)
-      .mockReturnValueOnce(1000);
+    popFunc = vi.fn().mockReturnValueOnce(999).mockReturnValueOnce(1000);
 
     await import("@/media/decoders/decoder-audio.js");
 
@@ -218,10 +220,7 @@ describe("decoder-audio", () => {
 
   it("computes timestamps according to the sample rate", async () => {
     outputSecondFrame = true;
-    timestampBufferMock.pop = vi
-      .fn()
-      .mockReturnValueOnce(1000)
-      .mockReturnValueOnce(2000);
+    popFunc = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(2000);
 
     await import("@/media/decoders/decoder-audio.js");
 

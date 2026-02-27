@@ -18,17 +18,17 @@ function setupWorkerGlobals() {
   globalThis.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
 
   globalThis.postMessage = postMessageMock = vi.fn();
-  globalThis.performance = { now: (nowMock = vi.fn(() => 1000)) };
+  globalThis.performance = { now: (nowMock = vi.fn(function () { return 1000; })) };
 
   decodeMock = vi.fn();
   configureMock = vi.fn();
-  isConfigSupportedMock = vi.fn(async () => ({ supported: true }));
+  isConfigSupportedMock = vi.fn(async function () { return { supported: true }; });
 
   EncodedVideoChunkMock = vi.fn(function (data) {
     Object.assign(this, data);
   });
 
-  VideoDecoderMock = vi.fn(({ output, error }) => {
+  VideoDecoderMock = vi.fn(function ({ output, error }) {
     errorCallback = error;
 
     setTimeout(() => {
@@ -336,7 +336,7 @@ describe("decoder-video", () => {
 
   it("emits decoderError message if decoder fails during configure", async () => {
     skipOutput = true;
-    configureMock.mockImplementation(() => {
+    configureMock.mockImplementation(function () {
       throw new Error("Configuration failed");
     });
 
