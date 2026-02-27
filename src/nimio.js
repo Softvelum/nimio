@@ -436,7 +436,7 @@ export default class Nimio {
       this._audioBuffer = null;
     }
     this._latencyCtrl.reset();
-    this._syncModeParams = {};
+    if (this._syncModeParams) this._syncModeParams = {};
     this._advertizerEval.reset();
 
     if (this._nextRenditionData) {
