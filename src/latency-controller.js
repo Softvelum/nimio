@@ -391,13 +391,4 @@ export class LatencyController {
     this._emaB = this._bufferMeter.ema();
     this._stateMgr.setMinBufferMs("ema", this._emaB);
   }
-
-  _updateBufferLevels(now) {
-    this._shortB = this._bufferMeter.short(now);
-    this._stateMgr.setMinBufferMs("short", this._shortB);
-    this._longB = this._bufferMeter.long(now);
-    this._stateMgr.setMinBufferMs("long", this._longB);
-    this._emaB = this._bufferMeter.ema();
-    this._stateMgr.setMinBufferMs("ema", this._emaB);
-  }
 }
