@@ -3,7 +3,7 @@ import viteConfig from "./vite.config";
 
 export default mergeConfig(viteConfig, {
   test: {
-    silent: 'passed-only',
+    silent: "passed-only",
     globals: true,
     environment: "jsdom",
     coverage: {

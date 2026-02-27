@@ -18,11 +18,17 @@ function setupWorkerGlobals() {
   globalThis.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
 
   globalThis.postMessage = postMessageMock = vi.fn();
-  globalThis.performance = { now: (nowMock = vi.fn(function () { return 1000; })) };
+  globalThis.performance = {
+    now: (nowMock = vi.fn(function () {
+      return 1000;
+    })),
+  };
 
   decodeMock = vi.fn();
   configureMock = vi.fn();
-  isConfigSupportedMock = vi.fn(async function () { return { supported: true }; });
+  isConfigSupportedMock = vi.fn(async function () {
+    return { supported: true };
+  });
 
   EncodedVideoChunkMock = vi.fn(function (data) {
     Object.assign(this, data);
