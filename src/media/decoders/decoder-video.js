@@ -22,9 +22,9 @@ function processDecodedFrame(videoFrame) {
   self.postMessage(
     {
       type: "decodedFrame",
-      videoFrame: videoFrame,
       decoderQueue: videoDecoder.decodeQueueSize,
       decoderLatency: latencyMs,
+      videoFrame,
     },
     [videoFrame],
   );
@@ -89,6 +89,13 @@ self.addEventListener("message", async function (e) {
       support = null;
       break;
     case "codecData":
+      if (videoDecoder) {
+        support = null;
+        const vd = videoDecoder;
+        videoDecoder.flush().finally(function () {
+          if (typeof vd.close === "function") vd.close();
+        });
+      }
       videoDecoder = new VideoDecoder({
         output: (frame) => {
           processDecodedFrame(frame);

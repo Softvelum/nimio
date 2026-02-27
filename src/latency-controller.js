@@ -2,12 +2,14 @@ import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
 import { currentTimeGetterMs } from "@/shared/helpers";
 import { clamp } from "@/shared/helpers";
+import { SyncModePolicy } from "./sync-mode/policy";
 
 export class LatencyController {
-  constructor(instName, stateMgr, audioConfig, params) {
+  constructor(instName, stateMgr, audioConfig, discontinuityEval, params) {
     this._instName = instName;
     this._stateMgr = stateMgr;
     this._audioConfig = audioConfig;
+    this._discontEval = discontinuityEval;
 
     this._params = params;
     this._audio = !!this._params.audio;
@@ -21,18 +23,19 @@ export class LatencyController {
       this._shortWindowMs,
       this._longWindowMs,
     );
-    this._adjustFn = params.adjustMethod === "seek" ? this._seek : this._zap;
 
     this._startThreshUs = this._startingBufferLevel();
     this._minThreshUs = 50_000; // 50ms
+    this._discontEval.bufferToKeep = this._latencyMs * 900; // 0.9 of latency
 
     this._warmupMs = 3000;
     this._holdMs = 500;
     this._startHoldMs = 100;
-    this._minRate = 0.95;
+    this._minRate = 0.9;
     this._minRateStep = 1 / 128;
     this._maxRate = 1.25;
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
+    this._rateK = 0.0002;
 
     this._minLatencyDelta = 40;
     this._allowedLatencyDelta = params.tolerance - this._latencyMs;
@@ -40,13 +43,20 @@ export class LatencyController {
       this._allowedLatencyDelta = this._minLatencyDelta;
     }
     this._minRateChangeIntervalMs = 500;
-    this._minSeekIntervalMs = 4000; // don't seek more frequently
+    this._minSeekIntervalMs = 3000; // don't seek more frequently
 
     this._getCurTimeMs = currentTimeGetterMs();
-
     this.reset();
 
     this._logger = LoggersFactory.create(instName, "Latency ctrl", params.port);
+    this._latencyControlFn = this._adjustPlaybackLatency;
+    this._adjustFn = params.adjustMethod === "seek" ? this._seek : this._zap;
+    if (params.syncBuffer > 0) {
+      this._latencyControlFn = this._syncPlaybackLatency;
+      this._syncModePolicy = new SyncModePolicy(params.syncBuffer, params.port);
+      this._syncModePolicy.logger = this._logger;
+    }
+
     this._logger.debug(
       `initialized: latency=${this._latencyMs}ms, start threshold=${this._startThreshUs}us, video=${this._video}, audio=${this._audio}`,
     );
@@ -59,7 +69,8 @@ export class LatencyController {
     this._bufferMeter.reset();
 
     this._startTimeMs = -1;
-    this._lastActionTime = -this._minSeekIntervalMs;
+    this._lastSeekTime = -this._minSeekIntervalMs;
+    this._lastZapTime = -this._minRateChangeIntervalMs;
     this._audioAvailUs = this._videoAvailUs = undefined;
     this._pendingStableSince = null;
     this._restoreLatency = false;
@@ -67,14 +78,14 @@ export class LatencyController {
 
   start() {
     if (this._pauseTime > 0) {
-      let pauseDuration = performance.now() - this._pauseTime;
+      let pauseDuration = this._getCurTimeMs() - this._pauseTime;
       this._prevVideoTime += pauseDuration;
       this._pauseTime = 0;
     }
   }
 
   pause() {
-    this._pauseTime = performance.now();
+    this._pauseTime = this._getCurTimeMs();
   }
 
   availableMs(type) {
@@ -97,9 +108,13 @@ export class LatencyController {
 
   incCurrentAudioSamples(sampleCount) {
     if (this.isPending()) return this._curTsUs;
+    let samplesUs = this._audioConfig.smpCntToTsUs(sampleCount);
+    this._moveCurrentPosition(samplesUs, sampleCount);
 
-    this._stateMgr.incCurrentTsSmp(sampleCount);
-    this._adjustPlaybackLatency();
+    if (!this._handleDiscontinuity()) {
+      this._latencyControlFn();
+    }
+
     return this._curTsUs;
   }
 
@@ -107,14 +122,17 @@ export class LatencyController {
     this._getCurrentTsUs();
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
-    this._prevVideoTime = performance.now();
+    this._prevVideoTime = this._getCurTimeMs();
     if (this._checkPending() || prevVideoTime === 0) {
       return this._curTsUs;
     }
 
-    let timeUsPast = (performance.now() - prevVideoTime) * speed * 1000;
-    this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(timeUsPast));
-    this._adjustPlaybackLatency();
+    let timeUsPast = (this._getCurTimeMs() - prevVideoTime) * speed * 1000;
+    this._moveCurrentPosition(timeUsPast);
+
+    if (!this._handleDiscontinuity()) {
+      this._latencyControlFn();
+    }
 
     return this._curTsUs;
   }
@@ -151,6 +169,16 @@ export class LatencyController {
     this._audio = val;
   }
 
+  set syncModePtsOffset(val) {
+    if (!this._syncModePolicy) {
+      this._logger.error(
+        "Attempt to set pts offset, while sync mode is disabled",
+      );
+      return;
+    }
+    this._syncModePolicy.ptsOffset = val;
+  }
+
   _checkPending() {
     if (this.isUnderrun() && this._startThreshUs === 0) {
       this._logger.debug(
@@ -176,19 +204,16 @@ export class LatencyController {
     this._availableUs = Number.MAX_VALUE;
     if (this._audio) {
       this._getAudioAvailableUs();
-      let availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableAudioMs(availableMs);
+      this._setAudioAvailableMs();
       this._availableUs = this._audioAvailUs;
     }
     if (this._video) {
       this._getVideoAvailableUs();
-      let availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
-      this._stateMgr.setAvailableVideoMs(availableMs);
+      this._setVideoAvailableMs();
       this._availableUs = Math.min(this._availableUs, this._videoAvailUs);
     }
 
     // this._logger.debug(`Available ms=${this._availableUs / 1000}, start time=${this._startTimeMs}`);
-
     if (this._startTimeMs >= 0) {
       this._bufferMeter.update(this._availableUs / 1000, this._getCurTimeMs());
     }
@@ -201,6 +226,7 @@ export class LatencyController {
 
     let curSmpCnt = this._stateMgr.getCurrentTsSmp();
     this._curTsUs = this._audioConfig.smpCntToTsUs(curSmpCnt) + this._startTsUs;
+    return this._curTsUs;
   }
 
   _getVideoAvailableUs() {
@@ -208,26 +234,29 @@ export class LatencyController {
     if (this._videoAvailUs < 0) this._videoAvailUs = 0;
   }
 
+  _setVideoAvailableMs() {
+    let availableMs = (this._videoAvailUs / 1000 + 0.5) >>> 0;
+    this._stateMgr.setAvailableVideoMs(availableMs);
+  }
+
   _getAudioAvailableUs() {
     this._audioAvailUs = this._stateMgr.getAudioLatestTsUs() - this._curTsUs;
     if (this._audioAvailUs < 0) this._audioAvailUs = 0;
+  }
+
+  _setAudioAvailableMs() {
+    let availableMs = (this._audioAvailUs / 1000 + 0.5) >>> 0;
+    this._stateMgr.setAvailableAudioMs(availableMs);
   }
 
   _adjustPlaybackLatency() {
     if (this._startTimeMs < 0) return; // not started yet
 
     const now = this._getCurTimeMs();
+    this._updateBufferLevels(now);
+
     const age = now - this._startTimeMs;
-    const useShort = age < this._warmupMs;
-
-    const shortB = this._bufferMeter.short(now);
-    this._stateMgr.setMinBufferMs("short", shortB);
-    const longB = this._bufferMeter.long(now);
-    this._stateMgr.setMinBufferMs("long", longB);
-    const emaB = this._bufferMeter.ema();
-    this._stateMgr.setMinBufferMs("ema", emaB);
-
-    const bufMin = useShort ? shortB : longB;
+    const bufMin = age < this._warmupMs ? this._shortB : this._longB;
     const deltaMs = bufMin - this._latencyMs;
     // const stable = Math.abs(bufMin - bufEma) < (this._latencyMs * 0.1);
 
@@ -235,26 +264,43 @@ export class LatencyController {
       this._restoreLatency = true;
     }
 
-    let goForward = false;
+    let goMove = false;
     if (deltaMs > this._minLatencyDelta && this._restoreLatency) {
       // this._logger.debug(`Delta ms=${deltaMs}, buffer ms=${bufMin}, age ms=${age}`);
       // wait for holdMs to avoid acting on single spikes
       if (!this._pendingStableSince) {
         this._pendingStableSince = now;
       } else if (now - this._pendingStableSince > this._holdMs) {
-        goForward = true;
+        goMove = true;
       }
     } else {
       this._pendingStableSince = null;
       this._restoreLatency = false;
     }
 
-    if (this._lastActionTime < 0) {
+    if (age < this._warmupMs / 2 && this._lastSeekTime < 0) {
       // Do seek on startup if possible
       if (this._tryInitialSeek(deltaMs, bufMin, now)) return;
     }
 
-    this._adjustFn(goForward, deltaMs, bufMin, now);
+    this._adjustFn(goMove, deltaMs, bufMin, now);
+  }
+
+  _syncPlaybackLatency() {
+    if (this._startTimeMs < 0) return; // not started yet
+
+    const now = this._getCurTimeMs();
+    this._updateBufferLevels(now);
+
+    let curTimeMs = this._curTsUs / 1000;
+    let availMs = this._availableUs / 1000;
+    let deltaMs = this._syncModePolicy.computeAdjustment(curTimeMs, availMs);
+
+    if (Math.abs(deltaMs) >= 2000) {
+      this._seek(true, deltaMs, availMs, now);
+    } else {
+      this._zap(deltaMs !== 0, deltaMs, availMs, now);
+    }
   }
 
   _startingBufferLevel() {
@@ -264,7 +310,7 @@ export class LatencyController {
   _tryInitialSeek(deltaMs, buf, now) {
     if (deltaMs > this._latencyMs) {
       let stableTime = now - this._pendingStableSince;
-      if (stableTime >= this._startHoldMs && stableTime < this._warmupMs) {
+      if (stableTime >= this._startHoldMs) {
         this._seek(true, deltaMs, buf, now);
         return true;
       }
@@ -272,36 +318,77 @@ export class LatencyController {
     return false;
   }
 
-  _zap(goForward, deltaMs, bufMin, now) {
+  _handleDiscontinuity() {
+    if (!this._discontEval.isApplicable()) return false;
+    let shUs = this._discontEval.computeShift(this._curTsUs, this._availableUs);
+    if (shUs > 0) {
+      const now = this._getCurTimeMs();
+      this._seek(true, shUs / 1000, this._availableUs / 1000, now);
+    }
+
+    return shUs > 0;
+  }
+
+  _zap(goMove, deltaMs, curBuf, now) {
     let rate = 1;
-    if (goForward) {
-      if (now - this._lastActionTime < this._minRateChangeIntervalMs) {
+    if (goMove) {
+      if (now - this._lastZapTime < this._minRateChangeIntervalMs) {
         return;
       }
       rate = clamp(1 + this._rateK * deltaMs, this._minRate, this._maxRate);
-      this._lastActionTime = now;
+      if (deltaMs < -0.6) {
+        rate = 0; // stop reading samples to adjust latency faster
+      }
+      this._lastZapTime = now;
     }
-
     if (Math.abs(rate - 1) < this._minRateStep) rate = 1; // snap
-    this._setSpeed(rate, bufMin);
+
+    // if (goMove) {
+    //   this._logger.debug(`Zap with rate = ${rate}, deltaMs = ${deltaMs}`);
+    // }
+    this._stateMgr.setCurrentSpeed(rate);
+    this._setSpeed(rate, curBuf);
   }
 
-  _seek(goForward, deltaMs, bufMin, now) {
-    if (!goForward) return;
-
-    if (goForward) {
-      if (now - this._lastActionTime < this._minSeekIntervalMs) {
-        return;
-      }
+  _seek(goMove, deltaMs, curBuf, now) {
+    if (
+      !goMove ||
+      deltaMs === 0 ||
+      now - this._lastSeekTime < this._minSeekIntervalMs
+    ) {
+      this._logger.debug(`Skip seek by ${deltaMs}ms (too frequent)`);
+      return;
     }
-    this._lastActionTime = now;
 
-    this._logger.debug(`Seek forward by ${deltaMs}ms, cur bufer ms=${bufMin}`);
+    this._lastSeekTime = now;
+    this._logger.debug(`Seek by ${deltaMs}ms, cur bufer ms=${curBuf}`);
+    this._moveCurrentPosition(deltaMs * 1000);
+  }
 
-    let deltaUs = deltaMs * 1000;
-    this._stateMgr.incCurrentTsSmp(this._audioConfig.tsUsToSmpCnt(deltaUs));
-    if (this._video) this._videoAvailUs -= deltaUs;
-    if (this._audio) this._audioAvailUs -= deltaUs;
+  _moveCurrentPosition(deltaUs, deltaSmpCnt) {
+    if (deltaSmpCnt === undefined) {
+      deltaSmpCnt = this._audioConfig.tsUsToSmpCnt(deltaUs);
+    }
+
+    this._stateMgr.incCurrentTsSmp(deltaSmpCnt);
+    if (this._video) {
+      this._videoAvailUs -= deltaUs;
+      this._setVideoAvailableMs();
+    }
+    if (this._audio) {
+      this._audioAvailUs -= deltaUs;
+      this._setAudioAvailableMs();
+    }
     this._availableUs -= deltaUs;
+    this._curTsUs += deltaUs;
+  }
+
+  _updateBufferLevels(now) {
+    this._shortB = this._bufferMeter.short(now);
+    this._stateMgr.setMinBufferMs("short", this._shortB);
+    this._longB = this._bufferMeter.long(now);
+    this._stateMgr.setMinBufferMs("long", this._longB);
+    this._emaB = this._bufferMeter.ema();
+    this._stateMgr.setMinBufferMs("ema", this._emaB);
   }
 }

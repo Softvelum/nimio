@@ -32,6 +32,8 @@ export class DebugView {
     let vDecQueue = this._state.getVideoDecoderQueue();
     let vDecLatency = this._state.getVideoDecoderLatency();
     let aDecQueue = this._state.getAudioDecoderQueue();
+    let curRate = this._state.getCurrentSpeed() / 100;
+
     let aLatestTs = this._state.getAudioLatestTsUs();
     let vLatestTs = this._state.getVideoLatestTsUs();
 
@@ -42,8 +44,9 @@ export class DebugView {
       `Silence inserted:......${Math.ceil(silenceMs).toString().padStart(4, ".")}ms \n` +
       `Audio latest ts:...${aLatestTs.toString().padStart(4, ".")}\n` +
       `Video latest ts:...${vLatestTs.toString().padStart(4, ".")}\n` +
-      `Video Decoder queue:......${vDecQueue} \n` +
+      `Video Decoder queue:......${vDecQueue}\n` +
       `Video Decoder latency:.${vDecLatency.toString().padStart(4, ".")}ms \n` +
-      `Audio Decoder queue:......${aDecQueue} \n`;
+      `Audio Decoder queue:......${aDecQueue}\n` +
+      `Current rate:..........${curRate.toFixed(2).padStart(4, ".")}%\n`;
   }
 }

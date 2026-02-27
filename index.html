@@ -58,6 +58,7 @@
           },
           workletLogs: true,
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
+          syncBuffer: 3000,
         });
 
         window.nimio.on("nimio:play", (inst, contId) => {

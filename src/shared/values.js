@@ -18,4 +18,5 @@ export const IDX = {
   MIN_BUFFER_SHORT: 15,
   MIN_BUFFER_LONG: 16,
   MIN_BUFFER_EMA: 17,
+  CURRENT_SPEED: 18,
 };

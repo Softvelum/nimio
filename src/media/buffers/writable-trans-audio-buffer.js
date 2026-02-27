@@ -41,7 +41,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    if (!msg || msg.log) return;
+    if (!msg || msg.log || msg.aux) return;
 
     try {
       if (msg.type === "tb:read") {
@@ -61,11 +61,11 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
           if (idx === this._capacity) idx = 0;
         }
         this.setReadIdx(msg.end);
-        // if (fCount === this._overflowShift) {
+        // if (fCount === this._overflowShift * 2) {
         //   let w = this.getWriteIdx();
         //   let r = this.getReadIdx();
         //   let free = this._dist(w, r);
-        //   console.log(`Returned ${this._overflowShift} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
+        //   console.log(`Returned ${this._overflowShift * 2} frames from ${msg.start} to ${msg.end} due to overflow, free = ${free}`);
         // }
       } else if (msg.type === "tb:reset") {
         this.reset(true);
@@ -136,6 +136,17 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
     this._dispData.rates.length = 0;
     this._dispData.frames.length = 0;
     this._dispData.buffers.length = 0;
+  }
+
+  _incWriteIdx(writeIdx) {
+    let wIdx = this.setWriteIdx(writeIdx + 1);
+    let rIdx = this.getReadIdx();
+    if (this._dist(wIdx, rIdx) < this._overflowShift) {
+      console.warn(
+        `wIdx = ${wIdx}, rIdx = ${rIdx}, send req to free items from the reader`,
+      );
+      this._sendMessage({ type: "tb:overflow" });
+    }
   }
 }
 

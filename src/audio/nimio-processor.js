@@ -5,11 +5,13 @@ import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
 import { WsolaProcessor } from "@/media/processors/wsola-processor";
+import { AdvertizerEvaluator } from "@/advertizer/evaluator";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
+    this.port.start();
     LoggersFactory.setLevel(options.processorOptions.logLevel);
     LoggersFactory.toggleWorkletLogs(options.processorOptions.enableLogs);
     this._logger = LoggersFactory.create(
@@ -32,12 +34,18 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._sampleCount,
     );
 
+    this._advertizerEval = new AdvertizerEvaluator(
+      options.processorOptions.instanceName,
+      this.port,
+    );
+
     this._idle = options.processorOptions.idle;
     this._targetLatencyMs = options.processorOptions.latency;
     this._latencyCtrl = new LatencyController(
       options.processorOptions.instanceName,
       this._stateManager,
       this._audioConfig,
+      this._advertizerEval,
       {
         latency: this._targetLatencyMs,
         tolerance: options.processorOptions.latencyTolerance,
@@ -45,6 +53,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
         video: options.processorOptions.videoEnabled,
         audio: !this._idle,
         port: this.port,
+        syncBuffer: options.processorOptions.syncBuffer,
       },
     );
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
@@ -86,15 +95,12 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     }
 
     if (!this._idle) {
-      this._stateManager.incSilenceUs(this._samplesDurationUs(sampleCount));
+      let durUs = (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
+      this._stateManager.incSilenceUs(durUs);
       if (!this._audioBuffer.isShareable) {
         this._audioBuffer.ensureCapacity();
       }
     }
-  }
-
-  _samplesDurationUs(sampleCount) {
-    return (this._audioConfig.smpCntToTsUs(sampleCount) + 0.5) >>> 0;
   }
 
   _setSpeed(speed, availableMs) {

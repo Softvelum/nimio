@@ -12,7 +12,6 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   init() {
     this._initMessaging();
     this._startMsgDispatcher();
-    this._minFreeSpan = this._overflowShift / 2;
     this._msgIvalMs = (3 * 1000 * this._sampleCount) / this.sampleRate; // 3 frames
   }
 
@@ -43,16 +42,14 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
   ensureCapacity() {
     const r = this.getReadIdx();
     const w = this.getWriteIdx();
-    if (r === 0 && w === 0) return false;
+    if (r === w) return false;
 
     const minr = this._dispData.rIdx ?? r;
     const free = this._dist(w, minr);
-    if (free < this._minFreeSpan) {
-      if (
-        r === minr ||
-        this._dist(minr, w) - this._dist(r, w) < this._overflowShift
-      ) {
-        this.setReadIdx(r + this._overflowShift);
+    if (free < this._overflowShift) {
+      let freeSize = 2 * this._overflowShift;
+      if (r === minr || this._dist(minr, w) - this._dist(r, w) < freeSize) {
+        this.setReadIdx(minr + freeSize);
       }
       this._sendReadStatus(minr);
       return true;
@@ -97,7 +94,7 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
 
   _handlePortMessage(event) {
     const msg = event.data;
-    if (!msg) return;
+    if (!msg || msg.aux) return;
 
     try {
       if (msg.type === "tb:frames") {
@@ -109,6 +106,8 @@ export class ReadableTransAudioBuffer extends ReadableAudioBuffer {
           this._frames[idx] = msg.frames[i];
         }
         this.setWriteIdx(idx + 1);
+      } else if (msg.type === "tb:overflow") {
+        this.ensureCapacity();
       } else if (msg.type === "tb:reset") {
         this.reset();
       }

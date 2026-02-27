@@ -138,24 +138,25 @@ describe("ReadableAudioBuffer", () => {
     rab.setWriteIdx(1);
 
     // startTsNs after the frame end, so no readStartIdx or readEndIdx
-    const startTsNs = 1000_000 + frameNs + 3000;
+    const shift = frameNs + 3000;
+    const startTsNs = 1000_000 + shift;
     const out = [
       new Float32Array(rab.sampleCount),
       new Float32Array(rab.sampleCount),
     ];
-    const warnSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const processed = rab.read(startTsNs, out);
 
     expect(processed).toBe(960);
     expect(rab.getReadIdx()).toBe(0);
-    expect(warnSpy).toHaveBeenCalledWith(
-      `No frames found in the requested range: ${startTsNs}..${startTsNs + frameNs}`,
+    expect(errSpy).toHaveBeenCalledWith(
+      `No frames found in the requested range: ${startTsNs}..${startTsNs + frameNs}, skipIdx = ${rab.getReadIdx()}. Size = 1. Last ts = ${rab._timestamps[0]}, dist=-${shift / 1000_000}ms`,
     );
-    warnSpy.mockRestore();
+    errSpy.mockRestore();
   });
 
   it("logs errors when filling silence partially (start, end, or middle)", () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     // Setup 2 frames with timestamps so partial overlap occurs
     rab._timestamps[0] = 0;
@@ -166,8 +167,8 @@ describe("ReadableAudioBuffer", () => {
 
     const out = [new Float32Array(960), new Float32Array(960)];
     rab.read(0, out, 3);
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it("fills silence at the start when start frame is null but end frame matches", () => {
@@ -180,16 +181,16 @@ describe("ReadableAudioBuffer", () => {
       new Float32Array(rab.sampleCount),
       new Float32Array(rab.sampleCount),
     ];
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const processed = rab.read(startTsNs, out);
     expect(processed).toBe(960);
     expect(out[0].some((v) => v === 0)).toBe(true); // Some silence at start
-    expect(errSpy).toHaveBeenCalledWith(
+    expect(warnSpy).toHaveBeenCalledWith(
       "Fill silence (start)",
       expect.any(Number),
     );
-    errSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("fills silence in the middle when startCount + endCount < output length", () => {
@@ -201,16 +202,16 @@ describe("ReadableAudioBuffer", () => {
 
     const outLength = rab.sampleCount * 5;
     const out = [new Float32Array(outLength), new Float32Array(outLength)];
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const processed = rab.read(0, out);
     expect(processed).toBeGreaterThan(0);
-    expect(errSpy).toHaveBeenCalledWith(
+    expect(warnSpy).toHaveBeenCalledWith(
       "Fill silence (middle)",
       expect.any(Number),
     );
     const hasSilence = out[0].some((v, i) => i > 0 && i < outLength && v === 0);
     expect(hasSilence).toBe(true);
-    errSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });

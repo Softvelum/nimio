@@ -20,6 +20,7 @@ import { NimioRenditions } from "./nimio-renditions";
 import { NimioAbr } from "./nimio-abr";
 import { NimioVolume } from "./nimio-volume";
 import { NimioEvents } from "./nimio-events";
+import { NimioSyncMode } from "./nimio-sync-mode";
 import { MetricsManager } from "./metrics/manager";
 import { LoggersFactory } from "./shared/logger";
 import { AudioContextProvider } from "./audio/context-provider";
@@ -31,6 +32,8 @@ import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
 import { resolveContainer } from "./shared/container";
 import { Reconnector } from "./reconnector";
+import { SyncModeClock } from "./sync-mode/clock";
+import { AdvertizerEvaluator } from "./advertizer/evaluator";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -134,7 +137,11 @@ export default class Nimio {
     }
     this._createVUMeter();
 
+    this._advertizerEval = new AdvertizerEvaluator(this._instName);
     this._createLatencyController();
+    if (this._config.syncBuffer > 0) {
+      this._createSyncModeParams();
+    }
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -302,6 +309,11 @@ export default class Nimio {
       this._sldpManager.cancelStream(decoderFlow.trackId);
     };
     decoderFlow.setConfig(data.config);
+    this._eventBus.emit("transp:track-action", {
+      op: "main",
+      id: data.trackId,
+      type,
+    });
   }
 
   _createNextRenditionFlow(type, data) {
@@ -365,7 +377,7 @@ export default class Nimio {
     // if (this._audioConfig.numberOfChannels === 0) {
     //   this._audioConfig.numberOfChannels = frame.numberOfChannels;
     //   if (this._audioBuffer) this._audioBuffer.reset();
-    //   if (!this._prepareAudioOutput(this._audioConfig.get())) {
+    //   if (!this._prepareAudioOutput()) {
     //     return false;
     //   }
     //   this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
@@ -421,8 +433,11 @@ export default class Nimio {
     this._noAudio = this._config.videoOnly;
     if (this._audioBuffer) {
       this._audioBuffer.reset();
+      this._audioBuffer = null;
     }
     this._latencyCtrl.reset();
+    this._syncModeParams = {};
+    this._advertizerEval.reset();
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
@@ -467,9 +482,9 @@ export default class Nimio {
     }
   }
 
-  _prepareAudioOutput(config) {
+  _prepareAudioOutput() {
     this._logger.debug("prepareAudioOutput");
-    if (!config || config.numberOfChannels < 1) {
+    if (this._audioConfig.numberOfChannels < 1) {
       if (!this._noAudio) {
         this._startNoAudioMode();
       }
@@ -481,23 +496,25 @@ export default class Nimio {
       this._stopAudio();
     }
 
-    let AudioBufferClass = this._sabShared
-      ? WritableAudioBuffer
-      : WritableTransAudioBuffer;
-    this._audioBuffer = AudioBufferClass.allocate(
-      this._bufferSec * 2, // reserve 2 times buffer size for development (TODO: reduce later)
-      config.sampleRate,
-      config.numberOfChannels,
-      config.sampleCount,
-    );
-
-    this._audioBuffer.addPreprocessor(
-      new AudioGapsProcessor(
-        this._audioConfig.sampleCount,
+    if (!this._audioBuffer) {
+      let AudioBufferClass = this._sabShared
+        ? WritableAudioBuffer
+        : WritableTransAudioBuffer;
+      this._audioBuffer = AudioBufferClass.allocate(
+        this._bufferSec * 6, // reserve 6 times buffer size for development (TODO: reduce later)
         this._audioConfig.sampleRate,
-        this._logger,
-      ),
-    );
+        this._audioConfig.numberOfChannels,
+        this._audioConfig.sampleCount,
+      );
+
+      this._audioBuffer.addPreprocessor(
+        new AudioGapsProcessor(
+          this._audioConfig.sampleCount,
+          this._audioConfig.sampleRate,
+          this._logger,
+        ),
+      );
+    }
 
     return true;
   }
@@ -558,7 +575,6 @@ export default class Nimio {
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
       enableLogs: this._config.workletLogs,
-      bufferSec: this._bufferSec * 2,
     };
 
     if (!idle && this._audioBuffer) {
@@ -566,6 +582,9 @@ export default class Nimio {
       procOptions.capacity = this._audioBuffer.bufferCapacity;
       if (this._audioBuffer.isShareable) {
         procOptions.audioSab = this._audioBuffer.buffer;
+      }
+      if (this._config.syncBuffer > 0) {
+        procOptions.syncBuffer = this._config.syncBuffer;
       }
     }
 
@@ -579,6 +598,8 @@ export default class Nimio {
         processorOptions: procOptions,
       },
     );
+
+    this._audioNode.port.start();
     this._workletLogReceiver.add(this._audioNode);
     if (!this._state.isShared()) {
       this._state.attachPort(this._audioNode.port);
@@ -594,6 +615,13 @@ export default class Nimio {
     if (this._audioCtxProvider.isSuspended()) {
       this._audioContext.resume();
     }
+
+    if (this._config.syncBuffer > 0) {
+      let smc = new SyncModeClock(this._audioNode.port);
+      await smc.sync();
+      this._applySyncModeParams();
+    }
+    this._sendPendingAdvertizerActions();
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
       this._vuMeterSvc.start();
@@ -625,6 +653,9 @@ export default class Nimio {
       this._audioContext.close();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
     }
+    if (this._audioBuffer) {
+      this._audioBuffer.reset();
+    }
     this._setNoAudio(false);
   }
 
@@ -651,12 +682,14 @@ export default class Nimio {
       this._config.instanceName,
       this._state,
       this._audioConfig,
+      this._advertizerEval,
       {
         latency: this._config.latency,
         tolerance: this._config.latencyTolerance,
         adjustMethod: this._config.latencyAdjustMethod,
         video: !this._noVideo,
         audio: !this._noAudio,
+        syncBuffer: this._config.syncBuffer,
       },
     );
     this._speed = 1;
@@ -669,6 +702,7 @@ Object.assign(Nimio.prototype, NimioTransport);
 Object.assign(Nimio.prototype, NimioRenditions);
 Object.assign(Nimio.prototype, NimioAbr);
 Object.assign(Nimio.prototype, NimioVolume);
+Object.assign(Nimio.prototype, NimioSyncMode);
 
 if (typeof window !== "undefined") {
   // Expose globally when used via <script type="module"> without manual assignment
