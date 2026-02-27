@@ -44,7 +44,7 @@ export class SyncModePolicy {
       let minRest = Math.min(this._bufferMs - 50, 500);
       let availPos = curTsMs + availableMs - minRest;
       // this._logger.debug(
-      //   `_syncPlayback availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`
+      //   `computeAdjustment availPos = ${availPos}, curClockTimeMs = ${curClockTimeMs}`
       // );
       if (availPos <= curTsMs) {
         expPosMs = curTsMs;

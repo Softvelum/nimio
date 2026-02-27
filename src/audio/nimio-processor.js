@@ -5,11 +5,13 @@ import { AudioConfig } from "./config";
 import { LoggersFactory } from "@/shared/logger";
 import { LatencyController } from "@/latency-controller";
 import { WsolaProcessor } from "@/media/processors/wsola-processor";
+import { AdvertizerEvaluator } from "@/advertizer/evaluator";
 
 class AudioNimioProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
 
+    this.port.start();
     LoggersFactory.setLevel(options.processorOptions.logLevel);
     LoggersFactory.toggleWorkletLogs(options.processorOptions.enableLogs);
     this._logger = LoggersFactory.create(
@@ -32,12 +34,18 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._sampleCount,
     );
 
+    this._advertizerEval = new AdvertizerEvaluator(
+      options.processorOptions.instanceName,
+      this.port,
+    );
+
     this._idle = options.processorOptions.idle;
     this._targetLatencyMs = options.processorOptions.latency;
     this._latencyCtrl = new LatencyController(
       options.processorOptions.instanceName,
       this._stateManager,
       this._audioConfig,
+      this._advertizerEval,
       {
         latency: this._targetLatencyMs,
         tolerance: options.processorOptions.latencyTolerance,

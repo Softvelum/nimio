@@ -1,6 +1,7 @@
 import { TimestampManager } from "./timestamp-manager";
 import { MetricsManager } from "@/metrics/manager";
 import { LoggersFactory } from "@/shared/logger";
+import { EventBus } from "@/event-bus";
 
 const SWITCH_THRESHOLD_US = 8_000_000;
 
@@ -24,6 +25,7 @@ export class DecoderFlow {
     this._timestampManager = TimestampManager.getInstance(instanceName);
     this._timestampManager.addTrack(this._trackId, this._type);
 
+    this._eventBus = EventBus.getInstance(instanceName);
     this._decoder = new Worker(new URL(url, import.meta.url), {
       type: "module",
     });
@@ -155,6 +157,11 @@ export class DecoderFlow {
     this._metricsManager.remove(this._trackId);
     this._timestampManager.removeTrack(this._trackId);
     this._decoder.postMessage({ type: "shutdown" });
+    this._eventBus.emit("transp:track-action", {
+      op: "rem",
+      id: this._trackId,
+      type: this._type,
+    });
   }
 
   async _handleDecoderMessage(e) {
@@ -194,6 +201,11 @@ export class DecoderFlow {
           this._switchPeerFlow = null;
           this._switchContext = null;
           this._onSwitchResult(true);
+          this._eventBus.emit("transp:track-action", {
+            op: "main",
+            id: this._trackId,
+            type: this._type,
+          });
         }
         break;
       default:

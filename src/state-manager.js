@@ -278,7 +278,6 @@ export class StateManager {
     }
     this._port = port;
     this._port.addEventListener("message", this._onPortMessage);
-    if (this._port.start) this._port.start();
     if (this._sendInit) {
       this._notify("init", 0, Array.from(this._flags));
     }
