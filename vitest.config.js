@@ -7,7 +7,7 @@ export default mergeConfig(viteConfig, {
     globals: true,
     environment: "jsdom",
     coverage: {
-      include: ["src/**.js"],
+      include: ["src/**/**.js"],
       provider: "v8",
       reporter: ["text", "html"],
     },

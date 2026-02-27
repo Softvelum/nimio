@@ -10,19 +10,15 @@ let EncodedAudioChunkMock;
 let skipOutput;
 let outputSecondFrame;
 let errorCallback;
-let popFunc;
+let popMock;
 
-vi.mock("@/shared/ring-buffer.js", () => {
+vi.mock("@/shared/ring-buffer.js", function () {
   return {
-    RingBuffer: vi.fn().mockImplementation(class RingBuffer {
-      reset () {
-        return vi.fn();
-      }
-      push () {
-        return vi.fn();
-      }
-      pop () {
-        return vi.fn(() => 1000);
+    RingBuffer: vi.fn(function () {
+      return {
+        reset: vi.fn(),
+        push: vi.fn(),
+        pop: popMock,
       }
     }),
   };
@@ -41,6 +37,7 @@ function setupWorkerGlobals() {
   decodeMock = vi.fn();
   configureMock = vi.fn();
   isConfigSupportedMock = vi.fn(async function () { return { supported: true }; });
+  popMock = vi.fn(() => 1000);
 
   EncodedAudioChunkMock = vi.fn(function (data) {
     Object.assign(this, data);
@@ -166,7 +163,7 @@ describe("decoder-audio", () => {
   });
 
   it("passes computed timestamp if decoded one is different", async () => {
-    popFunc = vi.fn().mockReturnValueOnce(999).mockReturnValueOnce(1000);
+    popMock = vi.fn().mockReturnValueOnce(999).mockReturnValueOnce(1000);
 
     await import("@/media/decoders/decoder-audio.js");
 
@@ -220,7 +217,7 @@ describe("decoder-audio", () => {
 
   it("computes timestamps according to the sample rate", async () => {
     outputSecondFrame = true;
-    popFunc = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+    popMock = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(2000);
 
     await import("@/media/decoders/decoder-audio.js");
 
