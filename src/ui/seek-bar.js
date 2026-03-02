@@ -1,11 +1,12 @@
 import { LoggersFactory } from "@/shared/logger";
 import { throttler, debouncer } from "@/shared/helpers";
+import { getElementCoordinates } from "@/shared/dom-helpers";
 
-export class UIProgressBar {
+export class UISeekBar {
   constructor(instName, wrp) {
-    this._logger = LoggersFactory.create(instName, "UI Progress Ctrl");
+    this._logger = LoggersFactory.create(instName, "UI Seek bar");
     this._parentWrp = wrp;
-    this._duration = 0;
+    this._duration = 1000;
     this._position = 1;
 
     this._create();
@@ -13,26 +14,19 @@ export class UIProgressBar {
   }
 
   destroy() {
-    this._prgBar.onmousedown = this._prgBar.onmouseout = undefined;
-    this._prgBar.ontouchstart = undefined;
+    this._seekBar.onmousedown = this._seekBar.onmouseout = undefined;
+    this._seekBar.onmousemove = this._seekBar.ontouchstart = undefined;
     this._thumb.onmousedown = this._thumb.ontouchstart = undefined;
-    this._thumb.ondragstart = undefined;
+    this._thumb.onmousemove = this._thumb.ondragstart = undefined;
 
-    this._parentWrp = this._prgBar = this._thumb = undefined;
-    this._base = this._loader = this._slider = undefined;
+    this._parentWrp = this._seekBar = this._thumb = undefined;
+    this._loader = this._slider = undefined;
     this._positionUpdatedCallback = undefined;
-    this._hoverHandler = undefined;
-    this._hoverCallback = undefined;
+    this._hoverHandler = this._hoverCallback = undefined;
   }
 
   node() {
-    return this._prgBar;
-  }
-
-  toggleThumb(show) {
-    if (this._thumb) {
-      this._thumb.style.opacity = show ? "1" : "0";
-    }
+    return this._seekBar;
   }
 
   updateDuration(duration) {
@@ -66,26 +60,26 @@ export class UIProgressBar {
       if (this._on) return;
 
       this._parentWrp.classList.add("controls-vod");
-      this._prgBar.style.display = "grid";
+      this._seekBar.style.display = "grid";
       this._on = true;
     } else {
       if (!this._on) return;
 
       this._parentWrp.classList.remove("controls-vod");
-      this._prgBar.style.display = "none";
+      this._seekBar.style.display = "none";
       this._on = false;
     }
   }
 
   _create() {
-    if (this._prgBar) return;
+    if (this._seekBar) return;
 
-    this._prgBar = this._parentWrp.querySelector(".seek-row");
-    this._prgBar.style.display = "none";
+    this._seekBar = this._parentWrp.querySelector(".seek-row");
+    this._seekBar.style.display = "none";
 
-    this._loader = this._prgBar.querySelector(".seek-buffer");
-    this._slider = this._prgBar.querySelector(".seek-fill");
-    this._thumb = this._prgBar.querySelector(".seek-thumb");
+    this._loader = this._seekBar.querySelector(".seek-buffer");
+    this._slider = this._seekBar.querySelector(".seek-fill");
+    this._thumb = this._seekBar.querySelector(".seek-thumb");
 
     this._setPosition();
 
@@ -97,19 +91,19 @@ export class UIProgressBar {
     }
 
     function onCtrlStart(ev, x) {
-      inst._handleSliderMove(x, Utils.getElementCoordinates(inst._slider));
+      inst._handleSliderMove(x, getElementCoordinates(inst._slider));
       ev.stopPropagation();
     }
 
-    this._prgBar.onmousedown = function (e) {
+    this._seekBar.onmousedown = function (e) {
       onCtrlStart(e, e.pageX);
     };
-    this._prgBar.ontouchstart = function (e) {
+    this._seekBar.ontouchstart = function (e) {
       onCtrlStart(e, getTouchX(e));
       e.preventDefault(); // prevent mousedown event from firing on Android
     };
 
-    this._prgBar.onmouseout = function (e) {
+    this._seekBar.onmouseout = function (e) {
       if (!inst._pending) {
         inst._handleSliderHoverOut();
       }
@@ -117,7 +111,7 @@ export class UIProgressBar {
       e.stopPropagation(); // prevent control bar hiding after click
     };
 
-    this._prgBar.onmousemove = function (e) {
+    this._seekBar.onmousemove = function (e) {
       if (!inst._pending) {
         let sliderCoords = inst._getSliderCoordinates();
         inst._handleSliderHovered(e.pageX, sliderCoords);
@@ -126,7 +120,7 @@ export class UIProgressBar {
 
     this._thumb.ontouchstart = this._thumb.onmousedown = function (e) {
       inst._pending = true;
-      let sliderCoords = Utils.getElementCoordinates(inst._slider);
+      let sliderCoords = getElementCoordinates(inst._slider);
 
       const isTouch = e.type === "touchstart";
       if (isTouch) {
@@ -149,7 +143,7 @@ export class UIProgressBar {
           document.onmousemove = document.onmouseup = null;
         }
 
-        let thumbCoords = Utils.getElementCoordinates(inst._thumb);
+        let thumbCoords = getElementCoordinates(inst._thumb);
         inst._pending = false;
         let thumbX = thumbCoords.left + thumbCoords.width / 2;
         inst._handleSliderMove(thumbX, sliderCoords);
@@ -178,7 +172,7 @@ export class UIProgressBar {
   }
 
   _setPosition() {
-    let sliderCoords = Utils.getElementCoordinates(this._slider);
+    let sliderCoords = getElementCoordinates(this._slider);
     this._moveSlider(
       this._position * sliderCoords.width,
       0,
@@ -226,7 +220,7 @@ export class UIProgressBar {
       this._cacheableCoordGetter = throttler(
         this,
         function () {
-          inst._cachedSliderCoords = Utils.getElementCoordinates(inst._slider);
+          inst._cachedSliderCoords = getElementCoordinates(inst._slider);
         },
         300,
       );
@@ -238,18 +232,17 @@ export class UIProgressBar {
 
   _moveSlider(cursorX, sliderLeft, sliderWidth) {
     let sliderX = this._getPosOnSlider(cursorX, sliderLeft, sliderWidth);
-    let cssWidth = this._slider.offsetWidth;
-    // cssWidth may differ from sliderWidth because of pixel size
-    let cssPos = sliderX * (cssWidth / sliderWidth);
-    this._thumb.style.left = cssPos + "px";
-    this._loader.style.width = cssPos + "px";
 
-    return sliderX / sliderWidth;
+    let fraction = sliderWidth > 0 ? sliderX / sliderWidth : 0;
+    let fill = `${fraction * 100}%`;
+    this._slider.style.setProperty('--fill', fill);
+    this._thumb.style.setProperty("--fill", fill);
+
+    return fraction;
   }
 
   _getPosOnSlider(cursorX, sliderLeft, sliderWidth) {
     let sliderX = cursorX - sliderLeft;
-
     // cursor move out of slider
     if (sliderX < 0) sliderX = 0;
     if (sliderX > sliderWidth) {

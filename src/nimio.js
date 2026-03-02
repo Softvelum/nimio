@@ -54,7 +54,7 @@ export default class Nimio {
         autoAbr: !!this._config.adaptiveBitrate,
         fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
         audioOnly: this._config.audioOnly,
-        dualMode: !!this._config.vod,
+        vod: this._config.vod,
       },
       this._eventBus,
     );
@@ -187,7 +187,7 @@ export default class Nimio {
 
   _onPlaybackPositionChange = function (type, value) {
     this._logger.debug(
-      `_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${_mode}`,
+      `_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${this._mode}`,
     );
     if (this._mode === "pend") return false;
 

@@ -2,8 +2,10 @@ import {} from "./ui.css";
 import { DebugView } from "./debug-view";
 import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
-import { UIProgressBar } from "./progress-bar";
+import { UISeekBar } from "./seek-bar";
+import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
+import { PlaybackProgressService } from "@/playback/progress-service";
 
 const UI_CANVAS = 0;
 const UI_MEDIA = 1;
@@ -37,7 +39,7 @@ export class Ui {
     this._mode = UI_CANVAS;
     this._outputs = [];
     this._createCanvas();
-    if (opts.dualMode) this._createMediaElement();
+    if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach((elem) => {
       Object.assign(elem.style, {
@@ -70,7 +72,7 @@ export class Ui {
     this._addPlaybackEventHandlers();
     this._addDisplayEventHandlers();
 
-    this._createControls();
+    this._createControls(opts);
     this._setupEasing();
     if (opts.fullscreen) {
       this._toggleFullscreen();
@@ -78,9 +80,8 @@ export class Ui {
   }
 
   destroy() {
-    if (this._hideTimer) {
-      clearTimeout(this._hideTimer);
-    }
+    this._clearHideControlsTimer();
+    this._removeSeekBar();
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
@@ -162,7 +163,7 @@ export class Ui {
     this._outputs.push(this._mediaElement);
   }
 
-  _createControls() {
+  _createControls(opts) {
     const tpl = document.createElement("template");
     tpl.innerHTML = controlsHtml.trim();
 
@@ -176,7 +177,24 @@ export class Ui {
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
     this._menuPopover = this._controlsBar.querySelector(".menu-popover");
     this._menuSection = this._menuPopover.querySelector(".menu-section");
-    this._progressBar = new UIProgressBar(this._instName, this._controlsBar);
+    if (opts.vod) {
+      this._seekBar = new UISeekBar(this._instName, this._controlsBar);
+      this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
+      this._playPrgSvc.setUI(this._seekBar);
+
+      this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
+      this._playPrgSvc.setTimeIndUI(this._timeInd);
+
+      // if (!opts.audioOnly) {
+      //   this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
+      //     parent: this._controlBar,
+      //     left: parseInt(getComputedStyle(this._seekBar.node()).left),
+      //     preview: vod.thumbnails,
+      //   });
+      //   this._seekBar.hoverHandler = this._thumbnailPreview;
+      //   this._controlBar.appendChild(this._thumbnailPreview.node());
+      // }
+    }
     this._addControlsEventHandlers();
 
     this._onFullscreenClick = this._toggleFullscreen.bind(this);
@@ -244,6 +262,25 @@ export class Ui {
     document.removeEventListener("webkitfullscreenchange", this._onResize);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("orientationchange", this._onOrientChange);
+  }
+
+  _removeSeekBar() {
+    if (this._seekBar) {
+      this._playPrgSvc.unsetUI();
+      this._seekBar.destroy();
+      this._seekBar = undefined;
+    }
+
+    if (this._timeInd) {
+      this._playbackProgressSvc.unsetTimeIndUI();
+      this._timeInd.destroy();
+      this._timeInd = undefined;
+    }
+
+    // if (this._thumbnailPreview) {
+    //   this._thumbnailPreview.destroy();
+    //   this._thumbnailPreview = undefined;
+    // }
   }
 
   _setupEasing() {
@@ -453,18 +490,30 @@ export class Ui {
 
   _handleMouseMove(e) {
     this.showControls(true);
-    clearTimeout(this._hideTimer);
-
-    this._hideTimer = setTimeout(() => {
-      this.hideControls(true);
-    }, 2000);
+    this._clearHideControlsTimer();
+    this._setHideControlsTimer(2);
   }
 
   _handleMouseOut(e) {
+    this._clearHideControlsTimer();
     this.hideControls(true);
-    if (this._hideTimer) {
-      clearTimeout(this._hideTimer);
-    }
+  }
+
+  _setHideControlsTimer (secs) {
+    this._hideTimer = setTimeout(() => {
+      if (this._seekBar && this._seekBar.isPending()) {
+        this._clearHideControlsTimer();
+        this._setHideControlsTimer(secs);
+      } else {
+        this.hideControls(true);
+      }
+    }, 1000 * secs);
+  }
+
+  _clearHideControlsTimer () {
+    if (!this._hideTimer) return;
+    clearTimeout(this._hideTimer);
+    this._hideTimer = undefined;
   }
 
   async _toggleFullscreen(e) {

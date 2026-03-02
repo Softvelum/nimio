@@ -8,6 +8,7 @@
   --focus: 0 0 0 3px rgba(100, 180, 255, 0.6);
   --accent: #4aa3ff;
 
+  --fill: 0;
   --seek-height: 6px;
   --seek-bg: rgba(255, 255, 255, 0.18);
   --seek-buffer: rgba(255, 255, 255, 0.32);
@@ -26,7 +27,6 @@
 
   display: grid;
   grid-template-rows: auto auto; /* top: seek, bottom: buttons */
-  gap: 10px;
   padding: 10px 12px;
   background: var(--ctrl-bg);
   backdrop-filter: blur(8px);
@@ -36,9 +36,13 @@
   margin: 0px;
 }
 
+.nimio-controls.controls-vod {
+  gap: 10px;
+}
+
 /* SEEK ROW */
 .seek-row {
-  display: grid;
+  display: none;
   grid-template-columns: 1fr;
   align-items: center;
   gap: 12px;
@@ -49,6 +53,7 @@
   height: 12px;
   display: grid;
   align-items: center;
+  cursor: pointer;
 }
 .seek {
   -webkit-appearance: none;
@@ -59,6 +64,7 @@
   background: transparent;
   outline: none;
   margin: 0;
+  cursor: pointer;
 }
 .seek::-webkit-slider-runnable-track {
   height: 26px;
@@ -90,6 +96,7 @@
   right: 0;
   height: var(--seek-height);
   border-radius: 999px;
+  transition: height 250ms ease;
 }
 .seek-buffer {
   background: var(--seek-bg);
@@ -124,14 +131,87 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  left: calc(var(--fill) - 7px);
+  left: calc(var(--fill) - 5px);
   background: var(--seek-fill);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+  transform-origin: 50% 50%;
+  transition: transform 250ms ease;
 }
 .seek:focus-visible + .seek-buffer,
 .seek:focus-visible ~ .seek-thumb {
   box-shadow: var(--focus);
+}
+.seek-wrap:hover {
+  .seek-fill, .seek-buffer {
+    height: 8px;
+    transition: height 250ms ease;
+  }
+  .seek-thumb {
+    transform: translateY(-50%) scale(1.8);
+    transform-origin: 50% 50%;
+    transition: transform 250ms ease;
+  }
+}
+
+.time-ind-wrp {
+  display: none;
+  padding: 0;
+  overflow: hidden;
+  height: 20px;
+  line-height: 18px;
+  vertical-align: top;
+  font-size: 13px;
+  margin-left: 4px;
+}
+.time-ind {
+  color: var(--fg);
+  font-family: Helvetica, Arial, sans-serif;
+}
+.thumbnails {
+  width: 100%;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+.thumbnail-wrp {
+  overflow: hidden;
+  position: absolute;
+  left: 0;
+  bottom: 48px;
+}
+.thumbnail {
+  position: relative;
+  width: 200px;
+  height: 120px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 2px solid var(--fg);
+  border-radius: 10px;
+  background: #000;
+}
+.thumbnail-vid {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+.thumbnail-time {
+  color: var(--fg);
+  left: 0;
+  right: 0;
+  line-height: 1;
+  text-align: center;
+  z-index: 2;
+  font-size: 12px;
+  font-family: Helvetica, Arial, sans-serif;
+  text-shadow: 1px 1px 2px rgba(0,0,0, 0.5);
 }
 
 /* LIVE indicator */
