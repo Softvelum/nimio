@@ -165,9 +165,133 @@ export class NimioLive {
     this._ui.drawPlay();
   }
 
+  goto(buffered) {
+    let res = false;
+
+    let bufferedMs = buffered * 1000;
+    if (
+      bufferedMs > 0 &&
+      !this._config.syncBuffer &&
+      this._config.latency !== bufferedMs
+    ) {
+      if (this._config.latencyTolerance > 0) {
+        let tolerDiff = this._config.latencyTolerance - this._config.latency;
+        if (tolerDiff < 50) tolerDiff = 50;
+        this._config.latencyTolerance = bufferedMs + tolerDiff;
+      }
+      this.setParameters({latency: bufferedMs});
+      res = true;
+    }
+
+    let bufConstr = this._config.syncBuffer || this._config.latency;
+    if (bufferedMs < bufConstr) {
+      bufferedMs = bufConstr;
+    }
+
+    // let bufLevel;
+    // let curTime = _playbackService.getCurrentTime();
+    // for( let i = 0; i < _tracks.length; i++ ) {
+    //   if( _tracks[i].isActual() ) {
+    //     let bufStatus = _tracks[i].bufferStatus(curTime);
+    //     if (bufLevel === undefined || bufStatus.lvl < bufLevel) {
+    //       bufLevel = bufStatus.lvl;
+    //     }
+    //   }
+    // }
+
+    // let shift = bufLevel - bufferedMs / 1000;
+    // if (shift > 0.05) {
+    //   _mediaControlSvc.resumeTo(curTime + shift);
+    //   res = true;
+    // }
+
+    return res;
+  }
+
   destroy() {
     this.stop(true);
     this._removeUiEventHandlers();
+  }
+
+  setParameters(params) {
+    let latencyParams = { count: 0 };
+    for (let p in params) {
+      switch (p) {
+        case "latency":
+          if (this._config.syncBuffer > 0) {
+            this._logger.error(
+              "Latency parameter can't be set if buffer synchronization is enabled",
+            );
+            break;
+          }
+          let latency = parseInt(params.latency);
+          if (isNaN(latency) || (latency < 0)) {
+            this._logger.error(
+              "Latency parameter isn't a number or is negative. Skipping.",
+            );
+            break;
+          }
+          if (latency !== this._config.latency) {
+            latencyParams.prevLatency = this._config.latency;
+            latencyParams.latency = latency;
+            latencyParams.count++;
+            this._config.latency = latency;
+          }
+          break;
+        case "latencyTolerance":
+          if (this._config.syncBuffer > 0) {
+            this._logger.error(
+              "Latency tolerance can't be set if buffer synchronization is enabled",
+            );
+            break;
+          }
+
+          let latencyTolerance = parseInt(params.latencyTolerance);
+          if (isNaN(latencyTolerance) || (latencyTolerance < 0)) {
+            this._logger.error(
+              "Latency tolerance isn\'t a number or is negative. Skipping.",
+            );
+            break;
+          }
+
+          if (
+            latencyTolerance > 0 && latencyTolerance < this._config.latency + 50
+          ) {
+            this._logger.warn(
+              `Latency tolerance can't be less or too close to the latency parameter. Automatically adjusting latency tolerance to ${this._config.latency + 50}`,
+            );
+            latencyTolerance = this._config.latency + 50;
+          }
+
+          if (latencyTolerance !== this._config.latencyTolerance) {
+            this._config.latencyTolerance = latencyTolerance;
+            latencyParams.latencyTolerance = latencyTolerance;
+            latencyParams.count++;
+          }
+          break;
+        default:
+          this._logger.warn(
+            `Attempt to set not permitted parameter ${p} = ${params[p]}`,
+          );
+          break;
+      }
+    }
+    if (latencyParams.count > 0) {
+      this._updateLatencyParams(latencyParams);
+      if (latencyParams.latency > 0 && this._abrController) {
+        // TODO: update abr controller buffering with the new latency value
+        // if (
+        //   this._config.latency >= latencyParams.prevLatency + 50 &&
+        //   this._context.autoAbr
+        // ) {
+        //   this._context.autoAbr = false;
+        //   _abrSuspended = true;
+        //   this._abrController.stop({hard: true});
+        // } else {
+        //   this._abrController.setBuffering(this._config.latency);
+        // }
+      }
+    }
   }
 
   _addUiEventHandlers() {
@@ -630,6 +754,13 @@ export class NimioLive {
     );
     this._speed = 1;
     this._latencyCtrl.speedFn = this._setSpeed.bind(this);
+  }
+
+  _updateLatencyParams(params) {
+    if (this._audioNode) {
+      this._audioNode.port.postMessage({type: "latency-params", data: params});
+    }
+    this._latencyCtrl.setParams(latencyParams);
   }
 }
 

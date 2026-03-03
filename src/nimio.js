@@ -95,6 +95,10 @@ export default class Nimio {
     this._livePlayer = undefined;
   }
 
+  setParameters(params) {
+    this._sldpPlayer.setParameters(params);
+  }
+
   seekVod(position) {
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       return this._playProgressProxy.seekVod(position);
@@ -185,19 +189,17 @@ export default class Nimio {
     });
   }
 
-  _onPlaybackPositionChange = function (type, value) {
+  _onPlaybackPositionChange = function (type, val) {
     this._logger.debug(
-      `_onPlaybackPositionChange type = ${type}, value = ${value}, mode = ${this._mode}`,
+      `_onPlaybackPositionChange type = ${type}, value = ${val}, mode = ${this._mode}`,
     );
     if (this._mode === "pend") return false;
 
     if (type === this._mode) {
-      return this._actPlayer.goto(value);
+      return this._actPlayer.goto(val);
     }
 
-    return type === "vod"
-      ? this._switchToVod(value)
-      : this._switchToLive(value);
+    return type === "vod" ? this._switchToVod(val) : this._switchToLive(val);
   }.bind(this);
 }
 
