@@ -165,47 +165,23 @@ export class NimioLive {
     this._ui.drawPlay();
   }
 
-  goto(buffered) {
-    let res = false;
+  goto(latencySec) {
+    if (!latencySec) return false;
 
-    let bufferedMs = buffered * 1000;
-    if (
-      bufferedMs > 0 &&
-      !this._config.syncBuffer &&
-      this._config.latency !== bufferedMs
-    ) {
-      if (this._config.latencyTolerance > 0) {
-        let tolerDiff = this._config.latencyTolerance - this._config.latency;
-        if (tolerDiff < 50) tolerDiff = 50;
-        this._config.latencyTolerance = bufferedMs + tolerDiff;
-      }
-      this.setParameters({latency: bufferedMs});
-      res = true;
+    let latencyMs = latencySec * 1000;
+    if (this._config.syncBuffer > 0 || this._config.latency === latencyMs) {
+      return false;
     }
 
-    let bufConstr = this._config.syncBuffer || this._config.latency;
-    if (bufferedMs < bufConstr) {
-      bufferedMs = bufConstr;
+    let params = { latency: latencyMs };
+    if (this._config.latencyTolerance > 0) {
+      let tolerDiff = this._config.latencyTolerance - this._config.latency;
+      if (tolerDiff < 50) tolerDiff = 50;
+      params.latencyTolerance = latencyMs + tolerDiff;
     }
+    this.setParameters(params);
 
-    // let bufLevel;
-    // let curTime = _playbackService.getCurrentTime();
-    // for( let i = 0; i < _tracks.length; i++ ) {
-    //   if( _tracks[i].isActual() ) {
-    //     let bufStatus = _tracks[i].bufferStatus(curTime);
-    //     if (bufLevel === undefined || bufStatus.lvl < bufLevel) {
-    //       bufLevel = bufStatus.lvl;
-    //     }
-    //   }
-    // }
-
-    // let shift = bufLevel - bufferedMs / 1000;
-    // if (shift > 0.05) {
-    //   _mediaControlSvc.resumeTo(curTime + shift);
-    //   res = true;
-    // }
-
-    return res;
+    return true;
   }
 
   destroy() {
@@ -280,16 +256,14 @@ export class NimioLive {
       this._updateLatencyParams(latencyParams);
       if (latencyParams.latency > 0 && this._abrController) {
         // TODO: update abr controller buffering with the new latency value
-        // if (
-        //   this._config.latency >= latencyParams.prevLatency + 50 &&
-        //   this._context.autoAbr
-        // ) {
-        //   this._context.autoAbr = false;
-        //   _abrSuspended = true;
-        //   this._abrController.stop({hard: true});
-        // } else {
-        //   this._abrController.setBuffering(this._config.latency);
-        // }
+        if (
+          this._config.latency >= latencyParams.prevLatency + 50 &&
+          this._context.autoAbr
+        ) {
+          this._abrController.stop({hard: true});
+          this._abrController.start();
+        }
+        this._abrController.setBuffering(this._config.latency);
       }
     }
   }

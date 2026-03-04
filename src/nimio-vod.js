@@ -39,20 +39,18 @@ export class NimioVod {
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
         this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
-        // this._mediaControlSvc = MediaControlService.getInstance(this._instName);
         // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
-        if (this._config.timecodes) {
-          // this._spsHolder = SPSHolder.getInstance(this._instName);
-          // this._nalProcessor = NalProcessor.getInstance(this._instName);
-          // this._seiProcessor = SeiProcessor.getInstance(this._instName);
-        }
+        // if (this._config.timecodes) {
+        //   this._spsHolder = SPSHolder.getInstance(this._instName);
+        //   this._nalProcessor = NalProcessor.getInstance(this._instName);
+        //   this._seiProcessor = SeiProcessor.getInstance(this._instName);
+        // }
 
         this._onProgress = throttler(
           this,
           function () {
             if (!this._ui) return;
-
             this._progressSvc.updateVodProgress(
               this._ui.mediaElement.currentTime,
               this._ui.mediaElement.duration,
@@ -71,92 +69,64 @@ export class NimioVod {
 
   destroy() {
     if (this._state === VOD_STATE.NULL) return;
+    if (!this._pHandler) return;
 
-    if (this._pHandler) {
-      if (this._url) {
-        this._pHandler.stopLoad();
-        this._pHandler.detachMedia();
-        this._pHandler.off(
-          Hls.Events.MANIFEST_PARSED,
-          this._onManifestParsed,
-          this,
-        );
-        this._pHandler.off(Hls.Events.LEVEL_LOADED, this._onLevelLoaded, this);
-        this._pHandler.off(
-          Hls.Events.MEDIA_DETACHED,
-          this._onMediaDetached,
-          this,
-        );
-        this._pHandler.off(
-          Hls.Events.MEDIA_ATTACHED,
-          this._onMediaAttached,
-          this,
-        );
-        this._pHandler.off(
-          Hls.Events.BUFFER_CODECS,
-          this._onBufferCodecs,
-          this,
-        );
-        this._pHandler.off(
-          Hls.Events.LEVEL_SWITCHED,
-          this._onLevelSwitched,
-          this,
-        );
-        this._pHandler.off(Hls.Events.ERROR, this._onError, this);
+    if (this._url) {
+      const EV = Hls.Events;
+      this._pHandler.stopLoad();
+      this._pHandler.detachMedia();
+      this._pHandler.off(EV.MANIFEST_PARSED, this._onManifestParsed, this);
+      this._pHandler.off(EV.LEVEL_LOADED, this._onLevelLoaded, this);
+      this._pHandler.off(EV.MEDIA_DETACHED, this._onMediaDetached, this);
+      this._pHandler.off(EV.MEDIA_ATTACHED, this._onMediaAttached, this);
+      this._pHandler.off(EV.BUFFER_CODECS, this._onBufferCodecs, this);
+      this._pHandler.off(EV.LEVEL_SWITCHED, this._onLevelSwitched, this);
+      this._pHandler.off(EV.ERROR, this._onError, this);
 
-        this._pHandler.off(
-          Hls.Events.FRAG_PARSING_INIT_SEGMENT,
-          this._onFragParsingInitSegment,
-          this,
-        );
-        this._pHandler.off(
-          Hls.Events.BUFFER_APPENDING,
-          this._onBufferAppending,
-          this,
-        );
+      this._pHandler.off(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg, this);
+      this._pHandler.off(EV.BUFFER_APPENDING, this._onBufferAppending, this);
 
-        // this._pHandler.off(Hls.Events.LEVEL_SWITCHING, this._onLevelSwitching, this);
-        // this._pHandler.off(Hls.Events.FRAG_PARSING_USERDATA, this._onFragParsingUserData, this);
-        // this._pHandler.off(Hls.Events.FRAG_PARSING_METADATA, this._onFragParsingMetaData, this);
-        // this._pHandler.off(Hls.Events.FRAG_PARSED, this._onFragParsed, this);
-        // this._pHandler.off(Hls.Events.FRAG_LOADING, this._onFragLoading, this);
-        // this._pHandler.off(Hls.Events.FRAG_LOADED, this._onFragLoaded, this);
-        // this._pHandler.off(Hls.Events.FRAG_BUFFERED, this._onFragBuffered, this);
+      // this._pHandler.off(EV.LEVEL_SWITCHING, this._onLevelSwitching, this);
+      // this._pHandler.off(EV.FRAG_PARSING_USERDATA, this._onParseUserData, this);
+      // this._pHandler.off(EV.FRAG_PARSING_METADATA, this._onParseMetaData, this);
+      // this._pHandler.off(EV.FRAG_PARSED, this._onFragParsed, this);
+      // this._pHandler.off(EV.FRAG_LOADING, this._onFragLoading, this);
+      // this._pHandler.off(EV.FRAG_LOADED, this._onFragLoaded, this);
+      // this._pHandler.off(EV.FRAG_BUFFERED, this._onFragBuffered, this);
 
-        this._url = undefined;
-        this._sessionParam = undefined;
-        this._detachUI();
-      }
-      this._pHandler.destroy();
-      this._pHandler = undefined;
-
-      if (this._state >= VOD_STATE.SYNC) {
-        this._vuMeterSvc.stop();
-        this._mediaControlSvc.clear();
-        this._vodMedia.clear();
-        this._vodMedia = undefined;
-        if (this._config.timecodes) {
-          this._nalProcessor.reset();
-          this._nalProcessor = undefined;
-          this._seiProcessor = undefined;
-          this._picTimingProcessor = undefined;
-          this._spsHolder = undefined;
-        }
-      }
-
-      this._state = VOD_STATE.NULL;
-      this._playbackStarted = false;
-      this._switchInProgress = false;
-      this._playbackErrCnt = 0;
-      this._config = undefined;
-      this._setMgr = undefined;
-
-      if (this._playerScript) {
-        document.head.removeChild(this._playerScript);
-        this._playerScript = undefined;
-      }
-      this._loadSourcePromise = undefined;
+      this._url = undefined;
+      this._sessionParam = undefined;
+      this._detachUI();
     }
+    this._pHandler.destroy();
+    this._pHandler = undefined;
+
+    if (this._state >= VOD_STATE.SYNC) {
+      this._vuMeterSvc.stop();
+      this._mediaControlSvc.clear();
+      this._vodMedia.clear();
+      this._vodMedia = undefined;
+      if (this._config.timecodes) {
+        this._nalProcessor.reset();
+        this._nalProcessor = undefined;
+        this._seiProcessor = undefined;
+        this._picTimingProcessor = undefined;
+        this._spsHolder = undefined;
+      }
+    }
+
+    this._state = VOD_STATE.NULL;
+    this._playbackStarted = false;
+    this._switchInProgress = false;
+    this._playbackErrCnt = 0;
+    this._config = undefined;
+    this._setMgr = undefined;
+
+    if (this._playerScript) {
+      document.head.removeChild(this._playerScript);
+      this._playerScript = undefined;
+    }
+    this._loadSourcePromise = undefined;
   }
 
   play() {
@@ -313,30 +283,25 @@ export class NimioVod {
           return;
 
         if (this._state === VOD_STATE.INIT) {
-          this._pHandler.on(Hls.Events.MANIFEST_PARSED, this._onManifestParsed);
-          this._pHandler.on(Hls.Events.LEVEL_LOADED, this._onLevelLoaded);
-          this._pHandler.on(Hls.Events.MEDIA_DETACHED, this._onMediaDetached);
-          this._pHandler.on(Hls.Events.MEDIA_ATTACHED, this._onMediaAttached);
-          this._pHandler.on(Hls.Events.BUFFER_CODECS, this._onBufferCodecs);
-          this._pHandler.on(Hls.Events.LEVEL_SWITCHED, this._onLevelSwitched);
-          this._pHandler.on(Hls.Events.ERROR, this._onError);
+          const EV = Hls.Events;
+          this._pHandler.on(EV.MANIFEST_PARSED, this._onManifestParsed);
+          this._pHandler.on(EV.LEVEL_LOADED, this._onLevelLoaded);
+          this._pHandler.on(EV.MEDIA_DETACHED, this._onMediaDetached);
+          this._pHandler.on(EV.MEDIA_ATTACHED, this._onMediaAttached);
+          this._pHandler.on(EV.BUFFER_CODECS, this._onBufferCodecs);
+          this._pHandler.on(EV.LEVEL_SWITCHED, this._onLevelSwitched);
+          this._pHandler.on(EV.ERROR, this._onError);
 
-          this._pHandler.on(
-            Hls.Events.FRAG_PARSING_INIT_SEGMENT,
-            this._onFragParsingInitSegment,
-          );
-          this._pHandler.on(
-            Hls.Events.BUFFER_APPENDING,
-            this._onBufferAppending,
-          );
+          this._pHandler.on(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg);
+          this._pHandler.on(EV.BUFFER_APPENDING, this._onBufferAppending);
 
-          // this._pHandler.on(Hls.Events.LEVEL_SWITCHING, this._onLevelSwitching);
-          // this._pHandler.on(Hls.Events.FRAG_PARSING_USERDATA, this._onFragParsingUserData);
-          // this._pHandler.on(Hls.Events.FRAG_PARSING_METADATA, this._onFragParsingMetaData);
-          // this._pHandler.on(Hls.Events.FRAG_PARSED, this._onFragParsed);
-          // this._pHandler.on(Hls.Events.FRAG_LOADING, this._onFragLoading);
-          // this._pHandler.on(Hls.Events.FRAG_LOADED, this._onFragLoaded);
-          // this._pHandler.on(Hls.Events.FRAG_BUFFERED, this._onFragBuffered);
+          // this._pHandler.on(EV.LEVEL_SWITCHING, this._onLevelSwitching);
+          // this._pHandler.on(EV.FRAG_PARSING_USERDATA, this._onParseUserData);
+          // this._pHandler.on(EV.FRAG_PARSING_METADATA, this._onParseMetaData);
+          // this._pHandler.on(EV.FRAG_PARSED, this._onFragParsed);
+          // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
+          // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
+          // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
 
           this._vodMedia = new VodMedia(this._instName);
           if (mediaElement) {
@@ -814,7 +779,7 @@ export class NimioVod {
     });
   };
 
-  _onFragParsingInitSegment = (name, data) => {
+  _onParseInitSeg = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
     if (this._config.timecodes) {
       let prevCodec = this._spsHolder.getCodec();
@@ -878,11 +843,11 @@ export class NimioVod {
     }
   };
 
-  // _onFragParsingUserData = (name, data) => {
+  // _onParseUserData = (name, data) => {
   //   console.log('Frag parsing user data', name, data);
   // };
 
-  // _onFragParsingMetaData = (name, data) => {
+  // _onParseMetaData = (name, data) => {
   //   console.log('Frag parsing metadata', name, data);
   // }
 

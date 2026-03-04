@@ -32,9 +32,6 @@ export class LatencyController {
     this._rateK = 0.0002;
 
     this._setLatency(params.latency);
-    this._startThreshUs = this._startingBufferLevel();
-    this._minThreshUs = 50_000; // 50ms
-
     this._setLatencyDelta(params.tolerance);
     this._minRateChangeIntervalMs = 500;
     this._minSeekIntervalMs = 3000; // don't seek more frequently
@@ -186,8 +183,21 @@ export class LatencyController {
   }
 
   _setLatency(latency) {
+    let lDiff = 0;
+    if (this._latencyMs > 0) {
+      lDiff = latency - this._latencyMs;
+    }
     this._latencyMs = latency;
     this._discontEval.bufferToKeep = latency * 900; // 0.9 of latency
+    this._startThreshUs = this._startingBufferLevel();
+    this._minThreshUs = 50_000; // 50ms
+
+    if (lDiff < 0) {
+      this._calculateAvailable();
+      const now = this._getCurTimeMs();
+      this._lastSeekTime = -this._minSeekIntervalMs;
+      this._seek(true, -lDiff, this._availableUs / 1000, now);
+    }
   }
 
   _setLatencyDelta(latencyTolerance) {

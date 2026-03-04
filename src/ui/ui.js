@@ -141,8 +141,13 @@ export class Ui {
     return this._canvas;
   }
 
+  get mediaElement() {
+    return this._mediaElement;
+  }
+
   get size() {
-    let box = this._canvas.getBoundingClientRect();
+    let output = this._mode === UI_CANVAS ? this._canvas : this._mediaElement;
+    let box = output.getBoundingClientRect();
     return [box.width, box.height];
   }
 
