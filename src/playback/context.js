@@ -5,12 +5,26 @@ class PlaybackContext {
   constructor(instName) {
     this._instName = instName;
 
+    // LIVE
     this._curConf = [];
     this._streams = [];
     this._streamsMap = {};
     this._ordRenditions = [];
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
+
+    // VOD 
+    this._levels = [];
+    this._lvl2stream = {};
+    this._strm2level = {};
+    this._rend2level = {};
+    this._ordLevels = [];
+
+    this._pbState = {
+      playing: false,
+      paused: false,
+      initial: false,
+    };
 
     this._autoAbr = false;
   }
@@ -187,6 +201,152 @@ class PlaybackContext {
     return res;
   }
 
+  hasLive () {
+    return this._ordRenditions.length > 0;
+  }
+
+  hasVod () {
+    return this._levels.length > 0;
+  }
+
+  setLevels (levels, parentUrl) {
+    this._levels = [];
+    this._levelCount = 0;
+    this._lvl2stream = {};
+    this._strm2level = {};
+    this._rend2level = {};
+    this._ordLevels = [];
+
+    let pPath = (new URL(parentUrl)).pathname;
+    pPath = pPath.slice(0, pPath.lastIndexOf('/') + 1);
+    for (let i = 0; i < levels.length; i++) {
+      let lUrl = new URL(levels[i].url[0]);
+      let lPath = lUrl.pathname.slice(0, lUrl.pathname.lastIndexOf('/') + 1);
+
+      let nStart = (lPath.length > pPath.length && lPath.startsWith(pPath)) ? pPath.length : 1;
+      let lvl = {
+        idx: i,
+        name: lPath.slice(nStart, -1),
+        session: lUrl.search.slice(1),
+        data: levels[i],
+      };
+
+      this._levels[i] = lvl;
+
+      let streamIdx = this._streamsMap[lvl.name];
+      if (streamIdx !== undefined) {
+        this._lvl2stream[i] = streamIdx;
+        this._strm2level[streamIdx] = i;
+      }
+
+      if (levels[i].height > 0) {
+        this._addOrderedLevel(i, levels[i].height);
+
+        let rend = levels[i].height + 'p';
+        this._levels[i].rend = rend;
+
+        if (!this._rend2level[rend]) {
+          this._rend2level[rend] = [];
+        }
+        this._rend2level[rend].push(i);
+        this._levels[i].rIdx = this._rend2level[rend].length - 1;
+      }
+    }
+
+    let curVConf = this._curConf.video;
+    let curAConf = this._curConf.audio;
+    if (curVConf && curVConf.idx !== undefined) {
+      if (this._strm2level[curVConf.idx] !== undefined) {
+        this._curLevelIdx = this._strm2level[curVConf.idx];
+      } else {
+        this._curLevelIdx = this.getMinimumLevelIdx();
+      }
+    } else if (curAConf && curAConf.idx !== undefined) {
+      if (this._strm2level[curAConf.idx] !== undefined) {
+        this._curLevelIdx = this._strm2level[curAConf.idx];
+      } else {
+        this._curLevelIdx = 0;
+      }
+    }
+  }
+
+  getMinimumLevelIdx () {
+    let min = 1000000;
+    for (let i = 0; i < this._levels.length; i++) {
+      if (this._levels[i].height && this._levels[i].height < min) {
+        min = this._levels[i].height;
+        return i;
+      }
+    }
+
+    return 0;
+  }
+
+  updateCurrentLevel (data) {
+    if (this._curLevelIdx >= 0 && data.details) {
+      this._levels[this._curLevelIdx].data.details = data.details;
+    }
+  }
+
+  getCurrentLevel () {
+    if (this._curLevelIdx >= 0) {
+      return this._levels[this._curLevelIdx];
+    }
+  }
+
+  setCurrentLevelIdx (idx) {
+    this._curLevelIdx = idx;
+
+    if (!this.hasLive()) return;
+    let curVConf = this._curConf.video;
+    if (!curVConf) return;
+    if (curVConf.idx !== undefined && this._lvl2stream[idx] !== undefined) {
+      curVConf.idx = this._lvl2stream[idx];
+    }
+  }
+
+  getRenditionLevelIdx (rend, idx) {
+    let res = this._rend2level[rend];
+    if (res) res = res[idx];
+    return res;
+  }
+
+  getLevelByName (name) {
+    for (let i = 0; i < this._levels.length; i++) {
+      if (this._levels[i].name === name) {
+        return this._levels[i];
+      }
+    }
+  }
+
+  setState (isPlaying, isPaused) {
+    this._pbState.playing = isPlaying;
+    this._pbState.paused = isPaused;
+  }
+
+  setStateInitial (val) {
+    this._pbState.initial = val;
+  }
+
+  resetState () {
+    this._pbState.playing = this._pbState.paused = this._pbState.initial = false;
+  }
+
+  _addOrderedLevel (idx, height) {
+    let oPos = 0;
+    for (let j = 0; j < this._ordLevels.length; j++) {
+      if (height < this._levels[this._ordLevels[j]].height) {
+        break;
+      }
+      oPos++;
+    }
+    if (oPos === this._ordLevels.length) {
+      this._ordLevels[oPos] = idx;
+    } else {
+      this._ordLevels.splice(oPos, 0, idx);
+    }
+  }
+
   get streams() {
     return this._streams;
   }
@@ -201,6 +361,18 @@ class PlaybackContext {
 
   get audioRenditions() {
     return this._ordAudioRenditions;
+  }
+
+  get levels () {
+    return this._levels;
+  }
+
+  get orderedLevels () {
+    return this._ordLevels;
+  }
+
+  get state () {
+    return this._pbState;
   }
 
   get autoAbr() {

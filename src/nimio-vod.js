@@ -3,6 +3,8 @@ import { LoggersFactory } from "./shared/logger";
 import { PlaybackContext } from "./playback/context";
 import { PlaybackProgressService } from "./playback/progress-service";
 import { AudioContextProvider } from "./audio/context-provider";
+import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
+import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
 
 const VOD_STATE = {
@@ -198,8 +200,8 @@ export class NimioVod {
 
   getRenditions() {
     let renditions = [];
-    let ords = this._context.orderedLevels();
-    let lvls = this._context.levels();
+    let ords = this._context.orderedLevels;
+    let lvls = this._context.levels;
     for (let i = 0; i < ords.length; i++) {
       renditions.push(lvls[ords[i]].rend);
     }
@@ -232,8 +234,8 @@ export class NimioVod {
 
   getStreams() {
     let streams = [];
-    let ords = this._context.orderedLevels();
-    let lvls = this._context.levels();
+    let ords = this._context.orderedLevels;
+    let lvls = this._context.levels;
     for (let i = 0; i < ords.length; i++) {
       streams.push(this._formatLevel(lvls[ords[i]]));
     }
@@ -476,7 +478,7 @@ export class NimioVod {
       if (levelIdx === undefined) return false;
 
       if (this._onRenditionSwitchCallback) {
-        let lvl = this._context.levels()[levelIdx];
+        let lvl = this._context.levels[levelIdx];
         this._onRenditionSwitchCallback(quality, lvl.name);
       }
 
@@ -571,11 +573,11 @@ export class NimioVod {
       this._context.setLevels(data.levels, this._url);
       if (!this._context.hasLive()) {
         let initialLvl;
-        if (this._config.initial_resolution) {
+        if (this._config.initialResolution) {
           for (let i = 0; i < data.levels.length; i++) {
             if (
               data.levels[i].height &&
-              data.levels[i].height + "p" === this._config.initial_resolution
+              data.levels[i].height + "p" === this._config.initialResolution
             ) {
               initialLvl = i;
               break;
@@ -656,12 +658,12 @@ export class NimioVod {
   // };
 
   _onLevelSwitched = (event, data) => {
-    let lvl = this._context.levels()[data.level];
+    let lvl = this._context.levels[data.level];
     if (!lvl) {
       this._logger.error(
         "Switch level error, level not found",
         data.level,
-        this._context.levels(),
+        this._context.levels,
       );
       return;
     }
@@ -680,7 +682,7 @@ export class NimioVod {
     let curLvl = this._context.getCurrentLevel();
     if (undefined !== curLvl) {
       if (!skipInitResolution) {
-        this._config.initial_resolution = curLvl.rend;
+        this._config.initialResolution = curLvl.rend;
         let stream = this._context.getStreamByName(curLvl.name);
         if (stream && stream.stream_info) {
           this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
@@ -718,7 +720,7 @@ export class NimioVod {
         channels = data.audio.metadata.channelCount;
       }
 
-      let audioConfig = AudioHelper.getAudioConfigFromInitSegment(
+      let audioConfig = getAudioConfigFromInitSegment(
         data.audio.codec.toLowerCase(),
         data.audio.initSegment,
       );
@@ -870,12 +872,12 @@ export class NimioVod {
   }
 
   _prepareQualities() {
-    let ords = this._context.orderedLevels();
-    let levels = this._context.levels();
+    let ords = this._context.orderedLevels;
+    let levels = this._context.levels;
 
     let idx = 0,
       result = [];
-    let fmt = this._config.adaptive_bitrate.format;
+    let fmt = this._config.adaptiveBitrate.format;
     for (let i = 0; i < ords.length; i++) {
       let params = { rendition: levels[ords[i]].data.height + "p" };
       if (fmt) {
@@ -886,7 +888,7 @@ export class NimioVod {
       }
       result[i] = {
         name: params.rendition,
-        disp: fmt ? Utils.fillTemplateStr(fmt, params) : params.rendition,
+        disp: fmt ? fillTemplateStr(fmt, params) : params.rendition,
         idx: idx,
       };
       if (i > 0) {
