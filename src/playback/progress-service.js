@@ -164,7 +164,9 @@ class PlaybackProgressService {
       position = (fullVodDuration + this._livePosition) / this._totalDuration();
     }
 
-    this._logger.debug(`calc position: ${position}, totalDur = ${this._totalDuration()}, liveDur = ${this._liveDuration}, vodPos = ${this._vodPosition}`);
+    this._logger.debug(
+      `calc position: ${position}, totalDur = ${this._totalDuration()}, liveDur = ${this._liveDuration}, vodPos = ${this._vodPosition}`,
+    );
     if (position > 1) {
       this._logger.error(
         "position is greater than the whole scale",

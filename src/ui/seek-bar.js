@@ -235,7 +235,7 @@ export class UISeekBar {
 
     let fraction = sliderWidth > 0 ? sliderX / sliderWidth : 0;
     let fill = `${fraction * 100}%`;
-    this._slider.style.setProperty('--fill', fill);
+    this._slider.style.setProperty("--fill", fill);
     this._thumb.style.setProperty("--fill", fill);
 
     return fraction;

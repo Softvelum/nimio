@@ -68,7 +68,7 @@ export default class Nimio {
     }
 
     this._actPlayer = this._livePlayer;
-    this._mode = 'live';
+    this._mode = "live";
 
     this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
     this._playProgressSvc.positionChangeCb = this._onPlaybackPositionChange;

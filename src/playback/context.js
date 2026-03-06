@@ -13,7 +13,7 @@ class PlaybackContext {
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
 
-    // VOD 
+    // VOD
     this._levels = [];
     this._lvl2stream = {};
     this._strm2level = {};
@@ -201,15 +201,15 @@ class PlaybackContext {
     return res;
   }
 
-  hasLive () {
+  hasLive() {
     return this._ordRenditions.length > 0;
   }
 
-  hasVod () {
+  hasVod() {
     return this._levels.length > 0;
   }
 
-  setLevels (levels, parentUrl) {
+  setLevels(levels, parentUrl) {
     this._levels = [];
     this._levelCount = 0;
     this._lvl2stream = {};
@@ -217,13 +217,16 @@ class PlaybackContext {
     this._rend2level = {};
     this._ordLevels = [];
 
-    let pPath = (new URL(parentUrl)).pathname;
-    pPath = pPath.slice(0, pPath.lastIndexOf('/') + 1);
+    let pPath = new URL(parentUrl).pathname;
+    pPath = pPath.slice(0, pPath.lastIndexOf("/") + 1);
     for (let i = 0; i < levels.length; i++) {
       let lUrl = new URL(levels[i].url[0]);
-      let lPath = lUrl.pathname.slice(0, lUrl.pathname.lastIndexOf('/') + 1);
+      let lPath = lUrl.pathname.slice(0, lUrl.pathname.lastIndexOf("/") + 1);
 
-      let nStart = (lPath.length > pPath.length && lPath.startsWith(pPath)) ? pPath.length : 1;
+      let nStart =
+        lPath.length > pPath.length && lPath.startsWith(pPath)
+          ? pPath.length
+          : 1;
       let lvl = {
         idx: i,
         name: lPath.slice(nStart, -1),
@@ -242,7 +245,7 @@ class PlaybackContext {
       if (levels[i].height > 0) {
         this._addOrderedLevel(i, levels[i].height);
 
-        let rend = levels[i].height + 'p';
+        let rend = levels[i].height + "p";
         this._levels[i].rend = rend;
 
         if (!this._rend2level[rend]) {
@@ -270,7 +273,7 @@ class PlaybackContext {
     }
   }
 
-  getMinimumLevelIdx () {
+  getMinimumLevelIdx() {
     let min = 1000000;
     for (let i = 0; i < this._levels.length; i++) {
       if (this._levels[i].height && this._levels[i].height < min) {
@@ -282,19 +285,19 @@ class PlaybackContext {
     return 0;
   }
 
-  updateCurrentLevel (data) {
+  updateCurrentLevel(data) {
     if (this._curLevelIdx >= 0 && data.details) {
       this._levels[this._curLevelIdx].data.details = data.details;
     }
   }
 
-  getCurrentLevel () {
+  getCurrentLevel() {
     if (this._curLevelIdx >= 0) {
       return this._levels[this._curLevelIdx];
     }
   }
 
-  setCurrentLevelIdx (idx) {
+  setCurrentLevelIdx(idx) {
     this._curLevelIdx = idx;
 
     if (!this.hasLive()) return;
@@ -305,13 +308,13 @@ class PlaybackContext {
     }
   }
 
-  getRenditionLevelIdx (rend, idx) {
+  getRenditionLevelIdx(rend, idx) {
     let res = this._rend2level[rend];
     if (res) res = res[idx];
     return res;
   }
 
-  getLevelByName (name) {
+  getLevelByName(name) {
     for (let i = 0; i < this._levels.length; i++) {
       if (this._levels[i].name === name) {
         return this._levels[i];
@@ -319,20 +322,21 @@ class PlaybackContext {
     }
   }
 
-  setState (isPlaying, isPaused) {
+  setState(isPlaying, isPaused) {
     this._pbState.playing = isPlaying;
     this._pbState.paused = isPaused;
   }
 
-  setStateInitial (val) {
+  setStateInitial(val) {
     this._pbState.initial = val;
   }
 
-  resetState () {
-    this._pbState.playing = this._pbState.paused = this._pbState.initial = false;
+  resetState() {
+    this._pbState.playing = this._pbState.paused = false;
+    this._pbState.initial = false;
   }
 
-  _addOrderedLevel (idx, height) {
+  _addOrderedLevel(idx, height) {
     let oPos = 0;
     for (let j = 0; j < this._ordLevels.length; j++) {
       if (height < this._levels[this._ordLevels[j]].height) {
@@ -363,15 +367,15 @@ class PlaybackContext {
     return this._ordAudioRenditions;
   }
 
-  get levels () {
+  get levels() {
     return this._levels;
   }
 
-  get orderedLevels () {
+  get orderedLevels() {
     return this._ordLevels;
   }
 
-  get state () {
+  get state() {
     return this._pbState;
   }
 

@@ -201,7 +201,7 @@ export class NimioLive {
             break;
           }
           let latency = parseInt(params.latency);
-          if (isNaN(latency) || (latency < 0)) {
+          if (isNaN(latency) || latency < 0) {
             this._logger.error(
               "Latency parameter isn't a number or is negative. Skipping.",
             );
@@ -223,7 +223,7 @@ export class NimioLive {
           }
 
           let latencyTolerance = parseInt(params.latencyTolerance);
-          if (isNaN(latencyTolerance) || (latencyTolerance < 0)) {
+          if (isNaN(latencyTolerance) || latencyTolerance < 0) {
             this._logger.error(
               "Latency tolerance isn\'t a number or is negative. Skipping.",
             );
@@ -231,7 +231,8 @@ export class NimioLive {
           }
 
           if (
-            latencyTolerance > 0 && latencyTolerance < this._config.latency + 50
+            latencyTolerance > 0 &&
+            latencyTolerance < this._config.latency + 50
           ) {
             this._logger.warn(
               `Latency tolerance can't be less or too close to the latency parameter. Automatically adjusting latency tolerance to ${this._config.latency + 50}`,
@@ -260,7 +261,7 @@ export class NimioLive {
           this._config.latency >= latencyParams.prevLatency + 50 &&
           this._context.autoAbr
         ) {
-          this._abrController.stop({hard: true});
+          this._abrController.stop({ hard: true });
           this._abrController.start();
         }
         this._abrController.setBuffering(this._config.latency);
@@ -732,7 +733,10 @@ export class NimioLive {
 
   _updateLatencyParams(params) {
     if (this._audioNode) {
-      this._audioNode.port.postMessage({type: "latency-params", data: params});
+      this._audioNode.port.postMessage({
+        type: "latency-params",
+        data: params,
+      });
     }
     this._latencyCtrl.setParams(latencyParams);
   }

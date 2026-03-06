@@ -504,7 +504,7 @@ export class Ui {
     this.hideControls(true);
   }
 
-  _setHideControlsTimer (secs) {
+  _setHideControlsTimer(secs) {
     this._hideTimer = setTimeout(() => {
       if (this._seekBar && this._seekBar.isPending()) {
         this._clearHideControlsTimer();
@@ -515,7 +515,7 @@ export class Ui {
     }, 1000 * secs);
   }
 
-  _clearHideControlsTimer () {
+  _clearHideControlsTimer() {
     if (!this._hideTimer) return;
     clearTimeout(this._hideTimer);
     this._hideTimer = undefined;

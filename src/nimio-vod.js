@@ -85,7 +85,11 @@ export class NimioVod {
       this._pHandler.off(EV.LEVEL_SWITCHED, this._onLevelSwitched, this);
       this._pHandler.off(EV.ERROR, this._onError, this);
 
-      this._pHandler.off(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg, this);
+      this._pHandler.off(
+        EV.FRAG_PARSING_INIT_SEGMENT,
+        this._onParseInitSeg,
+        this,
+      );
       this._pHandler.off(EV.BUFFER_APPENDING, this._onBufferAppending, this);
 
       // this._pHandler.off(EV.LEVEL_SWITCHING, this._onLevelSwitching, this);
