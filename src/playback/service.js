@@ -56,7 +56,7 @@ class PlaybackService {
     if (!this._mediaElement || this._isPaused || !this._isPlaying) return false; 
 
     this._mediaElement.pause();
-    this._isPaused  = true;
+    this._isPaused = true;
     this._isPlaying = false;
     return true;
   }

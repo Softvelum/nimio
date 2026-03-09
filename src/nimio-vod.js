@@ -109,7 +109,7 @@ export class NimioVod {
 
     if (this._state >= VOD_STATE.SYNC) {
       this._vuMeterSvc.stop();
-      this._mediaControlSvc.clear();
+      this._playbackService.unset();
       this._vodMedia.clear();
       this._vodMedia = undefined;
       if (this._config.timecodes) {
@@ -311,7 +311,7 @@ export class NimioVod {
 
           this._vodMedia = new VodMedia(this._instName);
           if (mediaElement) {
-            this._mediaControlSvc.init(mediaElement);
+            this._playbackService.init(mediaElement);
           }
           this._state = VOD_STATE.SYNC;
         }
@@ -335,8 +335,6 @@ export class NimioVod {
 
     this._ui = ui;
     this._vodMedia.init(ui.mediaElement);
-    this._mediaControlSvc.useApi("vod", this._vodMedia);
-    this._setMediaControlCallbacks();
     this._ui.clearMediaElement();
     this._state = VOD_STATE.PLAY;
 
@@ -383,8 +381,12 @@ export class NimioVod {
       this._mediaDetachedCallback = callback;
     }
 
-    this._mediaControlSvc.keepPlaybackState(this._context);
-    this._mediaControlSvc.clear({ keepPlayback: true });
+    this._context.setState(
+      this._playbackService.isPlaying(),
+      this._playbackService.isPaused(),
+    );
+    this._context.setStateInitial(false);
+    this._vodMedia.clear();
 
     this._pHandler.detachMedia();
     this._vuMeterSvc.stop();
@@ -408,7 +410,7 @@ export class NimioVod {
     if (this._state !== VOD_STATE.PLAY) return false;
 
     this._logger.debug("goto " + position);
-    this._mediaControlSvc.resumeTo(position);
+    this._vodMedia.resumeTo(position);
     if (this._nalProcessor) {
       this._nalProcessor.reset();
     }
@@ -451,13 +453,6 @@ export class NimioVod {
 
   hasPlaybackErrors() {
     return this._playbackErrCnt > 0;
-  }
-
-  _setMediaControlCallbacks() {
-    this._mediaControlSvc.callbacks = {
-      onPlayStarted: this._onPlayStarted,
-      onPlayFinished: this._onPlayFinished,
-    };
   }
 
   _startAbr() {
@@ -504,31 +499,31 @@ export class NimioVod {
   onPlay(isGesture) {
     if (this._state !== VOD_STATE.PLAY) return;
 
-    this._mediaControlSvc.handlePlay(isGesture, true);
+    this._playbackService.handlePlay(isGesture, true);
   }
 
   onPause() {
     if (this._state !== VOD_STATE.PLAY) return;
 
-    this._mediaControlSvc.handlePause(true);
+    if (this._playbackService.handlePause()) {
+      this._vodMedia.handlePause();
+    }
   }
 
   onPauseEvent() {
-    this._mediaControlSvc.handlePauseEvent();
+    this._playbackService.handlePauseEvent();
   }
 
   onPlayEvent() {
-    this._mediaControlSvc.handlePlayEvent();
+    this._playbackService.handlePlayEvent();
   }
 
   onResize() {}
 
-  onEnterPip() {
-    this._mediaControlSvc.handleEnterPip();
-  }
+  onEnterPip() {}
 
   onLeavePip() {
-    this._mediaControlSvc.handleLeavePip(true);
+    this._playbackService.resumeIfAutoPaused();
   }
 
   _addScriptTag(url) {
@@ -640,7 +635,7 @@ export class NimioVod {
     if ((this._config.autoplay && isInitial) || pbState.playing) {
       this._pHandler.resumeBuffering();
 
-      let playPromise = this._mediaControlSvc.startPlayback();
+      let playPromise = this._vodMedia.startPlayback();
 
       if (playPromise) {
         playPromise.then(() => {
