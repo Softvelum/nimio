@@ -6,6 +6,7 @@ import { AudioContextProvider } from "./audio/context-provider";
 import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
+import { VodPlaybackService } from "./vod/playback-service";
 
 const VOD_STATE = {
   NULL: 0,
@@ -38,6 +39,7 @@ export class NimioVod {
         this._playbackStarted = false;
         this._playbackErrCnt = 0;
 
+        this._playbackService = VodPlaybackService.getInstance(this._instName);
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
         this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
@@ -410,7 +412,7 @@ export class NimioVod {
     if (this._state !== VOD_STATE.PLAY) return false;
 
     this._logger.debug("goto " + position);
-    this._vodMedia.resumeTo(position);
+    this._playbackService.setCurrentTime(position);
     if (this._nalProcessor) {
       this._nalProcessor.reset();
     }
@@ -504,10 +506,7 @@ export class NimioVod {
 
   onPause() {
     if (this._state !== VOD_STATE.PLAY) return;
-
-    if (this._playbackService.handlePause()) {
-      this._vodMedia.handlePause();
-    }
+    this._playbackService.handlePause();
   }
 
   onPauseEvent() {

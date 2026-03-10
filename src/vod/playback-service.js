@@ -1,7 +1,7 @@
 import { multiInstanceService } from '@/shared/service';
 import { LoggersFactory } from '@/shared/logger';
 
-class PlaybackService {
+class VodPlaybackService {
   constructor (instName) {
     this._instName = instName;
     this._logger = LoggersFactory.create(instName, 'PlaybackService');
@@ -36,6 +36,8 @@ class PlaybackService {
   }
 
   setCurrentTime (time) {
+    if (!this._mediaElement) return null;
+
     var curTime = this._mediaElement.currentTime;
     this._logger.debug(`setCurrentTime from ${curTime} to ${time}`);
     this._mediaElement.currentTime = time;
@@ -47,9 +49,8 @@ class PlaybackService {
   }
 
   handlePlay () {
-    if( this._mediaElement && !this._isPlaying ) {
-      this.playMedia();
-    }
+    if (!this._mediaElement || this._isPlaying) return;
+    this.playMedia();
   }
 
   handlePause () {
@@ -90,6 +91,7 @@ class PlaybackService {
 
   playMedia (params = {}) {
     this._logger.debug('play media', params, this._isPlaying);
+    if (!this._mediaElement) return;
 
     const playPromise = this._mediaElement.play();
     const reportFail = !params.recover;
@@ -116,5 +118,5 @@ class PlaybackService {
   }
 }
 
-PlaybackService = multiInstanceService(PlaybackService);
-export { PlaybackService };
+VodPlaybackService = multiInstanceService(VodPlaybackService);
+export { VodPlaybackService };

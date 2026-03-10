@@ -1,10 +1,10 @@
 import LoggersFactory from "@/shared/logger";
-import { PlaybackService } from "@/playback/service";
+import { VodPlaybackService } from "./playback-service";
 
 class VodMedia {
   constructor (instanceId) {
     this._logger = LoggersFactory.create(instanceId, "VodMedia");
-    this._playbackService = PlaybackService.getInstance(instanceId);
+    this._playbackService = VodPlaybackService.getInstance(instanceId);
   }
 
   init (mediaElement) {
@@ -43,10 +43,6 @@ class VodMedia {
       return;
     }
     this._playbackService.resumeIfAutoPaused();
-  }
-
-  resumeTo (pos) {
-    this._playbackService.setCurrentTime(pos);
   }
 
 }
