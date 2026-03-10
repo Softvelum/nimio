@@ -135,7 +135,7 @@ export class NimioLive {
       this._audioCtxProvider.get().resume();
     }
 
-    this._ui.drawPause();
+    this._ui.onPlaybackStarting();
   }
 
   pause() {
@@ -162,7 +162,7 @@ export class NimioLive {
     }
     this._resetPlayback();
 
-    this._ui.drawPlay();
+    his._ui.onPlaybackStopped();
   }
 
   goto(latencySec) {
