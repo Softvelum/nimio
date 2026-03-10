@@ -74,13 +74,13 @@ export const NimioRenditions = {
     return true;
   },
 
-  _onRenditionChange(rend) {
-    if (!rend) return false;
-    if (rend.name === "Auto") {
+  _onRenditionChange(data) {
+    if (data.mode !== MODE.LIVE || !data.rend) return;
+    if (data.rend.name === "Auto") {
       return this.startAbr();
     }
     this.stopAbr();
-    return this.setCurrentRendition("video", rend.id);
+    return this.setCurrentRendition("video", data.rend.id);
   },
 
   _onRenditionSwitchResult(type, done) {

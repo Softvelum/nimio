@@ -6,9 +6,7 @@ import { UISeekBar } from "./seek-bar";
 import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
-
-const UI_CANVAS = 0;
-const UI_MEDIA = 1;
+import { MODE } from "@/shared/values";
 
 export class Ui {
   constructor(instName, container, opts, eventBus) {
@@ -36,7 +34,7 @@ export class Ui {
     // TODO: get from frame properties
     this._ar = this._baseWidth / this._baseHeight;
 
-    this._mode = UI_CANVAS;
+    this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
     if (opts.vod) this._createMediaElement();
@@ -159,7 +157,7 @@ export class Ui {
   }
 
   get size() {
-    let output = this._mode === UI_CANVAS ? this._canvas : this._mediaElement;
+    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
     let box = output.getBoundingClientRect();
     return [box.width, box.height];
   }
@@ -359,7 +357,10 @@ export class Ui {
 
   _selectRendition(selectedBtn) {
     let selRendition = selectedBtn._rendition || { name: "Auto" };
-    this._eventBus.emit("ui:rendition-change", selRendition);
+    this._eventBus.emit("ui:rendition-change", {
+      mode: this._mode,
+      rend: selRendition,
+    });
   }
 
   _onRendMenuSelected(e) {
@@ -426,7 +427,7 @@ export class Ui {
   }
 
   _updateOutputSize(w, h) {
-    if (this._mode === UI_CANVAS) {
+    if (this._mode === MODE.LIVE) {
       this._updateCanvasSize(w, h);
     }
     this._outputs.forEach((elem) => {
@@ -465,7 +466,10 @@ export class Ui {
   _handleClick(e) {
     let isPlayClicked = "pause" === this._state;
     isPlayClicked ? this.drawPause() : this.drawPlay();
-    this._eventBus.emit("ui:play-pause-click", isPlayClicked);
+    this._eventBus.emit("ui:play-pause-click", {
+      mode: this._mode,
+      play: isPlayClicked,
+    });
   }
 
   _handleMuteUnmuteClick() {

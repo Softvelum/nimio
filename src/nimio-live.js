@@ -1,6 +1,6 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
-import { IDX } from "./shared/values";
+import { IDX, MODE } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
@@ -283,8 +283,9 @@ export class NimioLive {
     this._eventBus.off("ui:rendition-change", this._onRenditionChange);
   }
 
-  _onPlayPauseClick = function (isPlayClicked) {
-    isPlayClicked ? this.play() : this.pause();
+  _onPlayPauseClick = function(data) {
+    if (data.mode !== MODE.LIVE) return;
+    data.play ? this.play() : this.pause();
   };
 
   _renderVideoFrame() {

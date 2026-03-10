@@ -1,10 +1,12 @@
+import { EventBus } from '@/event-bus';
 import { multiInstanceService } from '@/shared/service';
 import { LoggersFactory } from '@/shared/logger';
 
 class VodPlaybackService {
   constructor (instName) {
     this._instName = instName;
-    this._logger = LoggersFactory.create(instName, 'PlaybackService');
+    this._eventBus = EventBus.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, 'Playback Service');
   }
 
   init (mediaElement) {
@@ -18,7 +20,23 @@ class VodPlaybackService {
     }
   }
 
-  unset () {
+  startPlayback (params) {
+    if (this.isPlaying() && this._playEventReceived) return;
+
+    this._logger.debug(
+      `startPlayback, buf ranges count = ${this._mediaElement.buffered.length}`,
+    );
+    if( this._mediaElement.buffered.length > 0 ) {
+      this._logger.debug(
+        `media element buffer start = ${this._mediaElement.buffered.start(0)}, end = ${this._mediaElement.buffered.end(0)}`,
+      );
+    }
+
+    return this._playMedia(params);
+  }
+
+  clear () {
+    this.resetPosition();
     this._mediaElement = undefined;
   }
 
@@ -29,6 +47,7 @@ class VodPlaybackService {
 
     this._isPaused = false;
     this._isPlaying = false;
+    this._playEventReceived = false;
   }
 
   getCurrentTime () {
@@ -44,17 +63,13 @@ class VodPlaybackService {
     return time;
   }
 
-  set onPlayFailed (cb) {
-    this._onPlayFailedCallback = cb;
-  }
-
   handlePlay () {
-    if (!this._mediaElement || this._isPlaying) return;
-    this.playMedia();
+    if (this.isPlaying()) return;
+    this._playMedia();
   }
 
   handlePause () {
-    if (!this._mediaElement || this._isPaused || !this._isPlaying) return false; 
+    if (!this.isPlaying() || this._isPaused) return false; 
 
     this._mediaElement.pause();
     this._isPaused = true;
@@ -62,18 +77,36 @@ class VodPlaybackService {
     return true;
   }
 
+  handlePlayEvent () {
+    if (this._playEventReceived) return;
+
+    this._playEventReceived = true;
+    this._eventBus.emit("nimio:playback-started");
+  }
+
+  handlePauseEvent () {
+    if (!this._playEventReceived) return;
+
+    if (this._mediaElement.ended) {
+      this._playEventReceived = false;
+      this._eventBus.emit("nimio:playback-ended");
+      return;
+    }
+    this.resumeIfAutoPaused();
+  }
+
   resumeIfAutoPaused () {
     if(this._mediaElement?.paused && this._isPlaying && !this._isPaused ) {
       this._logger.debug("Resume auto paused");
 
       var autoPauseTime = this.getCurrentTime();
-      this.playMedia({recover: true});
+      this._playMedia({recover: true});
       
       var inst = this;
       setTimeout(function () {
         if (inst.getCurrentTime() === 0) {
           inst._logger.debug(
-            `resume autopaused set media element currentTime to ${autoPauseTime}`
+            `resume autopaused set media element currentTime to ${autoPauseTime}`,
           );
           inst.setCurrentTime(autoPauseTime);
         }
@@ -89,8 +122,8 @@ class VodPlaybackService {
     return this._mediaElement ? this._isPlaying : false;
   }
 
-  playMedia (params = {}) {
-    this._logger.debug('play media', params, this._isPlaying);
+  _playMedia (params = {}) {
+    this._logger.debug("play media", params, this._isPlaying);
     if (!this._mediaElement) return;
 
     const playPromise = this._mediaElement.play();
@@ -106,7 +139,12 @@ class VodPlaybackService {
           if (err.name === "NotAllowedError") {
             this._logger.debug("Autoplay blocked");
           }
-          if (reportFail) this._onPlayFailedCallback();
+          if (reportFail) {
+            this._eventBus.emit("nimio:playback-error", {
+              name: err.name,
+              message: err.message,
+            });
+          }
         });
     } else {
       // Just in case fallback
