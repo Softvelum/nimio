@@ -66,6 +66,7 @@ export default class Nimio {
     this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
     if (this._config.vod) {
       this._vodPlayer = new NimioVod(this._instName, this._config.vod);
+      this._eventBus.on("nimio:connection-established", this._onLiveConnected);
     }
 
     this._actPlayer = this._livePlayer;
@@ -97,8 +98,41 @@ export default class Nimio {
   }
 
   setParameters(params) {
-    this._sldpPlayer.setParameters(params);
+    this._livePlayer.setParameters(params);
   }
+
+  play() {
+    this._actPlayer.play();
+  }
+
+  setStreamURL(url) {
+    // _setMgr.setStreamURL(url);
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      this._vodPlayer.stop(() => {
+        this._livePlayer.attach(this._ui);
+        this._livePlayer.setStreamURL();
+      });
+      return;
+    }
+
+    this._livePlayer.setStreamURL();
+  };
+
+  pause() {
+    this._actPlayer.pause();
+  }
+
+  stop() {
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      this._vodPlayer.stop(() => {
+        this._livePlayer.attach(this._ui);
+        this._livePlayer.stop(true);
+      });
+      return;
+    }
+
+    this._livePlayer.stop(true);
+  };
 
   seekVod(position) {
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
@@ -149,10 +183,10 @@ export default class Nimio {
   }
 
   _onVodPlaybackError(error) {
-    // Switch to SLDP player for now.
+    // Switch to live player for now.
     // TODO: expand this behavior as new options appear
     this._logger.warn("VOD playback error: " + error);
-    this._eventBus.emit("nimio:playback-error", { type: "vod", error });
+    this._eventBus.emit("nimio:playback-error", { mode: "vod", error });
     if (this._config.vod?.liveFailover) {
       this._switchToLive(0);
     } else {
@@ -164,7 +198,7 @@ export default class Nimio {
     if (!this._vodPlayer || this._mode === "vod") return false;
     this._mode = "pend";
 
-    return this._sldpPlayer.detach(() => {
+    return this._livePlayer.detach(() => {
       // TODO: re-check parameters
       this._actPlayer = this._vodPlayer;
       this._actPlayer.attach(this._ui, position, () => {
@@ -184,13 +218,18 @@ export default class Nimio {
     let pbError =
       this._context.getState().initial && this._vodPlayer.hasPlaybackErrors();
     return this._vodPlayer.detach(() => {
-      this._actPlayer = this._sldpPlayer;
+      this._actPlayer = this._livePlayer;
       this._actPlayer.attach(this._ui, { buffering, pbError });
       this._mode = "live";
     });
   }
 
-  _onPlaybackPositionChange = function (type, val) {
+  _onLiveConnected = () => {
+    if (!this._vodPlayer || this._vodPlayer.isPlaying()) return;
+    this._vodPlayer.initialize();
+  };
+
+  _onPlaybackPositionChange = (type, val) => {
     this._logger.debug(
       `_onPlaybackPositionChange type = ${type}, value = ${val}, mode = ${this._mode}`,
     );
@@ -201,7 +240,7 @@ export default class Nimio {
     }
 
     return type === "vod" ? this._switchToVod(val) : this._switchToLive(val);
-  }.bind(this);
+  };
 }
 
 Object.assign(Nimio.prototype, NimioEvents);

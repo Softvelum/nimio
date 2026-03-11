@@ -1,3 +1,4 @@
+import { MODE } from "./shared/values";
 import { AudioConfig } from "./audio/config";
 import { TransportAdapter } from "./transport/adapter";
 
@@ -54,7 +55,7 @@ export const NimioTransport = {
     this._resetPlayback();
     if (!this._reconnect.schedule(this._playCb)) {
       this._logger.debug("Stop reconnecting");
-      this._ui.onPlaybackStopped();
+      this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
       return;
     }
     this._logger.debug("Attempt to reconnect");

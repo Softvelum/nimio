@@ -601,7 +601,7 @@ export class NimioVod {
     if (currentLevel && currentLevel.data.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
-        this._segmentTracker.setup(data.details.fragments);
+        // this._segmentTracker.setup(data.details.fragments);
       }
     }
   };
@@ -610,7 +610,7 @@ export class NimioVod {
     // this._logger.warn('_onLevelLoaded details', data.details);
     this._updatePlaylistDuration(data.details);
     if (this._config.thumbnails) {
-      this._segmentTracker.setup(data.details.fragments);
+      // this._segmentTracker.setup(data.details.fragments);
     }
     this._playbackErrCnt = 0;
 

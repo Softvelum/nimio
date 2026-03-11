@@ -94,16 +94,6 @@ export class Ui {
     }
   }
 
-  onPlaybackStarting() {
-    this._unsetBackground();
-    this.drawPause();
-  }
-
-  onPlaybackStopped() {
-    this._setBackground();
-    this.drawPlay();
-  }
-
   drawPlay() {
     this._state = "pause";
     this._button.classList.remove("pause");
@@ -248,12 +238,20 @@ export class Ui {
     this._onRenditionsReceived = this._onRenditionsReceived.bind(this);
     this._onAdaptiveBitrateSet = this._onAdaptiveBitrateSet.bind(this);
     this._onRendMenuSelected = this._onRendMenuSelected.bind(this);
+    this._onPlaybackStarting = this._onPlaybackStarting.bind(this);
+    this._onPlaybackStarted = this._onPlaybackStarted.bind(this);
+    this._onPlaybackPaused = this._onPlaybackPaused.bind(this);
+    this._onPlaybackEnded = this._onPlaybackEnded.bind(this);
 
     this._eventBus.on("nimio:volume-set", this._onVolumeSet);
     this._eventBus.on("nimio:muted", this._onMuteUnmuteSet);
     this._eventBus.on("nimio:rendition-set", this._onRenditionSet);
     this._eventBus.on("nimio:rendition-list", this._onRenditionsReceived);
     this._eventBus.on("nimio:abr", this._onAdaptiveBitrateSet);
+    this._eventBus.on("nimio:play", this._onPlaybackStarting);
+    this._eventBus.on("nimio:pause", this._onPlaybackPaused);
+    this._eventBus.on("nimio:playback-started", this._onPlaybackStarted);
+    this._eventBus.on("nimio:playback-ended", this._onPlaybackEnded);
   }
 
   _removePlaybackEventHandlers() {
@@ -262,6 +260,10 @@ export class Ui {
     this._eventBus.off("nimio:rendition-set", this._onRenditionSet);
     this._eventBus.off("nimio:rendition-list", this._onRenditionsReceived);
     this._eventBus.off("nimio:abr", this._onAdaptiveBitrateSet);
+    this._eventBus.off("nimio:play", this._onPlaybackStarting);
+    this._eventBus.off("nimio:pause", this._onPlaybackPaused);
+    this._eventBus.off("nimio:playback-started", this._onPlaybackStarted);
+    this._eventBus.off("nimio:playback-ended", this._onPlaybackEnded);
   }
 
   _addDisplayEventHandlers() {
@@ -465,7 +467,6 @@ export class Ui {
 
   _handleClick(e) {
     let isPlayClicked = "pause" === this._state;
-    isPlayClicked ? this.drawPause() : this.drawPlay();
     this._eventBus.emit("ui:play-pause-click", {
       mode: this._mode,
       play: isPlayClicked,
@@ -567,6 +568,23 @@ export class Ui {
     if (e) e.stopPropagation();
   }
 
+  _onPlaybackStarting() {
+    this.drawPause();
+  }
+
+  _onPlaybackStarted() {
+    this._unsetBackground();
+  }
+
+  _onPlaybackPaused() {
+    this.drawPlay();
+  }
+
+  _onPlaybackEnded(data) {
+    if (data.mode === MODE.LIVE) this._setBackground();
+    this.drawPlay();
+  }
+
   _setBackground() {
     if (this._splashScreenUrl) {
       this._canvas.style.removeProperty('background-color');
@@ -582,9 +600,8 @@ export class Ui {
   }
 
   _unsetBackground() {
-    if (this._splashScreenUrl) {
-      this._canvas.style['background-image'] = '';
-      this._canvas.style['background-size'] = '';
-    }
+    if (!this._splashScreenUrl) return;
+    this._canvas.style["background-image"] = "";
+    this._canvas.style["background-size"] = "";
   }
 }

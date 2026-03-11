@@ -216,12 +216,6 @@ These events are used to send data from `Nimio` player to UI.
 
 - `nimio:play`  
   Playback started.  
-  Parameters:
-
-```javascript
-instanceName: String; // Player instance name
-containerId: String; // Container ID, where player is rendered
-```
 
 - `nimio:muted`  
   Audio muted/unmuted.  

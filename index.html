@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="wss://demo-nimble.softvelum.com/live/bbb"
+      value="wss://drm-test-cf.softvelum.com/live/black_symphony"
     />
     <button
       id="initNimioButton"
@@ -66,8 +66,8 @@
           splashScreen: "splash.jpg",
         });
 
-        window.nimio.on("nimio:play", (inst, contId) => {
-          console.log("Nimio play event", inst, contId);
+        window.nimio.on("nimio:play", () => {
+          console.log("Nimio play event");
         });
       }
 

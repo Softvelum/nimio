@@ -122,8 +122,9 @@ export class NimioLive {
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
-    this._eventBus.emit("nimio:play", this._instName, this._config.container);
+    this._eventBus.emit("nimio:play", { mode: MODE.LIVE });
 
+    this._playbackStarted = false;
     requestAnimationFrame(this._renderVideoFrame);
 
     if (initialPlay) {
@@ -134,8 +135,6 @@ export class NimioLive {
     } else if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
     }
-
-    this._ui.onPlaybackStarting();
   }
 
   pause() {
@@ -149,6 +148,8 @@ export class NimioLive {
       this._logger.debug("Auto stop");
       this.stop(true); // TODO: check possibility to reuse socket
     }, this._config.pauseTimeout);
+
+    this._eventBus.emit("nimio:pause", { mode: MODE.LIVE });
   }
 
   stop(closeConnection) {
@@ -162,7 +163,7 @@ export class NimioLive {
     }
     this._resetPlayback();
 
-    his._ui.onPlaybackStopped();
+    this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
   }
 
   goto(latencySec) {
@@ -312,6 +313,10 @@ export class NimioLive {
       return true;
     }
 
+    if (!this._playbackStarted) {
+      this._eventBus.emit("nimio:playback-started");
+      this._playbackStarted = true;
+    }
     this._ui.drawFrame(frame);
     frame.close();
   }
@@ -465,6 +470,7 @@ export class NimioLive {
     this._ui.clear();
     this._videoBuffer.reset();
     this._noVideo = this._config.audioOnly;
+    this._playbackStarted = false;
 
     this._stopAudio();
     this._vuMeterSvc.stop();

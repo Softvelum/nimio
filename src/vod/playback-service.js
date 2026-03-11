@@ -1,3 +1,4 @@
+import { MODE } from '@/shared/values';
 import { EventBus } from '@/event-bus';
 import { multiInstanceService } from '@/shared/service';
 import { LoggersFactory } from '@/shared/logger';
@@ -14,7 +15,7 @@ class VodPlaybackService {
     this._isPlaying = false;
     this._isPaused = false;
 
-    if (this._mediaElement._pauseOnStart) {
+    if (this._mediaElement?._pauseOnStart) {
       this._mediaElement._pauseOnStart = undefined;
       this._isPaused = true;
     }
@@ -89,7 +90,7 @@ class VodPlaybackService {
 
     if (this._mediaElement.ended) {
       this._playEventReceived = false;
-      this._eventBus.emit("nimio:playback-ended");
+      this._eventBus.emit("nimio:playback-ended", { mode: MODE.VOD });
       return;
     }
     this.resumeIfAutoPaused();
@@ -141,8 +142,8 @@ class VodPlaybackService {
           }
           if (reportFail) {
             this._eventBus.emit("nimio:playback-error", {
-              name: err.name,
-              message: err.message,
+              mode: "vod",
+              error: err.name,
             });
           }
         });
