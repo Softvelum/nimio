@@ -169,10 +169,8 @@ export default class Nimio {
   _runVodFromStart(pos) {
     if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
       this._vodPlayer.initialize(_ui.mediaElement).then(() => {
-        let isCurPlaying = this._context.getState().playing;
         this._switchToVod(pos);
-        this._context.setState(isCurPlaying, false);
-        this._context.setStateInitial(true);
+        this._state.setInitial(true);
         this._context.setAutoAbr(!!this._config.adaptiveBitrate);
       });
 
@@ -216,7 +214,7 @@ export default class Nimio {
     // pbError shows that VOD player couldn't play stream on start
     // that means that there is no playable stream source at the moment
     let pbError =
-      this._context.getState().initial && this._vodPlayer.hasPlaybackErrors();
+      this._context.state.initial && this._vodPlayer.hasPlaybackErrors();
     return this._vodPlayer.detach(() => {
       this._actPlayer = this._livePlayer;
       this._actPlayer.attach(this._ui, { buffering, pbError });

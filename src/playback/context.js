@@ -20,12 +20,6 @@ class PlaybackContext {
     this._rend2level = {};
     this._ordLevels = [];
 
-    this._pbState = {
-      playing: false,
-      paused: false,
-      initial: false,
-    };
-
     this._autoAbr = false;
   }
 
@@ -322,20 +316,6 @@ class PlaybackContext {
     }
   }
 
-  setState(isPlaying, isPaused) {
-    this._pbState.playing = isPlaying;
-    this._pbState.paused = isPaused;
-  }
-
-  setStateInitial(val) {
-    this._pbState.initial = val;
-  }
-
-  resetState() {
-    this._pbState.playing = this._pbState.paused = false;
-    this._pbState.initial = false;
-  }
-
   _addOrderedLevel(idx, height) {
     let oPos = 0;
     for (let j = 0; j < this._ordLevels.length; j++) {
@@ -373,10 +353,6 @@ class PlaybackContext {
 
   get orderedLevels() {
     return this._ordLevels;
-  }
-
-  get state() {
-    return this._pbState;
   }
 
   get autoAbr() {

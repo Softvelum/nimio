@@ -166,6 +166,26 @@ export class NimioLive {
     this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
   }
 
+  detach(callback) {
+    if (!this._ui) {
+      if (callback) callback();
+      return false;
+    }
+
+    // this._context.setState(this._state.isPlaying(), this._state.isPaused());
+    this._state.setInitial(false);
+    // this._resetPlayback({hard: true, keepCurRendition: true, keepConnection: true});
+
+    this._ui.removePip(function () {
+      this._vuMeterSvc.stop();
+      // this._mediaService.clear({keepMediaControl: true});
+      this._ui = undefined;
+      if (callback) callback();
+    });
+
+    return true;
+  };
+
   goto(latencySec) {
     if (!latencySec) return false;
 

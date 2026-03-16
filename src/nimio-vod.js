@@ -7,6 +7,7 @@ import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
 import { VodPlaybackService } from "./vod/playback-service";
+import { StateManager } from "./state-manager";
 
 const VOD_STATE = {
   NULL: 0,

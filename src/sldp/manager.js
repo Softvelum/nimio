@@ -34,13 +34,13 @@ export class SLDPManager {
         this._handleSyncParams(status);
       }
       await this._processStatus(status.info);
-      this._play(this._curStreams);
+      this._sendRequest("play", { streams: this._curStreams });
     });
   }
 
   start(url) {
     this._context.setSourceUrl(url);
-    this._transport.send("start", {
+    this._sendRequest("start", {
       url: url,
       protocols: ["sldp.softvelum.com"],
       syncMode: this._useSyncMode,
@@ -48,7 +48,7 @@ export class SLDPManager {
   }
 
   stop(opts = {}) {
-    this._transport.send("stop", {
+    this._sendRequest("stop", {
       close: !!opts.closeConnection,
       sns: this.resetCurrentStreams(),
     });
@@ -79,7 +79,7 @@ export class SLDPManager {
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
     this._reqStreams[ss.sn] = idx;
-    this._play([ss]);
+    this._sendRequest("play", { streams: [ss] });
 
     return ss.sn;
   }
@@ -94,7 +94,7 @@ export class SLDPManager {
     if (type === "audio") timescale = stream.stream_info.atimescale;
     this._transport.send("timescale", { [sp.sn]: timescale });
 
-    this._play([sp]);
+    this._sendRequest("play", { streams: [sp] });
     return sp.sn;
   }
 
@@ -106,20 +106,31 @@ export class SLDPManager {
     }
 
     delete this._reqStreams[sn];
-    this._transport.send("stop", { sns: [sn] });
+    this._sendRequest("stop", { sns: [sn] });
     this._transport.send("removeTimescale", [sn]);
   }
 
   cancelProbe(sn, doRequest) {
     this._logger.debug(`cancel probe SN ${sn}, req ${doRequest}`);
     if (doRequest) {
-      this._transport.send("stop", { sns: [sn] });
+      this._sendRequest("stop", { sns: [sn] });
     }
     this._transport.send("removeTimescale", [sn]);
   }
 
-  _play(streams) {
-    this._transport.send("play", { streams });
+  keepAliveConnection() {
+    if (this._keepAliveTimer) return;
+    this._keepAliveTimer = setTimeout(() => {
+      if (!this._keepAliveTimer) return;
+      this._logger.debug(`send keep alive request`);
+      this._sendRequest("stop", { sns: [] });
+      this.keepAliveConnection();
+    }, 10000);
+  }
+
+  _sendRequest(command, data) {
+    this._keepAliveTimer = undefined;
+    this._transport.send(command, data);
   }
 
   async _processStatus(streams) {
