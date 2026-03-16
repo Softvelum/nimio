@@ -53,14 +53,6 @@ export class StateManager {
     this.value = STATE.STOPPED;
   }
 
-  isInitial() {
-    return !!this._load32(IDX.STATE_INITIAL);
-  }
-
-  setInitial(val) {
-    this._store32(IDX.STATE_INITIAL, val ? 1 : 0);
-  }
-
   getSilenceUs() {
     return this._load32(IDX.SILENCE_USEC);
   }

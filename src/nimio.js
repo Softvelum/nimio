@@ -169,8 +169,10 @@ export default class Nimio {
   _runVodFromStart(pos) {
     if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
       this._vodPlayer.initialize(_ui.mediaElement).then(() => {
+        let curState = this._context.state.value;
         this._switchToVod(pos);
-        this._state.setInitial(true);
+        this._context.setState(curState);
+        this._context.setStateInitial(true);
         this._context.setAutoAbr(!!this._config.adaptiveBitrate);
       });
 

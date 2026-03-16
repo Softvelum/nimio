@@ -1,5 +1,6 @@
 import { multiInstanceService } from "@/shared/service";
 import { checkSupportedCodecs } from "@/media/decoders/checker";
+import { STATE } from "@/shared/values";
 
 class PlaybackContext {
   constructor(instName) {
@@ -19,6 +20,11 @@ class PlaybackContext {
     this._strm2level = {};
     this._rend2level = {};
     this._ordLevels = [];
+
+    this._state = {
+      value: STATE.STOPPED,
+      initial: false,
+    };
 
     this._autoAbr = false;
   }
@@ -316,6 +322,19 @@ class PlaybackContext {
     }
   }
 
+  setState(val) {
+    this._state.value = val;
+  }
+
+  setStateInitial(val) {
+    this._state.initial = val;
+  }
+
+  resetState() {
+    this._state.value = STATE.STOPPED;
+    this._state.initial = false;
+  }
+
   _addOrderedLevel(idx, height) {
     let oPos = 0;
     for (let j = 0; j < this._ordLevels.length; j++) {
@@ -353,6 +372,10 @@ class PlaybackContext {
 
   get orderedLevels() {
     return this._ordLevels;
+  }
+
+  get state() {
+    return this._state;
   }
 
   get autoAbr() {

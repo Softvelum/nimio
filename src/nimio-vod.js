@@ -7,7 +7,7 @@ import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
 import { VodPlaybackService } from "./vod/playback-service";
-import { StateManager } from "./state-manager";
+import { STATE } from "./shared/values";
 
 const VOD_STATE = {
   NULL: 0,
@@ -145,7 +145,7 @@ export class NimioVod {
       return;
     }
 
-    this._context.setState(true, false);
+    this._context.setState(STATE.PLAYING);
   }
 
   pause() {
@@ -378,10 +378,7 @@ export class NimioVod {
       this._mediaDetachedCallback = callback;
     }
 
-    this._context.setState(
-      this._playbackService.isPlaying(),
-      this._playbackService.isPaused(),
-    );
+    this._context.setState(this._playbackService.state);
     this._context.setStateInitial(false);
     this._playbackService.resetPosition();
 
@@ -617,9 +614,9 @@ export class NimioVod {
 
     if (this._state !== VOD_STATE.PLAY || this._playbackStarted) return;
 
-    let pbState = this._context.getState();
+    let pbState = this._context.state;
     let isInitial = pbState.initial;
-    if ((this._config.autoplay && isInitial) || pbState.playing) {
+    if (this._config.autoplay && isInitial || pbState.value === STATE.PLAYING) {
       this._pHandler.resumeBuffering();
 
       let playPromise = this._playbackService.startPlayback();
@@ -630,7 +627,7 @@ export class NimioVod {
           this._ui.onPlaybackStarted();
           this._playbackStarted = true;
           // TODO end
-          this._context.setState(true, false);
+          this._context.setState(STATE.PLAY);
           this._context.setStateInitial(false);
         });
       } else if (isInitial) {

@@ -172,8 +172,8 @@ export class NimioLive {
       return false;
     }
 
-    // this._context.setState(this._state.isPlaying(), this._state.isPaused());
-    this._state.setInitial(false);
+    this._context.setState(this._state.value);
+    this._context.setStateInitial(false);
     // this._resetPlayback({hard: true, keepCurRendition: true, keepConnection: true});
 
     this._ui.removePip(function () {
