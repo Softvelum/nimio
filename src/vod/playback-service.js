@@ -1,28 +1,27 @@
-import { MODE } from '@/shared/values';
-import { EventBus } from '@/event-bus';
-import { multiInstanceService } from '@/shared/service';
-import { LoggersFactory } from '@/shared/logger';
+import { MODE, STATE } from "@/shared/values";
+import { EventBus } from "@/event-bus";
+import { multiInstanceService } from "@/shared/service";
+import { LoggersFactory } from "@/shared/logger";
 
 class VodPlaybackService {
   constructor (instName) {
     this._instName = instName;
     this._eventBus = EventBus.getInstance(instName);
-    this._logger = LoggersFactory.create(instName, 'Playback Service');
+    this._logger = LoggersFactory.create(instName, "VOD Playback Service");
   }
 
   init (mediaElement) {
     this._mediaElement = mediaElement;
-    this._isPlaying = false;
-    this._isPaused = false;
+    this._state = STATE.STOPPED;
 
     if (this._mediaElement?._pauseOnStart) {
       this._mediaElement._pauseOnStart = undefined;
-      this._isPaused = true;
+      this._state = STATE.PAUSED;
     }
   }
 
   startPlayback (params) {
-    if (this.isPlaying() && this._playEventReceived) return;
+    if ((this._state === STATE.PLAYING) && this._playEventReceived) return;
 
     this._logger.debug(
       `startPlayback, buf ranges count = ${this._mediaElement.buffered.length}`,
@@ -46,8 +45,7 @@ class VodPlaybackService {
       this.setCurrentTime(0);
     }
 
-    this._isPaused = false;
-    this._isPlaying = false;
+    this._state = STATE.STOPPED;
     this._playEventReceived = false;
   }
 
@@ -65,16 +63,17 @@ class VodPlaybackService {
   }
 
   handlePlay () {
-    if (this.isPlaying()) return;
+    if (this._state === STATE.PLAYING) return;
     this._playMedia();
   }
 
   handlePause () {
-    if (!this.isPlaying() || this._isPaused) return false; 
+    if (this._state === STATE.PAUSED || this._state === STATE.STOPPED) {
+      return false;
+    }
 
     this._mediaElement.pause();
-    this._isPaused = true;
-    this._isPlaying = false;
+    this._state = STATE.PAUSED;
     return true;
   }
 
@@ -97,7 +96,7 @@ class VodPlaybackService {
   }
 
   resumeIfAutoPaused () {
-    if(this._mediaElement?.paused && this._isPlaying && !this._isPaused ) {
+    if (this._mediaElement?.paused && this._state === STATE.PLAYING) {
       this._logger.debug("Resume auto paused");
 
       var autoPauseTime = this.getCurrentTime();
@@ -115,27 +114,20 @@ class VodPlaybackService {
     }
   }
 
-  isPaused () {
-    return this._mediaElement ? this._isPaused : false;
-  }
-
-  isPlaying () {
-    return this._mediaElement ? this._isPlaying : false;
+  get state() {
+    return this._state;
   }
 
   _playMedia (params = {}) {
-    this._logger.debug("play media", params, this._isPlaying);
+    this._logger.debug(`play media, state = ${this._state}`, params);
     if (!this._mediaElement) return;
 
     const playPromise = this._mediaElement.play();
     const reportFail = !params.recover;
   
-    if (playPromise && typeof playPromise.then === 'function') {
+    if (playPromise && typeof playPromise.then === "function") {
       playPromise
-        .then(() => {
-          this._isPlaying = true;
-          this._isPaused = false;
-        })
+        .then(() => { this._state = STATE.PLAYING; })
         .catch((err) => {
           if (err.name === "NotAllowedError") {
             this._logger.debug("Autoplay blocked");
@@ -149,8 +141,7 @@ class VodPlaybackService {
         });
     } else {
       // Just in case fallback
-      this._isPlaying = true;
-      this._isPaused = false;
+      this._state = STATE.PLAYING;
     }
 
     return playPromise;

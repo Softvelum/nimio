@@ -166,22 +166,58 @@ export class NimioLive {
     this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
   }
 
+  attachUI(ui) {
+    this._ui = ui;
+    this._ui.toggleMode(MODE.LIVE);
+  }
+
+  attach(ui, params) {
+    if (this._ui) return false;
+
+    if (!params) params = {latency: 0};
+    let latencyMs = params.latency * 1000;
+    if (
+      latencyMs > 0 &&
+      !this._config.syncBuffer &&
+      this._config.latency !== latencyMs
+    ) {
+      params.latency = latencyMs;
+      if (this._config.latencyTolerance > 0) {
+        let tolerDiff = this._config.latencyTolerance - this._config.latency;
+        if (tolerDiff < 50) tolerDiff = 50;
+        params.latencyTolerance = latencyMs + tolerDiff;
+      }
+      this.setParameters(params);
+    }
+
+    this.attachUI(ui);
+
+    if (params.pbError) {
+      // the stream isn't in fact discontinued, but it couldn't be played
+      // via both live and vod players, so the error notification should be shown
+      // _onPlaybackNotAvailable(true);
+    } else {
+      let pbState = this._context.state;
+      // _ws.isOpened() && !pbState.paused ? _requestActiveStreams() : _initiatePlayback();
+    }
+
+    return true;
+  }
+
   detach(callback) {
     if (!this._ui) {
       if (callback) callback();
       return false;
     }
 
-    this._context.setState(this._state.value);
-    this._context.setStateInitial(false);
-    // this._resetPlayback({hard: true, keepCurRendition: true, keepConnection: true});
+    this._context.setState(this._state.value, false);
+    this.stop();
+    this._sldpManager.keepAliveConnection();
 
-    this._ui.removePip(function () {
-      this._vuMeterSvc.stop();
-      // this._mediaService.clear({keepMediaControl: true});
-      this._ui = undefined;
-      if (callback) callback();
-    });
+    if (this._debugView) this._debugView.stop();
+    this._ui = undefined;
+
+    if (callback) callback();
 
     return true;
   };
@@ -581,8 +617,12 @@ export class NimioLive {
 
   async _initAudioProcessor(sampleRate, channels, idle) {
     if (!this._audioContext) {
-      this._audioCtxProvider.init(sampleRate);
-      this._logger.debug("Init audio processor", sampleRate, channels);
+      if (!this._audioCtxProvider.get()) {
+        this._logger.debug(
+          `Init audio processor sampleRate = ${sampleRate}, channels = ${channels}`,
+        );
+        this._audioCtxProvider.init(sampleRate);
+      }
       this._audioCtxProvider.setChannelCount(channels);
       this._audioContext = this._audioCtxProvider.get();
 
@@ -604,7 +644,7 @@ export class NimioLive {
 
       if (!this._audioContext.audioWorklet) {
         this._logger.error(
-          "AudioWorklet is not supported in this environment.",
+          "AudioWorklet is not supported in this environment",
         );
         this._setNoAudio(true);
         return;

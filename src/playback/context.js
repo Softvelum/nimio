@@ -322,12 +322,11 @@ class PlaybackContext {
     }
   }
 
-  setState(val) {
+  setState(val, initial) {
     this._state.value = val;
-  }
-
-  setStateInitial(val) {
-    this._state.initial = val;
+    if (initial !== undefined) {
+      this._state.initial = initial;
+    }
   }
 
   resetState() {

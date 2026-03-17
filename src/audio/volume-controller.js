@@ -12,6 +12,8 @@ class AudioVolumeController {
   }
 
   init(settings) {
+    if (this._audioCtx && this._gainer) return;
+
     this._audioCtx = this._audioCtxProvider.get();
     this._suspended = this._audioCtxProvider.isSuspended();
     this._gainer = this._audioCtx.createGain();

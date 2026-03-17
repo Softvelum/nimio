@@ -11,6 +11,8 @@ import { PlaybackProgressService } from "./playback/progress-service";
 import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
+import { AudioGraphController } from "./audio/graph-controller";
+import { AudioVolumeController } from "./audio/volume-controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -62,6 +64,8 @@ export default class Nimio {
 
     this._context = PlaybackContext.getInstance(this._instName);
     this._createVUMeter();
+    this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
+    this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
 
     this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
     if (this._config.vod) {
@@ -171,8 +175,7 @@ export default class Nimio {
       this._vodPlayer.initialize(_ui.mediaElement).then(() => {
         let curState = this._context.state.value;
         this._switchToVod(pos);
-        this._context.setState(curState);
-        this._context.setStateInitial(true);
+        this._context.setState(curState, true);
         this._context.setAutoAbr(!!this._config.adaptiveBitrate);
       });
 

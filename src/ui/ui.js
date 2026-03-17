@@ -134,6 +134,11 @@ export class Ui {
     this._cctx.clearRect(0, 0, this._curWidth, this._curHeight);
   }
 
+  toggleMode(mode) {
+    this._mode = mode;
+    
+  }
+
   appendDebugOverlay(state, videoBuffer) {
     return new DebugView(this._container, state, videoBuffer);
   }

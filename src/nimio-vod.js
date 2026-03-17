@@ -332,7 +332,7 @@ export class NimioVod {
     }
 
     this._ui = ui;
-    this._ui.clearMediaElement();
+    this._ui.toggleMode(MODE.VOD);
     this._state = VOD_STATE.PLAY;
 
     let currentLevel = this._context.getCurrentLevel();
@@ -378,8 +378,7 @@ export class NimioVod {
       this._mediaDetachedCallback = callback;
     }
 
-    this._context.setState(this._playbackService.state);
-    this._context.setStateInitial(false);
+    this._context.setState(this._playbackService.state, false);
     this._playbackService.resetPosition();
 
     this._pHandler.detachMedia();
@@ -627,8 +626,7 @@ export class NimioVod {
           this._ui.onPlaybackStarted();
           this._playbackStarted = true;
           // TODO end
-          this._context.setState(STATE.PLAY);
-          this._context.setStateInitial(false);
+          this._context.setState(STATE.PLAY, false);
         });
       } else if (isInitial) {
         this._ui.canPlay = true;
