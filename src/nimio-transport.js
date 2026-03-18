@@ -47,6 +47,8 @@ export const NimioTransport = {
   },
 
   _onDisconnect(data) {
+    if (this._state.isStopped()) return;
+
     this._state.stop();
     this._sldpManager.resetCurrentStreams();
     if (this._isAutoAbr()) {

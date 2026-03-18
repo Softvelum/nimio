@@ -7,7 +7,8 @@ import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
 import { VodPlaybackService } from "./vod/playback-service";
-import { STATE } from "./shared/values";
+import { STATE, MODE } from "./shared/values";
+import { EventBus } from "./event-bus";
 
 const VOD_STATE = {
   NULL: 0,
@@ -40,6 +41,7 @@ export class NimioVod {
         this._playbackStarted = false;
         this._playbackErrCnt = 0;
 
+        this._eventBus = EventBus.getInstance(this._instName);
         this._playbackService = VodPlaybackService.getInstance(this._instName);
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
@@ -103,6 +105,8 @@ export class NimioVod {
       // this._pHandler.off(EV.FRAG_LOADED, this._onFragLoaded, this);
       // this._pHandler.off(EV.FRAG_BUFFERED, this._onFragBuffered, this);
 
+      this._removeUiEventHandlers();
+
       this._url = undefined;
       this._sessionParam = undefined;
       this._detachUI();
@@ -113,13 +117,13 @@ export class NimioVod {
     if (this._state >= VOD_STATE.SYNC) {
       this._vuMeterSvc.stop();
       this._playbackService.clear();
-      if (this._config.timecodes) {
-        this._nalProcessor.reset();
-        this._nalProcessor = undefined;
-        this._seiProcessor = undefined;
-        this._picTimingProcessor = undefined;
-        this._spsHolder = undefined;
-      }
+      // if (this._config.timecodes) {
+      //   this._nalProcessor.reset();
+      //   this._nalProcessor = undefined;
+      //   this._seiProcessor = undefined;
+      //   this._picTimingProcessor = undefined;
+      //   this._spsHolder = undefined;
+      // }
     }
 
     this._state = VOD_STATE.NULL;
@@ -144,13 +148,11 @@ export class NimioVod {
       this._ui.triggerPause(true);
       return;
     }
-
     this._context.setState(STATE.PLAYING);
   }
 
   pause() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
-
     this._ui.triggerPause();
   }
 
@@ -309,8 +311,8 @@ export class NimioVod {
           // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
           // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
           // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
-
           this._playbackService.init(mediaElement);
+          this._addUiEventHandlers();
           this._state = VOD_STATE.SYNC;
         }
 
@@ -333,6 +335,7 @@ export class NimioVod {
 
     this._ui = ui;
     this._ui.toggleMode(MODE.VOD);
+    this._playbackService.init(this._ui.mediaElement);
     this._state = VOD_STATE.PLAY;
 
     let currentLevel = this._context.getCurrentLevel();
@@ -362,9 +365,9 @@ export class NimioVod {
 
     this._setDetachedState(callback);
 
-    if (this._nalProcessor) {
-      this._nalProcessor.reset();
-    }
+    // if (this._nalProcessor) {
+    //   this._nalProcessor.reset();
+    // }
 
     if (this._context.hasVod()) {
       this._loadCurrentLevel();
@@ -404,9 +407,9 @@ export class NimioVod {
 
     this._logger.debug("goto " + position);
     this._playbackService.setCurrentTime(position);
-    if (this._nalProcessor) {
-      this._nalProcessor.reset();
-    }
+    // if (this._nalProcessor) {
+    //   this._nalProcessor.reset();
+    // }
     return true;
   }
 
@@ -483,23 +486,28 @@ export class NimioVod {
     return false;
   }
 
-  onPlay(data) {
-    if (data.mode !== MODE.VOD || this._state !== VOD_STATE.PLAY) return;
+  _onPlay() {
     this._playbackService.handlePlay();
+    this._eventBus.emit("nimio:play", { mode: MODE.VOD });
   }
 
-  onPause() {
-    if (data.mode !== MODE.VOD || this._state !== VOD_STATE.PLAY) return;
+  _onPause() {
     this._playbackService.handlePause();
+    this._eventBus.emit("nimio:pause", { mode: MODE.VOD });
   }
 
-  onPauseEvent() {
-    this._playbackService.handlePauseEvent();
+  _onPlayPause = (data) => {
+    if (data.mode !== MODE.VOD || this._state !== VOD_STATE.PLAY) return;
+    data.play ? this._onPlay() : this._onPause();
   }
 
-  onPlayEvent() {
+  _onPlayEvent = () => {
     this._playbackService.handlePlayEvent();
-  }
+  };
+
+  _onPauseEvent = () => {
+    this._playbackService.handlePauseEvent();
+  };
 
   onResize() {}
 
@@ -622,10 +630,8 @@ export class NimioVod {
 
       if (playPromise) {
         playPromise.then(() => {
-          // TODO: check if this is needed
-          this._ui.onPlaybackStarted();
+          this._eventBus.emit("nimio:playback-started", { mode: MODE.VOD });
           this._playbackStarted = true;
-          // TODO end
           this._context.setState(STATE.PLAY, false);
         });
       } else if (isInitial) {
@@ -746,18 +752,6 @@ export class NimioVod {
     }
   };
 
-  _onPlayStarted = () => {
-    if (this._ui) {
-      this._ui.onPlaybackStarted();
-    }
-  };
-
-  _onPlayFinished = () => {
-    if (this._ui) {
-      this._ui.triggerPause(true);
-    }
-  };
-
   _onTimecodeArrived = (frameTs, clockTs, stringTs) => {
     this._runSdkCallback("onTimecodeArrived", frameTs, clockTs, stringTs, {
       vod: true,
@@ -767,7 +761,7 @@ export class NimioVod {
   _onParseInitSeg = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
     if (this._config.timecodes) {
-      let prevCodec = this._spsHolder.getCodec();
+      // let prevCodec = this._spsHolder.getCodec();
       if (
         !data.tracks ||
         !data.tracks.video ||
@@ -784,21 +778,21 @@ export class NimioVod {
       this._timescale = cd.timescale;
       this._trackId = cd.trackId;
 
-      this._spsHolder.setCodec(cd.codec);
-      this._spsHolder.parseDecoderConfig(cd.data);
+      // this._spsHolder.setCodec(cd.codec);
+      // this._spsHolder.parseDecoderConfig(cd.data);
 
-      if (prevCodec) this._nalProcessor.reset();
-      if (prevCodec === this._spsHolder.getCodec()) {
-        this._initPicTimingProcessor();
-        // codec is the same, there's no point in resetting related nal handlers
-        return;
-      }
+      // if (prevCodec) this._nalProcessor.reset();
+      // if (prevCodec === this._spsHolder.getCodec()) {
+      //   this._initPicTimingProcessor();
+      //   // codec is the same, there's no point in resetting related nal handlers
+      //   return;
+      // }
 
-      this._nalProcessor.setCodec(cd.codec);
-      this._seiProcessor.init();
-      this._seiProcessor.setCodec(cd.codec);
-      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
-      this._initPicTimingProcessor();
+      // this._nalProcessor.setCodec(cd.codec);
+      // this._seiProcessor.init();
+      // this._seiProcessor.setCodec(cd.codec);
+      // this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
+      // this._initPicTimingProcessor();
     }
   };
 
@@ -881,5 +875,24 @@ export class NimioVod {
     }
 
     return result;
+  }
+
+  _addUiEventHandlers() {
+    this._eventBus.on("ui:play-pause-click", this._onPlayPause);
+    // this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    // this._eventBus.on("ui:volume-change", this._onVolumeChange);
+    // this._eventBus.on("ui:rendition-change", this.onChangeRendition);
+    this._eventBus.on("ui:media-play-event", this._onPlayEvent);
+    this._eventBus.on("ui:media-pause-event", this._onPauseEvent);
+    
+  }
+
+  _removeUiEventHandlers() {
+    this._eventBus.off("ui:play-pause-click", this._onPlay);
+    // this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    // this._eventBus.off("ui:volume-change", this._onVolumeChange);
+    // this._eventBus.off("ui:rendition-change", this.onChangeRendition);
+    this._eventBus.off("ui:media-play-event", this._onPlayEvent);
+    this._eventBus.off("ui:media-pause-event", this._onPauseEvent);
   }
 }

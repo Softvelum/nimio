@@ -96,7 +96,7 @@ self.onmessage = (e) => {
       }),
     );
   } else if (type === "stop") {
-    if (e.data.sns && e.data.sns.length > 0) {
+    if (e.data.sns && e.data.sns.length >= 0) {
       socket.send(
         JSON.stringify({
           command: "Cancel",

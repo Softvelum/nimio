@@ -174,7 +174,7 @@ export class NimioLive {
   attach(ui, params) {
     if (this._ui) return false;
 
-    if (!params) params = {latency: 0};
+    if (!params) params = { latency: 0 };
     let latencyMs = params.latency * 1000;
     if (
       latencyMs > 0 &&
@@ -198,6 +198,18 @@ export class NimioLive {
       // _onPlaybackNotAvailable(true);
     } else {
       let pbState = this._context.state;
+
+      this._state.start();
+      this._latencyCtrl.start();
+      if (this._isAutoAbr()) {
+        this._startAbrController();
+      }
+      this._playbackStarted = false;
+      requestAnimationFrame(this._renderVideoFrame);
+      this._sldpManager.requestCurrentStreams();
+      if (this._debugView) {
+        this._debugView.start();
+      }
       // _ws.isOpened() && !pbState.paused ? _requestActiveStreams() : _initiatePlayback();
     }
 
@@ -370,7 +382,7 @@ export class NimioLive {
     }
 
     if (!this._playbackStarted) {
-      this._eventBus.emit("nimio:playback-started");
+      this._eventBus.emit("nimio:playback-started", { mode: MODE.LIVE });
       this._playbackStarted = true;
     }
     this._ui.drawFrame(frame);

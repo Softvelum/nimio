@@ -67,6 +67,7 @@ export class Ui {
     this._canvas.addEventListener("click", this._onClick);
     this._btnPlayPause.addEventListener("click", this._onClick);
     this._addPlaybackEventHandlers();
+    this._addPlayPauseEventHandlers();
     this._addDisplayEventHandlers();
 
     this._createControls(opts);
@@ -75,7 +76,7 @@ export class Ui {
       this._toggleFullscreen();
     }
     if (opts.splashScreen) {
-      this._splashScreenUrl = `url('${opts.splashScreen}')`;
+      this._splashScreenUrl = `url("${opts.splashScreen}")`;
     }
     this._setBackground();
   }
@@ -86,6 +87,7 @@ export class Ui {
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
+    this._removePlayPauseEventHandlers();
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
@@ -135,8 +137,16 @@ export class Ui {
   }
 
   toggleMode(mode) {
+    if (mode === this._mode) return;
+
+    if (mode === MODE.LIVE) {
+      this._mediaElement.style.display = "none";
+      this._canvas.style.display = "block";
+    } else {
+      this._mediaElement.style.display = "block";
+      this._canvas.style.display = "none";
+    }
     this._mode = mode;
-    
   }
 
   appendDebugOverlay(state, videoBuffer) {
@@ -285,6 +295,21 @@ export class Ui {
     document.removeEventListener("webkitfullscreenchange", this._onResize);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("orientationchange", this._onOrientChange);
+  }
+
+  _addPlayPauseEventHandlers() {
+    if (!this._mediaElement) return;
+
+    this._onPlayEvent = this._onPlayEvent.bind(this);
+    this._onPauseEvent = this._onPauseEvent.bind(this);
+    this._mediaElement.addEventListener("play", this._onPlayEvent);
+    this._mediaElement.addEventListener("pause", this._onPauseEvent);
+  }
+
+  _removePlayPauseEventHandlers() {
+    if (!this._mediaElement) return;
+    this.mediaElement.removeEventListener("play", this._onPlayEvent);
+    this.mediaElement.removeEventListener("pause", this._onPauseEvent);
   }
 
   _removeSeekBar() {
@@ -507,6 +532,14 @@ export class Ui {
     this._volumeRange.value = value;
   }
 
+  _onPlayEvent() {
+    this._eventBus.emit("ui:media-play-event");
+  }
+
+  _onPauseEvent() {
+    this._eventBus.emit("ui:media-pause-event");
+  }
+
   _onAdaptiveBitrateSet(val) {
     this._autoAbr = val;
     this._applyCurrentRendition();
@@ -578,6 +611,7 @@ export class Ui {
   }
 
   _onPlaybackStarted() {
+    this.drawPause();
     this._unsetBackground();
   }
 
@@ -592,15 +626,15 @@ export class Ui {
 
   _setBackground() {
     if (this._splashScreenUrl) {
-      this._canvas.style.removeProperty('background-color');
+      this._canvas.style.removeProperty("background-color");
       setTimeout(() => {
         // misterious chrome bug
-        this._canvas.style['background-color'] = '#000';
-        this._canvas.style['background-image'] = this._splashScreenUrl;
-        this._canvas.style['background-size'] = 'cover';
+        this._canvas.style["background-color"] = "#000";
+        this._canvas.style["background-image"] = this._splashScreenUrl;
+        this._canvas.style["background-size"] = "cover";
       }, 0);
     } else {
-      this._canvas.style['background-color'] = '#000';
+      this._canvas.style["background-color"] = "#000";
     }
   }
 

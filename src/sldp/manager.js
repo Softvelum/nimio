@@ -128,6 +128,11 @@ export class SLDPManager {
     }, 10000);
   }
 
+  requestCurrentStreams() {
+    this._processCurrentStreams();
+    this._sendRequest("play", { streams: this._curStreams });
+  }
+
   _sendRequest(command, data) {
     this._keepAliveTimer = undefined;
     this._transport.send(command, data);
@@ -136,6 +141,15 @@ export class SLDPManager {
   async _processStatus(streams) {
     await this._context.setStreams(streams);
 
+    this._processCurrentStreams();
+
+    this._eventBus.emit(
+      "nimio:connection-established",
+      this._context.getStreamsConfig(),
+    );
+  }
+
+  _processCurrentStreams() {
     let gotVideo = !this._hasVideo;
     let vIdx;
     if (!gotVideo) {
@@ -214,11 +228,6 @@ export class SLDPManager {
     this._transport.runCallback("videoSetup", vsetup);
     this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
-
-    this._eventBus.emit(
-      "nimio:connection-established",
-      this._context.getStreamsConfig(),
-    );
   }
 
   _pushCurStream(type, stream) {

@@ -50,7 +50,7 @@ export default class Nimio {
       this._instName,
       this._config.container,
       {
-        width: this._config.width, //TODO: get from video?
+        width: this._config.width, // TODO: get from video?
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
         autoAbr: !!this._config.adaptiveBitrate,
