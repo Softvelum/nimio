@@ -1,6 +1,6 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
-import { IDX, MODE } from "./shared/values";
+import { IDX, MODE, STATE } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
@@ -16,13 +16,10 @@ import { LatencyController } from "./latency-controller";
 import { NimioTransport } from "./nimio-transport";
 import { NimioRenditions } from "./nimio-renditions";
 import { NimioAbr } from "./nimio-abr";
-import { NimioVolume } from "./nimio-volume";
 import { NimioSyncMode } from "./nimio-sync-mode";
 import { MetricsManager } from "./metrics/manager";
 import { LoggersFactory } from "./shared/logger";
 import { AudioContextProvider } from "./audio/context-provider";
-import { AudioGraphController } from "./audio/graph-controller";
-import { AudioVolumeController } from "./audio/volume-controller";
 import { EventBus } from "./event-bus";
 import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
 import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
@@ -30,6 +27,7 @@ import { Reconnector } from "./reconnector";
 import { SyncModeClock } from "./sync-mode/clock";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
+import { AudioController } from "./audio/controller";
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -58,10 +56,8 @@ export class NimioLive {
     this._pauseTimeoutId = null;
 
     this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
-    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
-    this._onVolumeChange = this._onVolumeChange.bind(this);
     this._onRenditionChange = this._onRenditionChange.bind(this);
-    this._addUiEventHandlers();
+    this._addUIEventHandlers();
 
     this._metricsManager = MetricsManager.getInstance(this._instName);
     if (this._config.metricsOverlay) {
@@ -88,8 +84,7 @@ export class NimioLive {
     this._audioWorkletReady = null;
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
-    this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
-    this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
+    this._audioCtrl = AudioController.getInstance(this._instName);
     this._vuMeterSvc = VUMeterService.getInstance(this._instName);
 
     if (this._config.adaptiveBitrate) {
@@ -196,23 +191,24 @@ export class NimioLive {
       // the stream isn't in fact discontinued, but it couldn't be played
       // via both live and vod players, so the error notification should be shown
       // _onPlaybackNotAvailable(true);
-    } else {
-      let pbState = this._context.state;
-
-      this._state.start();
-      this._latencyCtrl.start();
-      if (this._isAutoAbr()) {
-        this._startAbrController();
-      }
-      this._playbackStarted = false;
-      requestAnimationFrame(this._renderVideoFrame);
-      this._sldpManager.requestCurrentStreams();
-      if (this._debugView) {
-        this._debugView.start();
-      }
-      // _ws.isOpened() && !pbState.paused ? _requestActiveStreams() : _initiatePlayback();
+      return true;
     }
 
+    this._state.start();
+    this._latencyCtrl.start();
+    if (this._isAutoAbr()) {
+      this._startAbrController();
+    }
+    this._playbackStarted = false;
+    requestAnimationFrame(this._renderVideoFrame);
+
+    this._transport.connected && this._context.state?.value !== STATE.PAUSED
+      ? this._sldpManager.requestCurrentStreams()
+      : this._sldpManager.start(
+        this._config.streamUrl,
+        this._config.startOffset,
+      );
+    if (this._debugView) this._debugView.start();
     return true;
   }
 
@@ -255,7 +251,7 @@ export class NimioLive {
 
   destroy() {
     this.stop(true);
-    this._removeUiEventHandlers();
+    this._removeUIEventHandlers();
   }
 
   setParameters(params) {
@@ -338,17 +334,13 @@ export class NimioLive {
     }
   }
 
-  _addUiEventHandlers() {
+  _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    this._eventBus.on("ui:volume-change", this._onVolumeChange);
     this._eventBus.on("ui:rendition-change", this._onRenditionChange);
   }
 
-  _removeUiEventHandlers() {
+  _removeUIEventHandlers() {
     this._eventBus.off("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    this._eventBus.off("ui:volume-change", this._onVolumeChange);
     this._eventBus.off("ui:rendition-change", this._onRenditionChange);
   }
 
@@ -629,15 +621,7 @@ export class NimioLive {
 
   async _initAudioProcessor(sampleRate, channels, idle) {
     if (!this._audioContext) {
-      if (!this._audioCtxProvider.get()) {
-        this._logger.debug(
-          `Init audio processor sampleRate = ${sampleRate}, channels = ${channels}`,
-        );
-        this._audioCtxProvider.init(sampleRate);
-      }
-      this._audioCtxProvider.setChannelCount(channels);
-      this._audioContext = this._audioCtxProvider.get();
-
+      this._audioContext = this._audioCtrl.initContext(sampleRate, channels);
       if (!this._audioContext) {
         this._logger.error(
           "Audio context is not initialized. Can't play audio.",
@@ -669,6 +653,7 @@ export class NimioLive {
           this._logger.error("Audio worklet error", err);
         });
 
+      this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
       this._vuMeterSvc.setAudioInfo({ sampleRate, channels });
     }
 
@@ -720,13 +705,7 @@ export class NimioLive {
       this._audioBuffer.setPort(this._audioNode.port);
     }
 
-    this._audioVolumeCtrl.init(this._config);
-    this._audioGraphCtrl.setSource(this._audioNode, channels);
-    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
-    this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
-    if (this._audioCtxProvider.isSuspended()) {
-      this._audioContext.resume();
-    }
+    this._audioCtrl.setSource(this._audioNode, channels);
 
     if (this._config.syncBuffer > 0) {
       let smc = new SyncModeClock(this._audioNode.port);
@@ -762,10 +741,8 @@ export class NimioLive {
   _stopAudio() {
     this._logger.debug("stopAudio");
     if (this._audioContext) {
-      this._audioContext.close();
+      this._audioCtrl.reset();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;
-      this._audioGraphCtrl.dismantle();
-      this._audioCtxProvider.reset();
     }
     if (this._audioBuffer) {
       this._audioBuffer.reset();
@@ -824,5 +801,4 @@ export class NimioLive {
 Object.assign(NimioLive.prototype, NimioTransport);
 Object.assign(NimioLive.prototype, NimioRenditions);
 Object.assign(NimioLive.prototype, NimioAbr);
-Object.assign(NimioLive.prototype, NimioVolume);
 Object.assign(NimioLive.prototype, NimioSyncMode);

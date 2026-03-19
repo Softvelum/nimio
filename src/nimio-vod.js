@@ -2,7 +2,7 @@ import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { PlaybackContext } from "./playback/context";
 import { PlaybackProgressService } from "./playback/progress-service";
-import { AudioContextProvider } from "./audio/context-provider";
+import { AudioController } from "./audio/controller";
 import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
@@ -45,7 +45,7 @@ export class NimioVod {
         this._playbackService = VodPlaybackService.getInstance(this._instName);
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
-        this._audCtxProvider = AudioContextProvider.getInstance(this._instName);
+        this._audioCtrl = AudioController.getInstance(this._instName);
         // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
         // if (this._config.timecodes) {
@@ -105,7 +105,7 @@ export class NimioVod {
       // this._pHandler.off(EV.FRAG_LOADED, this._onFragLoaded, this);
       // this._pHandler.off(EV.FRAG_BUFFERED, this._onFragBuffered, this);
 
-      this._removeUiEventHandlers();
+      this._removeUIEventHandlers();
 
       this._url = undefined;
       this._sessionParam = undefined;
@@ -312,7 +312,7 @@ export class NimioVod {
           // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
           // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
           this._playbackService.init(mediaElement);
-          this._addUiEventHandlers();
+          this._addUIEventHandlers();
           this._state = VOD_STATE.SYNC;
         }
 
@@ -385,6 +385,7 @@ export class NimioVod {
     this._playbackService.resetPosition();
 
     this._pHandler.detachMedia();
+    this._audioCtrl.reset();
     this._vuMeterSvc.stop();
     this._state = VOD_STATE.SYNC;
     this._playbackStarted = false;
@@ -719,14 +720,15 @@ export class NimioVod {
         );
       }
 
-      this._audCtxProvider.init(audioConfig.samplingRate);
-      this._audCtxProvider.setChannelCount(channels);
+      this._audioCtrl.initContext(audioConfig.samplingRate, channels);
+      debugger;
+      this._audioCtrl.setSource(this._ui.mediaElement, channels);
       this._vuMeterSvc.setAudioInfo({
         samplingRate: audioConfig.samplingRate,
         channels: channels,
       });
 
-      if (!this._vuMeterSvc.isStarted()) {
+      if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
         this._vuMeterSvc.start();
       }
     }
@@ -877,22 +879,17 @@ export class NimioVod {
     return result;
   }
 
-  _addUiEventHandlers() {
+  _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPause);
-    // this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    // this._eventBus.on("ui:volume-change", this._onVolumeChange);
-    // this._eventBus.on("ui:rendition-change", this.onChangeRendition);
     this._eventBus.on("ui:media-play-event", this._onPlayEvent);
     this._eventBus.on("ui:media-pause-event", this._onPauseEvent);
-    
+    this._eventBus.on("ui:rendition-change", this.onChangeRendition);
   }
 
-  _removeUiEventHandlers() {
-    this._eventBus.off("ui:play-pause-click", this._onPlay);
-    // this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    // this._eventBus.off("ui:volume-change", this._onVolumeChange);
-    // this._eventBus.off("ui:rendition-change", this.onChangeRendition);
+  _removeUIEventHandlers() {
+    this._eventBus.off("ui:play-pause-click", this._onPlayPause);
     this._eventBus.off("ui:media-play-event", this._onPlayEvent);
     this._eventBus.off("ui:media-pause-event", this._onPauseEvent);
+    this._eventBus.off("ui:rendition-change", this.onChangeRendition);
   }
 }

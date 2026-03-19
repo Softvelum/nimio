@@ -4,6 +4,7 @@ import { Ui } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
+import { NimioVolume } from "./nimio-volume";
 import { createConfig } from "./player-config";
 import { resolveContainer } from "./shared/container";
 import { PlaybackContext } from "./playback/context";
@@ -11,8 +12,6 @@ import { PlaybackProgressService } from "./playback/progress-service";
 import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
-import { AudioGraphController } from "./audio/graph-controller";
-import { AudioVolumeController } from "./audio/volume-controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -64,8 +63,6 @@ export default class Nimio {
 
     this._context = PlaybackContext.getInstance(this._instName);
     this._createVUMeter();
-    this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
-    this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
 
     this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
     if (this._config.vod) {
@@ -244,9 +241,22 @@ export default class Nimio {
 
     return type === "vod" ? this._switchToVod(val) : this._switchToLive(val);
   };
+
+  _addVolumeEventHandlers() {
+    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.on("ui:volume-change", this._onVolumeChange);
+  }
+
+  _removeVolumeEventHandlers() {
+    this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.off("ui:volume-change", this._onVolumeChange);
+  }
 }
 
 Object.assign(Nimio.prototype, NimioEvents);
+Object.assign(Nimio.prototype, NimioVolume);
 
 if (typeof window !== "undefined") {
   // Expose globally when used via <script type="module"> without manual assignment

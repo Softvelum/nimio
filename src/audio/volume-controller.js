@@ -11,8 +11,8 @@ class AudioVolumeController {
     this._eventBus = EventBus.getInstance(instName);
   }
 
-  init(settings) {
-    if (this._audioCtx && this._gainer) return;
+  init(volumeId, muted) {
+    // if (this._audioCtx && this._gainer) return;
 
     this._audioCtx = this._audioCtxProvider.get();
     this._suspended = this._audioCtxProvider.isSuspended();
@@ -22,9 +22,9 @@ class AudioVolumeController {
       return;
     }
 
-    this._storageId = settings.volumeId;
+    this._storageId = volumeId;
     this._lastVolume = this._getStoredVolume();
-    if (settings.muted || this._muted) {
+    if (muted || this._muted) {
       this._gainer.gain.value = 0;
       this._muted = true;
       this._eventBus.emit("nimio:muted", true);
