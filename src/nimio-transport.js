@@ -153,13 +153,13 @@ export const NimioTransport = {
       }
 
       audioAvailable = true;
-      this._audioConfig = newCfg;
+      this._audioConfig.updateFrom(newCfg);
       buffer = this._tempBuffer;
       decoderFlow = this._nextRenditionData.decoderFlow;
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
       if (!this._audioBuffer || this._audioConfig.isCompatible(newCfg)) {
-        this._audioConfig = newCfg;
+        this._audioConfig.updateFrom(newCfg);
         audioAvailable = this._prepareAudioOutput();
       } else {
         this._logger.warn(
