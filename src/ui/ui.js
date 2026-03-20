@@ -8,7 +8,7 @@ import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
 import { MODE } from "@/shared/values";
 
-export class Ui {
+export class UI {
   constructor(instName, container, opts, eventBus) {
     this._state = "pause";
     this._muted = false;

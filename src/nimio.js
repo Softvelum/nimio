@@ -1,6 +1,6 @@
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
-import { Ui } from "./ui/ui";
+import { UI } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
@@ -12,6 +12,7 @@ import { PlaybackProgressService } from "./playback/progress-service";
 import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
+import { AudioVolumeController } from "./audio/volume-controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -45,7 +46,7 @@ export default class Nimio {
     this._config.container = containerElem;
     this._config.volumeId = storageKey;
 
-    this._ui = new Ui(
+    this._ui = new UI(
       this._instName,
       this._config.container,
       {
@@ -62,6 +63,8 @@ export default class Nimio {
     );
 
     this._context = PlaybackContext.getInstance(this._instName);
+    this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
+    this._addVolumeEventHandlers();
     this._createVUMeter();
 
     this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
@@ -86,7 +89,7 @@ export default class Nimio {
 
     this._ui.destroy();
     this._ui = undefined;
-
+    this._removeVolumeEventHandlers();
     this._vuMeterSvc.clear();
 
     if (this._vodPlayer) {
@@ -173,7 +176,7 @@ export default class Nimio {
         let curState = this._context.state.value;
         this._switchToVod(pos);
         this._context.setState(curState, true);
-        this._context.setAutoAbr(!!this._config.adaptiveBitrate);
+        this._context.autoAbr = !!this._config.adaptiveBitrate;
       });
 
       return true;

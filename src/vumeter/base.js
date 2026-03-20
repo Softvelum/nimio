@@ -23,7 +23,6 @@ export class BaseMeter {
 
   stop(removeUI) {
     this._logger.debug("Stop VU meter", removeUI);
-    // this._audGraphCtrl.removeNode(this._meter);
     this._removeMeter();
     this._initValues();
     if (this._ui) {

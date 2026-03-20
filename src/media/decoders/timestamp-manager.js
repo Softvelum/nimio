@@ -101,7 +101,7 @@ class TimestampManager {
 
 class TimestampValidator {
   constructor(instName, id, type, settings) {
-    const name = `TS Validator [${type}][${id}]`;
+    const name = `Timestamp Validator [${type}][${id}]`;
     this._logger = LoggersFactory.create(instName, name);
 
     this._isVideo = type === "video";

@@ -34,7 +34,7 @@ export class NimioVod {
         this._pHandler = new Hls({
           // autoStartLoad: false,
           // workerPath: this._workerPath,
-          // debug: true,
+          debug: true,
         });
         this._playerScript = script;
         this._state = VOD_STATE.INIT;
@@ -178,7 +178,7 @@ export class NimioVod {
   stopAbr() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
-    this._context.setAutoAbr(false);
+    this._context.autoAbr = false;
     let curLvl = this._setCurrentRendition(true);
     this._pHandler.autoLevelCapping = 0;
     this._pHandler.currentLevel = curLvl.idx;
@@ -186,7 +186,7 @@ export class NimioVod {
   }
 
   isAbr() {
-    return this._context.getAutoAbr();
+    return this._context.autoAbr;
   }
 
   isRunning() {
@@ -447,7 +447,7 @@ export class NimioVod {
   }
 
   _startAbr() {
-    this._context.setAutoAbr(true);
+    this._context.autoAbr = true;
     this._setCurrentRendition(true);
     this._pHandler.autoLevelCapping = -1;
     this._pHandler.currentLevel = -1;
@@ -478,7 +478,7 @@ export class NimioVod {
       // this._pHandler.currentLevel = levelIdx; // immediate rendition change
       this._pHandler.nextLevel = levelIdx; // rendition change will occur on the next segment
       this._pHandler.autoLevelCapping = 0;
-      this._context.setAutoAbr(false);
+      this._context.autoAbr = false;
 
       return true;
     }
@@ -585,9 +585,9 @@ export class NimioVod {
       this._sessionParam = currentLevel.session;
 
       if (this._state === VOD_STATE.PLAY) {
-        this._ui.setupRenditions(this._prepareQualities());
+        // this._ui.setupRenditions(this._prepareQualities());
         this._pHandler.currentLevel = currentLevel.idx;
-        if (this._context.getAutoAbr()) {
+        if (this._context.autoAbr) {
           this._pHandler.autoLevelCapping = -1;
           this._pHandler.nextLevel = -1;
         } else {
@@ -665,7 +665,7 @@ export class NimioVod {
     this._context.setCurrentLevelIdx(lvl.idx);
     this._setCurrentRendition();
     this._switchInProgress = false;
-    this._ui.adjustAspectRatio();
+    // this._ui.adjustAspectRatio();
   };
 
   _setCurrentRendition(skipInitResolution) {
@@ -673,17 +673,17 @@ export class NimioVod {
     if (undefined !== curLvl) {
       if (!skipInitResolution) {
         this._config.initialResolution = curLvl.rend;
-        let stream = this._context.getStreamByName(curLvl.name);
-        if (stream && stream.stream_info) {
-          this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
-        }
+        // let stream = this._context.getStreamByName(curLvl.name);
+        // if (stream && stream.stream_info) {
+        //   this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
+        // }
       }
 
-      this._ui.setCurrentRendition(
-        curLvl.rend,
-        curLvl.rIdx,
-        this._context.getAutoAbr(),
-      );
+      // this._ui.setCurrentRendition(
+      //   curLvl.rend,
+      //   curLvl.rIdx,
+      //   this._context.autoAbr,
+      // );
     }
 
     return curLvl;
@@ -720,11 +720,13 @@ export class NimioVod {
         );
       }
 
-      this._audioCtrl.initContext(audioConfig.samplingRate, channels);
-      debugger;
-      this._audioCtrl.setSource(this._ui.mediaElement, channels);
+      let ctx = this._audioCtrl.initContext(audioConfig.samplingRate, channels);
+      this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
+      const msource = ctx.createMediaElementSource(this._ui.mediaElement);
+      msource.channelCount = channels;
+      this._audioCtrl.setSource(msource, channels);
       this._vuMeterSvc.setAudioInfo({
-        samplingRate: audioConfig.samplingRate,
+        sampleRate: audioConfig.samplingRate,
         channels: channels,
       });
 
