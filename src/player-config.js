@@ -239,6 +239,8 @@ function initVodSettings(settings) {
   vod.adaptiveBitrate = settings.adaptiveBitrate;
   vod.autoplay = settings.autoplay;
   vod.timecodes = settings.timecodes;
+  vod.volumeId = settings.volumeId;
+  vod.muted = settings.muted;
 }
 
 function defaultVodUrl(settings) {
@@ -292,6 +294,9 @@ export function createConfig(overrides = {}) {
     logger.warn(`Config key "${unknown[i]}" is unknown`);
   }
 
+  // ID for storing the last volume level
+  target.volumeId = target.container;
+
   if (target.videoOnly && target.audioOnly) {
     logger.warn("Both video and audio only modes are set. Skipping.");
     target.videoOnly = target.audioOnly = false;
@@ -306,9 +311,6 @@ export function createConfig(overrides = {}) {
   initAbrSettings(target, logger);
   initVUMeterSettings(target, logger);
   initVodSettings(target);
-
-  // ID for storing the last volume level
-  target.volumeId = target.container;
 
   return new Proxy(target, {
     get(obj, prop) {
@@ -327,4 +329,30 @@ export function createConfig(overrides = {}) {
       return true;
     },
   });
+}
+
+export function updateConfigStreamURL(settings, url) {
+  let liveUrl, vodUrl;
+  if (url instanceof Object) {
+    liveUrl = url.live;
+    vodUrl = url.vod;
+  } else {
+    liveUrl = url;
+  }
+
+  if (liveUrl !== undefined) {
+    settings.streamUrl = liveUrl;
+  }
+
+  if (settings.vod) {
+    if (vodUrl !== undefined) {
+      settings.vod.url = vodUrl;
+    } else if (settings.vod.isDefault) {
+      settings.vod.url = defaultVodUrl();
+    }
+
+    if (settings.vod.thumbnails) {
+      setThumbnailBaseUrl(settings.vod);
+    }
+  }
 }

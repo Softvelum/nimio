@@ -346,7 +346,8 @@ export class UI {
     }
 
     const autoBtn = this._menuSection.querySelector("button.rendition-auto");
-    autoBtn.style.display = this._autoAbr ? "block" : "none";
+    let showAuto = this._autoAbr && renditions.length > 0;
+    autoBtn.style.display = showAuto ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
     this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();

@@ -131,7 +131,6 @@ export class NimioVod {
     this._switchInProgress = false;
     this._playbackErrCnt = 0;
     this._config = undefined;
-    this._setMgr = undefined;
 
     if (this._playerScript) {
       document.head.removeChild(this._playerScript);
@@ -143,17 +142,15 @@ export class NimioVod {
   play() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
-    let played = this._ui.triggerPlay();
-    if (!played) {
-      this._ui.triggerPause(true);
-      return;
-    }
-    this._context.setState(STATE.PLAYING);
+    this._playbackService.handlePlay();
+    this._eventBus.emit("nimio:play", { mode: MODE.VOD });
   }
 
   pause() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
-    this._ui.triggerPause();
+
+    this._playbackService.handlePause();
+    this._eventBus.emit("nimio:pause", { mode: MODE.VOD });
   }
 
   stop(callback) {
@@ -436,12 +433,6 @@ export class NimioVod {
     }
   }
 
-  setInterCallbacks(cbs) {
-    this._onRenditionSwitchCallback = cbs.onRenditionSwitch;
-    this._onRenditionSwitchedCallback = cbs.onRenditionSwitched;
-    this._onPlaybackErrorCallback = cbs.onError;
-  }
-
   hasPlaybackErrors() {
     return this._playbackErrCnt > 0;
   }
@@ -457,9 +448,9 @@ export class NimioVod {
   onChangeRendition(quality, idx) {
     if (this._state === VOD_STATE.PLAY && !this._switchInProgress) {
       if ("Auto" === quality) {
-        if (this._onRenditionSwitchCallback) {
-          this._onRenditionSwitchCallback("Auto");
-        }
+        // if (this._onRenditionSwitchCallback) {
+        //   this._onRenditionSwitchCallback("Auto");
+        // }
         this._startAbr();
         return true;
       }
@@ -467,10 +458,10 @@ export class NimioVod {
       let levelIdx = this._context.getRenditionLevelIdx(quality, idx);
       if (levelIdx === undefined) return false;
 
-      if (this._onRenditionSwitchCallback) {
-        let lvl = this._context.levels[levelIdx];
-        this._onRenditionSwitchCallback(quality, lvl.name);
-      }
+      // if (this._onRenditionSwitchCallback) {
+      //   let lvl = this._context.levels[levelIdx];
+      //   this._onRenditionSwitchCallback(quality, lvl.name);
+      // }
 
       this._switchInProgress = true;
       this._context.setCurrentLevelIdx(levelIdx);
@@ -487,19 +478,8 @@ export class NimioVod {
     return false;
   }
 
-  _onPlay() {
-    this._playbackService.handlePlay();
-    this._eventBus.emit("nimio:play", { mode: MODE.VOD });
-  }
-
-  _onPause() {
-    this._playbackService.handlePause();
-    this._eventBus.emit("nimio:pause", { mode: MODE.VOD });
-  }
-
   _onPlayPause = (data) => {
-    if (data.mode !== MODE.VOD || this._state !== VOD_STATE.PLAY) return;
-    data.play ? this._onPlay() : this._onPause();
+    data.play ? this.play() : this.pause();
   }
 
   _onPlayEvent = () => {
@@ -585,7 +565,7 @@ export class NimioVod {
       this._sessionParam = currentLevel.session;
 
       if (this._state === VOD_STATE.PLAY) {
-        // this._ui.setupRenditions(this._prepareQualities());
+        this._eventBus.emit("nimio:rendition-list", this._prepareQualities());
         this._pHandler.currentLevel = currentLevel.idx;
         if (this._context.autoAbr) {
           this._pHandler.autoLevelCapping = -1;
@@ -659,9 +639,9 @@ export class NimioVod {
     }
 
     this._logger.debug("Rendition switched to", lvl.rend, lvl.name);
-    if (this._onRenditionSwitchedCallback) {
-      this._onRenditionSwitchedCallback(lvl.rend, lvl.name);
-    }
+    // if (this._onRenditionSwitchedCallback) {
+    //   this._onRenditionSwitchedCallback(lvl.rend, lvl.name);
+    // }
     this._context.setCurrentLevelIdx(lvl.idx);
     this._setCurrentRendition();
     this._switchInProgress = false;
@@ -673,17 +653,17 @@ export class NimioVod {
     if (undefined !== curLvl) {
       if (!skipInitResolution) {
         this._config.initialResolution = curLvl.rend;
-        // let stream = this._context.getStreamByName(curLvl.name);
-        // if (stream && stream.stream_info) {
-        //   this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
-        // }
+        let stream = this._context.getStreamByName(curLvl.name);
+        if (stream && stream.stream_info) {
+          this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
+        }
       }
 
-      // this._ui.setCurrentRendition(
-      //   curLvl.rend,
-      //   curLvl.rIdx,
-      //   this._context.autoAbr,
-      // );
+      this._eventBus.emit("nimio:rendition-set", {
+        name: curLvl.name,
+        id: curLvl.rIdx + 1,
+        auto: this._context.autoAbr,
+      });
     }
 
     return curLvl;
@@ -757,9 +737,9 @@ export class NimioVod {
   };
 
   _onTimecodeArrived = (frameTs, clockTs, stringTs) => {
-    this._runSdkCallback("onTimecodeArrived", frameTs, clockTs, stringTs, {
-      vod: true,
-    });
+    // this._onTimecodeArrivedCallback(frameTs, clockTs, stringTs, {
+    //   vod: true,
+    // });
   };
 
   _onParseInitSeg = (name, data) => {
@@ -806,9 +786,9 @@ export class NimioVod {
       this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
     }
 
-    if (this._sdk.onTimecodeArrived) {
-      this._picTimingProcessor.setCallback(this._onTimecodeArrived);
-    }
+    // if (this._sdk.onTimecodeArrived) {
+    //   this._picTimingProcessor.setCallback(this._onTimecodeArrived);
+    // }
   }
 
   _onBufferAppending = (name, buffer) => {
@@ -845,12 +825,6 @@ export class NimioVod {
   // _onFragLoaded = (name, data) => {
   //   console.log('Frag loaded', data, this._pHandler);
   // }
-
-  _runSdkCallback(callback, ...params) {
-    if (this._sdk[callback]) {
-      this._sdk[callback](...params);
-    }
-  }
 
   _prepareQualities() {
     let ords = this._context.orderedLevels;

@@ -5,7 +5,7 @@ import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
 import { NimioVolume } from "./nimio-volume";
-import { createConfig } from "./player-config";
+import { createConfig, updateConfigStreamURL } from "./player-config";
 import { resolveContainer } from "./shared/container";
 import { PlaybackContext } from "./playback/context";
 import { PlaybackProgressService } from "./playback/progress-service";
@@ -110,7 +110,7 @@ export default class Nimio {
   }
 
   setStreamURL(url) {
-    // _setMgr.setStreamURL(url);
+    updateConfigStreamURL(this._config, url);
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       this._vodPlayer.stop(() => {
         this._livePlayer.attach(this._ui);

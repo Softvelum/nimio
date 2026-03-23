@@ -95,6 +95,7 @@ export const NimioRenditions = {
       this._eventBus.emit("nimio:rendition-set", {
         name: this._nextRenditionData.name,
         id: nextId,
+        auto: this._context.autoAbr,
       });
     }
     this._nextRenditionData = null;

@@ -322,6 +322,13 @@ class PlaybackContext {
     }
   }
 
+  getStreamByName(name) {
+    let idx = this._streamsMap[name];
+    if( undefined !== idx ) {
+      return this._streams[idx];
+    }
+  }
+
   setState(val, initial) {
     this._state.value = val;
     if (initial !== undefined) {
