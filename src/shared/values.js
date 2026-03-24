@@ -24,3 +24,7 @@ export const MODE = {
   LIVE: 0,
   VOD: 1,
 };
+export const ERROR = {
+  NO_SRC: "No playable sources found",
+  NOT_SUP: "Player is not supported in current browser",
+};

@@ -235,7 +235,6 @@ function initVodSettings(settings) {
     setThumbnailBaseUrl(vod);
   }
 
-  vod.initialResolution = settings.initialResolution;
   vod.adaptiveBitrate = settings.adaptiveBitrate;
   vod.autoplay = settings.autoplay;
   vod.timecodes = settings.timecodes;

@@ -199,17 +199,6 @@ mute: Boolean;
 volume: Number; // Current volume as integer value in the range from 0 to 100.
 ```
 
-- `ui:rendition-change`  
-  Change ABR rendition. Should be form the list received with `nimio:rendition-list` event.  
-  Parameters:
-
-```javascript
-   rendition: {
-     id: Number, // An integer number with unique rendition ID.
-     name: String // Rendition name.
-   }
-```
-
 ### Events sent from player to UI
 
 These events are used to send data from `Nimio` player to UI.

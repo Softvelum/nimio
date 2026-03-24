@@ -158,7 +158,7 @@ export class NimioLive {
     }
     this._resetPlayback();
 
-    this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
+    this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
   }
 
   attachUI(ui) {
@@ -190,7 +190,12 @@ export class NimioLive {
     if (params.pbError) {
       // the stream isn't in fact discontinued, but it couldn't be played
       // via both live and vod players, so the error notification should be shown
-      // _onPlaybackNotAvailable(true);
+      this._eventBus.emit("aux:playback-error", {
+        type: "NO_SRC",
+        mode: MODE.LIVE,
+        stop: true,
+      });
+
       return true;
     }
 
@@ -205,9 +210,9 @@ export class NimioLive {
     this._transport.connected && this._context.state?.value !== STATE.PAUSED
       ? this._sldpManager.requestCurrentStreams()
       : this._sldpManager.start(
-        this._config.streamUrl,
-        this._config.startOffset,
-      );
+          this._config.streamUrl,
+          this._config.startOffset,
+        );
     if (this._debugView) this._debugView.start();
     return true;
   }
@@ -336,12 +341,12 @@ export class NimioLive {
 
   _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.on("ui:rendition-change", this._onRenditionChange);
+    this._eventBus.on("ui:rendition-select", this._onRenditionChange);
   }
 
   _removeUIEventHandlers() {
     this._eventBus.off("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.off("ui:rendition-change", this._onRenditionChange);
+    this._eventBus.off("ui:rendition-select", this._onRenditionChange);
   }
 
   _onPlayPauseClick = function(data) {
@@ -374,7 +379,7 @@ export class NimioLive {
     }
 
     if (!this._playbackStarted) {
-      this._eventBus.emit("nimio:playback-started", { mode: MODE.LIVE });
+      this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
     }
     this._ui.drawFrame(frame);
@@ -577,7 +582,11 @@ export class NimioLive {
     if (kind === "audio") this._setNoAudio();
 
     if (this._noVideo && this._noAudio) {
-      // TODO: show error message in UI
+      this._eventBus.emit("aux:playback-error", {
+        type: "NO_SRC",
+        mode: MODE.LIVE,
+        stop: true,
+      });
       this.stop(true);
     }
   }

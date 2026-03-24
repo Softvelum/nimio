@@ -47,7 +47,6 @@ export class TransportAdapter {
     } else if (msg.aux) {
       if ("connected" in msg) {
         this._connected = msg.connected;
-        this._logger.warn(`Connected ${this._connected}`);
       }
     }
   }

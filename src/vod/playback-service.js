@@ -81,7 +81,7 @@ class VodPlaybackService {
     if (this._playEventReceived) return;
 
     this._playEventReceived = true;
-    this._eventBus.emit("nimio:playback-started", { mode: MODE.VOD });
+    this._eventBus.emit("nimio:playback-start", { mode: MODE.VOD });
   }
 
   handlePauseEvent () {
@@ -89,7 +89,7 @@ class VodPlaybackService {
 
     if (this._mediaElement.ended) {
       this._playEventReceived = false;
-      this._eventBus.emit("nimio:playback-ended", { mode: MODE.VOD });
+      this._eventBus.emit("nimio:playback-end", { mode: MODE.VOD });
       return;
     }
     this.resumeIfAutoPaused();

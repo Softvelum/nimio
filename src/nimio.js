@@ -1,5 +1,6 @@
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
+import { ERROR } from "./shared/values";
 import { UI } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
@@ -172,7 +173,7 @@ export default class Nimio {
 
   _runVodFromStart(pos) {
     if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
-      this._vodPlayer.initialize(_ui.mediaElement).then(() => {
+      this._vodPlayer.initialize(this._ui.mediaElement).then(() => {
         let curState = this._context.state.value;
         this._switchToVod(pos);
         this._context.setState(curState, true);
@@ -183,18 +184,6 @@ export default class Nimio {
     }
 
     return false;
-  }
-
-  _onVodPlaybackError(error) {
-    // Switch to live player for now.
-    // TODO: expand this behavior as new options appear
-    this._logger.warn("VOD playback error: " + error);
-    this._eventBus.emit("nimio:playback-error", { mode: "vod", error });
-    if (this._config.vod?.liveFailover) {
-      this._switchToLive(0);
-    } else {
-      this._ui.showNotPlaying();
-    }
   }
 
   _switchToVod(position) {
@@ -226,6 +215,54 @@ export default class Nimio {
       this._mode = "live";
     });
   }
+
+  _onLivePlaybackError(type, allowFailover) {
+    this._logger.warn(`Live playback error: ${ERROR[type]}`);
+    switch(type) {
+      case "NOT_SUP":
+        this._eventBus.emit("nimio:playback-error", {
+          error: ERROR[type],
+          mode: "live",
+        });
+        break;
+      case "NO_SRC":
+        // Start playback from the beginning
+        if (allowFailover && his._config.vod?.startupVodFailover) {
+          // TODO: VOD failover happens on the first run only, to make it 
+          // always try VOD use the same logic as seekVod() method does
+          return this._runVodFromStart();
+        }
+        this._eventBus.emit("nimio:playback-error", {
+          error: ERROR[type],
+          mode: "live",
+        });
+        break;
+      default:
+        this._logger.error(`Live error type is not recognized: ${type}`);
+        break;
+    }
+  }
+
+  _onVodPlaybackError(type) {
+    // Switch to live player for now.
+    this._logger.warn(`VOD playback error: ${ERROR[type]}`);
+    if (this._config.vod?.liveFailover) {
+      this._switchToLive(0);
+    } else {
+      this._eventBus.emit("nimio:playback-error", {
+        error: ERROR[type],
+        mode: "vod",
+      });
+    }
+  }
+
+  _onError = (data) => {
+    if (data.mode === MODE.LIVE) {
+      this._onLivePlaybackError(data.type, !data.stop);
+    } else {
+      this._onVodPlaybackError(data.type);
+    }
+  };
 
   _onLiveConnected = () => {
     if (!this._vodPlayer || this._vodPlayer.isPlaying()) return;

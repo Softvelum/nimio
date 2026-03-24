@@ -57,7 +57,11 @@ export const NimioTransport = {
     this._resetPlayback();
     if (!this._reconnect.schedule(this._playCb)) {
       this._logger.debug("Stop reconnecting");
-      this._eventBus.emit("nimio:playback-ended", { mode: MODE.LIVE });
+      this._eventBus.emit("aux:playback-error", {
+        type: "NO_SRC",
+        mode: MODE.LIVE,
+        stop: true,
+      });
       return;
     }
     this._logger.debug("Attempt to reconnect");
@@ -87,15 +91,23 @@ export const NimioTransport = {
 
     this._eventBus.emit("nimio:rendition-list", this._makeUiRenditionList());
     let curRend = this._context.getCurrentRendition("video");
+
     this._eventBus.emit("nimio:rendition-set", {
-      name: curRend.rendition,
+      rendition: curRend.rendition,
+      name: curRend.name,
       id: curRend.idx + 1,
     });
   },
 
   _onAudioSetupReceived(data) {
     if (!data || !data.config) {
-      // TODO: show UI error notification if noVideo
+      if (this._noVideo) {
+        this._eventBus.emit("aux:playback-error", {
+          type: "NO_SRC",
+          mode: MODE.LIVE,
+        });
+      }
+      // TODO: handle switch to VOD
       return this._noVideo ? this.stop(true) : this._startNoAudioMode();
     }
 

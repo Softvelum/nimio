@@ -90,6 +90,7 @@ class PlaybackContext {
             height: streamInfo.height,
             vcodec: streamInfo.vcodec,
             rendition: streamInfo.name,
+            name: streams[i].stream,
           });
         }
       }
@@ -178,6 +179,10 @@ class PlaybackContext {
     return this._curConf[type] && idx === this._curConf[type].idx;
   }
 
+  isCurrentLevel(levelIdx) {
+    return this._curLevelIdx === levelIdx;
+  }
+
   getStreamsConfig() {
     let res = [];
     for (let i = 0; i < this._streams.length; i++) {
@@ -258,13 +263,13 @@ class PlaybackContext {
 
     let curVConf = this._curConf.video;
     let curAConf = this._curConf.audio;
-    if (curVConf && curVConf.idx !== undefined) {
+    if (curVConf?.idx !== undefined) {
       if (this._strm2level[curVConf.idx] !== undefined) {
         this._curLevelIdx = this._strm2level[curVConf.idx];
       } else {
         this._curLevelIdx = this.getMinimumLevelIdx();
       }
-    } else if (curAConf && curAConf.idx !== undefined) {
+    } else if (curAConf?.idx !== undefined) {
       if (this._strm2level[curAConf.idx] !== undefined) {
         this._curLevelIdx = this._strm2level[curAConf.idx];
       } else {
@@ -421,12 +426,13 @@ class PlaybackContext {
 
   _cpAudioRenditions(target, source) {
     for (let i = 0; i < source.length; i++) {
-      let streamInfo = this._streams[source[i].idx].stream_info;
-      if (streamInfo.acodecSupported) {
+      let stream = this._streams[source[i].idx];
+      if (stream.stream_info.acodecSupported) {
         target.push({
           idx: source[i].idx,
-          bandwidth: streamInfo.bandwidth,
-          acodec: streamInfo.acodec,
+          bandwidth: stream.stream_info.bandwidth,
+          acodec: stream.stream_info.acodec,
+          name: stream.stream,
         });
       }
     }

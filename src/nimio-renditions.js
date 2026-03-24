@@ -1,3 +1,5 @@
+import { MODE } from "./shared/values";
+
 export const NimioRenditions = {
   getRenditions(type) {
     if (!this._context) return [];
@@ -40,13 +42,13 @@ export const NimioRenditions = {
     if (!this._checkRenditionType(type)) return false;
     if (!this._isSwitchPossible(type)) return false;
 
-    let rIdx = id - 1;
-    if (this._context.isCurrentStream(type, rIdx)) {
+    let rendIdx = id - 1;
+    if (this._context.isCurrentStream(type, rendIdx)) {
       this._logger.debug("specified rendition is already the current one");
       return true;
     }
 
-    let stream = this._context.streams[rIdx];
+    let stream = this._context.streams[rendIdx];
     if (
       !stream ||
       !stream.stream_info ||
@@ -65,10 +67,16 @@ export const NimioRenditions = {
       return false;
     }
 
+    this._eventBus.emit("nimio:rendition-select", {
+      rendition: stream.stream_info.name,
+      name: stream.stream,
+    });
+
     this._nextRenditionData = {
-      idx: rIdx,
-      trackId: this._sldpManager.requestStream(type, rIdx),
-      name: stream.stream_info.name,
+      idx: rendIdx,
+      trackId: this._sldpManager.requestStream(type, rendIdx),
+      rendition: stream.stream_info.name,
+      name: stream.stream,
     };
 
     return true;
@@ -76,7 +84,9 @@ export const NimioRenditions = {
 
   _onRenditionChange(data) {
     if (data.mode !== MODE.LIVE || !data.rend) return;
+
     if (data.rend.name === "Auto") {
+      this._eventBus.emit("nimio:rendition-select", { rendition: "Auto" });
       return this.startAbr();
     }
     this.stopAbr();
@@ -93,9 +103,9 @@ export const NimioRenditions = {
       );
 
       this._eventBus.emit("nimio:rendition-set", {
+        rendition: this._nextRenditionData.rendition,
         name: this._nextRenditionData.name,
         id: nextId,
-        auto: this._context.autoAbr,
       });
     }
     this._nextRenditionData = null;

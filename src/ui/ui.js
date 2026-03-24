@@ -265,8 +265,8 @@ export class UI {
     this._eventBus.on("nimio:abr", this._onAdaptiveBitrateSet);
     this._eventBus.on("nimio:play", this._onPlaybackStarting);
     this._eventBus.on("nimio:pause", this._onPlaybackPaused);
-    this._eventBus.on("nimio:playback-started", this._onPlaybackStarted);
-    this._eventBus.on("nimio:playback-ended", this._onPlaybackEnded);
+    this._eventBus.on("nimio:playback-start", this._onPlaybackStarted);
+    this._eventBus.on("nimio:playback-end", this._onPlaybackEnded);
   }
 
   _removePlaybackEventHandlers() {
@@ -277,8 +277,8 @@ export class UI {
     this._eventBus.off("nimio:abr", this._onAdaptiveBitrateSet);
     this._eventBus.off("nimio:play", this._onPlaybackStarting);
     this._eventBus.off("nimio:pause", this._onPlaybackPaused);
-    this._eventBus.off("nimio:playback-started", this._onPlaybackStarted);
-    this._eventBus.off("nimio:playback-ended", this._onPlaybackEnded);
+    this._eventBus.off("nimio:playback-start", this._onPlaybackStarted);
+    this._eventBus.off("nimio:playback-end", this._onPlaybackEnded);
   }
 
   _addDisplayEventHandlers() {
@@ -375,7 +375,7 @@ export class UI {
       res.style.display = "block";
       if (this._curRendition) {
         const delim = "\u00A0\u00A0";
-        res.textContent = `Auto${delim}${this._curRendition.name}`;
+        res.textContent = `Auto${delim}${this._curRendition.rendition}`;
       }
     } else {
       res.textContent = "Auto";
@@ -390,7 +390,7 @@ export class UI {
 
   _selectRendition(selectedBtn) {
     let selRendition = selectedBtn._rendition || { name: "Auto" };
-    this._eventBus.emit("ui:rendition-change", {
+    this._eventBus.emit("ui:rendition-select", {
       mode: this._mode,
       rend: selRendition,
     });
@@ -419,7 +419,7 @@ export class UI {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
         !this._autoAbr &&
-        this._curRendition.name === btn.dataset.rendition &&
+        this._curRendition.rendition === btn.dataset.rendition &&
         this._curRendition.id === parseInt(btn.dataset.rid);
       btn.setAttribute("aria-checked", isSel ? "true" : "false");
     });
@@ -534,11 +534,11 @@ export class UI {
   }
 
   _onPlayEvent() {
-    this._eventBus.emit("ui:media-play-event");
+    this._eventBus.emit("ui:media-play-event", { mode: this._mode });
   }
 
   _onPauseEvent() {
-    this._eventBus.emit("ui:media-pause-event");
+    this._eventBus.emit("ui:media-pause-event", { mode: this._mode });
   }
 
   _onAdaptiveBitrateSet(val) {

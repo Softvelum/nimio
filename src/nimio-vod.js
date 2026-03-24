@@ -176,6 +176,8 @@ export class NimioVod {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
     this._context.autoAbr = false;
+    this._eventBus.emit("nimio:abr", false);
+
     let curLvl = this._setCurrentRendition(true);
     this._pHandler.autoLevelCapping = 0;
     this._pHandler.currentLevel = curLvl.idx;
@@ -316,7 +318,8 @@ export class NimioVod {
         this._url = this._config.url;
         this._pHandler.loadSource(this._fullUrl());
       })
-      .catch(() => {
+      .catch((err) => {
+        debugger;
         this._logger.error(
           "Can not initialize VOD player because HLS.js library was not loaded",
         );
@@ -439,6 +442,8 @@ export class NimioVod {
 
   _startAbr() {
     this._context.autoAbr = true;
+    this._eventBus.emit("nimio:abr", true);
+
     this._setCurrentRendition(true);
     this._pHandler.autoLevelCapping = -1;
     this._pHandler.currentLevel = -1;
@@ -446,41 +451,57 @@ export class NimioVod {
   }
 
   onChangeRendition(quality, idx) {
-    if (this._state === VOD_STATE.PLAY && !this._switchInProgress) {
-      if ("Auto" === quality) {
-        // if (this._onRenditionSwitchCallback) {
-        //   this._onRenditionSwitchCallback("Auto");
-        // }
-        this._startAbr();
-        return true;
-      }
+    if (this._state !== VOD_STATE.PLAY || this._switchInProgress) {
+      this._logger.warn("Rendition change isn't available at the moment");
+      return false;
+    }
 
-      let levelIdx = this._context.getRenditionLevelIdx(quality, idx);
-      if (levelIdx === undefined) return false;
-
-      // if (this._onRenditionSwitchCallback) {
-      //   let lvl = this._context.levels[levelIdx];
-      //   this._onRenditionSwitchCallback(quality, lvl.name);
-      // }
-
-      this._switchInProgress = true;
-      this._context.setCurrentLevelIdx(levelIdx);
-      // TODO: Decide which approach to use for rendition switch
-      // this._pHandler.currentLevel = levelIdx; // immediate rendition change
-      this._pHandler.nextLevel = levelIdx; // rendition change will occur on the next segment
-      this._pHandler.autoLevelCapping = 0;
-      this._context.autoAbr = false;
-
+    if ("Auto" === quality) {
+      this._eventBus.emit("nimio:rendition-select", { rendition: "Auto" });
+      this._startAbr();
       return true;
     }
 
-    this._logger.warn("Rendition change isn't available at the moment");
-    return false;
+    let levelIdx = this._context.getRenditionLevelIdx(quality, idx);
+    if (levelIdx === undefined) return false;
+
+    let lvl = this._context.levels[levelIdx];
+    this._eventBus.emit("nimio:rendition-select", {
+      rendition: quality,
+      name: lvl.name,
+    });
+
+    if (this._context.isCurrentLevel(levelIdx)) {
+      this._context.autoAbr = false;
+      this._eventBus.emit("nimio:abr", false);
+      return this._setCurrentRendition(true);
+    }
+
+    this._switchInProgress = true;
+    this._context.setCurrentLevelIdx(levelIdx);
+    // TODO: Decide which approach to use for rendition switch
+    // this._pHandler.currentLevel = levelIdx; // immediate rendition change
+    this._pHandler.nextLevel = levelIdx; // rendition change will occur on the next segment
+    this._pHandler.autoLevelCapping = 0;
+    this._context.autoAbr = false;
+
+    return true;
   }
 
+  _onChangeRendition = (data) => {
+    if (data.mode !== MODE.VOD) return;
+
+    let rIdx = 0;
+    if (data.rend.id > 0) {
+      rIdx = this._context.levels[data.rend.id - 1].rIdx;
+    }
+    this.onChangeRendition(data.rend.name, rIdx);
+  };
+
   _onPlayPause = (data) => {
+    if (data.mode !== MODE.VOD) return;
     data.play ? this.play() : this.pause();
-  }
+  };
 
   _onPlayEvent = () => {
     this._playbackService.handlePlayEvent();
@@ -544,11 +565,12 @@ export class NimioVod {
       this._context.setLevels(data.levels, this._url);
       if (!this._context.hasLive()) {
         let initialLvl;
-        if (this._config.initialResolution) {
+        let initialRend = this._config.adaptiveBitrate.initialRendition;
+        if (initialRend) {
           for (let i = 0; i < data.levels.length; i++) {
             if (
               data.levels[i].height &&
-              data.levels[i].height + "p" === this._config.initialResolution
+              data.levels[i].height + "p" === initialRend
             ) {
               initialLvl = i;
               break;
@@ -565,7 +587,7 @@ export class NimioVod {
       this._sessionParam = currentLevel.session;
 
       if (this._state === VOD_STATE.PLAY) {
-        this._eventBus.emit("nimio:rendition-list", this._prepareQualities());
+        this._eventBus.emit("nimio:rendition-list", this._makeUiLevelsList());
         this._pHandler.currentLevel = currentLevel.idx;
         if (this._context.autoAbr) {
           this._pHandler.autoLevelCapping = -1;
@@ -611,7 +633,7 @@ export class NimioVod {
 
       if (playPromise) {
         playPromise.then(() => {
-          this._eventBus.emit("nimio:playback-started", { mode: MODE.VOD });
+          this._eventBus.emit("nimio:playback-start", { mode: MODE.VOD });
           this._playbackStarted = true;
           this._context.setState(STATE.PLAY, false);
         });
@@ -620,12 +642,6 @@ export class NimioVod {
       }
     }
   };
-
-  // TODO: remove if it's not needed in the next release after introducing VOD
-  // _onLevelSwitching = (event, data) => {
-  //   // this._switchInProgress = true;
-  //   this._logger.debug('Level switching started', data.level);
-  // };
 
   _onLevelSwitched = (event, data) => {
     let lvl = this._context.levels[data.level];
@@ -639,9 +655,6 @@ export class NimioVod {
     }
 
     this._logger.debug("Rendition switched to", lvl.rend, lvl.name);
-    // if (this._onRenditionSwitchedCallback) {
-    //   this._onRenditionSwitchedCallback(lvl.rend, lvl.name);
-    // }
     this._context.setCurrentLevelIdx(lvl.idx);
     this._setCurrentRendition();
     this._switchInProgress = false;
@@ -652,17 +665,13 @@ export class NimioVod {
     let curLvl = this._context.getCurrentLevel();
     if (undefined !== curLvl) {
       if (!skipInitResolution) {
-        this._config.initialResolution = curLvl.rend;
-        let stream = this._context.getStreamByName(curLvl.name);
-        if (stream && stream.stream_info) {
-          this._setMgr.updateLiveInitialResolution(stream.stream_info.height);
-        }
+        this._config.adaptiveBitrate.initialRendition = curLvl.rend;
       }
 
       this._eventBus.emit("nimio:rendition-set", {
+        rendition: curLvl.rend,
         name: curLvl.name,
-        id: curLvl.rIdx + 1,
-        auto: this._context.autoAbr,
+        id: curLvl.idx + 1,
       });
     }
 
@@ -717,22 +726,28 @@ export class NimioVod {
   };
 
   _onError = (event, data) => {
-    if (data.fatal) {
-      switch (data.type) {
-        case Hls.ErrorTypes.MEDIA_ERROR:
-          if (this._playbackErrCnt === 0) {
-            this._playbackErrCnt++;
-            this._pHandler.recoverMediaError();
-          } else {
-            this._onPlaybackErrorCallback(data.type);
-          }
-          break;
-        case Hls.ErrorTypes.NETWORK_ERROR:
-        default:
+    if (!data.fatal) return;
+
+    switch (data.type) {
+      case Hls.ErrorTypes.MEDIA_ERROR:
+        if (this._playbackErrCnt === 0) {
           this._playbackErrCnt++;
-          this._onPlaybackErrorCallback(data.type);
-          break;
-      }
+          this._pHandler.recoverMediaError();
+        } else {
+          this._eventBus.emit("aux:playback-error", {
+            mode: MODE.VOD,
+            type: "NO_SRC",
+          });
+        }
+        break;
+      case Hls.ErrorTypes.NETWORK_ERROR:
+      default:
+        this._playbackErrCnt++;
+        this._eventBus.emit("aux:playback-error", {
+          mode: MODE.VOD,
+          type: "NO_SRC",
+        });
+        break;
     }
   };
 
@@ -826,7 +841,7 @@ export class NimioVod {
   //   console.log('Frag loaded', data, this._pHandler);
   // }
 
-  _prepareQualities() {
+  _makeUiLevelsList() {
     let ords = this._context.orderedLevels;
     let levels = this._context.levels;
 
@@ -844,12 +859,8 @@ export class NimioVod {
       result[i] = {
         name: params.rendition,
         disp: fmt ? fillTemplateStr(fmt, params) : params.rendition,
-        idx: idx,
+        id: ords[i] + 1,
       };
-      if (i > 0) {
-        idx = result[i].name === result[i - 1].name ? idx + 1 : 0;
-        result[i].idx = idx;
-      }
     }
 
     return result;
@@ -859,13 +870,13 @@ export class NimioVod {
     this._eventBus.on("ui:play-pause-click", this._onPlayPause);
     this._eventBus.on("ui:media-play-event", this._onPlayEvent);
     this._eventBus.on("ui:media-pause-event", this._onPauseEvent);
-    this._eventBus.on("ui:rendition-change", this.onChangeRendition);
+    this._eventBus.on("ui:rendition-select", this._onChangeRendition);
   }
 
   _removeUIEventHandlers() {
     this._eventBus.off("ui:play-pause-click", this._onPlayPause);
     this._eventBus.off("ui:media-play-event", this._onPlayEvent);
     this._eventBus.off("ui:media-pause-event", this._onPauseEvent);
-    this._eventBus.off("ui:rendition-change", this.onChangeRendition);
+    this._eventBus.off("ui:rendition-select", this._onChangeRendition);
   }
 }
