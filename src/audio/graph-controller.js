@@ -90,6 +90,22 @@ class AudioGraphController {
     }
   }
 
+  removeSource() {
+    let srcConns = [];
+    if (this._source?._outconns) {
+      for (let i = 0; i < this._source._outconns.length; i++) {
+        this._source.disconnect(this._source._outconns[i]);
+      }
+      srcConns = this._source._outconns;
+      this._source._outconns = [];
+    }
+    for (let i = 0; i < srcConns.length; i++) {
+      let idx = srcConns[i]._inconns.indexOf(this._source);
+      if (idx >= 0) srcConns[i]._inconns.splice(idx, 1);
+    }
+    this._source = undefined;
+  }
+
   // opts:
   // - connectDest - connect appended node to the audio context destination
   // - connectPrev - connect appended node to the previous node

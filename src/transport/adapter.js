@@ -46,6 +46,7 @@ export class TransportAdapter {
       this._callbacks[msg.type](msg.data);
     } else if (msg.aux) {
       if ("connected" in msg) {
+        console.warn(`Connected ${msg.connected}`);
         this._connected = msg.connected;
       }
     }

@@ -11,6 +11,11 @@ class AudioController {
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
     this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
+    this._ready = false;
+  }
+
+  isReady() {
+    return this._ready;
   }
 
   initContext(sampleRate, channels) {
@@ -34,20 +39,21 @@ class AudioController {
       ctx.close();
       this._audioGraphCtrl.dismantle();
       this._audioCtxProvider.reset();
+      this._ready = false;
     }
   }
 
   setSource(node, channels) {
     this._audioGraphCtrl.setSource(node, channels);
     let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
-    this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+    this._ready = this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
     if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
     }
   }
 
   removeSource() {
-
+    this._audioGraphCtrl.removeSource();
   }
 }
 

@@ -14,6 +14,7 @@ export const NimioTransport = {
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
       disconnect: this._onDisconnect.bind(this),
+      error: this._onTransportError.bind(this),
     };
     this._eventBus.on("transp:track-action", this._onTrackAction.bind(this));
   },
@@ -50,7 +51,7 @@ export const NimioTransport = {
     if (this._state.isStopped()) return;
 
     this._state.stop();
-    this._sldpManager.resetCurrentStreams();
+    this._sldpManager.resetRequestedStreams();
     if (this._isAutoAbr()) {
       this._abrController.stop({ hard: true });
     }
@@ -65,6 +66,14 @@ export const NimioTransport = {
       return;
     }
     this._logger.debug("Attempt to reconnect");
+  },
+
+  _onTransportError() {
+    this.stop();
+    this._eventBus.emit("aux:playback-error", {
+      type: "NO_SRC",
+      mode: MODE.LIVE,
+    });
   },
 
   _onVideoSetupReceived(data) {
@@ -124,6 +133,8 @@ export const NimioTransport = {
   },
 
   _onVideoCodecDataReceived(data) {
+    if (this._state.isStopped()) return;
+
     this._runMetrics(data);
     this._timestampManager.rebaseTrack(data.trackId);
 
@@ -144,6 +155,8 @@ export const NimioTransport = {
   },
 
   _onAudioCodecDataReceived(data) {
+    if (this._state.isStopped()) return;
+
     this._runMetrics(data);
     this._timestampManager.rebaseTrack(data.trackId);
 

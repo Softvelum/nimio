@@ -15,6 +15,7 @@ export class UI {
     this._instName = instName;
     this._eventBus = eventBus;
     this._autoAbr = opts.autoAbr;
+    this._audioOnly = opts.audioOnly;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -39,13 +40,7 @@ export class UI {
     this._createCanvas();
     if (opts.vod) this._createMediaElement();
 
-    this._outputs.forEach((elem) => {
-      Object.assign(elem.style, {
-        cursor: "pointer",
-        zIndex: 10,
-        margin: "auto",
-      });
-    });
+    this._outputs.forEach(this._applyBasicStyle);
 
     this._updateOutputSize(this._baseWidth, this._baseHeight);
     this._logger.debug(`Device DPR = ${this._dpr}`);
@@ -140,11 +135,14 @@ export class UI {
     if (mode === this._mode) return;
 
     if (mode === MODE.LIVE) {
-      this._mediaElement.style.display = "none";
+      this._removeMediaElement();
       this._canvas.style.display = "block";
+      this._liveSign.style.display = "inline-grid";
     } else {
-      this._mediaElement.style.display = "block";
+      this._addMediaElement();
       this._canvas.style.display = "none";
+      this._mediaElement.style.display = "block";
+      this._liveSign.style.display = "none";
     }
     this._mode = mode;
   }
@@ -176,12 +174,32 @@ export class UI {
     this._outputs.push(this._canvas);
   }
 
-  _createMediaElement(audioOnly) {
-    let type = audioOnly ? "audio" : "video";
+  _createMediaElement() {
+    let type = this._audioOnly ? "audio" : "video";
     this._mediaElement = document.createElement(type);
     this._mediaElement.setAttribute("playsinline", "playsinline");
+    this._mediaElement.style["background-color"] = "#000";
     this._mediaElement.style.display = "none";
     this._outputs.push(this._mediaElement);
+  }
+
+  _addMediaElement() {
+    if (!this._mediaElement.pending) return;
+
+    this._createMediaElement();
+    this._applyBasicStyle(this._mediaElement);
+    this._applySize(this._mediaElement, this._curWidth, this._curHeight);
+    this._addPlayPauseEventHandlers();
+    this._canvas.after(this._mediaElement);
+  }
+
+  _removeMediaElement() {
+    if (this._mediaElement.pending) return;
+
+    this._removePlayPauseEventHandlers();
+    this._outputs.length = 1; // Media Element is always second
+    this._mediaElement.remove();
+    this._mediaElement.pending = true;
   }
 
   _createControls(opts) {
@@ -206,7 +224,7 @@ export class UI {
       this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
       this._playPrgSvc.setTimeIndUI(this._timeInd);
 
-      // if (!opts.audioOnly) {
+      // if (!this._audioOnly) {
       //   this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
       //     parent: this._controlBar,
       //     left: parseInt(getComputedStyle(this._seekBar.node()).left),
@@ -215,6 +233,7 @@ export class UI {
       //   this._seekBar.hoverHandler = this._thumbnailPreview;
       //   this._controlBar.appendChild(this._thumbnailPreview.node());
       // }
+      this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }
     this._addControlsEventHandlers();
 
@@ -464,8 +483,7 @@ export class UI {
       this._updateCanvasSize(w, h);
     }
     this._outputs.forEach((elem) => {
-      elem.style.width = `${w}px`;
-      elem.style.height = `${h}px`;
+      this._applySize(elem, w, h);
     });
     this._curWidth = w;
     this._curHeight = h;
@@ -643,5 +661,18 @@ export class UI {
     if (!this._splashScreenUrl) return;
     this._canvas.style["background-image"] = "";
     this._canvas.style["background-size"] = "";
+  }
+
+  _applyBasicStyle(elem) {
+    Object.assign(elem.style, {
+      cursor: "pointer",
+      zIndex: 10,
+      margin: "auto",
+    });
+  }
+
+  _applySize(elem, w, h) {
+    elem.style.width = `${w}px`;
+    elem.style.height = `${h}px`;
   }
 }

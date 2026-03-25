@@ -118,6 +118,7 @@ export class SLDPAgent {
       !status.info[0].stream_info
     ) {
       console.warn("Invalid or empty status received:", status);
+      self.postMessage({ type: "error" });
       return;
     }
 

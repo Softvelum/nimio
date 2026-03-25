@@ -35,6 +35,7 @@ export class SLDPManager {
       }
       await this._processStatus(status.info);
       this._sendRequest("play", { streams: this._curStreams });
+      this._curStreams = [];
     });
   }
 
@@ -48,20 +49,17 @@ export class SLDPManager {
   }
 
   stop(opts = {}) {
-    this._sendRequest("stop", {
-      close: !!opts.closeConnection,
-      sns: this.resetCurrentStreams(),
-    });
+    const sns = this.resetRequestedStreams();
+    if (sns.length === 0) return;
+
+    this._sendRequest("stop", { sns, close: !!opts.closeConnection });
   }
 
-  resetCurrentStreams() {
-    const sns = this._curStreams.map((s) => s.sn);
-    for (let i = 0; i < sns.length; i++) {
-      delete this._reqStreams[sns[i]];
-    }
-    this._curStreams = [];
-
+  resetRequestedStreams() {
+    const sns = Object.keys(this._reqStreams);
     this._transport.send("removeTimescale", sns);
+    this._reqStreams = {};
+
     return sns;
   }
 
@@ -131,6 +129,7 @@ export class SLDPManager {
   requestCurrentStreams() {
     this._processCurrentStreams();
     this._sendRequest("play", { streams: this._curStreams });
+    this._curStreams = [];
   }
 
   _sendRequest(command, data) {

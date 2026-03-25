@@ -34,7 +34,7 @@ export class NimioVod {
         this._pHandler = new Hls({
           // autoStartLoad: false,
           // workerPath: this._workerPath,
-          debug: true,
+          // debug: true,
         });
         this._playerScript = script;
         this._state = VOD_STATE.INIT;
@@ -693,35 +693,37 @@ export class NimioVod {
   };
 
   _onBufferCodecs = (event, data) => {
-    if (data && data.audio) {
-      let channels = 2;
-      if (data.audio.metadata && data.audio.metadata.channelCount > 0) {
-        channels = data.audio.metadata.channelCount;
-      }
+    if (!data || !data.audio) return;
 
-      let audioConfig = getAudioConfigFromInitSegment(
-        data.audio.codec.toLowerCase(),
-        data.audio.initSegment,
+    let channels = 2;
+    if (data.audio.metadata && data.audio.metadata.channelCount > 0) {
+      channels = data.audio.metadata.channelCount;
+    }
+
+    let audioConfig = getAudioConfigFromInitSegment(
+      data.audio.codec.toLowerCase(),
+      data.audio.initSegment,
+    );
+    if (audioConfig.audioChannels !== channels) {
+      this._logger.error(
+        `Error parsing init segment for ${data.audio.codec}. Hls returns ${channels} channels, while parsing returns channels = ${audioConfig.audioChannels} and samplerate = ${audioConfig.samplingRate}`,
       );
-      if (audioConfig.audioChannels !== channels) {
-        this._logger.error(
-          `Error parsing init segment for ${data.audio.codec}. Hls returns ${channels} channels, while parsing returns channels = ${audioConfig.audioChannels} and samplerate = ${audioConfig.samplingRate}`,
-        );
-      }
+    }
 
-      let ctx = this._audioCtrl.initContext(audioConfig.samplingRate, channels);
+    let ctx = this._audioCtrl.initContext(audioConfig.samplingRate, channels);
+    if (!this._audioCtrl.isReady()) {
       this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
-      const msource = ctx.createMediaElementSource(this._ui.mediaElement);
-      msource.channelCount = channels;
-      this._audioCtrl.setSource(msource, channels);
-      this._vuMeterSvc.setAudioInfo({
-        sampleRate: audioConfig.samplingRate,
-        channels: channels,
-      });
+      this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
+      this._audioCtrl.setSource(this._mediaSource, channels);
+    }
+    this._mediaSource.channelCount = channels;
+    this._vuMeterSvc.setAudioInfo({
+      sampleRate: audioConfig.samplingRate,
+      channels: channels,
+    });
 
-      if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
-        this._vuMeterSvc.start();
-      }
+    if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
+      this._vuMeterSvc.start();
     }
   };
 

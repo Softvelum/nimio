@@ -1,6 +1,6 @@
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
-import { ERROR } from "./shared/values";
+import { MODE, ERROR } from "./shared/values";
 import { UI } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
@@ -76,6 +76,7 @@ export default class Nimio {
 
     this._actPlayer = this._livePlayer;
     this._mode = "live";
+    this._eventBus.on("aux:playback-error", this._onError);
 
     this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
     this._playProgressSvc.positionChangeCb = this._onPlaybackPositionChange;
@@ -100,6 +101,8 @@ export default class Nimio {
 
     this._livePlayer.destroy();
     this._livePlayer = undefined;
+    this._eventBus.off("nimio:connection-established", this._onLiveConnected);
+    this._eventBus.off("aux:playback-error", this._onError);
   }
 
   setParameters(params) {
@@ -227,7 +230,7 @@ export default class Nimio {
         break;
       case "NO_SRC":
         // Start playback from the beginning
-        if (allowFailover && his._config.vod?.startupVodFailover) {
+        if (allowFailover && this._config.vod?.startupVodFailover) {
           // TODO: VOD failover happens on the first run only, to make it 
           // always try VOD use the same logic as seekVod() method does
           return this._runVodFromStart();
@@ -257,6 +260,7 @@ export default class Nimio {
   }
 
   _onError = (data) => {
+    // debugger;
     if (data.mode === MODE.LIVE) {
       this._onLivePlaybackError(data.type, !data.stop);
     } else {

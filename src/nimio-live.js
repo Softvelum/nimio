@@ -101,7 +101,7 @@ export class NimioLive {
     if (this._config.autoplay) {
       setTimeout(this._playCb, 0);
       setTimeout(() => {
-        this._ui.hideControls(true);
+        if (this._ui) this._ui.hideControls(true);
       }, 1000);
     }
   }
@@ -148,8 +148,13 @@ export class NimioLive {
   }
 
   stop(closeConnection) {
+    const isStopped = this._state.isStopped();
+    if (!isStopped || closeConnection && this._transport.connected) {
+      this._sldpManager.stop({ closeConnection });
+    }
+    if (isStopped) return;
+
     this._state.stop();
-    this._sldpManager.stop({ closeConnection });
     this._reconnect.reset();
     if (this._debugView) this._debugView.stop();
 
