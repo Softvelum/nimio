@@ -13,7 +13,7 @@ class PlaybackProgressService {
   }
 
   updateVodProgress(pos, dur) {
-    this._logger.debug(`updateVod pos = ${pos}, dur = ${dur}`);
+    // this._logger.debug(`updateVod pos = ${pos}, dur = ${dur}`);
     if (!isNaN(dur) && dur !== this._vodDuration) {
       this._logger.debug(
         `updateVodProgress prev duration = ${this._vodDuration}, new duration = ${dur}`,
@@ -164,9 +164,9 @@ class PlaybackProgressService {
       position = (fullVodDuration + this._livePosition) / this._totalDuration();
     }
 
-    this._logger.debug(
-      `calc position: ${position}, totalDur = ${this._totalDuration()}, liveDur = ${this._liveDuration}, vodPos = ${this._vodPosition}`,
-    );
+    // this._logger.debug(
+    //   `calc position: ${position}, totalDur = ${this._totalDuration()}, liveDur = ${this._liveDuration}, vodPos = ${this._vodPosition}`,
+    // );
     if (position > 1) {
       this._logger.error(
         "position is greater than the whole scale",

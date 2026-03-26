@@ -34,13 +34,10 @@ class AudioController {
   }
 
   reset() {
-    let ctx = this._audioCtxProvider.get();
-    if (ctx) {
-      ctx.close();
-      this._audioGraphCtrl.dismantle();
-      this._audioCtxProvider.reset();
-      this._ready = false;
-    }
+    // TODO: keep audio graph if context doesn't have to be recreated
+    this._audioGraphCtrl.dismantle();
+    this._audioCtxProvider.reset();
+    this._ready = false;
   }
 
   setSource(node, channels) {

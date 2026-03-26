@@ -15,6 +15,7 @@ const VOD_STATE = {
   INIT: 1,
   SYNC: 2,
   PLAY: 3,
+  STOP: 4,
 };
 
 export class NimioVod {
@@ -157,8 +158,9 @@ export class NimioVod {
     if (this._state < VOD_STATE.SYNC) return;
 
     this._pHandler.stopLoad();
+    this._state = VOD_STATE.STOP;
     if (this._ui) {
-      this._ui.triggerPause(true);
+      this._eventBus.emit("nimio:playback-end", { mode: MODE.VOD });
       this._setDetachedState(callback);
       return;
     }
@@ -189,7 +191,7 @@ export class NimioVod {
   }
 
   isRunning() {
-    return this._state >= VOD_STATE.SYNC;
+    return this._state >= VOD_STATE.SYNC && this._state < VOD_STATE.STOP;
   }
 
   isPlaying() {
@@ -319,7 +321,6 @@ export class NimioVod {
         this._pHandler.loadSource(this._fullUrl());
       })
       .catch((err) => {
-        debugger;
         this._logger.error(
           "Can not initialize VOD player because HLS.js library was not loaded",
         );
@@ -387,7 +388,8 @@ export class NimioVod {
     this._pHandler.detachMedia();
     this._audioCtrl.reset();
     this._vuMeterSvc.stop();
-    this._state = VOD_STATE.SYNC;
+    if (this._state !== VOD_STATE.STOP) this._state = VOD_STATE.SYNC;
+
     this._playbackStarted = false;
     this._switchInProgress = false;
     this._playbackErrCnt = 0;

@@ -12,7 +12,7 @@ class AudioVolumeController {
   }
 
   init(volumeId, muted) {
-    // if (this._audioCtx && this._gainer) return;
+    if (this._gainer) muted = false;
 
     this._audioCtx = this._audioCtxProvider.get();
     this._suspended = this._audioCtxProvider.isSuspended();

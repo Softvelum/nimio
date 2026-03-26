@@ -230,15 +230,22 @@ export default class Nimio {
         break;
       case "NO_SRC":
         // Start playback from the beginning
+        let vodStarted = false;
         if (allowFailover && this._config.vod?.startupVodFailover) {
           // TODO: VOD failover happens on the first run only, to make it 
           // always try VOD use the same logic as seekVod() method does
-          return this._runVodFromStart();
+          vodStarted = this._runVodFromStart();
         }
-        this._eventBus.emit("nimio:playback-error", {
-          error: ERROR[type],
-          mode: "live",
-        });
+
+        if (!vodStarted) {
+          if (this._vodPlayer.isRunning()) {
+            this._vodPlayer.stop();
+          }
+          this._eventBus.emit("nimio:playback-error", {
+            error: ERROR[type],
+            mode: "live",
+          });
+        }
         break;
       default:
         this._logger.error(`Live error type is not recognized: ${type}`);
@@ -260,7 +267,6 @@ export default class Nimio {
   }
 
   _onError = (data) => {
-    // debugger;
     if (data.mode === MODE.LIVE) {
       this._onLivePlaybackError(data.type, !data.stop);
     } else {

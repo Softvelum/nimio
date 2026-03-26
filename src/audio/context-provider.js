@@ -8,6 +8,10 @@ class AudioContextProvider {
   }
 
   init(sampleRate) {
+    if (this._audioCtx?.sampleRate !== sampleRate) {
+      this._audioCtx = undefined;
+    }
+
     if (this._audioCtx) {
       if (this._suspended) {
         this._logger.debug("Trying to resume suspended audio context");
@@ -59,7 +63,7 @@ class AudioContextProvider {
   }
 
   reset() {
-    this._audioCtx = this._callbacks = undefined;
+    this._callbacks = undefined;
     this._suspended = false;
   }
 

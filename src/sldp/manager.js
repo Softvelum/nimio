@@ -119,6 +119,7 @@ export class SLDPManager {
   keepAliveConnection() {
     if (this._keepAliveTimer) return;
     this._keepAliveTimer = setTimeout(() => {
+      if (!this._transport.connected) this._keepAliveTimer = undefined;
       if (!this._keepAliveTimer) return;
       this._logger.debug(`send keep alive request`);
       this._sendRequest("stop", { sns: [] });

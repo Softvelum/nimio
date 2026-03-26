@@ -17,10 +17,15 @@ export class DebugView {
   start() {
     if (this._updateInterval) return false;
 
+    this._inst.style.opacity = "";
     this._updateInterval = setInterval(() => {
       this.update();
     }, 50);
     return true;
+  }
+
+  clear() {
+    this._inst.style.opacity = "0";
   }
 
   update() {
