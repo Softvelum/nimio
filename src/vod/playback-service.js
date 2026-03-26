@@ -4,13 +4,13 @@ import { multiInstanceService } from "@/shared/service";
 import { LoggersFactory } from "@/shared/logger";
 
 class VodPlaybackService {
-  constructor (instName) {
+  constructor(instName) {
     this._instName = instName;
     this._eventBus = EventBus.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "VOD Playback Service");
   }
 
-  init (mediaElement) {
+  init(mediaElement) {
     this._mediaElement = mediaElement;
     this._state = STATE.STOPPED;
 
@@ -20,13 +20,13 @@ class VodPlaybackService {
     }
   }
 
-  startPlayback (params) {
-    if ((this._state === STATE.PLAYING) && this._playEventReceived) return;
+  startPlayback(params) {
+    if (this._state === STATE.PLAYING && this._playEventReceived) return;
 
     this._logger.debug(
       `startPlayback, buf ranges count = ${this._mediaElement.buffered.length}`,
     );
-    if( this._mediaElement.buffered.length > 0 ) {
+    if (this._mediaElement.buffered.length > 0) {
       this._logger.debug(
         `media element buffer start = ${this._mediaElement.buffered.start(0)}, end = ${this._mediaElement.buffered.end(0)}`,
       );
@@ -35,13 +35,13 @@ class VodPlaybackService {
     return this._playMedia(params);
   }
 
-  clear () {
+  clear() {
     this.resetPosition();
     this._mediaElement = undefined;
   }
 
-  resetPosition () {
-    if( this._mediaElement && this._mediaElement.currentTime !== 0 ) {
+  resetPosition() {
+    if (this._mediaElement && this._mediaElement.currentTime !== 0) {
       this.setCurrentTime(0);
     }
 
@@ -49,11 +49,11 @@ class VodPlaybackService {
     this._playEventReceived = false;
   }
 
-  getCurrentTime () {
+  getCurrentTime() {
     return this._mediaElement ? this._mediaElement.currentTime : 0;
   }
 
-  setCurrentTime (time) {
+  setCurrentTime(time) {
     if (!this._mediaElement) return null;
 
     var curTime = this._mediaElement.currentTime;
@@ -62,12 +62,12 @@ class VodPlaybackService {
     return time;
   }
 
-  handlePlay () {
+  handlePlay() {
     if (this._state === STATE.PLAYING) return;
     this._playMedia();
   }
 
-  handlePause () {
+  handlePause() {
     if (this._state === STATE.PAUSED || this._state === STATE.STOPPED) {
       return false;
     }
@@ -77,14 +77,14 @@ class VodPlaybackService {
     return true;
   }
 
-  handlePlayEvent () {
+  handlePlayEvent() {
     if (this._playEventReceived) return;
 
     this._playEventReceived = true;
     this._eventBus.emit("nimio:playback-start", { mode: MODE.VOD });
   }
 
-  handlePauseEvent () {
+  handlePauseEvent() {
     if (!this._playEventReceived) return;
 
     if (this._mediaElement.ended) {
@@ -95,13 +95,13 @@ class VodPlaybackService {
     this.resumeIfAutoPaused();
   }
 
-  resumeIfAutoPaused () {
+  resumeIfAutoPaused() {
     if (this._mediaElement?.paused && this._state === STATE.PLAYING) {
       this._logger.debug("Resume auto paused");
 
       var autoPauseTime = this.getCurrentTime();
-      this._playMedia({recover: true});
-      
+      this._playMedia({ recover: true });
+
       var inst = this;
       setTimeout(function () {
         if (inst.getCurrentTime() === 0) {
@@ -118,16 +118,18 @@ class VodPlaybackService {
     return this._state;
   }
 
-  _playMedia (params = {}) {
+  _playMedia(params = {}) {
     this._logger.debug(`play media, state = ${this._state}`, params);
     if (!this._mediaElement) return;
 
     const playPromise = this._mediaElement.play();
     const reportFail = !params.recover;
-  
+
     if (playPromise && typeof playPromise.then === "function") {
       playPromise
-        .then(() => { this._state = STATE.PLAYING; })
+        .then(() => {
+          this._state = STATE.PLAYING;
+        })
         .catch((err) => {
           if (err.name === "NotAllowedError") {
             this._logger.debug("Autoplay blocked");

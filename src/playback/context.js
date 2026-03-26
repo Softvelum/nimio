@@ -329,7 +329,7 @@ class PlaybackContext {
 
   getStreamByName(name) {
     let idx = this._streamsMap[name];
-    if( undefined !== idx ) {
+    if (undefined !== idx) {
       return this._streams[idx];
     }
   }

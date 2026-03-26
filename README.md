@@ -204,7 +204,7 @@ volume: Number; // Current volume as integer value in the range from 0 to 100.
 These events are used to send data from `Nimio` player to UI.
 
 - `nimio:play`  
-  Playback started.  
+  Playback started.
 
 - `nimio:muted`  
   Audio muted/unmuted.  

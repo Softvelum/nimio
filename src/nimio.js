@@ -124,7 +124,7 @@ export default class Nimio {
     }
 
     this._livePlayer.setStreamURL();
-  };
+  }
 
   pause() {
     this._actPlayer.pause();
@@ -140,7 +140,7 @@ export default class Nimio {
     }
 
     this._livePlayer.stop(true);
-  };
+  }
 
   seekVod(position) {
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
@@ -221,7 +221,7 @@ export default class Nimio {
 
   _onLivePlaybackError(type, allowFailover) {
     this._logger.warn(`Live playback error: ${ERROR[type]}`);
-    switch(type) {
+    switch (type) {
       case "NOT_SUP":
         this._eventBus.emit("nimio:playback-error", {
           error: ERROR[type],
@@ -232,7 +232,7 @@ export default class Nimio {
         // Start playback from the beginning
         let vodStarted = false;
         if (allowFailover && this._config.vod?.startupVodFailover) {
-          // TODO: VOD failover happens on the first run only, to make it 
+          // TODO: VOD failover happens on the first run only, to make it
           // always try VOD use the same logic as seekVod() method does
           vodStarted = this._runVodFromStart();
         }

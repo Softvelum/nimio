@@ -628,7 +628,10 @@ export class NimioVod {
 
     let pbState = this._context.state;
     let isInitial = pbState.initial;
-    if (this._config.autoplay && isInitial || pbState.value === STATE.PLAYING) {
+    if (
+      (this._config.autoplay && isInitial) ||
+      pbState.value === STATE.PLAYING
+    ) {
       this._pHandler.resumeBuffering();
 
       let playPromise = this._playbackService.startPlayback();

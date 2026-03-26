@@ -149,7 +149,7 @@ export class NimioLive {
 
   stop(closeConnection) {
     const isStopped = this._state.isStopped();
-    if (!isStopped || closeConnection && this._transport.connected) {
+    if (!isStopped || (closeConnection && this._transport.connected)) {
       this._sldpManager.stop({ closeConnection });
     }
     if (isStopped) return;
@@ -240,7 +240,7 @@ export class NimioLive {
     if (callback) callback();
 
     return true;
-  };
+  }
 
   goto(latencySec) {
     if (!latencySec) return false;
@@ -356,7 +356,7 @@ export class NimioLive {
     this._eventBus.off("ui:rendition-select", this._onRenditionChange);
   }
 
-  _onPlayPauseClick = function(data) {
+  _onPlayPauseClick = function (data) {
     if (data.mode !== MODE.LIVE) return;
     data.play ? this.play() : this.pause();
   };
@@ -655,9 +655,7 @@ export class NimioLive {
       }
 
       if (!this._audioContext.audioWorklet) {
-        this._logger.error(
-          "AudioWorklet is not supported in this environment",
-        );
+        this._logger.error("AudioWorklet is not supported in this environment");
         this._setNoAudio(true);
         return;
       }
