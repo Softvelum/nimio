@@ -6,6 +6,7 @@ import { UISeekBar } from "./seek-bar";
 import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
+import { UIThumbnailPreview } from "./thumbnail-preview";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -16,6 +17,7 @@ export class UI {
     this._eventBus = eventBus;
     this._autoAbr = opts.autoAbr;
     this._audioOnly = opts.audioOnly;
+    this._thumbnails = opts.vod.thumbnails;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -224,15 +226,16 @@ export class UI {
       this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
       this._playPrgSvc.setTimeIndUI(this._timeInd);
 
-      // if (!this._audioOnly) {
-      //   this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
-      //     parent: this._controlBar,
-      //     left: parseInt(getComputedStyle(this._seekBar.node()).left),
-      //     preview: vod.thumbnails,
-      //   });
-      //   this._seekBar.hoverHandler = this._thumbnailPreview;
-      //   this._controlBar.appendChild(this._thumbnailPreview.node());
-      // }
+      if (!this._audioOnly) {
+        this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
+          parent: this._controlsBar,
+          left: parseInt(getComputedStyle(this._seekBar.node()).left),
+          preview: this._thumbnails,
+          baseUrl: opts.vod.thumbnailBaseUrl || "",
+        });
+        this._seekBar.hoverHandler = this._thumbnailPreview;
+        this._controlsBar.appendChild(this._thumbnailPreview.node());
+      }
       this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }
     this._addControlsEventHandlers();
@@ -339,15 +342,15 @@ export class UI {
     }
 
     if (this._timeInd) {
-      this._playbackProgressSvc.unsetTimeIndUI();
+      this._playPrgSvc.unsetTimeIndUI();
       this._timeInd.destroy();
       this._timeInd = undefined;
     }
 
-    // if (this._thumbnailPreview) {
-    //   this._thumbnailPreview.destroy();
-    //   this._thumbnailPreview = undefined;
-    // }
+    if (this._thumbnailPreview) {
+      this._thumbnailPreview.destroy();
+      this._thumbnailPreview = undefined;
+    }
   }
 
   _setupEasing() {
@@ -456,6 +459,7 @@ export class UI {
     requestAnimationFrame(() => {
       this._resizeQueued = false;
       this._resizeAndRedraw();
+      this._updateThumbnails();
     });
   }
 
@@ -506,6 +510,12 @@ export class UI {
     this._canvas.height = devH;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
     this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
+  }
+
+  _updateThumbnails () {
+    if (this._thumbnailPreview) {
+      this._thumbnailPreview.update({preview: this._thumbnails});
+    }
   }
 
   _handleOrientChange(e) {

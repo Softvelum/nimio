@@ -2,6 +2,7 @@ import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { PlaybackContext } from "./playback/context";
 import { PlaybackProgressService } from "./playback/progress-service";
+import { PlaybackSegmentTracker } from "./playback/segment-tracker";
 import { AudioController } from "./audio/controller";
 import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { VideoHelper } from "./media/helpers/video";
@@ -47,7 +48,7 @@ export class NimioVod {
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
         this._audioCtrl = AudioController.getInstance(this._instName);
-        // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+        this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
         // if (this._config.timecodes) {
         //   this._spsHolder = SPSHolder.getInstance(this._instName);
@@ -611,7 +612,7 @@ export class NimioVod {
     if (currentLevel && currentLevel.data.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
-        // this._segmentTracker.setup(data.details.fragments);
+        this._segmentTracker.setup(data.details.fragments);
       }
     }
   };
@@ -620,7 +621,7 @@ export class NimioVod {
     // this._logger.warn('_onLevelLoaded details', data.details);
     this._updatePlaylistDuration(data.details);
     if (this._config.thumbnails) {
-      // this._segmentTracker.setup(data.details.fragments);
+      this._segmentTracker.setup(data.details.fragments);
     }
     this._playbackErrCnt = 0;
 
