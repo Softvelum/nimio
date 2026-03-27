@@ -14,16 +14,12 @@ export class UIThumbnailPreview {
     this._thumbTime = this._parent = undefined;
   }
 
-  node () {
-    return this._inst;
-  }
-
   show (time, position, width) {
     if (!this._inst) return;
 
     if (this._showPreview) {
-      if (this._thumbWidth === 0) {
-        this.update({preview: true});
+      if (this._thumbWidth === 0 || this._leftPos === undefined) {
+        this.update();
       }
       let url = this._thumbnailService.getUrl(time);
       if (url) this._thumbVideo.src = url;
@@ -47,11 +43,10 @@ export class UIThumbnailPreview {
     this._thumbWrp.style.transform = "translate3d(" + shiftX + "px, 0px, 0px)"
   }
 
-  update (opts) {
+  update() {
     if (!this._inst) return;
 
-    debugger;
-    this._showPreview = opts.preview;
+    this._leftPos = this._leftOffsetFn() - this._parent.getBoundingClientRect().x;
     if (this._showPreview) {
       this._thumbWidth = Math.floor(this._parent.offsetWidth / 3.5);
       if (this._thumbWidth > 0) {
@@ -70,6 +65,10 @@ export class UIThumbnailPreview {
   hide () {
     if (!this._inst) return;
     this._inst.style.display = "none";
+  }
+
+  get node() {
+    return this._inst;
   }
 
   _create (opts) {
@@ -95,9 +94,8 @@ export class UIThumbnailPreview {
     this._thumbWrp.appendChild(this._thumbTime);
     this._inst.appendChild(this._thumbWrp);
 
-    this._leftPos = opts.left;
+    this._leftOffsetFn = opts.offsetFn;
+    this._showPreview = opts.preview;
     this._parent = opts.parent;
-
-    this.update(opts);
   }
 }

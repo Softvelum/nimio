@@ -229,12 +229,12 @@ export class UI {
       if (!this._audioOnly) {
         this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
           parent: this._controlsBar,
-          left: parseInt(getComputedStyle(this._seekBar.node()).left),
           preview: this._thumbnails,
           baseUrl: opts.vod.thumbnailBaseUrl || "",
+          offsetFn: () => this._seekBar.node.getBoundingClientRect().x,
         });
         this._seekBar.hoverHandler = this._thumbnailPreview;
-        this._controlsBar.appendChild(this._thumbnailPreview.node());
+        this._controlsBar.appendChild(this._thumbnailPreview.node);
       }
       this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }

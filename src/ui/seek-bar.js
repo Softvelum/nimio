@@ -25,10 +25,6 @@ export class UISeekBar {
     this._hoverHandler = this._hoverCallback = undefined;
   }
 
-  node() {
-    return this._seekBar;
-  }
-
   updateDuration(duration) {
     if (this._pending) return;
 
@@ -52,6 +48,10 @@ export class UISeekBar {
 
   isPending() {
     return !!this._pending;
+  }
+
+  get node() {
+    return this._seekBar;
   }
 
   _toggle() {
