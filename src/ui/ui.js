@@ -339,7 +339,7 @@ export class UI {
     }
 
     if (this._timeInd) {
-      this._playbackProgressSvc.unsetTimeIndUI();
+      this._playPrgSvc.unsetTimeIndUI();
       this._timeInd.destroy();
       this._timeInd = undefined;
     }
