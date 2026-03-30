@@ -34,23 +34,33 @@ class AudioController {
   }
 
   reset() {
-    // TODO: keep audio graph if context doesn't have to be recreated
-    this._audioGraphCtrl.dismantle();
     this._audioCtxProvider.reset();
     this._ready = false;
   }
 
-  setSource(node, channels) {
-    this._audioGraphCtrl.setSource(node, channels);
-    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
-    this._ready = this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+  canConnectSource(node) {
+    return this._audioGraphCtrl.canAcceptSource(node);
+  }
+
+  connectSource(node, channels) {
+    let needsReassemble = !this._audioGraphCtrl.canAcceptSource(node);
+    if (needsReassemble) {
+      this._audioGraphCtrl.dismantle();
+    }
+    this._ready = this._audioGraphCtrl.setSource(node, channels);
+
+    if (needsReassemble) {
+      let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
+      this._ready = this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+    }
+
+    this._ensureAudioContextRunning();
+  }
+
+  _ensureAudioContextRunning() {
     if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
     }
-  }
-
-  removeSource() {
-    this._audioGraphCtrl.removeSource();
   }
 }
 

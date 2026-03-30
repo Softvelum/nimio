@@ -9,9 +9,9 @@ export class UIThumbnailPreview {
   }
 
   destroy () {
-    this._thumbnailService = undefined;
+    this._thumbnailService = this._calcOffset = undefined;
     this._inst = this._thumbWrp = this._thumb = this._thumbVideo =
-    this._thumbTime = this._parent = undefined;
+    this._thumbTime = this._parent = this._leftPos = undefined;
   }
 
   show (time, position, width) {
@@ -46,7 +46,7 @@ export class UIThumbnailPreview {
   update() {
     if (!this._inst) return;
 
-    this._leftPos = this._leftOffsetFn() - this._parent.getBoundingClientRect().x;
+    this._leftPos = this._calcOffset() - this._parent.getBoundingClientRect().x;
     if (this._showPreview) {
       this._thumbWidth = Math.floor(this._parent.offsetWidth / 3.5);
       if (this._thumbWidth > 0) {
@@ -94,7 +94,7 @@ export class UIThumbnailPreview {
     this._thumbWrp.appendChild(this._thumbTime);
     this._inst.appendChild(this._thumbWrp);
 
-    this._leftOffsetFn = opts.offsetFn;
+    this._calcOffset = opts.offsetFn;
     this._showPreview = opts.preview;
     this._parent = opts.parent;
   }

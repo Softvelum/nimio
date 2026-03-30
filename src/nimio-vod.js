@@ -718,9 +718,11 @@ export class NimioVod {
 
     let ctx = this._audioCtrl.initContext(audioConfig.samplingRate, channels);
     if (!this._audioCtrl.isReady()) {
-      this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
-      this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
-      this._audioCtrl.setSource(this._mediaSource, channels);
+      if (!this._audioCtrl.canConnectSource(this._mediaSource)) {
+        this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
+        this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
+      }
+      this._audioCtrl.connectSource(this._mediaSource, channels);
     }
     this._mediaSource.channelCount = channels;
     this._vuMeterSvc.setAudioInfo({

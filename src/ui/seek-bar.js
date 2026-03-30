@@ -264,7 +264,7 @@ export class UISeekBar {
         function (time, pos, width) {
           if (this._hovered) this._hoverHandler.show(time, pos, width);
         },
-        15,
+        10,
       );
     }
   }

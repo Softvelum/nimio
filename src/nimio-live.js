@@ -719,7 +719,7 @@ export class NimioLive {
       this._audioBuffer.setPort(this._audioNode.port);
     }
 
-    this._audioCtrl.setSource(this._audioNode, channels);
+    this._audioCtrl.connectSource(this._audioNode, channels);
 
     if (this._config.syncBuffer > 0) {
       let smc = new SyncModeClock(this._audioNode.port);

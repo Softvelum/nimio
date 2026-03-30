@@ -63,6 +63,10 @@ class AudioGraphController {
     }
   }
 
+  canAcceptSource(node) {
+    return node && node.context === this._audCtx;
+  }
+
   setSource(src, channels) {
     let srcConns = [];
     if (this._source?._outconns) {
@@ -88,6 +92,8 @@ class AudioGraphController {
         srcConns[i]._inconns[idx] = this._source;
       }
     }
+
+    return true;
   }
 
   removeSource() {

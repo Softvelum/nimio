@@ -137,11 +137,12 @@ export class UI {
     if (mode === this._mode) return;
 
     if (mode === MODE.LIVE) {
-      this._removeMediaElement();
+      // this._removeMediaElement();
+      this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
     } else {
-      this._addMediaElement();
+      // this._addMediaElement();
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       this._liveSign.style.display = "none";
