@@ -69,7 +69,7 @@ export const NimioTransport = {
   },
 
   _onTransportError() {
-    this.stop();
+    this.stop({keepConnection: true});
     this._eventBus.emit("aux:playback-error", {
       type: "NO_SRC",
       mode: MODE.LIVE,
@@ -117,7 +117,7 @@ export const NimioTransport = {
         });
       }
       // TODO: handle switch to VOD
-      return this._noVideo ? this.stop(true) : this._startNoAudioMode();
+      return this._noVideo ? this.stop() : this._startNoAudioMode();
     }
 
     if (this._isNextRenditionTrack(data.trackId)) {

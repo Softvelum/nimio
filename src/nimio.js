@@ -134,12 +134,12 @@ export default class Nimio {
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       this._vodPlayer.stop(() => {
         this._livePlayer.attach(this._ui);
-        this._livePlayer.stop(true);
+        this._livePlayer.stop();
       });
       return;
     }
 
-    this._livePlayer.stop(true);
+    this._livePlayer.stop();
   }
 
   seekVod(position) {

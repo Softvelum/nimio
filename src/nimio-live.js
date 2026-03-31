@@ -141,14 +141,15 @@ export class NimioLive {
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
-      this.stop(true); // TODO: check possibility to reuse socket
+      this.stop(); // TODO: check possibility to reuse socket
     }, this._config.pauseTimeout);
 
     this._eventBus.emit("nimio:pause", { mode: MODE.LIVE });
   }
 
-  stop(closeConnection) {
+  stop(opts = {}) {
     const isStopped = this._state.isStopped();
+    const closeConnection = !opts.keepConnection;
     if (!isStopped || (closeConnection && this._transport.connected)) {
       this._sldpManager.stop({ closeConnection });
     }
@@ -163,7 +164,9 @@ export class NimioLive {
     }
     this._resetPlayback();
 
-    this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+    if (closeConnection) {
+      this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+    }
   }
 
   attachUI(ui) {
@@ -229,7 +232,7 @@ export class NimioLive {
     }
 
     this._context.setState(this._state.value, false);
-    this.stop();
+    this.stop({keepConnection: true});
     this._sldpManager.keepAliveConnection();
 
     if (this._debugView) {
@@ -262,7 +265,7 @@ export class NimioLive {
   }
 
   destroy() {
-    this.stop(true);
+    this.stop();
     this._removeUIEventHandlers();
   }
 
@@ -598,7 +601,7 @@ export class NimioLive {
         mode: MODE.LIVE,
         stop: true,
       });
-      this.stop(true);
+      this.stop();
     }
   }
 
