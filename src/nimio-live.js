@@ -466,7 +466,11 @@ export class NimioLive {
     ) {
       this._setPlaybackStartTs("video");
 
-      if (!this._noAudio && this._audioCtxProvider.isRunning()) {
+      if (
+        !this._noAudio &&
+        !this._audioBuffer &&
+        this._audioCtxProvider.isRunning()
+      ) {
         // it doesn't make sense to start no audio mode via audio worklet
         // if audio context is suspended
         await this._startNoAudioMode();
@@ -636,7 +640,11 @@ export class NimioLive {
   }
 
   async _initAudioProcessor(sampleRate, channels, idle) {
-    if (!this._audioContext) {
+    this._logger.debug(
+      `Initialize audio processor, sampleRate=${sampleRate}, channels=${channels}, idle=${idle}, audio context exists=${!!this._audioContext}`,
+    );
+
+    if (!this._audioContext || this._audioContext.sampleRate !== sampleRate) {
       this._audioContext = this._audioCtrl.initContext(sampleRate, channels);
       if (!this._audioContext) {
         this._logger.error(

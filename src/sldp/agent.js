@@ -67,6 +67,7 @@ export class SLDPAgent {
         ptsMs = timestamp / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsMs);
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
+        // console.debug(`A frame uts: ${ptsUs}, pts: ${timestamp}`);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:

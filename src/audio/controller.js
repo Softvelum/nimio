@@ -19,7 +19,8 @@ class AudioController {
   }
 
   initContext(sampleRate, channels) {
-    if (!this._audioCtxProvider.get()) {
+    const audCtx = this._audioCtxProvider.get();
+    if (!audCtx || audCtx.sampleRate !== sampleRate) {
       this._logger.debug(
         `Init audio context, sampleRate = ${sampleRate}, channels = ${channels}`,
       );
