@@ -513,9 +513,9 @@ export class UI {
     this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
   }
 
-  _updateThumbnails () {
+  _updateThumbnails() {
     if (this._thumbnailPreview) {
-      this._thumbnailPreview.update({preview: this._thumbnails});
+      this._thumbnailPreview.update({ preview: this._thumbnails });
     }
   }
 

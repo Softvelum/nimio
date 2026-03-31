@@ -69,7 +69,7 @@ export const NimioTransport = {
   },
 
   _onTransportError() {
-    this.stop({keepConnection: true});
+    this.stop({ keepConnection: true });
     this._eventBus.emit("aux:playback-error", {
       type: "NO_SRC",
       mode: MODE.LIVE,

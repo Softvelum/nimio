@@ -232,7 +232,7 @@ export class NimioLive {
     }
 
     this._context.setState(this._state.value, false);
-    this.stop({keepConnection: true});
+    this.stop({ keepConnection: true });
     this._sldpManager.keepAliveConnection();
 
     if (this._debugView) {

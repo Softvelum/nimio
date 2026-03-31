@@ -2,21 +2,21 @@ import { multiInstanceService } from "@/shared/service";
 // import { LoggersFactory } from "@/shared/logger";
 
 class PlaybackSegmentTracker {
-  constructor (instName) {
+  constructor(instName) {
     // this._logger = LoggersFactory.create(instName, 'Segment tracker');
   }
 
-  isSetUp () {
+  isSetUp() {
     return this._segments && this._segments.length > 0;
   }
 
-  setup (segments) {
+  setup(segments) {
     if (segments && segments.length > 0 && segments[0].programDateTime > 0) {
       this._segments = segments;
     }
   }
 
-  get (time) {
+  get(time) {
     let res;
     if (!this._segments) return res;
 
@@ -37,7 +37,6 @@ class PlaybackSegmentTracker {
 
     return res;
   }
-
 }
 
 PlaybackSegmentTracker = multiInstanceService(PlaybackSegmentTracker);

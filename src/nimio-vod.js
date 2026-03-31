@@ -48,7 +48,7 @@ export class NimioVod {
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
         this._audioCtrl = AudioController.getInstance(this._instName);
-        this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+        this._segmTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
         // if (this._config.timecodes) {
         //   this._spsHolder = SPSHolder.getInstance(this._instName);
@@ -610,7 +610,7 @@ export class NimioVod {
     if (currentLevel && currentLevel.data.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
-        this._segmentTracker.setup(data.details.fragments);
+        this._segmTracker.setup(data.details.fragments);
       }
     }
   };
@@ -619,7 +619,7 @@ export class NimioVod {
     // this._logger.warn('_onLevelLoaded details', data.details);
     this._updatePlaylistDuration(data.details);
     if (this._config.thumbnails) {
-      this._segmentTracker.setup(data.details.fragments);
+      this._segmTracker.setup(data.details.fragments);
     }
     this._playbackErrCnt = 0;
 

@@ -257,15 +257,14 @@ export class UISeekBar {
   }
 
   set hoverHandler(handler) {
-    if (handler) {
-      this._hoverHandler = handler;
-      this._hoverCallback = debouncer(
-        this,
-        function (time, pos, width) {
-          if (this._hovered) this._hoverHandler.show(time, pos, width);
-        },
-        10,
-      );
-    }
+    if (!handler) return;
+    this._hoverHandler = handler;
+    this._hoverCallback = debouncer(
+      this,
+      function (time, pos, width) {
+        if (this._hovered) this._hoverHandler.show(time, pos, width);
+      },
+      5,
+    );
   }
 }

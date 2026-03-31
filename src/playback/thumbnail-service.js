@@ -2,7 +2,7 @@ import { multiInstanceService } from "@/shared/service";
 import { PlaybackSegmentTracker } from "./segment-tracker";
 
 class PlaybackThumbnailService {
-  constructor (instName) {
+  constructor(instName) {
     this._segmentTracker = PlaybackSegmentTracker.getInstance(instName);
     this._baseUrl = "./";
   }
@@ -11,7 +11,7 @@ class PlaybackThumbnailService {
     this._baseUrl = url;
   }
 
-  getUrl (time) {
+  getUrl(time) {
     let res;
 
     let seg = this._segmentTracker.get(time);
@@ -23,10 +23,9 @@ class PlaybackThumbnailService {
     return res;
   }
 
-  isSetUp () {
+  isSetUp() {
     return this._segmentTracker.isSetUp();
   }
-
 }
 
 PlaybackThumbnailService = multiInstanceService(PlaybackThumbnailService);
