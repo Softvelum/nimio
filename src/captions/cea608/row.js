@@ -1,15 +1,14 @@
-import { NR_COLS } from './constants'
-import { StyledUnicodeChar } from './styled-unicode-char'
-import { PenState } from './pen-state'
-import { Utils } from './utils'
-import { Logger } from './logger'
+import { NR_COLS } from "./constants";
+import { StyledUnicodeChar } from "./styled-unicode-char";
+import { PenState } from "./pen-state";
+import { Utils } from "./utils";
+import { Logger } from "./logger";
 
 /**
  * CEA-608 row consisting of NR_COLS instances of StyledUnicodeChar.
  */
 export class Row {
-
-  constructor () {
+  constructor() {
     this.chars = [];
     for (let i = 0; i < NR_COLS; i++) {
       this.chars.push(new StyledUnicodeChar());
@@ -18,9 +17,9 @@ export class Row {
     this.currPenState = new PenState();
   }
 
-  equals (other) {
+  equals(other) {
     let equal = true;
-    for (let i = 0; i < NR_COLS; i ++) {
+    for (let i = 0; i < NR_COLS; i++) {
       if (!this.chars[i].equals(other.chars[i])) {
         equal = false;
         break;
@@ -29,16 +28,16 @@ export class Row {
 
     return equal;
   }
-  
-  copy (other) {
-    for (let i = 0; i < NR_COLS; i ++) {
+
+  copy(other) {
+    for (let i = 0; i < NR_COLS; i++) {
       this.chars[i].copy(other.chars[i]);
     }
   }
-  
-  isEmpty () {
+
+  isEmpty() {
     let empty = true;
-    for (let i = 0; i < NR_COLS; i ++) {
+    for (let i = 0; i < NR_COLS; i++) {
       if (!this.chars[i].isEmpty()) {
         empty = false;
         break;
@@ -51,7 +50,7 @@ export class Row {
   /**
    *  Set the cursor to a valid column.
    */
-  setCursor (absPos) {
+  setCursor(absPos) {
     if (this.pos !== absPos) {
       this.pos = absPos;
     }
@@ -64,13 +63,13 @@ export class Row {
     }
   }
 
-  /** 
+  /**
    * Move the cursor relative to current position.
    */
-  moveCursor (relPos) {
+  moveCursor(relPos) {
     let newPos = this.pos + relPos;
     if (relPos > 1) {
-      for (let i = this.pos+1; i < newPos+1; i++) {
+      for (let i = this.pos + 1; i < newPos + 1; i++) {
         this.chars[i].setPenState(this.currPenState);
       }
     }
@@ -80,20 +79,21 @@ export class Row {
   /**
    * Backspace, move one step back and clear character.
    */
-  backSpace () {
+  backSpace() {
     this.moveCursor(-1);
-    this.chars[this.pos].setChar(' ', this.currPenState);
+    this.chars[this.pos].setChar(" ", this.currPenState);
   }
 
-  insertChar (byte) {
-    if (byte >= 0x90) { //Extended char
+  insertChar(byte) {
+    if (byte >= 0x90) {
+      //Extended char
       this.backSpace();
     }
     let char = Utils.getCharForByte(byte);
     if (this.pos >= NR_COLS) {
       Logger.log(
         "ERROR",
-        `Cannot insert ${byte.toString(16)} (${char}) at position ${this.pos}. Skipping it!`
+        `Cannot insert ${byte.toString(16)} (${char}) at position ${this.pos}. Skipping it!`,
       );
       return;
     }
@@ -101,23 +101,23 @@ export class Row {
     this.moveCursor(1);
   }
 
-  clearFromPos (startPos) {
+  clearFromPos(startPos) {
     for (let i = startPos; i < NR_COLS; i++) {
       this.chars[i].reset();
     }
   }
 
-  clear () {
+  clear() {
     this.clearFromPos(0);
     this.pos = 0;
     this.currPenState.reset();
   }
 
-  clearToEndOfRow () {
+  clearToEndOfRow() {
     this.clearFromPos(this.pos);
   }
 
-  getTextString () {
+  getTextString() {
     let chars = [];
     let empty = true;
     for (let i = 0; i < NR_COLS; i++) {
@@ -128,13 +128,12 @@ export class Row {
       chars.push(char);
     }
 
-    return empty ? '' : chars.join('');
+    return empty ? "" : chars.join("");
   }
 
-  setPenStyles (styles) {
+  setPenStyles(styles) {
     this.currPenState.setStyles(styles);
     let currChar = this.chars[this.pos];
     currChar.setPenState(this.currPenState);
   }
-
 }

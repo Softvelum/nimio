@@ -1,5 +1,5 @@
 export class NalReader {
-  static extractUnit (data, start, end) {
+  static extractUnit(data, start, end) {
     const output = [];
     for (let i = start; i <= end; i++) {
       if (

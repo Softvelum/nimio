@@ -316,6 +316,9 @@
 .btn-play-pause:not(.is-paused) .icon-pause {
   display: block;
 }
+.btn-captions {
+  display: none;
+}
 
 /* Volume */
 .volume {

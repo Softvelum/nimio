@@ -1,8 +1,7 @@
-import { specialCea608CharsCodes } from './constants'
+import { specialCea608CharsCodes } from "./constants";
 
 export class Utils {
-
-  static numArrayToHexArray (numArray) {
+  static numArrayToHexArray(numArray) {
     let hexArray = [];
     for (let j = 0; j < numArray.length; j++) {
       hexArray.push(numArray[j].toString(16));
@@ -14,7 +13,7 @@ export class Utils {
   /**
    * Get Unicode Character from CEA-608 byte code
    */
-  static getCharForByte (byte) {
+  static getCharForByte(byte) {
     let charCode = byte;
     if (specialCea608CharsCodes.hasOwnProperty(byte)) {
       charCode = specialCea608CharsCodes[byte];
@@ -22,5 +21,4 @@ export class Utils {
 
     return String.fromCharCode(charCode);
   }
-
 }

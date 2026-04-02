@@ -7,6 +7,8 @@ import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
 import { UIThumbnailPreview } from "./thumbnail-preview";
+import { UICaptionController } from "./caption-controller";
+import { UICaptionList } from "./caption-list";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -15,9 +17,7 @@ export class UI {
     this._muted = false;
     this._instName = instName;
     this._eventBus = eventBus;
-    this._autoAbr = opts.autoAbr;
-    this._audioOnly = opts.audioOnly;
-    this._thumbnails = opts.vod.thumbnails;
+    this._opts = opts;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -69,11 +69,23 @@ export class UI {
 
     this._createControls(opts);
     this._setupEasing();
-    if (opts.fullscreen) {
+    if (this._opts.captions && !this._opts.audioOnly) {
+      this._captionCtrl = UICaptionController.getInstance(this._instName);
+      this._captionCtrl.init(this._container, this._opts.captions);
+
+      this._captionList = new UICaptionList(
+        this._container,
+        this._controlsBar,
+        this._btnPlayPause,
+      );
+      this._captionList.setUIControlInterface(this);
+      this._captionCtrl.setCaptionListInterface(this._captionList);
+    }
+    if (this._opts.fullscreen) {
       this._toggleFullscreen();
     }
-    if (opts.splashScreen) {
-      this._splashScreenUrl = `url("${opts.splashScreen}")`;
+    if (this._opts.splashScreen) {
+      this._splashScreenUrl = `url("${this._opts.splashScreen}")`;
     }
     this._setBackground();
   }
@@ -183,7 +195,7 @@ export class UI {
   }
 
   _createMediaElement() {
-    let type = this._audioOnly ? "audio" : "video";
+    let type = this._opts.audioOnly ? "audio" : "video";
     this._mediaElement = document.createElement(type);
     this._mediaElement.setAttribute("playsinline", "playsinline");
     this._mediaElement.style["background-color"] = "#000";
@@ -217,8 +229,8 @@ export class UI {
     this._buttonVolume = this._controlsBar.querySelector(".btn-volume");
     this._volumeRange = this._controlsBar.querySelector(".volume-range");
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
-    this._menuPopover = this._controlsBar.querySelector(".menu-popover");
-    this._menuSection = this._menuPopover.querySelector(".menu-section");
+    this._abrMenuPopover = this._controlsBar.querySelector(".menu-popover");
+    this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
       this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
@@ -227,10 +239,10 @@ export class UI {
       this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
       this._playPrgSvc.setTimeIndUI(this._timeInd);
 
-      if (!this._audioOnly) {
+      if (!this._opts.audioOnly) {
         this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
           parent: this._controlsBar,
-          preview: this._thumbnails,
+          preview: this._opts.thumbnails,
           baseUrl: opts.vod.thumbnailBaseUrl || "",
           offsetFn: () => this._seekBar.node.getBoundingClientRect().x,
         });
@@ -368,11 +380,11 @@ export class UI {
       return;
     }
 
-    const autoBtn = this._menuSection.querySelector("button.rendition-auto");
-    let showAuto = this._autoAbr && renditions.length > 0;
+    const autoBtn = this._abrMenuSection.querySelector("button.rendition-auto");
+    let showAuto = this._opts.autoAbr && renditions.length > 0;
     autoBtn.style.display = showAuto ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
-    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();
     });
 
@@ -385,16 +397,16 @@ export class UI {
       button.dataset.rid = rendition.id;
       button.textContent = rendition.name;
       button._rendition = rendition;
-      this._menuSection.appendChild(button);
+      this._abrMenuSection.appendChild(button);
     });
 
     this._enableSelection();
   }
 
   _toggleAutoAbrButton() {
-    const res = this._menuSection.querySelector("button.rendition-auto");
-    res.setAttribute("aria-checked", this._autoAbr ? "true" : "false");
-    if (this._autoAbr) {
+    const res = this._abrMenuSection.querySelector("button.rendition-auto");
+    res.setAttribute("aria-checked", this._opts.autoAbr ? "true" : "false");
+    if (this._opts.autoAbr) {
       res.style.display = "block";
       if (this._curRendition) {
         const delim = "\u00A0\u00A0";
@@ -407,8 +419,8 @@ export class UI {
   }
 
   _enableSelection() {
-    this._menuSection.removeEventListener("click", this._onRendMenuSelected);
-    this._menuSection.addEventListener("click", this._onRendMenuSelected);
+    this._abrMenuSection.removeEventListener("click", this._onRendMenuSelected);
+    this._abrMenuSection.addEventListener("click", this._onRendMenuSelected);
   }
 
   _selectRendition(selectedBtn) {
@@ -423,7 +435,7 @@ export class UI {
     const btn = e.target.closest("button.menu-item");
     if (!btn) return;
     this._selectRendition(btn);
-    this._menuPopover.hidden = true;
+    this._abrMenuPopover.hidden = true;
   }
 
   _onRenditionSet(rData) {
@@ -438,10 +450,10 @@ export class UI {
     }
     this._toggleAutoAbrButton();
 
-    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
-        !this._autoAbr &&
+        !this._opts.autoAbr &&
         this._curRendition.rendition === btn.dataset.rendition &&
         this._curRendition.id === parseInt(btn.dataset.rid);
       btn.setAttribute("aria-checked", isSel ? "true" : "false");
@@ -515,7 +527,7 @@ export class UI {
 
   _updateThumbnails() {
     if (this._thumbnailPreview) {
-      this._thumbnailPreview.update({ preview: this._thumbnails });
+      this._thumbnailPreview.update({ preview: this._opts.thumbnails });
     }
   }
 
@@ -571,12 +583,12 @@ export class UI {
   }
 
   _onAdaptiveBitrateSet(val) {
-    this._autoAbr = val;
+    this._opts.autoAbr = val;
     this._applyCurrentRendition();
   }
 
   _handleSettingsClick(e) {
-    this._menuPopover.hidden = !this._menuPopover.hidden;
+    this._abrMenuPopover.hidden = !this._abrMenuPopover.hidden;
   }
 
   _handleMouseMove(e) {

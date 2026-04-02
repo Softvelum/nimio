@@ -1,14 +1,14 @@
-import { multiInstanceService } from '@/shared/service';
-import { CaptionRenderer } from '@/captions/renderer';
+import { multiInstanceService } from "@/shared/service";
+import { CaptionRenderer } from "@/captions/renderer";
 
 class UICaptionManager {
-  constructor (instName) {
+  constructor(instName) {
     this._instName = instName;
     this._captions = {};
     this._captionRenderer = CaptionRenderer.getInstance(instName);
   }
 
-  init (container) {
+  init(container) {
     if (container && !this._captionsWrp) {
       this._captionsWrp = this._captionRenderer.createCaptionsWrapper();
       container.appendChild(this._captionsWrp);
@@ -21,15 +21,16 @@ class UICaptionManager {
     }
   }
 
-  setCaptionTrack (id) {
+  setCaptionTrack(id) {
     this._clearActiveCaptions(true);
 
     if (this._container && id) {
       if (!this._captions[id]) {
-        this._captions[id] = this._captionRenderer.createCaptionTrackWrapper(id);
+        this._captions[id] =
+          this._captionRenderer.createCaptionTrackWrapper(id);
         this._captionsWrp.appendChild(this._captions[id]);
       } else {
-        this._captions[id].style.visibility = 'visible';
+        this._captions[id].style.visibility = "visible";
       }
     }
 
@@ -37,11 +38,11 @@ class UICaptionManager {
     this._setCaptionsFontSize();
   }
 
-  clear () {
+  clear() {
     this._clearActiveCaptions();
   }
 
-  deinit () {
+  deinit() {
     if (this._container) {
       try {
         this._resizeObserver.unobserve(this._captionsWrp);
@@ -55,15 +56,15 @@ class UICaptionManager {
     }
   }
 
-  addActiveCaption (caption) {
+  addActiveCaption(caption) {
     this._captions[this._activeCaptionId].appendChild(caption);
   }
 
-  removeActiveCaption (caption) {
+  removeActiveCaption(caption) {
     this._captions[this._activeCaptionId].removeChild(caption);
   }
 
-  _setCaptionsFontSize () {
+  _setCaptionsFontSize() {
     if (!this._activeCaptionId) {
       return;
     }
@@ -75,7 +76,7 @@ class UICaptionManager {
         let wrpRect = actCaps.getBoundingClientRect();
         let fSize = Math.min(
           wrpRect.height / capSize[0],
-          wrpRect.width / capSize[1]
+          wrpRect.width / capSize[1],
         );
 
         actCaps.style.fontSize = `${fSize}px`;
@@ -83,7 +84,7 @@ class UICaptionManager {
     }
   }
 
-  _clearActiveCaptions (hide) {
+  _clearActiveCaptions(hide) {
     if (!this._activeCaptionId) {
       return;
     }
@@ -91,16 +92,15 @@ class UICaptionManager {
     let actCaps = this._captions[this._activeCaptionId];
     if (actCaps) {
       if (hide) {
-        actCaps.style.visibility = 'hidden';
+        actCaps.style.visibility = "hidden";
       }
       try {
-        while( actCaps.firstChild ) {
-          actCaps.removeChild( actCaps.firstChild );
+        while (actCaps.firstChild) {
+          actCaps.removeChild(actCaps.firstChild);
         }
       } catch (err) {}
     }
   }
-
 }
 
 UICaptionManager = multiInstanceService(UICaptionManager);

@@ -1,19 +1,19 @@
-import { multiInstanceService } from '@/shared/service'
-import { CaptionRenderer } from './renderer'
-// import { UICaptionManager } from 'ui/caption_manager'
+import { multiInstanceService } from "@/shared/service";
+import { CaptionRenderer } from "./renderer";
+import { UICaptionManager } from "@/ui/caption-manager";
 // import { PlaybackService } from 'playback/service'
-import { LoggersFactory } from '@/shared/logger'
+import { LoggersFactory } from "@/shared/logger";
 
 class CaptionPresenter {
-  constructor (instName) {
+  constructor(instName) {
     this._captions = {};
     this._renderer = CaptionRenderer.getInstance(instName);
     this._captionManager = UICaptionManager.getInstance(instName);
     this._playbackService = PlaybackService.getInstance(instName);
-    this._logger = LoggersFactory.create(instName, 'Caption Presenter');
+    this._logger = LoggersFactory.create(instName, "Caption Presenter");
   }
 
-  start () {
+  start() {
     if (!this._enabled) {
       this._enabled = true;
 
@@ -24,7 +24,7 @@ class CaptionPresenter {
     }
   }
 
-  stop () {
+  stop() {
     this._enabled = false;
     if (this._dispatchTimer) {
       clearTimeout(this._dispatchTimer);
@@ -32,26 +32,26 @@ class CaptionPresenter {
     }
   }
 
-  deinit () {
+  deinit() {
     this.stop();
     this._captions = {};
   }
 
-  setRenderable (val) {
+  setRenderable(val) {
     this._renderable = val;
   }
 
-  setCallback (name, cb) {
-    if (name === 'onCaptionsArrived') {
+  setCallback(name, cb) {
+    if (name === "onCaptionsArrived") {
       this._onCaptionsArrived = cb;
     }
   }
 
-  setCaptionReportInterface (iface) {
+  setCaptionReportInterface(iface) {
     this._captionReport = iface;
   }
 
-  setActiveCaptionId (capId) {
+  setActiveCaptionId(capId) {
     if (this._activeCaptionId !== capId) {
       if (this._activeCaptionId) {
         this._captions[this._activeCaptionId] = [];
@@ -66,23 +66,23 @@ class CaptionPresenter {
     }
   }
 
-  activateCaptionTrack (capId) {
+  activateCaptionTrack(capId) {
     this._captionReport.captionArrived(capId);
   }
 
-  addCaptions (capId, startTime, captionScreen) {
-
-    if (!this._enabled || (capId !== this._activeCaptionId)) {
+  addCaptions(capId, startTime, captionScreen) {
+    if (!this._enabled || capId !== this._activeCaptionId) {
       return;
     }
-    
+
     // let curTime = this._playbackService.getCurrentTime();
     // this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
 
-    let capRegions = this._renderer.createCaptionRegionsFromScreen(captionScreen);
+    let capRegions =
+      this._renderer.createCaptionRegionsFromScreen(captionScreen);
     if (this._onCaptionsArrived) {
       this._onCaptionsArrived(
-        this._buildSdkCaptionsArrayFrom(capRegions, startTime)
+        this._buildSdkCaptionsArrayFrom(capRegions, startTime),
       );
     }
 
@@ -95,20 +95,27 @@ class CaptionPresenter {
       this._captions[capId] = [];
     }
 
-    let captionsArray = this._renderer.createHTMLCaptionsFromRegions(capRegions, startTime, -1);
+    let captionsArray = this._renderer.createHTMLCaptionsFromRegions(
+      capRegions,
+      startTime,
+      -1,
+    );
     this._captions[capId] = this._captions[capId].concat(captionsArray);
 
     this._dispatchCaptions();
   }
 
-  updateCaptions (capId, startTime, endTime, captionScreen, isEmpty) {
-
-    if (!this._enabled || !this._renderable || (capId !== this._activeCaptionId)) {
+  updateCaptions(capId, startTime, endTime, captionScreen, isEmpty) {
+    if (
+      !this._enabled ||
+      !this._renderable ||
+      capId !== this._activeCaptionId
+    ) {
       return;
     }
 
     let captions = this._captions[this._activeCaptionId];
-    if (!captions || (captions.length === 0)) {
+    if (!captions || captions.length === 0) {
       return;
     }
 
@@ -119,14 +126,17 @@ class CaptionPresenter {
     for (let i = 0; i < captions.length; i++) {
       if (captions[i].end === -1) {
         if (captions[i].start !== startTime) {
-          this._logger.warn('Orphan caption detected', captionScreen.getDisplayText());
+          this._logger.warn(
+            "Orphan caption detected",
+            captionScreen.getDisplayText(),
+          );
         }
         captions[i].end = endTime;
       }
     }
   }
 
-  _buildSdkCaptionsArrayFrom (capRegions, startTime) {
+  _buildSdkCaptionsArrayFrom(capRegions, startTime) {
     let sdkCaps = [];
     for (let i = 0; i < capRegions.length; i++) {
       let cap = {
@@ -134,17 +144,17 @@ class CaptionPresenter {
         x: capRegions[i].x,
         y1: capRegions[i].y1,
         y2: capRegions[i].y2,
-        regions: []
-      }
+        regions: [],
+      };
       for (let j = 0; j < capRegions[i].p.length; j++) {
-        let reg = {spans: []};
+        let reg = { spans: [] };
 
         let capSpans = capRegions[i].p[j].spans;
         for (let k = 0; k < capSpans.length; k++) {
           reg.spans.push({
             row: capSpans[k].row,
             content: capSpans[k].line.trim(),
-            style: this._renderer.getRegionSpanStyle(capSpans[k].name)
+            style: this._renderer.getRegionSpanStyle(capSpans[k].name),
           });
         }
         cap.regions.push(reg);
@@ -155,17 +165,19 @@ class CaptionPresenter {
     return sdkCaps;
   }
 
-  _buildEmptySdkCaptionsArray (time) {
-    return [{
-      time: time,
-      x: 0,
-      y1: 0,
-      y2: 0,
-      regions: []
-    }];
+  _buildEmptySdkCaptionsArray(time) {
+    return [
+      {
+        time: time,
+        x: 0,
+        y1: 0,
+        y2: 0,
+        regions: [],
+      },
+    ];
   }
 
-  _createDispatchTimer () {
+  _createDispatchTimer() {
     let presenter = this;
     this._dispatchTimer = setTimeout(function () {
       this._dispatchTimer = undefined;
@@ -176,25 +188,26 @@ class CaptionPresenter {
     }, 50);
   }
 
-  _dispatchCaptions () {
-
+  _dispatchCaptions() {
     let captions = this._captions[this._activeCaptionId];
-    if (!captions || (captions.length === 0)) {
+    if (!captions || captions.length === 0) {
       return;
     }
- 
+
     let curTime = this._playbackService.getCurrentTime();
     let updCaptions = [];
     for (let i = 0; i < captions.length; i++) {
-      if ((curTime >= captions[i].start) && !captions[i].added) {
+      if (curTime >= captions[i].start && !captions[i].added) {
         this._captionManager.addActiveCaption(captions[i].capHTMLElement);
         captions[i].added = true;
-      } else if ((-1 !== captions[i].end) && (captions[i].end <= curTime)) {
+      } else if (-1 !== captions[i].end && captions[i].end <= curTime) {
         if (captions[i].added) {
           try {
-            this._captionManager.removeActiveCaption(captions[i].capHTMLElement);
+            this._captionManager.removeActiveCaption(
+              captions[i].capHTMLElement,
+            );
           } catch (err) {
-            this._logger.error('Error removing active caption', err);
+            this._logger.error("Error removing active caption", err);
           }
         }
         continue;
@@ -203,7 +216,6 @@ class CaptionPresenter {
     }
     this._captions[this._activeCaptionId] = updCaptions;
   }
-
 }
 
 CaptionPresenter = multiInstanceService(CaptionPresenter);

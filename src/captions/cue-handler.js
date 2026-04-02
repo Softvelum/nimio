@@ -1,19 +1,18 @@
 export class CueHandler {
-
-  constructor (presenter, capId) {
+  constructor(presenter, capId) {
     this._presenter = presenter;
     this._capId = capId;
   }
 
-  activate () {
+  activate() {
     if (!this._activated) {
       this._presenter.activateCaptionTrack(this._capId);
       this._activated = true;
     }
   }
 
-  newCue (startTime, screen) {
-    if ((undefined === this._startTime) || this._startTime > startTime) {
+  newCue(startTime, screen) {
+    if (undefined === this._startTime || this._startTime > startTime) {
       this._startTime = startTime;
     }
 
@@ -21,7 +20,7 @@ export class CueHandler {
     this._presenter.addCaptions(this._capId, startTime, screen);
   }
 
-  finalizeCue (endTime, isEmpty) {
+  finalizeCue(endTime, isEmpty) {
     if (undefined === this._startTime) {
       return;
     }
@@ -31,12 +30,12 @@ export class CueHandler {
       this._startTime,
       endTime,
       this._screen,
-      isEmpty
+      isEmpty,
     );
     this._startTime = undefined;
   }
 
-  reset () {
+  reset() {
     this._startTime = undefined;
     this._activated = false;
     this._screen = undefined;

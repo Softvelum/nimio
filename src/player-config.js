@@ -29,6 +29,7 @@ const DEFAULTS = {
   splashScreen: null,
   syncBuffer: null,
   vod: null,
+  captions: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

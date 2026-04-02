@@ -1,9 +1,9 @@
 export class BitReader {
-  constructor () {
+  constructor() {
     this._reset();
   }
 
-  attach (bytes, initialIndex) {
+  attach(bytes, initialIndex) {
     this._bytes = bytes;
     this._reset();
     if (initialIndex !== undefined) {
@@ -11,7 +11,7 @@ export class BitReader {
     }
   }
 
-  skipBits (count) {
+  skipBits(count) {
     this._fillBuffer(count);
     if (this._bitsInBuffer < count) {
       return this._insufficientBufferError(count);
@@ -20,9 +20,9 @@ export class BitReader {
     this._bitsInBuffer -= count;
   }
 
-  readBits (count) {
+  readBits(count) {
     if (count > 32) {
-      console.error('readBits reads up to 32 bits');
+      console.error("readBits reads up to 32 bits");
       return 0;
     }
 
@@ -47,17 +47,17 @@ export class BitReader {
     }
 
     this._bitsInBuffer -= count;
-    let mask = (count < 32) ? ((1 << count) - 1 >>> 0) : 0xFFFFFFFF;
+    let mask = count < 32 ? ((1 << count) - 1) >>> 0 : 0xffffffff;
     res += (this._bitBuffer >>> this._bitsInBuffer) & mask;
     return res;
   }
 
-  readUE () {
+  readUE() {
     let leadingZeroBits = 0;
     while (this.readBits(1) === 0) {
       leadingZeroBits++;
       if (leadingZeroBits > 32) {
-        console.error('readUE failed ', this._index, this._bitsInBuffer);
+        console.error("readUE failed ", this._index, this._bitsInBuffer);
         return 0;
       }
     }
@@ -65,7 +65,7 @@ export class BitReader {
     return codeNum;
   }
 
-  readSE () {
+  readSE() {
     const value = this.readUE();
     if (value & 0x01) {
       return (value + 1) >> 1;
@@ -74,22 +74,19 @@ export class BitReader {
     }
   }
 
-  _reset () {
+  _reset() {
     this._index = 0;
     this._bitBuffer = this._bitsInBuffer = 0;
   }
 
-  _fillBuffer (count) {
-    while (
-      this._bitsInBuffer < count &&
-      this._index < this._bytes.length
-    ) {
+  _fillBuffer(count) {
+    while (this._bitsInBuffer < count && this._index < this._bytes.length) {
       this._bitBuffer = (this._bitBuffer << 8) | this._bytes[this._index++];
       this._bitsInBuffer += 8;
     }
   }
 
-  _insufficientBufferError (count) {
+  _insufficientBufferError(count) {
     console.error(
       `not enough data to read ${count} bits. Only ${this._bitsInBuffer} available.`,
     );

@@ -1,15 +1,14 @@
-import { NR_ROWS } from './constants'
-import { Row } from './row'
-import { Logger } from './logger'
+import { NR_ROWS } from "./constants";
+import { Row } from "./row";
+import { Logger } from "./logger";
 
 /**
  * Keep a CEA-608 screen of 32x15 styled characters
-*/
+ */
 export class CaptionScreen {
-
   constructor() {
     this.rows = [];
-    for (let i = 0 ; i <  NR_ROWS; i++) {
+    for (let i = 0; i < NR_ROWS; i++) {
       this.rows.push(new Row()); // Note that we use zero-based numbering (0-14)
     }
     this.currRow = NR_ROWS - 1;
@@ -17,16 +16,16 @@ export class CaptionScreen {
     this.reset();
   }
 
-  reset () {
-    for (let i = 0 ; i < NR_ROWS ; i++) {
+  reset() {
+    for (let i = 0; i < NR_ROWS; i++) {
       this.rows[i].clear();
     }
     this.currRow = NR_ROWS - 1;
   }
 
-  equals (other) {
+  equals(other) {
     let equal = true;
-    for (let i = 0 ; i < NR_ROWS ; i++) {
+    for (let i = 0; i < NR_ROWS; i++) {
       if (!this.rows[i].equals(other.rows[i])) {
         equal = false;
         break;
@@ -36,15 +35,15 @@ export class CaptionScreen {
     return equal;
   }
 
-  copy (other) {
-    for (let i = 0 ; i < NR_ROWS ; i++) {
+  copy(other) {
+    for (let i = 0; i < NR_ROWS; i++) {
       this.rows[i].copy(other.rows[i]);
     }
   }
 
-  isEmpty () {
+  isEmpty() {
     let empty = true;
-    for (let i = 0 ; i < NR_ROWS ; i++) {
+    for (let i = 0; i < NR_ROWS; i++) {
       if (!this.rows[i].isEmpty()) {
         empty = false;
         break;
@@ -54,12 +53,12 @@ export class CaptionScreen {
     return empty;
   }
 
-  backSpace () {
-    let row = this.rows[this.currRow]; 
+  backSpace() {
+    let row = this.rows[this.currRow];
     row.backSpace();
   }
 
-  clearToEndOfRow () {
+  clearToEndOfRow() {
     let row = this.rows[this.currRow];
     row.clearToEndOfRow();
   }
@@ -67,32 +66,31 @@ export class CaptionScreen {
   /**
    * Insert a character (without styling) in the current row.
    */
-  insertChar (char) {
+  insertChar(char) {
     let row = this.rows[this.currRow];
     row.insertChar(char);
   }
 
-  setPen (styles) {
+  setPen(styles) {
     let row = this.rows[this.currRow];
     row.setPenStyles(styles);
   }
 
-  moveCursor (relPos) {
+  moveCursor(relPos) {
     let row = this.rows[this.currRow];
-    row.moveCursor(relPos); 
+    row.moveCursor(relPos);
   }
 
-  setCursor (absPos) {
+  setCursor(absPos) {
     Logger.log("INFO", "setCursor: " + absPos);
     let row = this.rows[this.currRow];
     row.setCursor(absPos);
   }
 
-
-  setPAC (pacData) {
+  setPAC(pacData) {
     Logger.log("INFO", "pacData = " + JSON.stringify(pacData));
     let newRow = pacData.row - 1;
-    if (this.nrRollUpRows  && newRow < this.nrRollUpRows - 1) {
+    if (this.nrRollUpRows && newRow < this.nrRollUpRows - 1) {
       newRow = this.nrRollUpRows - 1;
     }
 
@@ -109,8 +107,8 @@ export class CaptionScreen {
       foreground: pacData.color,
       underline: pacData.underline,
       italics: pacData.italics,
-      background: 'black',
-      flash: false
+      background: "black",
+      flash: false,
     };
 
     this.setPen(styles);
@@ -119,19 +117,18 @@ export class CaptionScreen {
   /**
    * Set background/extra foreground, but first do back_space, and then insert space (backwards compatibility).
    */
-  setBkgData (bkgData) {
-
+  setBkgData(bkgData) {
     Logger.log("INFO", "bkgData = " + JSON.stringify(bkgData));
     this.backSpace();
     this.setPen(bkgData);
     this.insertChar(0x20); //Space
   }
 
-  setRollUpRows (nrRows) {
+  setRollUpRows(nrRows) {
     this.nrRollUpRows = nrRows;
   }
 
-  rollUp () {
+  rollUp() {
     if (this.nrRollUpRows === null) {
       Logger.log("DEBUG", "roll_up but nrRollUpRows not set yet");
       return; // Improper setup
@@ -144,18 +141,18 @@ export class CaptionScreen {
     Logger.log("INFO", "Rolling up");
   }
 
-   /**
-  * Get all non-empty rows with as unicode text. 
-  */        
-  getDisplayText (asOneRow) {
+  /**
+   * Get all non-empty rows with as unicode text.
+   */
+  getDisplayText(asOneRow) {
     asOneRow = asOneRow || false;
     let displayText = [];
-    let text = '';
+    let text = "";
     let rowNr = -1;
-    for (let i = 0 ; i < NR_ROWS ; i++) {
+    for (let i = 0; i < NR_ROWS; i++) {
       let rowText = this.rows[i].getTextString();
       if (rowText) {
-        rowNr = i+1;
+        rowNr = i + 1;
         if (asOneRow) {
           displayText.push("Row " + rowNr + ': "' + rowText + '"');
         } else {
@@ -174,8 +171,7 @@ export class CaptionScreen {
     return text;
   }
 
-  getTextAndFormat () {
+  getTextAndFormat() {
     return this.rows;
   }
-
 }
