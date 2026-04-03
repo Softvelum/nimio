@@ -73,11 +73,7 @@ export class UI {
       this._captionCtrl = UICaptionController.getInstance(this._instName);
       this._captionCtrl.init(this._container, this._opts.captions);
 
-      this._captionList = new UICaptionList(
-        this._container,
-        this._controlsBar,
-        this._btnPlayPause,
-      );
+      this._captionList = new UICaptionList(this._controlsBar);
       this._captionList.setUIControlInterface(this);
       this._captionCtrl.setCaptionListInterface(this._captionList);
     }
@@ -229,7 +225,7 @@ export class UI {
     this._buttonVolume = this._controlsBar.querySelector(".btn-volume");
     this._volumeRange = this._controlsBar.querySelector(".volume-range");
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
-    this._abrMenuPopover = this._controlsBar.querySelector(".menu-popover");
+    this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
     this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
@@ -588,6 +584,7 @@ export class UI {
   }
 
   _handleSettingsClick(e) {
+    this._captionList.closeDialog();
     this._abrMenuPopover.hidden = !this._abrMenuPopover.hidden;
   }
 

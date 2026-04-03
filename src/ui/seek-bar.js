@@ -222,7 +222,7 @@ export class UISeekBar {
         function () {
           inst._cachedSliderCoords = getElementCoordinates(inst._slider);
         },
-        300,
+        200,
       );
     }
 

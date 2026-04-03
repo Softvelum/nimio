@@ -1,15 +1,13 @@
 export class UICaptionList {
-  constructor(playerWrp, btnHolder, nextEl) {
-    if (btnHolder && nextEl && !this._btnHolder) {
-      this._captBtn = btnHolder.querySelector(".btn-captions");
-      this._captBtn.onclick = this._captBtnClick;
+  constructor(parent) {
+    this._btn = parent.querySelector(".btn-captions");
+    this._btn.style.display = "inline-grid";
 
-      this._btnHolder = btnHolder;
-      this._btnHolder.insertBefore(this._captBtn, nextEl);
+    this._listDlg = parent.querySelector(".caption-menu");
+    this._list = parent.querySelector(".caption-section");
+    this._btn.addEventListener("click", this._onBtnClick);
 
-      this._playerWrp = playerWrp;
-    }
-
+    this._parent = parent;
     this._captions = [];
   }
 
@@ -53,19 +51,14 @@ export class UICaptionList {
   }
 
   closeDialog() {
-    if (this._captListDlg) {
-      this._captListDlg.remove();
-      delete this._captListDlg;
-    }
+    if (!this._listDlg) return;
+    this._listDlg.hidden = true;
   }
 
   destroy() {
-    this._captBtn = undefined;
-    this._btnHolder = undefined;
-    this._captListDlg = undefined;
-    this._playerWrp = undefined;
-    this._uiControl = undefined;
-    this._captions = undefined;
+    this._btn.removeEventListener("click", this._onBtnClick);
+    this._btn = this._listDlg = undefined;
+    this._uiControl = this._captions = undefined;
   }
 
   _updateCaptionListDialog() {
@@ -96,16 +89,13 @@ export class UICaptionList {
     }
   }
 
-  _captBtnClick = function (e) {
+  _onBtnClick = function (e) {
+    this._listDlg.hidden = !this._listDlg.hidden;
     if (this._captListDlg) {
-      this._captListDlg.remove();
-      delete this._captListDlg;
+
       this._uiControl.showControlsForPeriod(2);
     } else {
       this._uiControl.closeCtrlDialogs();
-
-      this._captListDlg = document.createElement("ul");
-      this._captListDlg.className = "sldp_capt_dialog sldp_ctrl_dialog";
       this._updateCaptionListDialog();
 
       this._playerWrp.insertBefore(this._captListDlg, this._btnHolder);
@@ -113,4 +103,5 @@ export class UICaptionList {
     }
     e.stopPropagation();
   }.bind(this);
+
 }

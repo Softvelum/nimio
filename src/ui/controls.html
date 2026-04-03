@@ -87,30 +87,31 @@
 
     <!-- RIGHT -->
     <div class="controls-right">
-      <button
-        class="btn btn-captions"
-        aria-pressed="false"
-        aria-label="Captions"
-        title="Captions"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M21 6H3c-1.1 0-2 .9-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8c0-1.1-.9-2-2-2zM9 14H7.5c-.83 0-1.5-.67-1.5-1.5S6.67 11 7.5 11H9v-1H7.5A2.5 2.5 0 1 0 7.5 15H9v-1zm8 0h-1.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5H17v-1h-1.5A2.5 2.5 0 1 0 15.5 15H17v-1z"
-          />
-        </svg>
-      </button>
-
-      <button
-        class="btn btn-pip"
-        aria-label="Picture in Picture"
-        title="Picture in Picture"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M19 7H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-1 7h-6v-4h6v4z"
-          />
-        </svg>
-      </button>
+      <div class="menu">
+        <button
+          class="btn btn-captions"
+          aria-pressed="false"
+          aria-label="Captions"
+          title="Captions"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M21 6H3c-1.1 0-2 .9-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8c0-1.1-.9-2-2-2zM9 14H7.5c-.83 0-1.5-.67-1.5-1.5S6.67 11 7.5 11H9v-1H7.5A2.5 2.5 0 1 0 7.5 15H9v-1zm8 0h-1.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5H17v-1h-1.5A2.5 2.5 0 1 0 15.5 15H17v-1z"
+            />
+          </svg>
+        </button>
+        <div class="menu-popover caption-menu" role="menu" hidden>
+          <div class="menu-section caption-section" aria-label="Captions">
+            <button
+              class="menu-item captions-off"
+              role="menuitemradio"
+              aria-checked="true"
+            >
+              Off
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="menu">
         <button
@@ -126,7 +127,7 @@
             />
           </svg>
         </button>
-        <div class="menu-popover" role="menu" hidden>
+        <div class="menu-popover abr-menu" role="menu" hidden>
           <div class="menu-section" aria-label="Renditions">
             <button
               class="menu-item rendition-auto"
@@ -138,6 +139,18 @@
           </div>
         </div>
       </div>
+
+      <button
+        class="btn btn-pip"
+        aria-label="Picture in Picture"
+        title="Picture in Picture"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19 7H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-1 7h-6v-4h6v4z"
+          />
+        </svg>
+      </button>
 
       <button
         class="btn btn-fullscreen"

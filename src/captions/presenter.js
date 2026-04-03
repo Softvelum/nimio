@@ -9,7 +9,7 @@ class CaptionPresenter {
     this._captions = {};
     this._renderer = CaptionRenderer.getInstance(instName);
     this._captionManager = UICaptionManager.getInstance(instName);
-    this._playbackService = PlaybackService.getInstance(instName);
+    // this._playbackService = PlaybackService.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "Caption Presenter");
   }
 
