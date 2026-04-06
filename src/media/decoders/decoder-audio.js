@@ -1,5 +1,6 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import { adjustCodecId } from "./checker";
+import { getFrameData } from "@/shared/data-helpers";
 
 let audioDecoder;
 let support;
@@ -93,17 +94,11 @@ self.addEventListener("message", async function (e) {
       }
       break;
     case "chunk":
-      const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-      const frame = frameWithHeader.subarray(
-        e.data.framePos,
-        frameWithHeader.byteLength,
-      );
-
       timestampBuffer.push(e.data.pts);
       const chunkData = {
         timestamp: e.data.pts,
         type: "key",
-        data: frame,
+        data: getFrameData(e.data),
       };
 
       if (!support || !support.supported) {

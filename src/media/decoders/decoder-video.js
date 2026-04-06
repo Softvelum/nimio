@@ -1,3 +1,5 @@
+import { getFrameData } from "@/shared/data-helpers";
+
 let videoDecoder;
 let support;
 
@@ -122,16 +124,10 @@ self.addEventListener("message", async function (e) {
       await configureDecoder(params);
       break;
     case "chunk":
-      const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-      const frame = frameWithHeader.subarray(
-        e.data.framePos,
-        frameWithHeader.byteLength,
-      );
-
       const chunkData = {
         timestamp: e.data.pts,
         type: e.data.chunkType,
-        data: frame,
+        data: getFrameData(e.data),
       };
       if (!support || !support.supported) {
         // Buffer the chunk until the decoder is ready

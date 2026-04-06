@@ -1,13 +1,13 @@
 import { multiInstanceService } from "@/shared/service";
-import { SPSHolder } from "@/sps/holder";
+// import { SPSHolder } from "@/sps/holder";
 import { AVC_NAL_UNIT_TYPE, HEVC_NAL_UNIT_TYPE } from "./unit-type";
-// import { LoggersFactory } from '@/shared/logger';
+import { LoggersFactory } from '@/shared/logger';
 
 class NalProcessor {
   constructor(instName) {
     this._instId = instName;
-    // this._logger = LoggersFactory.create(instName, 'NAL Processor');
-    this._spsHolder = SPSHolder.getInstance(instName);
+    this._logger = LoggersFactory.create(instName, 'NAL Processor');
+    // this._spsHolder = SPSHolder.getInstance(instName);
 
     this._handlers = {};
     this._ordered = [];
@@ -17,7 +17,7 @@ class NalProcessor {
 
   setCodec(codec) {
     this._codec = codec;
-    this._spsHolder.setCodec(codec);
+    // this._spsHolder.setCodec(codec);
   }
 
   addNalHandler(handler, type) {
@@ -29,11 +29,11 @@ class NalProcessor {
       return;
     }
 
-    if (pTime === null) {
-      // TODO: move this to a separate processor
-      this._spsHolder.parseDecoderConfig(frame);
-      return;
-    }
+    // if (pTime === null) {
+    //   // TODO: move this to a separate processor
+    //   this._spsHolder.parseDecoderConfig(frame);
+    //   return;
+    // }
 
     if (pTime > this._frameSeqEndTime) {
       this._ordered.sort(function (a, b) {
@@ -109,10 +109,10 @@ class NalProcessor {
         }
         start = curIdx + 2;
       }
-      // this._logger.warn('Nal unit received', nalu, type );
+      this._logger.warn('Nal unit received', nalu, type );
 
       if (type === "SPS") {
-        this._spsHolder.parseSPS(frame, start, curIdx + nalSize - 1);
+        // this._spsHolder.parseSPS(frame, start, curIdx + nalSize - 1);
       } else if (type && this._handlers[type]) {
         this._handlers[type].process(
           pTime,
@@ -125,6 +125,10 @@ class NalProcessor {
 
       curIdx += nalSize;
     }
+  }
+
+  get codec() {
+    return this._codec;
   }
 }
 

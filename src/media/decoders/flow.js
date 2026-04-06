@@ -42,6 +42,7 @@ export class DecoderFlow {
   }
 
   setConfig(config) {
+    this._codec = config.codec;
     this._decoder.postMessage({
       type: "config",
       config: config,
@@ -197,6 +198,7 @@ export class DecoderFlow {
           this._switchPeerFlow.setBuffer(null, null);
           this._addDecoderListener();
           this._trackId = this._switchPeerFlow.trackId;
+          this._codec = this._switchPeerFlow.codec;
           this._timescale = this._switchPeerFlow.timescale;
           this._switchPeerFlow = null;
           this._switchContext = null;
@@ -330,6 +332,9 @@ export class DecoderFlow {
   }
   get buffer() {
     return this._buffer;
+  }
+  get codec() {
+    return this._codec;
   }
 
   get onStartTsNotSet() {

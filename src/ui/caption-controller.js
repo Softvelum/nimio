@@ -45,16 +45,6 @@ class UICaptionController {
     }
   }
 
-  setCaptionListInterface(capList) {
-    this._captionList = capList;
-    this._captionList.setCaptions(this._captions);
-    this._captionList.setUserActionReportInterface(this);
-
-    if (this._activeIdx >= 0) {
-      this._captionList.setActiveIdx(this._activeIdx);
-    }
-  }
-
   deinit() {
     if (this._captionList) {
       this._captionList.destroy();
@@ -127,6 +117,16 @@ class UICaptionController {
     }
 
     return result;
+  }
+
+  set list(capList) {
+    this._captionList = capList;
+    this._captionList.captions = this._captions;
+    this._captionList.userActionReportInterface = this;
+
+    if (this._activeIdx >= 0) {
+      this._captionList.activeIdx = this._activeIdx;
+    }
   }
 }
 

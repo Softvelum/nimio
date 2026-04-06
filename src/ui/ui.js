@@ -73,9 +73,9 @@ export class UI {
       this._captionCtrl = UICaptionController.getInstance(this._instName);
       this._captionCtrl.init(this._container, this._opts.captions);
 
-      this._captionList = new UICaptionList(this._controlsBar);
-      this._captionList.setUIControlInterface(this);
-      this._captionCtrl.setCaptionListInterface(this._captionList);
+      this._captionList = new UICaptionList(this._controlsBar, this._eventBus);
+      this._eventBus.on("ui:caption-list-open", () => this._closeAbrMenu());
+      this._captionCtrl.list = this._captionList;
     }
     if (this._opts.fullscreen) {
       this._toggleFullscreen();
@@ -431,6 +431,10 @@ export class UI {
     const btn = e.target.closest("button.menu-item");
     if (!btn) return;
     this._selectRendition(btn);
+    this._closeAbrMenu();
+  }
+
+  _closeAbrMenu() {
     this._abrMenuPopover.hidden = true;
   }
 

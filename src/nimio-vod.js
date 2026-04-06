@@ -365,10 +365,7 @@ export class NimioVod {
     if (this._state !== VOD_STATE.PLAY) return false;
 
     this._setDetachedState(callback);
-
-    // if (this._nalProcessor) {
-    //   this._nalProcessor.reset();
-    // }
+    if (this._nalProcessor) this._nalProcessor.reset();
 
     if (this._context.hasVod()) {
       this._loadCurrentLevel();
@@ -409,9 +406,8 @@ export class NimioVod {
 
     this._logger.debug("goto " + position);
     this._playbackService.setCurrentTime(position);
-    // if (this._nalProcessor) {
-    //   this._nalProcessor.reset();
-    // }
+    if (this._nalProcessor) this._nalProcessor.reset();
+
     return true;
   }
 

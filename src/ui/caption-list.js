@@ -1,31 +1,17 @@
 export class UICaptionList {
-  constructor(parent) {
+  constructor(parent, eventBus) {
     this._btn = parent.querySelector(".btn-captions");
-    this._btn.style.display = "inline-grid";
-
     this._listDlg = parent.querySelector(".caption-menu");
     this._list = parent.querySelector(".caption-section");
     this._btn.addEventListener("click", this._onBtnClick);
 
+    // TODO: remove
+    this._btn.style.display = "inline-grid";
+
+    this._offLabel = "Turn Off";
+    this._eventBus = eventBus;
     this._parent = parent;
     this._captions = [];
-  }
-
-  setUIControlInterface(iface) {
-    this._uiControl = iface;
-  }
-
-  setUserActionReportInterface(iface) {
-    this._userActionReport = iface;
-  }
-
-  setCaptions(captions) {
-    this._captions = captions;
-  }
-
-  setActiveIdx(idx) {
-    this._activeIdx = idx;
-    this.refresh();
   }
 
   getCaptionTitle(idx) {
@@ -36,16 +22,9 @@ export class UICaptionList {
     return title;
   }
 
-  isVisible() {
-    return !!this._captListDlg;
-  }
-
   refresh() {
-    if (this._captBtn) {
-      this._captBtn.style.display =
-        this._captions.length > 0 ? "block" : "none";
-    }
-    if (this._captListDlg) {
+    this._toggleButton();
+    if (this.visible) {
       this._updateCaptionListDialog();
     }
   }
@@ -57,49 +36,82 @@ export class UICaptionList {
 
   destroy() {
     this._btn.removeEventListener("click", this._onBtnClick);
-    this._btn = this._listDlg = undefined;
-    this._uiControl = this._captions = undefined;
+    this._btn = this._listDlg = this._captions = undefined;
+  }
+
+  get visible() {
+    return this._listDlg && !this._listDlg.hidden;
+  }
+
+  set captions(val) {
+    this._captions = val;
+  }
+
+  set userActionReportInterface(iface) {
+    this._userActionReport = iface;
+  }
+
+  set activeIdx(idx) {
+    this._activeIdx = idx;
+    this.refresh();
+  }
+
+  _toggleButton() {
+    if (!this._btn) return;
+    this._btn.style.display = this._captions.length ? "inline-grid" : "none";
   }
 
   _updateCaptionListDialog() {
-    while (this._captListDlg.firstChild) {
-      this._captListDlg.removeChild(this._captListDlg.firstChild);
+    if (!this._list) return;
+
+    let offBtn = this._list.querySelector(".menu-item.captions-off");
+    if (this._activeIdx === -1) {
+      offBtn.textContent = "&#10003 " + this._offLabel;
+      offBtn.setAttribute("aria-checked", "true");
+    } else {
+      offBtn.textContent = this._offLabel;
+      offBtn.setAttribute("aria-checked", "false");
     }
+    offBtn.onclick = function (e) {
+      if (this._userActionReport) {
+        this._userActionReport.selectCaption(-1);
+      }
+      e.stopPropagation();
+    };
+
+    this._list.querySelectorAll(".menu-item").forEach((btn) => {
+      if (btn !== offBtn) btn.remove();
+    });
 
     for (let i = 0; i < this._captions.length; i++) {
-      if (!this._captions[i]) {
-        continue;
-      }
+      if (!this._captions[i]) continue;
 
       let title = this.getCaptionTitle(i);
-      let cLi = document.createElement("li");
+      let capt = document.createElement("button");
+      capt.setAttribute("role", "menuitemradio");
       if (this._activeIdx === i) {
         title = "&#10003 " + title;
+        capt.setAttribute("aria-checked", "true");
+      } else {
+        capt.setAttribute("aria-checked", "false");
       }
-      cLi.innerHTML = title;
-      cLi.onclick = function (e) {
+      capt.textContent = title; // innerHTML
+      capt.onclick = function (e) {
         if (this._userActionReport) {
-          let idx = i === this._activeIdx ? -1 : i;
-          this._userActionReport.selectCaption(idx);
+          this._userActionReport.selectCaption(i);
         }
         e.stopPropagation();
       }.bind(this);
 
-      this._captListDlg.appendChild(cLi);
+      this._list.appendChild(capt);
     }
   }
 
   _onBtnClick = function (e) {
     this._listDlg.hidden = !this._listDlg.hidden;
-    if (this._captListDlg) {
-
-      this._uiControl.showControlsForPeriod(2);
-    } else {
-      this._uiControl.closeCtrlDialogs();
+    if (!this._listDlg.hidden) {
+      this._eventBus.emit("ui:caption-list-open");
       this._updateCaptionListDialog();
-
-      this._playerWrp.insertBefore(this._captListDlg, this._btnHolder);
-      this._uiControl.showControlsForPeriod("infinite");
     }
     e.stopPropagation();
   }.bind(this);
