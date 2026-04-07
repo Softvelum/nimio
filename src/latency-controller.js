@@ -113,7 +113,7 @@ export class LatencyController {
   }
 
   incCurrentVideoTime(speed) {
-    this._getCurrentTsUs();
+    this.getCurrentTsUs();
     this._calculateAvailable();
     let prevVideoTime = this._prevVideoTime;
     this._prevVideoTime = this._getCurTimeMs();
@@ -131,11 +131,21 @@ export class LatencyController {
     return this._curTsUs;
   }
 
-  loadCurrentTsUs() {
-    this._getCurrentTsUs();
+  checkStateAndLoadCurrentTsUs() {
+    this.getCurrentTsUs();
     this._calculateAvailable();
     this._checkPending();
 
+    return this._curTsUs;
+  }
+
+  getCurrentTsUs() {
+    if (this._startTsUs === 0) {
+      this._startTsUs = this._stateMgr.getPlaybackStartTsUs();
+    }
+
+    let curSmpCnt = this._stateMgr.getCurrentTsSmp();
+    this._curTsUs = this._audioConfig.smpCntToTsUs(curSmpCnt) + this._startTsUs;
     return this._curTsUs;
   }
 
@@ -246,16 +256,6 @@ export class LatencyController {
     if (this._startTimeMs >= 0) {
       this._bufferMeter.update(this._availableUs / 1000, this._getCurTimeMs());
     }
-  }
-
-  _getCurrentTsUs() {
-    if (this._startTsUs === 0) {
-      this._startTsUs = this._stateMgr.getPlaybackStartTsUs();
-    }
-
-    let curSmpCnt = this._stateMgr.getCurrentTsSmp();
-    this._curTsUs = this._audioConfig.smpCntToTsUs(curSmpCnt) + this._startTsUs;
-    return this._curTsUs;
   }
 
   _getVideoAvailableUs() {

@@ -12,15 +12,15 @@ const ccToIdx = {
 };
 
 class UICaptionController {
-  constructor(instanceId) {
+  constructor(instName) {
     this._captions = [];
     this._captionProps = [];
     this._activeIdx = -1;
 
-    this._captionPresenter = CaptionPresenter.getInstance(instanceId);
+    this._captionPresenter = CaptionPresenter.getInstance(instName);
     this._captionPresenter.setCaptionReportInterface(this);
 
-    this._captionManager = UICaptionManager.getInstance(instanceId);
+    this._captionManager = UICaptionManager.getInstance(instName);
   }
 
   init(playerWrapper, settings) {
@@ -71,7 +71,7 @@ class UICaptionController {
       this._activeIdx = idx;
       this._captionManager.setCaptionTrack(idxToCC[this._activeIdx]);
       this._captionPresenter.setActiveCaptionId(idxToCC[this._activeIdx]);
-      this._captionList.setActiveIdx(idx);
+      this._captionList.activeIdx = idx;
 
       return true;
     }

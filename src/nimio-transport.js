@@ -289,6 +289,9 @@ export const NimioTransport = {
       // }
       if (this._config.captions) {
         this._captionPresenter = CaptionPresenter.getInstance(this._instName);
+        this._captionPresenter.currentTimeFn = () => {
+          return this._latencyCtrl.getCurrentTsUs();
+        }
         this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
       }
     }

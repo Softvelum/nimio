@@ -12,6 +12,13 @@ export class DecoderFlowAudio extends DecoderFlow {
     return data.audioFrame;
   }
 
+  processChunk(data) {
+    if (!this._canHandleChunk(data)) {
+      return false;
+    }
+    return super.processChunk(data);
+  }
+
   async _handleDecoderOutput(frame, data) {
     if (await this._handleDecodedFrame(frame)) {
       if (!this._buffer) return;

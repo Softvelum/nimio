@@ -1,7 +1,6 @@
 import { multiInstanceService } from "@/shared/service";
 import { CaptionRenderer } from "./renderer";
 import { UICaptionManager } from "@/ui/caption-manager";
-// import { PlaybackService } from 'playback/service'
 import { LoggersFactory } from "@/shared/logger";
 
 class CaptionPresenter {
@@ -9,7 +8,6 @@ class CaptionPresenter {
     this._captions = {};
     this._renderer = CaptionRenderer.getInstance(instName);
     this._captionManager = UICaptionManager.getInstance(instName);
-    // this._playbackService = PlaybackService.getInstance(instName);
     this._logger = LoggersFactory.create(instName, "Caption Presenter");
   }
 
@@ -75,14 +73,14 @@ class CaptionPresenter {
       return;
     }
 
-    // let curTime = this._playbackService.getCurrentTime();
-    // this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
+    let curTime = this._getCurrentTime();
+    this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
 
     let capRegions =
       this._renderer.createCaptionRegionsFromScreen(captionScreen);
     if (this._onCaptionsArrived) {
       this._onCaptionsArrived(
-        this._buildSdkCaptionsArrayFrom(capRegions, startTime),
+        this._buildApiCaptionsArrayFrom(capRegions, startTime),
       );
     }
 
@@ -120,7 +118,7 @@ class CaptionPresenter {
     }
 
     if (isEmpty && this._onCaptionsArrived) {
-      this._onCaptionsArrived(this._buildEmptySdkCaptionsArray(endTime));
+      this._onCaptionsArrived(this._buildEmptyApiCaptionsArray(endTime));
     }
 
     for (let i = 0; i < captions.length; i++) {
@@ -136,8 +134,8 @@ class CaptionPresenter {
     }
   }
 
-  _buildSdkCaptionsArrayFrom(capRegions, startTime) {
-    let sdkCaps = [];
+  _buildApiCaptionsArrayFrom(capRegions, startTime) {
+    let apiCaps = [];
     for (let i = 0; i < capRegions.length; i++) {
       let cap = {
         time: startTime,
@@ -159,13 +157,13 @@ class CaptionPresenter {
         }
         cap.regions.push(reg);
       }
-      sdkCaps.push(cap);
+      apiCaps.push(cap);
     }
 
-    return sdkCaps;
+    return apiCaps;
   }
 
-  _buildEmptySdkCaptionsArray(time) {
+  _buildEmptyApiCaptionsArray(time) {
     return [
       {
         time: time,
@@ -194,7 +192,7 @@ class CaptionPresenter {
       return;
     }
 
-    let curTime = this._playbackService.getCurrentTime();
+    let curTime = this._getCurrentTime();
     let updCaptions = [];
     for (let i = 0; i < captions.length; i++) {
       if (curTime >= captions[i].start && !captions[i].added) {
@@ -215,6 +213,10 @@ class CaptionPresenter {
       updCaptions.push(captions[i]);
     }
     this._captions[this._activeCaptionId] = updCaptions;
+  }
+
+  set currentTimeFn(fn) {
+    this._getCurrentTime = fn;
   }
 }
 

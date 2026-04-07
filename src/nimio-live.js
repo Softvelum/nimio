@@ -376,7 +376,7 @@ export class NimioLive {
     if (this._audioCtxProvider.isSuspended()) {
       curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
     } else {
-      curPlayedTsUs = this._latencyCtrl.loadCurrentTsUs();
+      curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
     }
     this._updateBufferLevelMetrics();
 

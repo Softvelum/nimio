@@ -15,12 +15,12 @@ class CaptionRenderer {
 
   createCaptionsWrapper() {
     let wrapper = document.createElement("div");
-    wrapper.className = "sldp_text_tracks_wrp_" + this._instName;
+    wrapper.className = "text-tracks-wrp-" + this._instName;
     wrapper.style.cssText = [
       "position: absolute; display: flex;",
       "pointer-events: none; overflow: hidden;",
       "top: 10%; bottom: 10%; left: 0px;",
-      "width: 100%; line-height: 1.3em; z-index: 5;",
+      "width: 100%; line-height: 1.3em; z-index: 11;",
     ].join("");
 
     return wrapper;
@@ -28,7 +28,7 @@ class CaptionRenderer {
 
   createCaptionTrackWrapper(trackId) {
     let wrapper = document.createElement("div");
-    wrapper.className = `sldp_text_captions_wrp_${this._instName}_${trackId}`;
+    wrapper.className = `text-captions-wrp-${this._instName}-${trackId}`;
     wrapper.style.cssText = [
       "position: absolute; overflow: hidden; pointer-events: none; visibility: visible;",
       'font-family: "Deja Vu Sans Mono", "Lucida Console", Monaco, Consolas, "PT Mono", monospace;',
@@ -43,7 +43,7 @@ class CaptionRenderer {
     let lastRowHasText = false;
     let lastRowIndentL = -1;
     let curP = { spans: [] };
-    let currentStyle = "style_cea608_white_black";
+    let currentStyle = "style-cea608-white-black";
 
     this._styleStates = {};
     this._curRegion = null;

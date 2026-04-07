@@ -58,10 +58,6 @@ export class DecoderFlow {
   }
 
   processChunk(data) {
-    if (data.trackId !== this._trackId || this._isShuttingDown) {
-      return false;
-    }
-
     if (this._switchContext) {
       if (this._switchContext.inputCancelled) return false;
 
@@ -128,6 +124,10 @@ export class DecoderFlow {
   finalizeSwitch() {
     this._cancelInput();
     this._shutdown();
+  }
+
+  _canHandleChunk(data) {
+    return data.trackId === this._trackId && !this._isShuttingDown;
   }
 
   _startSwitch(type) {

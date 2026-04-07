@@ -13,17 +13,26 @@ export class DecoderFlowVideo extends DecoderFlow {
 
   setCodecData(codecData) {
     if (this._nalProcessor) {
-      this._nalProcessor.handleFrame(null, codecData);
+      this._nalProcessor.handleFrame({ codecData });
     }
     super.setCodecData(codecData);
   }
 
   processChunk(data) {
-    if (this._nalProcessor) {
-      debugger;
-      this._nalProcessor.handleFrame(data.pts, getFrameData(data));
+    if (!this._canHandleChunk(data)) {
+      return false;
     }
-    super.processChunk(data);
+
+    if (this._nalProcessor) {
+      data.frame = getFrameData(data);
+      let processed = this._nalProcessor.handleFrame(data);
+      for (let i = 0; i < processed.length; i++) {
+        super.processChunk(processed[i]);
+      }
+      return true;
+    }
+
+    return super.processChunk(data);
   }
 
   async _handleDecoderOutput(frame, data) {

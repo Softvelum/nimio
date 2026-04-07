@@ -11,8 +11,8 @@ class NalProcessor {
 
     this._handlers = {};
     this._ordered = [];
+    this._stashed = [];
     this._frameSeqEndTime = 0;
-    this.type = "nal";
   }
 
   setCodec(codec) {
@@ -24,33 +24,30 @@ class NalProcessor {
     this._handlers[type] = handler;
   }
 
-  handleFrame(pTime, frame) {
+  handleFrame(data) {
     if (this._handlers.length === 0) {
-      return;
+      return [data];
     }
 
-    // if (pTime === null) {
-    //   // TODO: move this to a separate processor
-    //   this._spsHolder.parseDecoderConfig(frame);
-    //   return;
-    // }
+    if (data.pts === undefined) {
+      // TODO: move this to a separate processor
+      // this._spsHolder.parseDecoderConfig(data.codecData);
+      return [data];
+    }
 
-    if (pTime > this._frameSeqEndTime) {
-      this._ordered.sort(function (a, b) {
-        return a.pTime - b.pTime;
-      });
-
+    let processed = [];
+    if (data.pts > this._frameSeqEndTime && this._ordered.length > 0) {
       for (let i = 0; i < this._ordered.length; i++) {
-        this._process(this._ordered[i].pTime, this._ordered[i].frame);
+        this._process(this._ordered[i].pts, this._ordered[i].frame);
       }
       this._ordered = [];
-      this._frameSeqEndTime = pTime;
+      processed = this._stashed;
+      this._stashed = [];
     }
 
-    this._ordered.push({
-      pTime: pTime,
-      frame: frame,
-    });
+    this._addToOrdered(data);
+    this._stashed.push(data);
+    return processed;
   }
 
   reset() {
@@ -59,7 +56,17 @@ class NalProcessor {
     }
 
     this._ordered = [];
+    this._stashed = [];
     this._frameSeqEndTime = 0;
+  }
+
+  _addToOrdered(data) {
+    let idx = this._ordered.length - 1;
+    while (idx >= 0 && this._ordered[idx].pts > data.pts) idx--;
+    this._ordered.splice(idx + 1, 0, data);
+    if (data.pts > this._frameSeqEndTime) {
+      this._frameSeqEndTime = data.pts;
+    }
   }
 
   _process(pTime, frame) {
@@ -109,7 +116,7 @@ class NalProcessor {
         }
         start = curIdx + 2;
       }
-      this._logger.warn('Nal unit received', nalu, type );
+      // this._logger.warn('Nal unit received', nalu, type );
 
       if (type === "SPS") {
         // this._spsHolder.parseSPS(frame, start, curIdx + nalSize - 1);
@@ -129,6 +136,10 @@ class NalProcessor {
 
   get codec() {
     return this._codec;
+  }
+
+  get type() {
+    return "nal";
   }
 }
 
