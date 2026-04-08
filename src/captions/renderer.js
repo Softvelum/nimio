@@ -139,7 +139,7 @@ class CaptionRenderer {
     let captionsArray = [];
     for (let r = 0; r < regions.length; ++r) {
       const finalDiv = document.createElement("div");
-      finalDiv.id = "sub_cea608_" + this._captionId++;
+      finalDiv.id = "sub-cea608-" + this._captionId++;
       const cueRegionProperties = this._getRegionProperties(regions[r]);
       finalDiv.style.cssText = [
         "position: absolute;",
@@ -249,9 +249,9 @@ class CaptionRenderer {
   _getRegionProperties(region) {
     return [
       `left: ${region.x * 3.125}%;`,
-      `top: ${region.y1 * 6.66}%;`,
+      `top: ${region.y1 * 6.65}%;`,
       `width: ${100 - region.x * 3.125}%;`,
-      `height: ${(region.y2 - region.y1 + 1) * 6.66}%;`,
+      `height: ${(region.y2 - region.y1 + 1) * 6.65}%;`,
       "align-items: flex-start; overflow: visible; -webkit-writing-mode: horizontal-tb;",
       "letter-spacing: calc(1em - 1ch)",
     ].join("");

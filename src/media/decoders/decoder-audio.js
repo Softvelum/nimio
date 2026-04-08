@@ -4,6 +4,7 @@ import { getFrameData } from "@/shared/data-helpers";
 
 let audioDecoder;
 let support;
+let params;
 
 let lastTimestampUs = null;
 let frameDurationUs = null;
@@ -11,6 +12,15 @@ let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
 
 const buffered = [];
 let config = {};
+
+function createAudioDecoder() {
+  return new AudioDecoder({
+    output: (audioFrame) => {
+      processDecodedFrame(audioFrame);
+    },
+    error: (e) => tryRecoverDecoderError(e.message),
+  });
+}
 
 function processDecodedFrame(audioFrame) {
   let rawTimestamp = timestampBuffer.pop();
@@ -33,8 +43,30 @@ function processDecodedFrame(audioFrame) {
 }
 
 function pushChunk(data) {
+  if (audioDecoder.state !== "configured") return false;
+  
   const encodedChunk = new EncodedAudioChunk(data);
   audioDecoder.decode(encodedChunk);
+  return true;
+}
+
+function tryRecoverDecoderError(error) {
+  console.error(`Trying to recover from decoder error: ${error}`);
+  if (audioDecoder) {
+    if (lastTimestampUs !== null) {
+      lastTimestampUs += frameDurationUs * timestampBuffer.length;
+      timestampBuffer.reset();
+    }
+    console.log(`video decoder state is ${audioDecoder.state}`);
+    if (audioDecoder.state !== "closed") {
+      audioDecoder.reset();
+      return;
+    }
+
+    audioDecoder = createAudioDecoder();
+    // configure decoder with the same config
+    audioDecoder.configure(params);
+  }
 }
 
 function shutdownDecoder() {
@@ -66,15 +98,10 @@ self.addEventListener("message", async function (e) {
         shutdownDecoder();
         lastTimestampUs = null;
       }
-      audioDecoder = new AudioDecoder({
-        output: (audioFrame) => {
-          processDecodedFrame(audioFrame);
-        },
-        error: (e) => handleDecoderError(e.message),
-      });
+      audioDecoder = createAudioDecoder();
 
       Object.assign(config, e.data.config);
-      let params = {
+      params = {
         codec: config.codec,
         sampleRate: config.sampleRate,
         numberOfChannels: config.numberOfChannels,
@@ -109,13 +136,29 @@ self.addEventListener("message", async function (e) {
 
       if (buffered.length > 0) {
         // Process buffered chunks before the new one
-        for (let i = 0; i < buffered.length; i++) {
-          pushChunk(buffered[i]);
+        let i = 0;
+        for (; i < buffered.length; i++) {
+          if (!pushChunk(buffered[i])) {
+            break;
+          }
         }
-        buffered.length = 0;
+        if (i === buffered.length) {
+          buffered.length = 0;
+        } else {
+          console.warn(
+            `Stopped processing buffered chunks at ${i} due to decoder wasn't ready`,
+          );
+          if (i > 0) buffered.splice(0, i);
+        }
       }
 
-      pushChunk(chunkData);
+      let processed = pushChunk(chunkData);
+      if (!processed) {
+        console.warn(
+          `Decoder not ready, buffering chunk with ts = ${chunkData.timestamp}`,
+        );
+        buffered.push(chunkData);
+      }
       break;
     case "shutdown":
       if (audioDecoder) {
