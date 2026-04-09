@@ -5,7 +5,7 @@ class PlatformDetector {
   constructor() {
     this._logger = LoggersFactory.create("", "PlatformDetector");
 
-    if (undefined !== window) {
+    if (typeof window !== "undefined") {
       if (window.navigator || navigator) {
         this.nav = window.navigator || navigator;
         this.userAgent = (this.nav.userAgent || "").toLowerCase();

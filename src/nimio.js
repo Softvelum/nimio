@@ -6,6 +6,7 @@ import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
 import { NimioEvents } from "./nimio-events";
 import { NimioVolume } from "./nimio-volume";
+import { NimioExtAPI } from "./nimio-ext-api";
 import { createConfig, updateConfigStreamURL } from "./player-config";
 import { resolveContainer } from "./shared/container";
 import { PlaybackContext } from "./playback/context";
@@ -75,7 +76,7 @@ export default class Nimio {
     }
 
     this._actPlayer = this._livePlayer;
-    this._mode = "live";
+    this._mode = MODE.LIVE;
     this._eventBus.on("aux:playback-error", this._onError);
 
     this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
@@ -95,7 +96,7 @@ export default class Nimio {
     this._vuMeterSvc.clear();
 
     if (this._vodPlayer) {
-      this._vodPlayer.destroy;
+      this._vodPlayer.destroy();
       this._vodPlayer = undefined;
     }
 
@@ -190,21 +191,21 @@ export default class Nimio {
   }
 
   _switchToVod(position) {
-    if (!this._vodPlayer || this._mode === "vod") return false;
-    this._mode = "pend";
+    if (!this._vodPlayer || this._mode === MODE.VOD) return false;
+    this._mode = MODE.PEND;
 
     return this._livePlayer.detach(() => {
       // TODO: re-check parameters
       this._actPlayer = this._vodPlayer;
       this._actPlayer.attach(this._ui, position, () => {
-        this._mode = "vod";
+        this._mode = MODE.VOD;
       });
     });
   }
 
   _switchToLive(buffering) {
-    if (!this._vodPlayer || this._mode === "live") return false;
-    this._mode = "pend";
+    if (!this._vodPlayer || this._mode === MODE.LIVE) return false;
+    this._mode = MODE.PEND;
 
     this._logger.debug("Attach live with buffering = " + buffering);
 
@@ -215,7 +216,7 @@ export default class Nimio {
     return this._vodPlayer.detach(() => {
       this._actPlayer = this._livePlayer;
       this._actPlayer.attach(this._ui, { buffering, pbError });
-      this._mode = "live";
+      this._mode = MODE.LIVE;
     });
   }
 
@@ -225,7 +226,7 @@ export default class Nimio {
       case "NOT_SUP":
         this._eventBus.emit("nimio:playback-error", {
           error: ERROR[type],
-          mode: "live",
+          mode: MODE.LIVE,
         });
         break;
       case "NO_SRC":
@@ -238,12 +239,12 @@ export default class Nimio {
         }
 
         if (!vodStarted) {
-          if (this._vodPlayer.isRunning()) {
+          if (this._vodPlayer?.isRunning()) {
             this._vodPlayer.stop();
           }
           this._eventBus.emit("nimio:playback-error", {
             error: ERROR[type],
-            mode: "live",
+            mode: MODE.LIVE,
           });
         }
         break;
@@ -261,7 +262,7 @@ export default class Nimio {
     } else {
       this._eventBus.emit("nimio:playback-error", {
         error: ERROR[type],
-        mode: "vod",
+        mode: MODE.VOD,
       });
     }
   }
@@ -279,17 +280,17 @@ export default class Nimio {
     this._vodPlayer.initialize();
   };
 
-  _onPlaybackPositionChange = (type, val) => {
+  _onPlaybackPositionChange = (mode, val) => {
     this._logger.debug(
-      `_onPlaybackPositionChange type = ${type}, value = ${val}, mode = ${this._mode}`,
+      `_onPlaybackPositionChange new mode = ${mode}, value = ${val}, cur mode = ${this._mode}`,
     );
-    if (this._mode === "pend") return false;
+    if (this._mode === MODE.PEND) return false;
 
-    if (type === this._mode) {
+    if (mode === this._mode) {
       return this._actPlayer.goto(val);
     }
 
-    return type === "vod" ? this._switchToVod(val) : this._switchToLive(val);
+    return mode === MODE.VOD ? this._switchToVod(val) : this._switchToLive(val);
   };
 
   _addVolumeEventHandlers() {
@@ -303,10 +304,19 @@ export default class Nimio {
     this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
     this._eventBus.off("ui:volume-change", this._onVolumeChange);
   }
+
+  _checkRenditionType(type) {
+    if (type !== "video" && type !== "audio") {
+      this._logger.error("Rendition type must be either 'video' or 'audio'");
+      return false;
+    }
+    return true;
+  }
 }
 
 Object.assign(Nimio.prototype, NimioEvents);
 Object.assign(Nimio.prototype, NimioVolume);
+Object.assign(Nimio.prototype, NimioExtAPI);
 
 if (typeof window !== "undefined") {
   // Expose globally when used via <script type="module"> without manual assignment

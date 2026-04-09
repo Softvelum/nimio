@@ -8,6 +8,11 @@ export function currentTimeGetterMs() {
   }
 
   let hasPerformance = typeof performance !== "undefined";
+  let isWorklet = typeof globalThis !== "undefined" &&
+                  typeof globalThis.currentTime === "number";
+  if (!hasPerformance && !isWorklet) {
+    throw new Error("No time source available");
+  }
   return hasPerformance ? getPerfTime : getCurrentTime;
 }
 

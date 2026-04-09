@@ -356,10 +356,10 @@ export class NimioLive {
     this._eventBus.off("ui:rendition-select", this._onRenditionChange);
   }
 
-  _onPlayPauseClick = function (data) {
+  _onPlayPauseClick(data) {
     if (data.mode !== MODE.LIVE) return;
     data.play ? this.play() : this.pause();
-  };
+  }
 
   _renderVideoFrame() {
     if (this._noVideo || !this._state.isPlaying()) return true;
@@ -816,7 +816,7 @@ export class NimioLive {
         data: params,
       });
     }
-    this._latencyCtrl.setParams(latencyParams);
+    this._latencyCtrl.setParams(params);
   }
 }
 

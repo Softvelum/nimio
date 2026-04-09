@@ -23,6 +23,7 @@ export const IDX = {
 export const MODE = {
   LIVE: 0,
   VOD: 1,
+  PEND: 2,
 };
 export const ERROR = {
   NO_SRC: "No playable sources found",
