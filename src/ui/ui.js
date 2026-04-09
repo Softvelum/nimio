@@ -40,10 +40,7 @@ export class UI {
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
-    if (opts.vod) {
-      this._createMediaElement();
-      this._mediaElement.pending = false;
-    }
+    if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
 
