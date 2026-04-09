@@ -1,5 +1,5 @@
 export const NimioExtAPI = {
-  startAbr () {
+  startAbr() {
     this._actPlayer.startAbr();
   },
 
@@ -33,5 +33,4 @@ export const NimioExtAPI = {
 
     return this._actPlayer.setCurrentRendition(type, id);
   },
-
 };

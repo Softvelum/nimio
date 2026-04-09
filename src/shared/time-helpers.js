@@ -8,8 +8,9 @@ export function currentTimeGetterMs() {
   }
 
   let hasPerformance = typeof performance !== "undefined";
-  let isWorklet = typeof globalThis !== "undefined" &&
-                  typeof globalThis.currentTime === "number";
+  let isWorklet =
+    typeof globalThis !== "undefined" &&
+    typeof globalThis.currentTime === "number";
   if (!hasPerformance && !isWorklet) {
     throw new Error("No time source available");
   }
