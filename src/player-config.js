@@ -211,7 +211,7 @@ function initVodSettings(settings) {
 
   if (vod.hlsjs === "local") {
     vod.hlsjs = { source: null };
-  } else if (vod.hlsjs === "cdn" || (!vod.hlsjs) instanceof Object) {
+  } else if (vod.hlsjs === "cdn" || !(vod.hlsjs instanceof Object)) {
     vod.hlsjs = { source: DEFAULT_HLSJS_SOURCE_URL };
   }
 
@@ -347,7 +347,7 @@ export function updateConfigStreamURL(settings, url) {
     if (vodUrl !== undefined) {
       settings.vod.url = vodUrl;
     } else if (settings.vod.isDefault) {
-      settings.vod.url = defaultVodUrl();
+      settings.vod.url = defaultVodUrl(settings);
     }
 
     if (settings.vod.thumbnails) {

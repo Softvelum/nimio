@@ -136,7 +136,7 @@ class VodPlaybackService {
           }
           if (reportFail) {
             this._eventBus.emit("nimio:playback-error", {
-              mode: "vod",
+              mode: MODE.VOD,
               error: err.name,
             });
           }

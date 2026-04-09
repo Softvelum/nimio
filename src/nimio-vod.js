@@ -5,6 +5,7 @@ import { PlaybackProgressService } from "./playback/progress-service";
 import { PlaybackSegmentTracker } from "./playback/segment-tracker";
 import { AudioController } from "./audio/controller";
 import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
+import { fillTemplateStr } from "./shared/helpers";
 import { VideoHelper } from "./media/helpers/video";
 import { throttler } from "./shared/helpers";
 import { VodPlaybackService } from "./vod/playback-service";
@@ -181,7 +182,7 @@ export class NimioVod {
     this._context.autoAbr = false;
     this._eventBus.emit("nimio:abr", false);
 
-    let curLvl = this._setCurrentRendition(true);
+    let curLvl = this._applyCurrentRendition(true);
     this._pHandler.autoLevelCapping = 0;
     this._pHandler.currentLevel = curLvl.idx;
     this._pHandler.nextLevel = curLvl.idx;
@@ -212,33 +213,60 @@ export class NimioVod {
     let ords = this._context.orderedLevels;
     let lvls = this._context.levels;
     for (let i = 0; i < ords.length; i++) {
-      renditions.push(lvls[ords[i]].rend);
+      renditions.push(this._formatRendition(lvls[ords[i]]));
     }
 
     return renditions;
   }
 
   getCurrentRendition() {
-    let curLvl = this._context.getCurrentLevel();
-    if (curLvl) return curLvl.rend;
+    return this._formatRendition(this._context.getCurrentLevel());
   }
 
-  changeRendition(rendition) {
-    return this.onChangeRendition(rendition, 0);
-  }
-
-  _formatLevel(lvl) {
-    let stream;
-    if (lvl) {
-      stream = {
-        name: lvl.name,
-        bandwidth: lvl.data.bitrate,
-      };
-      if (lvl.data.width > 0) stream.width = lvl.data.width;
-      if (lvl.data.height > 0) stream.height = lvl.data.height;
+  setCurrentRendition(type, id) {
+    let lvlIdx = id - 1;
+    if (this._context.isCurrentLevel(lvlIdx)) {
+      this._logger.debug("specified rendition is already the current one");
+      return true;
+    }
+    let lvl = this._context.levels[lvlIdx];
+    if (!lvl || !lvl.data[`${type}Codec`]) {
+      this._logger.error(
+        `${type} rendition with ID ${id} is not found or not supported`,
+      );
+      return false;
     }
 
+    return this.onChangeRendition(lvl.rend, lvl.rIdx);
+  }
+
+  _formatStream(lvl) {
+    if (!lvl) return null;
+
+    let stream = {
+      name: lvl.name,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) stream.width = lvl.data.width;
+    if (lvl.data.height > 0) stream.height = lvl.data.height;
+
     return stream;
+  }
+
+  _formatRendition(lvl) {
+    if (!lvl) return null;
+
+    let rendition = {
+      id: lvl.idx + 1,
+      rendition: lvl.rend,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) rendition.width = lvl.data.width;
+    if (lvl.data.height > 0) rendition.height = lvl.data.height;
+    if (lvl.data.videoCodec) rendition.vcodec = lvl.data.videoCodec;
+    if (lvl.data.audioCodec) rendition.acodec = lvl.data.audioCodec;
+
+    return rendition;
   }
 
   getStreams() {
@@ -246,7 +274,7 @@ export class NimioVod {
     let ords = this._context.orderedLevels;
     let lvls = this._context.levels;
     for (let i = 0; i < ords.length; i++) {
-      streams.push(this._formatLevel(lvls[ords[i]]));
+      streams.push(this._formatStream(lvls[ords[i]]));
     }
 
     return streams;
@@ -254,10 +282,10 @@ export class NimioVod {
 
   getCurrentStream() {
     let curLvl = this._context.getCurrentLevel();
-    if (curLvl) return this._formatLevel(curLvl);
+    if (curLvl) return this._formatStream(curLvl);
   }
 
-  changeStream(streamName) {
+  setCurrentStream(streamName) {
     let lvl = this._context.getLevelByName(streamName);
     if (lvl) {
       return this.onChangeRendition(lvl.rend, lvl.rIdx);
@@ -445,7 +473,7 @@ export class NimioVod {
     this._context.autoAbr = true;
     this._eventBus.emit("nimio:abr", true);
 
-    this._setCurrentRendition(true);
+    this._applyCurrentRendition(true);
     this._pHandler.autoLevelCapping = -1;
     this._pHandler.currentLevel = -1;
     this._pHandler.nextLevel = -1;
@@ -475,7 +503,7 @@ export class NimioVod {
     if (this._context.isCurrentLevel(levelIdx)) {
       this._context.autoAbr = false;
       this._eventBus.emit("nimio:abr", false);
-      return this._setCurrentRendition(true);
+      return this._applyCurrentRendition(true);
     }
 
     this._switchInProgress = true;
@@ -660,12 +688,12 @@ export class NimioVod {
 
     this._logger.debug("Rendition switched to", lvl.rend, lvl.name);
     this._context.setCurrentLevelIdx(lvl.idx);
-    this._setCurrentRendition();
+    this._applyCurrentRendition();
     this._switchInProgress = false;
     // this._ui.adjustAspectRatio();
   };
 
-  _setCurrentRendition(skipInitResolution) {
+  _applyCurrentRendition(skipInitResolution) {
     let curLvl = this._context.getCurrentLevel();
     if (undefined !== curLvl) {
       if (!skipInitResolution) {
