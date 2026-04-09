@@ -1,4 +1,5 @@
 import { multiInstanceService } from "@/shared/service";
+import { MODE } from "@/shared/values";
 import { LoggersFactory } from "@/shared/logger";
 
 class PlaybackProgressService {
@@ -22,7 +23,7 @@ class PlaybackProgressService {
     }
     this._vodPosition = pos;
     if (this._ui) {
-      this._ui.updatePosition(this._calcPosition("vod"));
+      this._ui.updatePosition(this._calcPosition(MODE.VOD));
     }
 
     let fullDuration = this._fullVodDuration();
@@ -52,7 +53,7 @@ class PlaybackProgressService {
     this._livePosition = pos;
     this._liveDuration = dur;
     if (this._ui) {
-      this._ui.update(this._calcPosition("live"), this._totalDuration());
+      this._ui.update(this._calcPosition(MODE.LIVE), this._totalDuration());
     }
     if (this._timeIndUI) {
       this._timeIndUI.update(-1);
@@ -86,7 +87,7 @@ class PlaybackProgressService {
 
     let fullVodDuration = this._fullVodDuration();
     if (position > fullVodDuration) position = fullVodDuration;
-    let res = this._positionChangeCallback("vod", position);
+    let res = this._positionChangeCallback(MODE.VOD, position);
     if (res) {
       this._vodPosition = position;
       this._livePosition = 0;
@@ -98,7 +99,7 @@ class PlaybackProgressService {
   updateLivePosition(buffer) {
     if (buffer < 0) buffer = 0;
     if (buffer > 25) buffer = 25;
-    let res = this._positionChangeCallback("live", buffer);
+    let res = this._positionChangeCallback(MODE.LIVE, buffer);
     if (res) {
       this._livePosition = this._vodPosition = 0;
     }
@@ -122,22 +123,21 @@ class PlaybackProgressService {
     this._doPositionUpdate(pos * this._totalDuration());
   }.bind(this);
 
-  _doPositionUpdate(position) {
+  _doPositionUpdate(pos) {
     this._logger.debug(
-      `update position = ${position}, vodDuration = ${this._vodDuration}, playlistDuration = ${this._vodPlaylistDuration}`,
+      `update position = ${pos}, vodDuration = ${this._vodDuration}, playlistDuration = ${this._vodPlaylistDuration}`,
     );
-    if (position >= this._fullVodDuration()) {
-      if (
-        this._positionChangeCallback("live", this._totalDuration() - position)
-      ) {
-        // this._livePosition = position - this._fullVodDuration();
-        this._vodPosition = this._livePosition = 0;
-      }
-    } else {
-      if (this._positionChangeCallback("vod", position)) {
-        this._vodPosition = position;
+    if (pos < this._fullVodDuration()) {
+      if (this._positionChangeCallback(MODE.VOD, pos)) {
+        this._vodPosition = pos;
         this._livePosition = 0;
       }
+      return;
+    }
+
+    if (this._positionChangeCallback(MODE.LIVE, this._totalDuration() - pos)) {
+      // this._livePosition = pos - this._fullVodDuration();
+      this._vodPosition = this._livePosition = 0;
     }
   }
 
@@ -151,14 +151,14 @@ class PlaybackProgressService {
     return this._fullVodDuration() + this._liveDuration;
   }
 
-  _calcPosition(type) {
+  _calcPosition(mode) {
     let fullVodDuration = this._fullVodDuration();
     if (fullVodDuration === 0 && this._liveDuration === 0) {
       return 0;
     }
 
     let position;
-    if (type === "vod") {
+    if (mode === MODE.VOD) {
       position = this._vodPosition / this._totalDuration();
     } else {
       position = (fullVodDuration + this._livePosition) / this._totalDuration();
@@ -171,7 +171,7 @@ class PlaybackProgressService {
       this._logger.error(
         "position is greater than the whole scale",
         position,
-        type,
+        mode,
       );
       position = 1;
     }

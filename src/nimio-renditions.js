@@ -27,19 +27,8 @@ export const NimioRenditions = {
     return this._renditionParams(type, rendition);
   },
 
-  setVideoRendition(id) {
-    return this.setCurrentRendition("video", id);
-  },
-
-  setAudioRendition(id) {
-    return this.setCurrentRendition("audio", id);
-  },
-
   setCurrentRendition(type, id) {
     this._logger.debug(`set ${type} rendition ID ${id}`);
-
-    if (!this._context) return false;
-    if (!this._checkRenditionType(type)) return false;
     if (!this._isSwitchPossible(type)) return false;
 
     let rendIdx = id - 1;
@@ -120,14 +109,6 @@ export const NimioRenditions = {
     this._logger.debug(
       `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
-  },
-
-  _checkRenditionType(type) {
-    if (type !== "video" && type !== "audio") {
-      this._logger.error("Rendition type must be either 'video' or 'audio'");
-      return false;
-    }
-    return true;
   },
 
   _renditionParams(type, rendition) {

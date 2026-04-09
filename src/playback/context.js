@@ -281,8 +281,8 @@ class PlaybackContext {
   getMinimumLevelIdx() {
     let min = 1000000;
     for (let i = 0; i < this._levels.length; i++) {
-      if (this._levels[i].height && this._levels[i].height < min) {
-        min = this._levels[i].height;
+      if (this._levels[i].data.height && this._levels[i].data.height < min) {
+        min = this._levels[i].data.height;
         return i;
       }
     }
@@ -349,7 +349,7 @@ class PlaybackContext {
   _addOrderedLevel(idx, height) {
     let oPos = 0;
     for (let j = 0; j < this._ordLevels.length; j++) {
-      if (height < this._levels[this._ordLevels[j]].height) {
+      if (height < this._levels[this._ordLevels[j]].data.height) {
         break;
       }
       oPos++;
