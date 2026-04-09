@@ -23,7 +23,7 @@ export class Cea608Processor {
       (frame[pos + 3] << 24) |
       (frame[pos + 4] << 16) |
       (frame[pos + 5] << 8) |
-      (frame[pos + 6]);
+      frame[pos + 6];
 
     let userDataTypeCode = frame[pos + 7];
     return (

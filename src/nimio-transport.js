@@ -281,7 +281,7 @@ export const NimioTransport = {
       this._nalProcessor.setCodec(codecGen);
       this._seiProcessor = SeiProcessor.getInstance(this._instName);
       this._seiProcessor.setCodec(codecGen);
-      this._nalProcessor.addNalHandler(this._seiProcessor, 'SEI');
+      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
 
       this._seiProcessor.init();
       // if (this._config.timecodes) {
@@ -291,7 +291,7 @@ export const NimioTransport = {
         this._captionPresenter = CaptionPresenter.getInstance(this._instName);
         this._captionPresenter.currentTimeFn = () => {
           return this._latencyCtrl.getCurrentTsUs();
-        }
+        };
         this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
       }
     }
@@ -300,8 +300,7 @@ export const NimioTransport = {
   _updateNalUnitProcessors(codec) {
     let codecGen = VideoHelper.getVideoCodecGen(codec);
     if (
-      codecGen !== "H264" &&
-      codecGen !== "H265" ||
+      (codecGen !== "H264" && codecGen !== "H265") ||
       this._nalProcessor?.codec === codecGen
     ) {
       return;
@@ -316,5 +315,5 @@ export const NimioTransport = {
     // if (this._config.timecodes) {
     //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
     // }
-  }
+  },
 };

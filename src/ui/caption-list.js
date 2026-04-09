@@ -115,5 +115,4 @@ export class UICaptionList {
     }
     e.stopPropagation();
   }.bind(this);
-
 }

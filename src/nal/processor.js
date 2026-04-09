@@ -1,12 +1,12 @@
 import { multiInstanceService } from "@/shared/service";
 // import { SPSHolder } from "@/sps/holder";
 import { AVC_NAL_UNIT_TYPE, HEVC_NAL_UNIT_TYPE } from "./unit-type";
-import { LoggersFactory } from '@/shared/logger';
+import { LoggersFactory } from "@/shared/logger";
 
 class NalProcessor {
   constructor(instName) {
     this._instId = instName;
-    this._logger = LoggersFactory.create(instName, 'NAL Processor');
+    this._logger = LoggersFactory.create(instName, "NAL Processor");
     // this._spsHolder = SPSHolder.getInstance(instName);
 
     this._handlers = {};

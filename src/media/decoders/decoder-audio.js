@@ -44,7 +44,7 @@ function processDecodedFrame(audioFrame) {
 
 function pushChunk(data) {
   if (audioDecoder.state !== "configured") return false;
-  
+
   const encodedChunk = new EncodedAudioChunk(data);
   audioDecoder.decode(encodedChunk);
   return true;
