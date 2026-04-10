@@ -20,7 +20,7 @@ class CaptionRenderer {
       "position: absolute; display: flex;",
       "pointer-events: none; overflow: hidden;",
       "top: 10%; bottom: 10%; left: 0px;",
-      "width: 100%; line-height: 1.3em; z-index: 11;",
+      "width: 100%; line-height: 1.3em; z-index: 10;",
     ].join("");
 
     return wrapper;
@@ -249,9 +249,9 @@ class CaptionRenderer {
   _getRegionProperties(region) {
     return [
       `left: ${region.x * 3.125}%;`,
-      `top: ${region.y1 * 6.65}%;`,
+      `top: ${region.y1 * 6.66}%;`,
       `width: ${100 - region.x * 3.125}%;`,
-      `height: ${(region.y2 - region.y1 + 1) * 6.65}%;`,
+      `height: ${(region.y2 - region.y1 + 1) * 6.66}%;`,
       "align-items: flex-start; overflow: visible; -webkit-writing-mode: horizontal-tb;",
       "letter-spacing: calc(1em - 1ch)",
     ].join("");

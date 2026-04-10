@@ -33,4 +33,16 @@ export const NimioExtAPI = {
 
     return this._actPlayer.setCurrentRendition(type, id);
   },
+
+  getCaptionTracks() {
+    return this._actPlayer.getCaptionTracks();
+  },
+
+  getCurrentCaptionTrack() {
+    return this._actPlayer.getCurrentCaptionTrack();
+  },
+
+  setCaptionTrack(name) {
+    return this._actPlayer.setCaptionTrack(name);
+  },
 };

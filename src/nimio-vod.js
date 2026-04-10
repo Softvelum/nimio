@@ -300,7 +300,7 @@ export class NimioVod {
 
   // TODO: handle CC related methods
   getCaptionTracks() {
-    return [];
+    return {};
   }
 
   getCurrentCaptionTrack() {
@@ -426,6 +426,7 @@ export class NimioVod {
     if (!this._ui) return;
 
     this._removeProgressEventHandlers();
+    this._ui.setDetached();
     this._ui = undefined;
   }
 

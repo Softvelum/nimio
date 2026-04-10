@@ -172,7 +172,7 @@ export class Cea608Channel {
 
   cc_CR() {
     // Carriage Return
-    Logger.log("CR - Carriage Return");
+    Logger.log("INFO", "CR - Carriage Return");
     this.writeScreen.rollUp();
     this.outputDataUpdate();
   }

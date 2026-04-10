@@ -261,7 +261,6 @@ The following features are planned for upcoming releases:
 
 - Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
-- CEA-608 closed captions
 - SEI timecodes support
 - WebTransport protocol
 - Screenshot capture

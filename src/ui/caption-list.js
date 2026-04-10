@@ -5,9 +5,6 @@ export class UICaptionList {
     this._list = parent.querySelector(".caption-section");
     this._btn.addEventListener("click", this._onBtnClick);
 
-    // TODO: remove
-    this._btn.style.display = "inline-grid";
-
     this._offLabel = "Turn Off";
     this._eventBus = eventBus;
     this._parent = parent;
@@ -32,6 +29,11 @@ export class UICaptionList {
   closeDialog() {
     if (!this._listDlg) return;
     this._listDlg.hidden = true;
+  }
+
+  hide() {
+    this.closeDialog();
+    this._btn.style.display = "none";
   }
 
   destroy() {
@@ -66,15 +68,16 @@ export class UICaptionList {
 
     let offBtn = this._list.querySelector(".menu-item.captions-off");
     if (this._activeIdx === -1) {
-      offBtn.textContent = "&#10003 " + this._offLabel;
+      offBtn.textContent = "✓ " + this._offLabel;
       offBtn.setAttribute("aria-checked", "true");
     } else {
       offBtn.textContent = this._offLabel;
       offBtn.setAttribute("aria-checked", "false");
     }
-    offBtn.onclick = function (e) {
+    offBtn.onclick = (e) => {
       if (this._userActionReport) {
         this._userActionReport.selectCaption(-1);
+        this.closeDialog();
       }
       e.stopPropagation();
     };
@@ -88,20 +91,22 @@ export class UICaptionList {
 
       let title = this.getCaptionTitle(i);
       let capt = document.createElement("button");
+      capt.className = "menu-item";
       capt.setAttribute("role", "menuitemradio");
       if (this._activeIdx === i) {
-        title = "&#10003 " + title;
+        title = "✓ " + title;
         capt.setAttribute("aria-checked", "true");
       } else {
         capt.setAttribute("aria-checked", "false");
       }
-      capt.textContent = title; // innerHTML
-      capt.onclick = function (e) {
+      capt.textContent = title;
+      capt.onclick = (e) => {
         if (this._userActionReport) {
           this._userActionReport.selectCaption(i);
+          this.closeDialog();
         }
         e.stopPropagation();
-      }.bind(this);
+      };
 
       this._list.appendChild(capt);
     }

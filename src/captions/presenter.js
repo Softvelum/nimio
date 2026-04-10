@@ -35,20 +35,6 @@ class CaptionPresenter {
     this._captions = {};
   }
 
-  setRenderable(val) {
-    this._renderable = val;
-  }
-
-  setCallback(name, cb) {
-    if (name === "onCaptionsArrived") {
-      this._onCaptionsArrived = cb;
-    }
-  }
-
-  setCaptionReportInterface(iface) {
-    this._captionReport = iface;
-  }
-
   setActiveCaptionId(capId) {
     if (this._activeCaptionId !== capId) {
       if (this._activeCaptionId) {
@@ -74,7 +60,7 @@ class CaptionPresenter {
     }
 
     let curTime = this._getCurrentTime();
-    this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
+    // this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
 
     let capRegions =
       this._renderer.createCaptionRegionsFromScreen(captionScreen);
@@ -132,6 +118,24 @@ class CaptionPresenter {
         captions[i].end = endTime;
       }
     }
+  }
+
+  set currentTimeFn(fn) {
+    this._getCurrentTime = fn;
+  }
+
+  set renderable(val) {
+    this._renderable = val;
+  }
+
+  set captionReportInterface(iface) {
+    this._captionReport = iface;
+  }
+
+  // TODO: deliver captions via event emitter
+  // extra setting required for enabling this
+  set onCaptionsArrived(handler) {
+    this._onCaptionsArrived = handler;
   }
 
   _buildApiCaptionsArrayFrom(capRegions, startTime) {
@@ -213,10 +217,6 @@ class CaptionPresenter {
       updCaptions.push(captions[i]);
     }
     this._captions[this._activeCaptionId] = updCaptions;
-  }
-
-  set currentTimeFn(fn) {
-    this._getCurrentTime = fn;
   }
 }
 

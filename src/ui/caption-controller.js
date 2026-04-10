@@ -18,7 +18,7 @@ class UICaptionController {
     this._activeIdx = -1;
 
     this._captionPresenter = CaptionPresenter.getInstance(instName);
-    this._captionPresenter.setCaptionReportInterface(this);
+    this._captionPresenter.captionReportInterface = this;
 
     this._captionManager = UICaptionManager.getInstance(instName);
   }
@@ -38,7 +38,7 @@ class UICaptionController {
     this._captionManager.init(playerWrapper);
     this._captionManager.setCaptionTrack(idxToCC[this._activeIdx]);
 
-    this._captionPresenter.setRenderable(!!playerWrapper);
+    this._captionPresenter.renderable = !!playerWrapper;
     if (this._activeIdx >= 0) {
       this._captionPresenter.start();
       this._captionPresenter.setActiveCaptionId(idxToCC[this._activeIdx]);
@@ -63,6 +63,7 @@ class UICaptionController {
   }
 
   clear() {
+    this._captionPresenter.stop();
     this._captionManager.clear();
   }
 
@@ -124,9 +125,7 @@ class UICaptionController {
     this._captionList.captions = this._captions;
     this._captionList.userActionReportInterface = this;
 
-    if (this._activeIdx >= 0) {
-      this._captionList.activeIdx = this._activeIdx;
-    }
+    this._captionList.activeIdx = this._activeIdx;
   }
 }
 

@@ -89,6 +89,7 @@ export class UI {
   destroy() {
     this._clearHideControlsTimer();
     this._removeSeekBar();
+    this._removeCaptions();
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
@@ -148,11 +149,15 @@ export class UI {
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
+      if (this._captionCtrl) {
+        this._captionList.refresh();
+      }
     } else {
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       this._liveSign.style.display = "none";
     }
+
     this._mode = mode;
   }
 
@@ -161,6 +166,10 @@ export class UI {
     this._removeMediaElement();
     this._addMediaElement();
     this._mediaElement.style.display = "block";
+  }
+
+  setDetached() {
+    this._hideCaptions();
   }
 
   appendDebugOverlay(state, videoBuffer) {
@@ -173,6 +182,10 @@ export class UI {
 
   get mediaElement() {
     return this._mediaElement;
+  }
+
+  get captionController() {
+    return this._captionCtrl;
   }
 
   get size() {
@@ -360,6 +373,13 @@ export class UI {
       this._thumbnailPreview.destroy();
       this._thumbnailPreview = undefined;
     }
+  }
+
+  _removeCaptions() {
+    if (!this._captionCtrl) return;
+    this._captionCtrl.deinit();
+    this._captionCtrl = undefined;
+    this._captionList = undefined;
   }
 
   _setupEasing() {
@@ -653,17 +673,29 @@ export class UI {
     this.drawPause();
   }
 
-  _onPlaybackStarted() {
+  _onPlaybackStarted(data) {
     this.drawPause();
     this._unsetBackground();
+    if (data.mode === MODE.LIVE) {
+      if (this._captionCtrl) {
+        this._captionCtrl.resume();
+        this._captionList.refresh();
+      }
+    }
   }
 
-  _onPlaybackPaused() {
+  _onPlaybackPaused(data) {
+    if (data.mode === MODE.LIVE) {
+      if (this._captionCtrl) this._captionCtrl.pause();
+    }
     this.drawPlay();
   }
 
   _onPlaybackEnded(data) {
-    if (data.mode === MODE.LIVE) this._setBackground();
+    if (data.mode === MODE.LIVE) {
+      this._setBackground();
+      this._hideCaptions();
+    }
     this.drawPlay();
   }
 
@@ -685,6 +717,12 @@ export class UI {
     if (!this._splashScreenUrl) return;
     this._canvas.style["background-image"] = "";
     this._canvas.style["background-size"] = "";
+  }
+
+  _hideCaptions() {
+    if (!this._captionCtrl) return;
+    this._captionCtrl.clear();
+    this._captionList.hide();
   }
 
   _applyBasicStyle(elem) {
