@@ -13,6 +13,7 @@ class VodPlaybackService {
   init(mediaElement) {
     this._mediaElement = mediaElement;
     this._state = STATE.STOPPED;
+    this._playEventReceived = false;
 
     if (this._mediaElement?._pauseOnStart) {
       this._mediaElement._pauseOnStart = undefined;
