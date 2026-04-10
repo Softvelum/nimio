@@ -203,11 +203,13 @@ export default class Nimio {
     });
   }
 
-  _switchToLive(buffering) {
+  _switchToLive(latency) {
     if (!this._vodPlayer || this._mode === MODE.LIVE) return false;
     this._mode = MODE.PEND;
 
-    this._logger.debug("Attach live with buffering = " + buffering);
+    this._logger.debug(
+      `Attach live with ${latency === 0 ? "default latency" : "latency = " + latency}`,
+    );
 
     // pbError shows that VOD player couldn't play stream on start
     // that means that there is no playable stream source at the moment
@@ -215,7 +217,7 @@ export default class Nimio {
       this._context.state.initial && this._vodPlayer.hasPlaybackErrors();
     return this._vodPlayer.detach(() => {
       this._actPlayer = this._livePlayer;
-      this._actPlayer.attach(this._ui, { buffering, pbError });
+      this._actPlayer.attach(this._ui, { latency, pbError });
       this._mode = MODE.LIVE;
     });
   }
