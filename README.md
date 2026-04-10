@@ -262,7 +262,6 @@ The following features are planned for upcoming releases:
 - Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
 - CEA-608 closed captions
-- VOD playback (DVR support)
 - VOD thumbnail previews
 - SEI timecodes support
 - WebTransport protocol
