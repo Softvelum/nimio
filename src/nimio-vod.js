@@ -661,9 +661,8 @@ export class NimioVod {
 
       if (playPromise) {
         playPromise.then(() => {
-          this._eventBus.emit("nimio:playback-start", { mode: MODE.VOD });
           this._playbackStarted = true;
-          this._context.setState(STATE.PLAY, false);
+          this._context.setState(STATE.PLAYING, false);
         });
       } else if (isInitial) {
         this._ui.canPlay = true;
