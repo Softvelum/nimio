@@ -608,7 +608,7 @@ export class UI {
   }
 
   _handleSettingsClick(e) {
-    this._captionList.closeDialog();
+    if (this._captionList) this._captionList.closeDialog();
     this._abrMenuPopover.hidden = !this._abrMenuPopover.hidden;
   }
 

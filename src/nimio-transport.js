@@ -298,6 +298,8 @@ export const NimioTransport = {
   },
 
   _updateNalUnitProcessors(codec) {
+    if (!this._nalProcessor || !this._seiProcessor) return;
+
     let codecGen = VideoHelper.getVideoCodecGen(codec);
     if (
       (codecGen !== "H264" && codecGen !== "H265") ||

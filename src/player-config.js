@@ -30,6 +30,7 @@ const DEFAULTS = {
   syncBuffer: null,
   vod: null,
   captions: null,
+  timecodes: false,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
