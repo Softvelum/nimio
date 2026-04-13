@@ -376,7 +376,7 @@ enabled: Boolean;
 
 ---
 
-### Other events that can be handled by
+### Other events that can be handled by the caller
 
 - `nimio:captions-arrived`  
   Emitted each time a new set of captions is ready to be displayed on the player's screen. All previous captions should be replaced by new ones. CEA-608 caption format implies that player's screen is divided into 15 rows and 32 columns. Each cell contains one symbol.  
