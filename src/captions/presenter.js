@@ -132,8 +132,6 @@ class CaptionPresenter {
     this._captionReport = iface;
   }
 
-  // TODO: deliver captions via event emitter
-  // extra setting required for enabling this
   set onCaptionsArrived(handler) {
     this._onCaptionsArrived = handler;
   }

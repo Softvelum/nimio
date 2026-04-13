@@ -79,7 +79,10 @@ class UICaptionManager {
           wrpRect.width / capSize[1],
         );
 
-        actCaps.style.fontSize = `${fSize}px`;
+        actCaps.style.fontSize = `${fSize * 0.83}px`;
+        actCaps.querySelectorAll(".cueUniWrapper").forEach((capWrp) => {
+          capWrp.style.lineHeight = `${fSize}px`;
+        });
       }
     }
   }

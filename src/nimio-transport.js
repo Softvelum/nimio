@@ -288,13 +288,24 @@ export const NimioTransport = {
       //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
       // }
       if (this._config.captions) {
-        this._captionPresenter = CaptionPresenter.getInstance(this._instName);
-        this._captionPresenter.currentTimeFn = () => {
-          return this._latencyCtrl.getCurrentTsUs();
-        };
-        this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
+        this._initCaptionProcessing();
       }
     }
+  },
+
+  _initCaptionProcessing() {
+    this._captionPresenter = CaptionPresenter.getInstance(this._instName);
+    this._captionPresenter.currentTimeFn = () => {
+      return this._latencyCtrl.getCurrentTsUs();
+    };
+    if (this._eventBus.hasListeners("nimio:captions-arrived")) {
+      this._captionPresenter.onCaptionsArrived = (caps) => {
+        this._eventBus.emit("nimio:captions-arrived", caps);
+      };
+    } else {
+      this._captionPresenter.onCaptionsArrived = null;
+    }
+    this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
   },
 
   _updateNalUnitProcessors(codec) {
