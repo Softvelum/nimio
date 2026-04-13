@@ -347,7 +347,8 @@ enabled: Boolean;
 
 - `nimio:connection-started`  
   Invoked when player starts connection to media server.  
-  **Parameters:**  
+  **Parameters:**
+
 ```javascript
   url - stream URL the player connects to, e.g. "wss://exampl.com/live/stream"
 ```
@@ -356,7 +357,8 @@ enabled: Boolean;
 
 - `nimio:connection-established`  
   Emitted when connection to media server is established and a list of available streams is received. The list of renditions available for user is composed depending on those streams and browser capabilities.  
-  **Parameters:**  
+  **Parameters:**
+
 ```javascript
   streams: Array<{
     name: String, // application and stream name, e.g. 'live/stream'
@@ -374,9 +376,10 @@ enabled: Boolean;
 
 - `nimio:vod-progress`  
   Invoked when the current VOD playback state is changed. The VOD playback status change during live playback is usually related to the VOD duration change.  
-  **Parameters:**  
+  **Parameters:**
+
 ```javascript
-  status: {  
+  status: {
     position: Number, // VOD playback position in seconds from the start
     duration: Number, // total VOD duration in seconds
   }
@@ -386,9 +389,10 @@ enabled: Boolean;
 
 - `nimio:live-progress`  
   Invoked when the current live playback state is changed.  
-  **Parameters:**  
+  **Parameters:**
+
 ```javascript
-  status: {  
+  status: {
     buffer: Number, // current buffer size in seconds
   }
 ```
