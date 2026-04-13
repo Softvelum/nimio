@@ -11,6 +11,7 @@ class VodPlaybackService {
   }
 
   init(mediaElement) {
+    this._removeMediaElementEventHandlers();
     this._mediaElement = mediaElement;
     this._state = STATE.STOPPED;
     this._playEventReceived = false;
@@ -19,6 +20,7 @@ class VodPlaybackService {
       this._mediaElement._pauseOnStart = undefined;
       this._state = STATE.PAUSED;
     }
+    this._addMediaElementEventHandlers();
   }
 
   startPlayback(params) {
@@ -38,6 +40,7 @@ class VodPlaybackService {
 
   clear() {
     this.resetPosition();
+    this._removeMediaElementEventHandlers();
     this._mediaElement = undefined;
   }
 
@@ -78,14 +81,14 @@ class VodPlaybackService {
     return true;
   }
 
-  handlePlayEvent() {
+  _handlePlayEvent = () => {
     if (this._playEventReceived) return;
 
     this._playEventReceived = true;
     this._eventBus.emit("nimio:playback-start", { mode: MODE.VOD });
-  }
+  };
 
-  handlePauseEvent() {
+  _handlePauseEvent = () => {
     if (!this._playEventReceived) return;
 
     if (this._mediaElement.ended) {
@@ -94,7 +97,7 @@ class VodPlaybackService {
       return;
     }
     this.resumeIfAutoPaused();
-  }
+  };
 
   resumeIfAutoPaused() {
     if (this._mediaElement?.paused && this._state === STATE.PLAYING) {
@@ -149,6 +152,19 @@ class VodPlaybackService {
 
     return playPromise;
   }
+
+  _addMediaElementEventHandlers() {
+    if (!this._mediaElement) return;
+    this._mediaElement.addEventListener("play", this._handlePlayEvent);
+    this._mediaElement.addEventListener("pause", this._handlePauseEvent);
+  }
+
+  _removeMediaElementEventHandlers() {
+    if (!this._mediaElement) return;
+    this._mediaElement.removeEventListener("play", this._handlePlayEvent);
+    this._mediaElement.removeEventListener("pause", this._handlePauseEvent);
+  }
+
 }
 
 VodPlaybackService = multiInstanceService(VodPlaybackService);

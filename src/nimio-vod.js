@@ -533,14 +533,6 @@ export class NimioVod {
     data.play ? this.play() : this.pause();
   };
 
-  _onPlayEvent = () => {
-    this._playbackService.handlePlayEvent();
-  };
-
-  _onPauseEvent = () => {
-    this._playbackService.handlePauseEvent();
-  };
-
   onResize() {}
 
   onEnterPip() {}
@@ -902,15 +894,11 @@ export class NimioVod {
 
   _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPause);
-    this._eventBus.on("ui:media-play-event", this._onPlayEvent);
-    this._eventBus.on("ui:media-pause-event", this._onPauseEvent);
     this._eventBus.on("ui:rendition-select", this._onChangeRendition);
   }
 
   _removeUIEventHandlers() {
     this._eventBus.off("ui:play-pause-click", this._onPlayPause);
-    this._eventBus.off("ui:media-play-event", this._onPlayEvent);
-    this._eventBus.off("ui:media-pause-event", this._onPauseEvent);
     this._eventBus.off("ui:rendition-select", this._onChangeRendition);
   }
 }

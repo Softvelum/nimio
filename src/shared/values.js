@@ -21,9 +21,9 @@ export const IDX = {
   CURRENT_SPEED: 18,
 };
 export const MODE = {
-  LIVE: 0,
-  VOD: 1,
-  PEND: 2,
+  LIVE: "live",
+  VOD: "vod",
+  PEND: "pend",
 };
 export const ERROR = {
   NO_SRC: "No playable sources found",

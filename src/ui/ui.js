@@ -65,7 +65,6 @@ export class UI {
     this._canvas.addEventListener("click", this._onClick);
     this._btnPlayPause.addEventListener("click", this._onClick);
     this._addPlaybackEventHandlers();
-    this._addPlayPauseEventHandlers();
     this._addDisplayEventHandlers();
 
     this._createControls(opts);
@@ -85,7 +84,6 @@ export class UI {
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
-    this._removePlayPauseEventHandlers();
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
@@ -192,14 +190,12 @@ export class UI {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
     this._applySize(this._mediaElement, this._curWidth, this._curHeight);
-    this._addPlayPauseEventHandlers();
     this._canvas.after(this._mediaElement);
   }
 
   _removeMediaElement() {
     if (this._mediaElement.pending) return;
 
-    this._removePlayPauseEventHandlers();
     this._outputs.length = 1; // Media Element is always second
     this._mediaElement.remove();
     this._mediaElement.pending = true;
@@ -317,21 +313,6 @@ export class UI {
     document.removeEventListener("webkitfullscreenchange", this._onResize);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("orientationchange", this._onOrientChange);
-  }
-
-  _addPlayPauseEventHandlers() {
-    if (!this._mediaElement) return;
-
-    this._onPlayEvent = this._onPlayEvent.bind(this);
-    this._onPauseEvent = this._onPauseEvent.bind(this);
-    this._mediaElement.addEventListener("play", this._onPlayEvent);
-    this._mediaElement.addEventListener("pause", this._onPauseEvent);
-  }
-
-  _removePlayPauseEventHandlers() {
-    if (!this._mediaElement) return;
-    this.mediaElement.removeEventListener("play", this._onPlayEvent);
-    this.mediaElement.removeEventListener("pause", this._onPauseEvent);
   }
 
   _removeSeekBar() {
@@ -552,14 +533,6 @@ export class UI {
 
   _onVolumeSet(value) {
     this._volumeRange.value = value;
-  }
-
-  _onPlayEvent() {
-    this._eventBus.emit("ui:media-play-event", { mode: this._mode });
-  }
-
-  _onPauseEvent() {
-    this._eventBus.emit("ui:media-pause-event", { mode: this._mode });
   }
 
   _onAdaptiveBitrateSet(val) {

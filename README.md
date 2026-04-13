@@ -105,6 +105,19 @@ nimio = new Nimio({
     rate: 6, // audio level update frequency limit (from 0.001 to 50)
     dbRange: 100, // decibel scale range which is plotted in the VU meter UI
   },
+  vod: {
+    // video on demand (VOD) playback settings. VOD feature provides playback of recorded live stream (DVR). VOD settings can be defined as an object, or simply with true or false values. true value has the same meaning as an empty object, false means the feature is switched off. If not defined, VOD functionality is not enabled by default. VOD feature is backed by open source HLS.js library.
+
+    // Please refer to https://softvelum.com/2024/06/dvr-sldp-html5-player/ article for setup and usage details.
+
+    url: "https://myserver.com:8081/live/stream/playlist_dvr.m3u8", // (optional) URL to HLS stream that provides recorded content. If not defined, SLDP Player will use default Nimble Streamer DVR path according to the live stream URL.
+    startupVodFailover: true, // (optional) specifies whether the player should automatically switch to VOD on startup if live stream playback fails. Enabled by default.
+    liveFailover: true, // (optional) specifies whether the player should automatically switch to Live if VOD stream playback fails. Enabled by default.
+    thumbnails: true, // (optional) enables video thumbnails above the progress bar of the player while hovering or dragging it. It works only if Nimble Streamer is configured with the dvr_hls_add_program_date_time parameter enabled.
+    hlsjs: {
+      source: 'https://cdn.jsdelivr.net/npm/hls.js@1'
+    } // (optional) HLS.js library settings. It can be either object or string. Currently 2 string values are available: 1. ‘local’ – HLS.js is already included in the web application, so Nimio doesn’t load anything. 2. ‘cdn’ – (default) Nimio will automatically load HLS.js library from the official CDN URL. If the hlsjs parameter is defined as object, it can contain the following fields (currently only one parameter is supported): ‘source‘ – a URL to HLS.js library if a specific version is required.
+  },
 });
 
 nimio.play();
@@ -157,8 +170,22 @@ These methods are available on every `Nimio` player instance.
   Pause playback.
 - `stop()`  
   Stop and reset the player.
+- `destroy()`  
+  Destroy the player instance and release all memory.
 - `version()`  
-  Return the current version string of this player instance.
+  Return the current version string of the player instance.
+
+- `seekVod(position)`
+  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode.\
+  **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
+  **Parameters:**
+  position - playback position in seconds from the start. Possible values are in range [0, duration]
+
+- `seekLive(buffer)`
+  Updates current live playback position (buffering) with the specified value. If the player is currently in VOD mode, it will be switched to Live mode. The latency value in the player's settings is updated with the value of the buffer parameter. If the parameter is omitted, the current buffering setting is used.\
+  **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
+  **Parameters:**
+  buffer - (optional) buffer size in seconds that the player pertains during live playback.
 
 ### Static Methods
 
@@ -176,28 +203,50 @@ These methods are available directly on the `Nimio` class.
 These events are used to send commands and data from UI to `Nimio` player.
 
 - `ui:play-pause-click`  
-  Start/pause playback.  
-  Parameters:
+  Start/pause playback control invoked.  
+  **Parameters:**
 
 ```javascript
 isPlayClicked: Boolean;
+mode: "live" | "vod"; // playback mode
 ```
+
+---
+
+- `ui:volume-change`  
+  Set audio volume.  
+  **Parameters:**
+
+```javascript
+volume: Number; // Current volume as integer value in the range from 0 to 100.
+```
+
+---
 
 - `ui:mute-unmute-click`  
   Mute/unmute audio.  
-  Parameters:
+  **Parameters:**
 
 ```javascript
 mute: Boolean;
 ```
 
-- `ui:volume-change`  
-  Set audio volume.  
-  Parameters:
+---
+
+- `ui:rendition-select`  
+  A specific rendition is selected from the list received from the nimio:rendition-list event.  
+  **Parameters:**
 
 ```javascript
-volume: Number; // Current volume as integer value in the range from 0 to 100.
+rend: {
+  id: Number, // An integer number with unique rendition ID.
+  name: String // Rendition name.
+},
+mode: "live" | "vod"; // playback mode
 ```
+
+---
+
 
 ### Events sent from player to UI
 
@@ -205,55 +254,100 @@ These events are used to send data from `Nimio` player to UI.
 
 - `nimio:play`  
   Playback started.
-
-- `nimio:muted`  
-  Audio muted/unmuted.  
-  Parameters:
+  **Parameters:**
 
 ```javascript
-muted: Boolean;
+mode: "live" | "vod"; // playback mode
 ```
 
+---
+
+- `nimio:pause`  
+  Playback paused.  
+  **Parameters:**
+
+```javascript
+mode: "live" | "vod"; // playback mode
+```
+
+---
+
+- `nimio:playback-start`
+  Playback has started and first frame is rendered.  
+  **Parameters:**
+
+```javascript
+mode: "live" | "vod"; // playback mode
+```
+
+---
+
+- `nimio:playback-end`  
+  Playback reached the end of the media.  
+  **Parameters:**
+
+```javascript
+mode: "live" | "vod"; // playback mode
+```
+
+---
+
 - `nimio:volume-set`  
-  Audio volume set.  
-  Parameters:
+  Audio volume level set.  
+  **Parameters:**
 
 ```javascript
 volume: Number; // Current volume integer value in the range from 0 to 100.
 ```
 
-- `nimio:abr`  
-  Adaptive bitrate enabled/disabled.  
-  Parameters:
+---
+
+- `nimio:muted`  
+  Audio muted/unmuted.  
+  **Parameters:**
 
 ```javascript
-isAbr: Boolean;
+muted: Boolean;
 ```
 
-- `nimio:rendition-set`  
-  ABR rendition set.  
-  Parameters:
+---
 
-  ```javascript
-   rendition: {
-     id: Number, // An integer number with unique rendition ID.
-     name: String // Rendition name.
-   }
-  ```
+- `nimio:abr`  
+  Adaptive bitrate (ABR) mode enabled/disabled.  
+  **Parameters:**
+
+```javascript
+enabled: Boolean;
+```
+
+---
 
 - `nimio:rendition-list`  
-  An array of ABR renditions available.  
-   Parameters:
+  List of available renditions.  
+  **Parameters:**
 
 ```javascript
-  renditions: [
-   {
-     id: Number, // An integer number with unique rendition ID.
-     name: String // Rendition name.
-   },
-   ...
- ]
+  renditions: Array<{
+    id: Number, // An integer number with unique rendition ID.
+    name: String // Rendition name.
+  }>;
 ```
+
+---
+
+- `nimio:rendition-set`  
+  Active video/audio rendition selected manually or programmatically.  
+  **Parameters:**
+
+```javascript
+  rendition: {
+    id: Number, // An integer number with unique rendition ID.
+    name: String // Rendition name.
+  }
+```
+
+---
+
 
 ## Roadmap
 
