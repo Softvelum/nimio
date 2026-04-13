@@ -46,6 +46,7 @@ export class SLDPManager {
       protocols: ["sldp.softvelum.com"],
       syncMode: this._useSyncMode,
     });
+    this._eventBus.emit("nimio:connection-started", url);
   }
 
   stop(opts = {}) {
