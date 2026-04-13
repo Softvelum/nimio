@@ -497,8 +497,8 @@ export class NimioVod {
       name: lvl.name,
     });
 
+    this._context.autoAbr = false;
     if (this._context.isCurrentLevel(levelIdx)) {
-      this._context.autoAbr = false;
       this._eventBus.emit("nimio:abr", false);
       return this._applyCurrentRendition(true);
     }
@@ -509,7 +509,6 @@ export class NimioVod {
     // this._pHandler.currentLevel = levelIdx; // immediate rendition change
     this._pHandler.nextLevel = levelIdx; // rendition change will occur on the next segment
     this._pHandler.autoLevelCapping = 0;
-    this._context.autoAbr = false;
 
     return true;
   }

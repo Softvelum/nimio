@@ -5,7 +5,7 @@ export class UICaptionList {
     this._list = parent.querySelector(".caption-section");
     this._btn.addEventListener("click", this._onBtnClick);
 
-    this._offLabel = "Turn Off";
+    this._offLabel = "Off";
     this._eventBus = eventBus;
     this._parent = parent;
     this._captions = [];
@@ -115,7 +115,7 @@ export class UICaptionList {
   _onBtnClick = function (e) {
     this._listDlg.hidden = !this._listDlg.hidden;
     if (!this._listDlg.hidden) {
-      this._eventBus.emit("ui:caption-list-open");
+      this._eventBus.emit("aux:caption-list-open");
       this._updateCaptionListDialog();
     }
     e.stopPropagation();

@@ -91,7 +91,7 @@ export const NimioRenditions = {
         this._nextRenditionData.trackId,
       );
 
-      if (type === "video") {
+      if (type === "video" && this._nalProcessor) {
         this._updateNalUnitProcessors(this._decoderFlows["video"].codec);
       }
 

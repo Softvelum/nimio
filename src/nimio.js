@@ -55,7 +55,7 @@ export default class Nimio {
         width: this._config.width, // TODO: get from video?
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
-        autoAbr: !!this._config.adaptiveBitrate,
+        abrEnabled: !!this._config.adaptiveBitrate,
         fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
         splashScreen: this._config.splashScreen,
         audioOnly: this._config.audioOnly,

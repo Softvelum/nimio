@@ -36,6 +36,7 @@ export class UI {
     this._baseHeight = opts.height;
     // TODO: get from frame properties
     this._ar = this._baseWidth / this._baseHeight;
+    this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
     this._outputs = [];
@@ -74,7 +75,7 @@ export class UI {
       this._captionCtrl.init(this._container, this._opts.captions);
 
       this._captionList = new UICaptionList(this._controlsBar, this._eventBus);
-      this._eventBus.on("ui:caption-list-open", () => this._closeAbrMenu());
+      this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
       this._captionCtrl.list = this._captionList;
     }
     if (this._opts.fullscreen) {
@@ -397,7 +398,7 @@ export class UI {
     }
 
     const autoBtn = this._abrMenuSection.querySelector("button.rendition-auto");
-    let showAuto = this._opts.autoAbr && renditions.length > 0;
+    let showAuto = this._opts.abrEnabled && renditions.length > 0;
     autoBtn.style.display = showAuto ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
     this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
@@ -421,8 +422,8 @@ export class UI {
 
   _toggleAutoAbrButton() {
     const res = this._abrMenuSection.querySelector("button.rendition-auto");
-    res.setAttribute("aria-checked", this._opts.autoAbr ? "true" : "false");
-    if (this._opts.autoAbr) {
+    res.setAttribute("aria-checked", this._autoAbr ? "true" : "false");
+    if (this._autoAbr) {
       res.style.display = "block";
       if (this._curRendition) {
         const delim = "\u00A0\u00A0";
@@ -473,7 +474,7 @@ export class UI {
     this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
-        !this._opts.autoAbr &&
+        !this._autoAbr &&
         this._curRendition.rendition === btn.dataset.rendition &&
         this._curRendition.id === parseInt(btn.dataset.rid);
       btn.setAttribute("aria-checked", isSel ? "true" : "false");
@@ -603,7 +604,7 @@ export class UI {
   }
 
   _onAdaptiveBitrateSet(val) {
-    this._opts.autoAbr = val;
+    this._autoAbr = val;
     this._applyCurrentRendition();
   }
 
