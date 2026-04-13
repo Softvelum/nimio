@@ -245,8 +245,6 @@ rend: {
 mode: "live" | "vod"; // playback mode
 ```
 
----
-
 ### Events sent from player to UI
 
 These events are used to send data from `Nimio` player to UI.
@@ -345,7 +343,59 @@ enabled: Boolean;
   }
 ```
 
+### Playback events
+
+- `nimio:connection-started`  
+  Invoked when player starts connection to media server.  
+  **Parameters:**
+
+```javascript
+  url - stream URL the player connects to, e.g. "wss://exampl.com/live/stream"
+```
+
 ---
+
+- `nimio:connection-established`  
+  Emitted when connection to media server is established and a list of available streams is received. The list of renditions available for user is composed depending on those streams and browser capabilities.  
+  **Parameters:**
+
+```javascript
+  streams: Array<{
+    name: String, // application and stream name, e.g. 'live/stream'
+    width: Number, // stream width in pixels if video is present
+    height: Number, // stream height in pixels if video is present
+    vcodec: String, // stream video codec if present
+    video: String, // either 'supported' or 'not supported' depending on browser capabilities
+    acodec: String, // stream audio codec if present
+    audio: String, // either 'supported' or 'not supported' depending on browser capabilities
+    bandwidth: Number, // stream bandwidth expressed in bits per second
+  }>;
+```
+
+---
+
+- `nimio:vod-progress`  
+  Invoked when the current VOD playback state is changed. The VOD playback status change during live playback is usually related to the VOD duration change.  
+  **Parameters:**
+
+```javascript
+  status: {
+    position: Number, // VOD playback position in seconds from the start
+    duration: Number, // total VOD duration in seconds
+  }
+```
+
+---
+
+- `nimio:live-progress`  
+  Invoked when the current live playback state is changed.  
+  **Parameters:**
+
+```javascript
+  status: {
+    buffer: Number, // current buffer size in seconds
+  }
+```
 
 ## Roadmap
 
