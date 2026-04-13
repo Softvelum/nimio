@@ -118,6 +118,18 @@ nimio = new Nimio({
       source: "https://cdn.jsdelivr.net/npm/hls.js@1",
     }, // (optional) HLS.js library settings. It can be either object or string. Currently 2 string values are available: 1. ‘local’ – HLS.js is already included in the web application, so Nimio doesn’t load anything. 2. ‘cdn’ – (default) Nimio will automatically load HLS.js library from the official CDN URL. If the hlsjs parameter is defined as object, it can contain the following fields (currently only one parameter is supported): ‘source‘ – a URL to HLS.js library if a specific version is required.
   },
+  captions: {
+    // CEA-608 closed captions settings object. Can be set to {} or true to enable captions without specific settings. Each caption track is represented by ID: capObj pair, where the ID is one of the following: ‘CC1’, ‘CC2’, ‘CC3’, ‘CC4’. The capObj is an object, that defines the following settings:
+    CC1: {
+      name: 'First track', // (optional) track name that is shown in caption selection menu. If it’s not set, then corresponding ID will be shown instead.
+      lang: 'English', // (optional) track language that is shown in parentheses in caption selection menu after the track name.
+      default: true, // (optional) defines whether given track should be enabled by default. If this parameter isn’t specified for any of the tracks, then captions won’t be shown on the player start.
+    },
+    CC2: {
+      name: 'Third track', // (optional) track name
+      lang: 'French', // (optional) track language
+    },
+  },
 });
 
 nimio.play();
@@ -175,17 +187,34 @@ These methods are available on every `Nimio` player instance.
 - `version()`  
   Return the current version string of the player instance.
 
-- `seekVod(position)`
+- `seekVod(position)`  
   Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode.\
   **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
   **Parameters:**
   position - playback position in seconds from the start. Possible values are in range [0, duration]
 
-- `seekLive(buffer)`
+- `seekLive(buffer)`  
   Updates current live playback position (buffering) with the specified value. If the player is currently in VOD mode, it will be switched to Live mode. The latency value in the player's settings is updated with the value of the buffer parameter. If the parameter is omitted, the current buffering setting is used.\
   **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
   **Parameters:**
   buffer - (optional) buffer size in seconds that the player pertains during live playback.
+
+- `getCaptionTracks()`  
+  Returns map of available CEA-608 caption tracks.  
+  **Return value:** object, containing ID: CAP_OBJ pairs, where the ID is one of the following: "CC1", "CC2", "CC3", "CC4". The CAP_OBJ is and object with the following fields:  
+    * title - caption track title that is shown in caption selection dialog.
+    * name - (optional) caption track name defined in caption settings.
+    * lang - (optional) caption track language defined in caption settings.
+
+- `getCurrentCaptionTrack()`  
+  Returns currently selected CEA-608 caption track.  
+  **Return value:** object, containing single ID: CAP_OBJ pair, with the ID of currently selected caption track. If no caption track is selected, then an empty object will be returned.
+
+- `setCaptionTrack(ID)`  
+  Sets current CEA-608 caption track with the ID specified. To turn off captions, "OFF" value should be specified as ID.  
+  **Return value:** boolean status (`true` - track is set successfully, `false` - specified track can't be set).  
+  **Parameters:**  
+  ID - either caption track ID value, which can be one of the following: "CC1", "CC2", "CC3", "CC4" or "OFF" to turn off captions.
 
 ### Static Methods
 
@@ -210,9 +239,7 @@ These events are used to send commands and data from UI to `Nimio` player.
 isPlayClicked: Boolean;
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
-
 - `ui:volume-change`  
   Set audio volume.  
   **Parameters:**
@@ -220,9 +247,7 @@ mode: "live" | "vod"; // playback mode
 ```javascript
 volume: Number; // Current volume as integer value in the range from 0 to 100.
 ```
-
 ---
-
 - `ui:mute-unmute-click`  
   Mute/unmute audio.  
   **Parameters:**
@@ -230,9 +255,7 @@ volume: Number; // Current volume as integer value in the range from 0 to 100.
 ```javascript
 mute: Boolean;
 ```
-
 ---
-
 - `ui:rendition-select`  
   A specific rendition is selected from the list received from the nimio:rendition-list event.  
   **Parameters:**
@@ -244,7 +267,6 @@ rend: {
 },
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
 
 ### Events sent from player to UI
@@ -258,9 +280,7 @@ These events are used to send data from `Nimio` player to UI.
 ```javascript
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
-
 - `nimio:pause`  
   Playback paused.  
   **Parameters:**
@@ -268,9 +288,7 @@ mode: "live" | "vod"; // playback mode
 ```javascript
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
-
 - `nimio:playback-start`
   Playback has started and first frame is rendered.  
   **Parameters:**
@@ -278,9 +296,7 @@ mode: "live" | "vod"; // playback mode
 ```javascript
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
-
 - `nimio:playback-end`  
   Playback reached the end of the media.  
   **Parameters:**
@@ -288,9 +304,7 @@ mode: "live" | "vod"; // playback mode
 ```javascript
 mode: "live" | "vod"; // playback mode
 ```
-
 ---
-
 - `nimio:volume-set`  
   Audio volume level set.  
   **Parameters:**
@@ -298,9 +312,7 @@ mode: "live" | "vod"; // playback mode
 ```javascript
 volume: Number; // Current volume integer value in the range from 0 to 100.
 ```
-
 ---
-
 - `nimio:muted`  
   Audio muted/unmuted.  
   **Parameters:**
@@ -308,9 +320,7 @@ volume: Number; // Current volume integer value in the range from 0 to 100.
 ```javascript
 muted: Boolean;
 ```
-
 ---
-
 - `nimio:abr`  
   Adaptive bitrate (ABR) mode enabled/disabled.  
   **Parameters:**
@@ -318,9 +328,7 @@ muted: Boolean;
 ```javascript
 enabled: Boolean;
 ```
-
 ---
-
 - `nimio:rendition-list`  
   List of available renditions.  
   **Parameters:**
@@ -331,9 +339,7 @@ enabled: Boolean;
     name: String // Rendition name.
   }>;
 ```
-
 ---
-
 - `nimio:rendition-set`  
   Active video/audio rendition selected manually or programmatically.  
   **Parameters:**
@@ -344,8 +350,29 @@ enabled: Boolean;
     name: String // Rendition name.
   }
 ```
-
 ---
+
+### Other events that can be handled by
+
+- `nimio:captions-arrived`  
+  Emitted each time a new set of captions is ready to be displayed on the player's screen. All previous captions should be replaced by new ones. CEA-608 caption format implies that player's screen is divided into 15 rows and 32 columns. Each cell contains one symbol.  
+  **Parameters:**  
+  captions - array of caption block objects having the following fields:  
+  * time - caption display start time related to video element's currentTime
+  * x - caption block's horizontal position counted from the left. Can be in range of 0 - 31.
+  * y1 - caption block's top line position counted from the top. Can be in range of 0 - 14.
+  * y2 - caption block's bottom line position counted from the top. Can be in range of 0 - 14.
+  * regions - array of caption region objects containing single field - spans. The value of this field is an array of caption row span elements. Each element contains text string related to specific row and styling parameters:
+    * row - row number starting from the top. Can be in range of 0 - 14.
+    * content- caption span text string
+    * style - caption span style object, having the follwing fields:
+    * foreground - text font color
+    * background - background color
+    * italic - text should be italic if true
+    * underline - text should be underlined if true
+    * flash - span should be blinking if true  
+
+    If the regions array is empty, it means that the given caption block is used to clear all previous captions from the given time onwards.
 
 ## Roadmap
 
