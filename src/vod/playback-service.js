@@ -164,7 +164,6 @@ class VodPlaybackService {
     this._mediaElement.removeEventListener("play", this._handlePlayEvent);
     this._mediaElement.removeEventListener("pause", this._handlePauseEvent);
   }
-
 }
 
 VodPlaybackService = multiInstanceService(VodPlaybackService);

@@ -115,8 +115,8 @@ nimio = new Nimio({
     liveFailover: true, // (optional) specifies whether the player should automatically switch to Live if VOD stream playback fails. Enabled by default.
     thumbnails: true, // (optional) enables video thumbnails above the progress bar of the player while hovering or dragging it. It works only if Nimble Streamer is configured with the dvr_hls_add_program_date_time parameter enabled.
     hlsjs: {
-      source: 'https://cdn.jsdelivr.net/npm/hls.js@1'
-    } // (optional) HLS.js library settings. It can be either object or string. Currently 2 string values are available: 1. ‘local’ – HLS.js is already included in the web application, so Nimio doesn’t load anything. 2. ‘cdn’ – (default) Nimio will automatically load HLS.js library from the official CDN URL. If the hlsjs parameter is defined as object, it can contain the following fields (currently only one parameter is supported): ‘source‘ – a URL to HLS.js library if a specific version is required.
+      source: "https://cdn.jsdelivr.net/npm/hls.js@1",
+    }, // (optional) HLS.js library settings. It can be either object or string. Currently 2 string values are available: 1. ‘local’ – HLS.js is already included in the web application, so Nimio doesn’t load anything. 2. ‘cdn’ – (default) Nimio will automatically load HLS.js library from the official CDN URL. If the hlsjs parameter is defined as object, it can contain the following fields (currently only one parameter is supported): ‘source‘ – a URL to HLS.js library if a specific version is required.
   },
 });
 
@@ -247,7 +247,6 @@ mode: "live" | "vod"; // playback mode
 
 ---
 
-
 ### Events sent from player to UI
 
 These events are used to send data from `Nimio` player to UI.
@@ -347,7 +346,6 @@ enabled: Boolean;
 ```
 
 ---
-
 
 ## Roadmap
 
