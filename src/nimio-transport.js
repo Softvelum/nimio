@@ -284,12 +284,8 @@ export const NimioTransport = {
       this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
 
       this._seiProcessor.init();
-      // if (this._config.timecodes) {
-      //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
-      // }
-      if (this._config.captions) {
-        this._initCaptionProcessing();
-      }
+      if (this._config.timecodes) this._initTimecodeProcessing();
+      if (this._config.captions) this._initCaptionProcessing();
     }
   },
 
@@ -325,8 +321,17 @@ export const NimioTransport = {
     if (this._config.captions) {
       this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
     }
-    // if (this._config.timecodes) {
-    //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
-    // }
+    if (this._config.timecodes) this._initTimecodeProcessing();
+  },
+
+  _initTimecodeProcessing() {
+    this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
+    if (this._eventBus.hasListeners("nimio:sei-timecode")) {
+      this._picTimingProcessor.onTimecode = this._onTimecodeArrived.bind(this);
+    }
+  },
+
+  _onTimecodeArrived(frameTs, clkTs, strTs) {
+    this._eventBus.emit("nimio:sei-timecode", frameTs, clkTs, strTs, MODE.LIVE);
   },
 };

@@ -462,7 +462,6 @@ The following features are planned for upcoming releases:
 
 - Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
-- SEI timecodes support
 - WebTransport protocol
 - Screenshot capture
 - Extended Player API
