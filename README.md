@@ -431,22 +431,29 @@ enabled: Boolean;
 - `nimio:captions-arrived`  
   Emitted each time a new set of captions is ready to be displayed on the player's screen. All previous captions should be replaced by new ones. CEA-608 caption format implies that player's screen is divided into 15 rows and 32 columns. Each cell contains one symbol.  
   **Parameters:**  
-  captions - array of caption block objects having the following fields:
-  - time - caption display start time related to video element's currentTime
-  - x - caption block's horizontal position counted from the left. Can be in range of 0 - 31.
-  - y1 - caption block's top line position counted from the top. Can be in range of 0 - 14.
-  - y2 - caption block's bottom line position counted from the top. Can be in range of 0 - 14.
-  - regions - array of caption region objects containing single field - spans. The value of this field is an array of caption row span elements. Each element contains text string related to specific row and styling parameters:
-    - row - row number starting from the top. Can be in range of 0 - 14.
-    - content- caption span text string
-    - style - caption span style object, having the follwing fields:
-    - foreground - text font color
-    - background - background color
-    - italic - text should be italic if true
-    - underline - text should be underlined if true
-    - flash - span should be blinking if true
-
-    If the regions array is empty, it means that the given caption block is used to clear all previous captions from the given time onwards.
+```javascript
+  currentTime: Number, // current player time in microseconds
+  captions: Array<{
+    time: Number, // caption display start time in microseconds
+    x: Number, // caption block's horizontal position counted from the left. Can be in range of 0 - 31.
+    y1: Number, //caption block's top line position counted from the top. Can be in range of 0 - 14.
+    y2: Number, // caption block's bottom line position counted from the top. Can be in range of 0 - 14.
+    regions: Array<{
+      spans: Array<{
+        row: Number, // row number starting from the top. Can be in range of 0 - 14.
+        content: String, // caption span text string
+        style: { // caption span style object
+          foreground: String, // text font color
+          background: String, // background color
+          italic: Boolean, // text should be italic if true
+          underline: Boolean, // text should be underlined if true
+          flash: Boolean, // span should be blinking if true
+        },
+      }>
+    }>
+  }>;
+  // If the regions array is empty, it means that the given caption block is used to clear all previous captions from the given time onwards.
+```
 
 ## Roadmap
 

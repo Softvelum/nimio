@@ -59,7 +59,7 @@ class CaptionPresenter {
       return;
     }
 
-    let curTime = this._getCurrentTime();
+    // let curTime = this._getCurrentTime();
     // this._logger.debug(captionScreen.getDisplayText(), startTime, curTime);
 
     let capRegions =
@@ -67,6 +67,7 @@ class CaptionPresenter {
     if (this._onCaptionsArrived) {
       this._onCaptionsArrived(
         this._buildApiCaptionsArrayFrom(capRegions, startTime),
+        Math.floor(this._getCurrentTime()),
       );
     }
 
@@ -104,7 +105,10 @@ class CaptionPresenter {
     }
 
     if (isEmpty && this._onCaptionsArrived) {
-      this._onCaptionsArrived(this._buildEmptyApiCaptionsArray(endTime));
+      this._onCaptionsArrived(
+        this._buildEmptyApiCaptionsArray(endTime),
+        Math.floor(this._getCurrentTime()),
+      );
     }
 
     for (let i = 0; i < captions.length; i++) {

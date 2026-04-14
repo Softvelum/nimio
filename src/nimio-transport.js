@@ -299,8 +299,8 @@ export const NimioTransport = {
       return this._latencyCtrl.getCurrentTsUs();
     };
     if (this._eventBus.hasListeners("nimio:captions-arrived")) {
-      this._captionPresenter.onCaptionsArrived = (caps) => {
-        this._eventBus.emit("nimio:captions-arrived", caps);
+      this._captionPresenter.onCaptionsArrived = (caps, curTime) => {
+        this._eventBus.emit("nimio:captions-arrived", caps, curTime);
       };
     } else {
       this._captionPresenter.onCaptionsArrived = null;
