@@ -833,7 +833,7 @@ export class NimioVod {
         this._trackId,
       );
       for (let i = 0; i < frames.length; i++) {
-        this._nalProcessor.handleFrame(frames[i][0], frames[i][1]);
+        this._nalProcessor.handleFrame(frames[i]);
       }
     }
   };

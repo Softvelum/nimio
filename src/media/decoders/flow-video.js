@@ -11,11 +11,10 @@ export class DecoderFlowVideo extends DecoderFlow {
     return data.videoFrame;
   }
 
-  setCodecData(codecData) {
-    if (this._nalProcessor) {
-      this._nalProcessor.handleFrame({ codecData });
-    }
-    super.setCodecData(codecData);
+  setCodecData(data) {
+    this._readSpsParamsFromCodecData(data);
+    this._codecData = data;
+    super.setCodecData(data);
   }
 
   processChunk(data) {
@@ -42,6 +41,17 @@ export class DecoderFlowVideo extends DecoderFlow {
     }
     this._state.setVideoDecoderQueue(data.decoderQueue);
     this._state.setVideoDecoderLatency(data.decoderLatency);
+  }
+
+  _readSpsParamsFromCodecData(data) {
+    if (!this._nalProcessor) return;
+    this._nalProcessor.handleFrame(data);
+  }
+
+  _finalizeSwitch(peerFlow) {
+    if (!peerFlow.codecData) return;
+    this._codecData = peerFlow.codecData;
+    this._readSpsParamsFromCodecData(this._codecData);
   }
 
   set nalProcessor(processor) {

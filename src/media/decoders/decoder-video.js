@@ -174,11 +174,17 @@ self.addEventListener("message", async function (e) {
         // Process buffered chunks before the new one
         let i = 0;
         for (; i < buffered.length; i++) {
+          // console.warn(
+          //   `Processing buffered chunk with ts = ${buffered[i].chunk.timestamp}, key = ${buffered[i].chunk.type === "key"}`,
+          // );
           if (!pushChunk(buffered[i].chunk, buffered[i].time)) {
             break;
           }
         }
         if (i === buffered.length) {
+          // console.warn(
+          //   `Processed all buffered chunks, total ${i} chunks, decoder is ready now`,
+          // );
           buffered.length = 0;
         } else {
           console.warn(
