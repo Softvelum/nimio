@@ -71,7 +71,8 @@ class SeiProcessor {
         payloadSize += b;
         curPos++;
       }
-      this._logger.debug('SEI payload type = ' + payloadType + ' and payloadSize = ' + payloadSize);
+
+      // this._logger.debug(`SEI payload type = ${payloadType} and payloadSize = ${payloadSize}`);
       for (let i = 0; i < this._handlers.length; i++) {
         if (
           this._handlers[i].isMatching(

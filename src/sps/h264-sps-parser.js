@@ -1,29 +1,26 @@
-import { BitReader } from '@/shared/bit-reader'
-import { NalReader } from '@/nal/reader'
+import { BitReader } from "@/shared/bit-reader";
+import { NalReader } from "@/nal/reader";
 
 export class H264SpsParser {
-  constructor () {
+  constructor() {
     this._bitr = new BitReader();
+    this._validProfiles = new Set([
+      100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
+    ]);
   }
 
-  parse (data, start, end, retObj) {
+  parse(data, start, end, retObj) {
     const rbsp = NalReader.extractUnit(data, start, end);
     this._bitr.attach(rbsp);
 
-    let sps = this._sps = (retObj || {});
+    let sps = (this._sps = retObj || {});
 
     sps.profileIdc = this._bitr.readBits(8); // profile_idc
     this._bitr.readBits(8); // constraint_set_flags and reserved_zero_2bits
     sps.levelIdc = this._bitr.readBits(8); // level_idc
     sps.spsId = this._bitr.readUE(); // seq_parameter_set_id
 
-    if (
-      sps.profileIdc === 100 || sps.profileIdc === 110 || sps.profileIdc === 122 ||
-      sps.profileIdc === 244 || sps.profileIdc === 44  || sps.profileIdc === 83  ||
-      sps.profileIdc === 86  || sps.profileIdc === 118 || sps.profileIdc === 128 ||
-      sps.profileIdc === 138 || sps.profileIdc === 139 || sps.profileIdc === 134 ||
-      sps.profileIdc === 135
-    ) {
+    if (this._validProfiles.has(sps.profileIdc)) {
       const chromaFormatIdc = this._bitr.readUE();
       if (chromaFormatIdc === 3) {
         this._bitr.readBits(1); // separate_colour_plane_flag
@@ -65,7 +62,7 @@ export class H264SpsParser {
     this._bitr.readBits(1); // gaps_in_frame_num_value_allowed_flag
     this._bitr.readUE(); // pic_width_in_mbs_minus1
     this._bitr.readUE(); // pic_height_in_map_units_minus1
-    
+
     const frameMbsOnlyFlag = this._bitr.readBits(1); // frame_mbs_only_flag
     if (!frameMbsOnlyFlag) {
       this._bitr.readBits(1); // mb_adaptive_frame_field_flag
@@ -88,18 +85,19 @@ export class H264SpsParser {
     return this._sps;
   }
 
-  _skipScalingList (size) {
-    let lastScale = 8, nextScale = 8;
+  _skipScalingList(size) {
+    let lastScale = 8;
+    let nextScale = 8;
     for (let i = 0; i < size; i++) {
       if (nextScale !== 0) {
         let deltaScale = this._bitr.readSE();
         nextScale = (lastScale + deltaScale + 256) % 256;
       }
-      lastScale = (nextScale === 0) ? lastScale : nextScale;
+      lastScale = nextScale === 0 ? lastScale : nextScale;
     }
   }
 
-  _readVUIParameters () {
+  _readVUIParameters() {
     const aspectRatioInfoPresentFlag = this._bitr.readBits(1);
     if (aspectRatioInfoPresentFlag) {
       // TODO: handle SAR/DAR parameters for correcting the player aspect ratio
@@ -111,19 +109,27 @@ export class H264SpsParser {
         let sarH = this._bitr.readBits(16); // sar_height
       }
     }
-    if (this._bitr.readBits(1)) { // overscan_info_present_flag
+
+    // overscan_info_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.readBits(1); // overscan_appropriate_flag
     }
-    if (this._bitr.readBits(1)) { // video_signal_type_present_flag
+
+    // video_signal_type_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.readBits(3); // video_format
       this._bitr.readBits(1); // video_full_range_flag
-      if (this._bitr.readBits(1)) { // colour_description_present_flag
+
+      // colour_description_present_flag
+      if (this._bitr.readBits(1)) {
         this._bitr.readBits(8); // colour_primaries
         this._bitr.readBits(8); // transfer_characteristics
         this._bitr.readBits(8); // matrix_coefficients
       }
     }
-    if (this._bitr.readBits(1)) { // chroma_loc_info_present_flag
+
+    // chroma_loc_info_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.readUE(); // chroma_sample_loc_type_top_field
       this._bitr.readUE(); // chroma_sample_loc_type_bottom_field
     }
@@ -133,7 +139,9 @@ export class H264SpsParser {
       this._sps.numUnitsInTick = this._bitr.readBits(32); // num_units_in_tick
       this._sps.timeScale = this._bitr.readBits(32); // time_scale
       if (this._sps.numUnitsInTick !== 0) {
-        this._sps.maxFps = Math.ceil(this._sps.timeScale / (2 * this._sps.numUnitsInTick));
+        this._sps.maxFps = Math.ceil(
+          this._sps.timeScale / (2 * this._sps.numUnitsInTick),
+        );
       }
 
       this._bitr.readBits(1); // fixed_frame_rate_flag
@@ -163,7 +171,7 @@ export class H264SpsParser {
     // }
   }
 
-  _readHRDParameters () {
+  _readHRDParameters() {
     const cpbCntMinus1 = this._bitr.readUE();
     this._bitr.readBits(4); // bit_rate_scale
     this._bitr.readBits(4); // cpb_size_scale
@@ -179,7 +187,8 @@ export class H264SpsParser {
     let timeOffsetLength = this._bitr.readBits(5);
 
     if (this._sps.cpbRemovalDelayLength === undefined) {
-      this._sps.initialCpbRemovalDelayLength = initialCpbRemovalDelayLengthMinus1 + 1;
+      this._sps.initialCpbRemovalDelayLength =
+        initialCpbRemovalDelayLengthMinus1 + 1;
       this._sps.cpbRemovalDelayLength = cpbRemovalDelayLengthMinus1 + 1;
       this._sps.dpbOutputDelayLength = dpbOutputDelayLengthMinus1 + 1;
       this._sps.timeOffsetLength = timeOffsetLength;

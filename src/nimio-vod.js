@@ -816,7 +816,7 @@ export class NimioVod {
   _initPicTimingProcessor() {
     this._picTimingProcessor = this._seiProcessor.getPicTimingHandler();
     if (this._picTimingProcessor) return;
-    
+
     this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
     if (this._eventBus.hasListeners("nimio:sei-timecode")) {
       this._picTimingProcessor.onTimecode = this._onTimecodeArrived;

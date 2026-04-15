@@ -1,13 +1,13 @@
-import { H265BaseUnitParser } from './h265-base-unit-parser'
+import { H265BaseUnitParser } from "./h265-base-unit-parser";
 
 export class H265SpsParser extends H265BaseUnitParser {
-  constructor () {
+  constructor() {
     super();
   }
 
-  parse (data, start, end, retObj) {
+  parse(data, start, end, retObj) {
     this._assignBits(data, start, end);
-    this._sps = (retObj || {});
+    this._sps = retObj || {};
 
     let spsVideoParameterSetId = this._bitr.readBits(4); // sps_video_parameter_set_id
     let spsMaxSubLayersMinus1 = this._bitr.readBits(3); // sps_max_sub_layers_minus1
@@ -41,11 +41,11 @@ export class H265SpsParser extends H265BaseUnitParser {
     let log2MaxPicOrderCtnLsbMinus4 = this._bitr.readUE(); // log2_max_pic_order_cnt_lsb_minus4
 
     // Sub-layer ordering information
-    let spsSubLayerOrderingInfoPresentFlag = this._bitr.readBits(1);
-    let i = 0,
-        subLayerStart = spsSubLayerOrderingInfoPresentFlag ? 0 : spsMaxSubLayersMinus1;
-    
+    let spsSubLayerOrderInfoPresent = this._bitr.readBits(1);
+    let subLayerStart = spsSubLayerOrderInfoPresent ? 0 : spsMaxSubLayersMinus1;
+
     // TODO: debug!
+    let i = 0;
     for (i = subLayerStart; i <= spsMaxSubLayersMinus1; i++) {
       this._bitr.readUE(); // max_dec_pic_buffering_minus1
       this._bitr.readUE(); // max_num_reorder_pics
@@ -63,7 +63,8 @@ export class H265SpsParser extends H265BaseUnitParser {
     // Scaling List Data
     let scalingListEnabledFlag = this._bitr.readBits(1); // scaling_list_enabled_flag
     if (scalingListEnabledFlag) {
-      if (this._bitr.readBits(1)) { // sps_scaling_list_data_present_flag
+      // sps_scaling_list_data_present_flag
+      if (this._bitr.readBits(1)) {
         this._skipScalingListData();
       }
     }
@@ -131,7 +132,7 @@ export class H265SpsParser extends H265BaseUnitParser {
     }
   }
 
-  _skipReferencePictureSet (stRpsIdx, numShortTermRefPicSets) {
+  _skipReferencePictureSet(stRpsIdx, numShortTermRefPicSets) {
     let usedByCurrPicFlag = [];
     let deltaPocS0Minus1 = [];
     let deltaPocS1Minus1 = [];
@@ -144,7 +145,7 @@ export class H265SpsParser extends H265BaseUnitParser {
     }
 
     let deltaRps;
-    let stRPS = this._shortTermRefPicSets[stRpsIdx] = {
+    let stRPS = (this._shortTermRefPicSets[stRpsIdx] = {
       DeltaPocS0: [],
       DeltaPocS1: [],
       UsedByCurrPicS0: [],
@@ -152,7 +153,7 @@ export class H265SpsParser extends H265BaseUnitParser {
       NumNegativePics: 0,
       NumPositivePics: 0,
       NumDeltaPocs: 0,
-    };
+    });
     /* set default values for fields that might not be present in the bitstream
        and have valid defaults */
     stRPS.inter_ref_pic_set_prediction_flag = 0;
@@ -167,7 +168,9 @@ export class H265SpsParser extends H265BaseUnitParser {
       stRPS.abs_delta_rps_minus1 = this._bitr.readUE();
 
       let refRpsIdx = stRpsIdx - stRPS.delta_idx_minus1 - 1; /* 7-45 */
-      deltaRps = (1 - 2 * stRPS.delta_rps_sign) * (stRPS.abs_delta_rps_minus1 + 1);     /* 7-46 */
+      deltaRps =
+        (1 - 2 * stRPS.delta_rps_sign) *
+        (stRPS.abs_delta_rps_minus1 + 1); /* 7-46 */
 
       let refRPS = this._shortTermRefPicSets[refRpsIdx];
 
@@ -185,11 +188,12 @@ export class H265SpsParser extends H265BaseUnitParser {
       /* 7-47: calcuate NumNegativePics, DeltaPocS0 and UsedByCurrPicS0 */
       i = 0;
       let dPoc = 0;
-      for (j = (refRPS.NumPositivePics - 1); j >= 0; j--) {
+      for (j = refRPS.NumPositivePics - 1; j >= 0; j--) {
         dPoc = refRPS.DeltaPocS1[j] + deltaRps;
         if (dPoc < 0 && useDeltaFlag[refRPS.NumNegativePics + j]) {
           stRPS.DeltaPocS0[i] = dPoc;
-          stRPS.UsedByCurrPicS0[i++] = usedByCurrPicFlag[refRPS.NumNegativePics + j];
+          stRPS.UsedByCurrPicS0[i++] =
+            usedByCurrPicFlag[refRPS.NumNegativePics + j];
         }
       }
       if (deltaRps < 0 && useDeltaFlag[refRPS.NumDeltaPocs]) {
@@ -207,7 +211,7 @@ export class H265SpsParser extends H265BaseUnitParser {
 
       /* 7-48: calcuate NumPositivePics, DeltaPocS1 and UsedByCurrPicS1 */
       i = 0;
-      for (j = (refRPS.NumNegativePics - 1); j >= 0; j--) {
+      for (j = refRPS.NumNegativePics - 1; j >= 0; j--) {
         dPoc = refRPS.DeltaPocS0[j] + deltaRps;
         if (dPoc > 0 && useDeltaFlag[j]) {
           stRPS.DeltaPocS1[i] = dPoc;
@@ -222,11 +226,11 @@ export class H265SpsParser extends H265BaseUnitParser {
         dPoc = refRPS.DeltaPocS1[j] + deltaRps;
         if (dPoc > 0 && useDeltaFlag[refRPS.NumNegativePics + j]) {
           stRPS.DeltaPocS1[i] = dPoc;
-          stRPS.UsedByCurrPicS1[i++] = usedByCurrPicFlag[refRPS.NumNegativePics + j];
+          stRPS.UsedByCurrPicS1[i++] =
+            usedByCurrPicFlag[refRPS.NumNegativePics + j];
         }
       }
       stRPS.NumPositivePics = i;
-
     } else {
       /* 7-49 */
       stRPS.NumNegativePics = this._bitr.readUE();
@@ -245,7 +249,8 @@ export class H265SpsParser extends H265BaseUnitParser {
           stRPS.DeltaPocS0[i] = -(deltaPocS0Minus1[i] + 1);
         } else {
           /* 7-55 */
-          stRPS.DeltaPocS0[i] = stRPS.DeltaPocS0[i - 1] - (deltaPocS0Minus1[i] + 1);
+          stRPS.DeltaPocS0[i] =
+            stRPS.DeltaPocS0[i - 1] - (deltaPocS0Minus1[i] + 1);
         }
       }
 
@@ -260,7 +265,8 @@ export class H265SpsParser extends H265BaseUnitParser {
           stRPS.DeltaPocS1[j] = deltaPocS1Minus1[j] + 1;
         } else {
           /* 7-56 */
-          stRPS.DeltaPocS1[j] = stRPS.DeltaPocS1[j - 1] + (deltaPocS1Minus1[j] + 1);
+          stRPS.DeltaPocS1[j] =
+            stRPS.DeltaPocS1[j - 1] + (deltaPocS1Minus1[j] + 1);
         }
       }
 
@@ -280,27 +286,32 @@ export class H265SpsParser extends H265BaseUnitParser {
       }
     }
 
-    if (this._bitr.readBits(1)) { // overscan_info_present_flag
+    // overscan_info_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.skipBits(1); // overscan_appropriate_flag
     }
-    if (this._bitr.readBits(1)) { // video_signal_type_present_flag
+    // video_signal_type_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.skipBits(3); // video_format
       this._bitr.skipBits(1); // video_full_range_flag
-      if (this._bitr.readBits(1)) { // colour_description_present_flag
+      // colour_description_present_flag
+      if (this._bitr.readBits(1)) {
         this._bitr.skipBits(8); // colour_primaries
         this._bitr.skipBits(8); // transfer_characteristics
         this._bitr.skipBits(8); // matrix_coefficients
       }
     }
-    if (this._bitr.readBits(1)) { // chroma_loc_info_present_flag
+
+    // chroma_loc_info_present_flag
+    if (this._bitr.readBits(1)) {
       this._bitr.readUE(); // chroma_sample_loc_type_top_field
       this._bitr.readUE(); // chroma_sample_loc_type_bottom_field
     }
     this._bitr.skipBits(1); // neutral_chroma_indication_flag
 
     // units_field_based_flag[ i ] is used in calculating clockTimestamp[ i ], as specified in Equation D-26.
-    // NOTE 2 – units_field_based_flag[ i ] is expected to be the same for all values of i for all pictures in the CVS. 
-    // When field_seq_flag is equal to 1 or frame_field_info_present_flag is equal to 1 
+    // NOTE 2 – units_field_based_flag[ i ] is expected to be the same for all values of i for all pictures in the CVS.
+    // When field_seq_flag is equal to 1 or frame_field_info_present_flag is equal to 1
     // and pic_struct is in the range of 1 to 6 or 9 to 12, inclusive, units_field_based_flag[ i ] is expected to be equal to 1.
     this._sps.fieldSeqFlag = this._bitr.readBits(1); // field_seq_flag
     this._bitr.skipBits(1); // frame_field_info_present_flag

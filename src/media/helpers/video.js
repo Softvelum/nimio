@@ -259,7 +259,7 @@ export class VideoHelper {
 
               const frame = data.subarray(sampleOffs, sampleOffs + sampleSize);
               let pts = timeOffs + compositionOffs / timescale;
-              result.push({pts, frame});
+              result.push({ pts, frame });
 
               sampleOffs += sampleSize;
               timeOffs += sampleDuration / timescale;

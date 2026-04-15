@@ -1,13 +1,13 @@
-import { H265BaseUnitParser } from './h265-base-unit-parser'
+import { H265BaseUnitParser } from "./h265-base-unit-parser";
 
 export class H265VpsParser extends H265BaseUnitParser {
-  constructor () {
+  constructor() {
     super();
   }
 
-  parse (data, start, end, retObj) {
+  parse(data, start, end, retObj) {
     this._assignBits(data, start, end);
-    this._sps = (retObj || {});
+    this._sps = retObj || {};
 
     let vpsVideoParameterSetId = this._bitr.readBits(4); // vps_video_parameter_set_id
     this._bitr.skipBits(2); // vps_base_layer_internal_flag, vps_base_layer_available_flag
@@ -61,5 +61,4 @@ export class H265VpsParser extends H265BaseUnitParser {
     //   }
     // }
   }
-
 }

@@ -1,24 +1,23 @@
-import { BitReader } from '@/shared/bit-reader'
-import { NalReader } from '@/nal/reader'
+import { BitReader } from "@/shared/bit-reader";
+import { NalReader } from "@/nal/reader";
 
 export class H265BaseUnitParser {
-  constructor () {
+  constructor() {
     this._bitr = new BitReader();
   }
 
-  _assignBits (data, start, end) {
+  _assignBits(data, start, end) {
     const rbsp = NalReader.extractUnit(data, start, end);
     this._bitr.attach(rbsp);
   }
 
-  _parseProfileTierLevel (maxNumSubLayersMinus1) {
+  _parseProfileTierLevel(maxNumSubLayersMinus1) {
     this._bitr.skipBits(2); // general_profile_space
     this._bitr.skipBits(1); // general_tier_flag
     this._sps.profileIdc = this._bitr.readBits(5); // general_profile_idc
 
     this._bitr.skipBits(32); // general_profile_compatibility_flag[i]
-    this._bitr.skipBits(4); // general_progressive_source_flag, general_interlaced_source_flag
-                            // general_non_packed_constraint_flag, general_frame_only_constraint_flag
+    this._bitr.skipBits(4); // general_progressive_source_flag, general_interlaced_source_flag, general_non_packed_constraint_flag, general_frame_only_constraint_flag
 
     this._bitr.skipBits(44); // skip 44 reserved bits
     this._sps.levelIdc = this._bitr.readBits(8); // general_level_idc
@@ -44,8 +43,7 @@ export class H265BaseUnitParser {
         this._bitr.skipBits(5); // sub_layer_profile_idc[i]
 
         this._bitr.skipBits(32); // sub_layer_profile_compatibility_flag[i][j]
-        this._bitr.skipBits(4); // sub_layer_progressive_source_flag[i], sub_layer_interlaced_source_flag[i],
-                                // sub_layer_non_packed_constraint_flag[i], sub_layer_frame_only_constraint_flag[i]
+        this._bitr.skipBits(4); // sub_layer_progressive_source_flag[i], sub_layer_interlaced_source_flag[i], sub_layer_non_packed_constraint_flag[i], sub_layer_frame_only_constraint_flag[i]
 
         this._bitr.skipBits(44); // skip sub layer reserved flags
       }
@@ -56,11 +54,12 @@ export class H265BaseUnitParser {
     }
   }
 
-  _calcMaxFps () {
+  _calcMaxFps() {
     if (this._sps.numUnitsInTick !== 0) {
-      let unitsFieldBasedFlag = this._sps.fieldSeqFlag === 1 ? 1 : 0; 
+      let unitsFieldBasedFlag = this._sps.fieldSeqFlag === 1 ? 1 : 0;
       this._sps.maxFps = Math.ceil(
-        this._sps.timeScale / ((1 + unitsFieldBasedFlag) * this._sps.numUnitsInTick)
+        this._sps.timeScale /
+          ((1 + unitsFieldBasedFlag) * this._sps.numUnitsInTick),
       );
     }
   }

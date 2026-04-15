@@ -19,15 +19,15 @@
 // }
 
 export class H264DecConfParser {
-  constructor (spsParser) {
+  constructor(spsParser) {
     this._spsParser = spsParser;
   }
 
-  parse (data, retObj) {
+  parse(data, retObj) {
     // Skip configurationVersion, AVCProfileIndication, profile_compatibility, AVCLevelIndication, and lengthSizeMinusOne
     let offset = 5;
 
-    const numOfSPS = data[offset] & 0x1F; // Last 5 bits indicate the number of SPS entries
+    const numOfSPS = data[offset] & 0x1f; // Last 5 bits indicate the number of SPS entries
     offset++;
 
     for (let i = 0; i < numOfSPS; i++) {
