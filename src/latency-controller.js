@@ -1,6 +1,6 @@
 import { LatencyBufferMeter } from "@/latency/buffer-meter";
 import { LoggersFactory } from "@/shared/logger";
-import { currentTimeGetterMs } from "@/shared/helpers";
+import { currentTimeGetterMs } from "@/shared/time-helpers";
 import { clamp } from "@/shared/helpers";
 import { SyncModePolicy } from "./sync-mode/policy";
 
@@ -11,10 +11,8 @@ export class LatencyController {
     this._audioConfig = audioConfig;
     this._discontEval = discontinuityEval;
 
-    this._params = params;
-    this._audio = !!this._params.audio;
-    this._video = !!this._params.video;
-    this._latencyMs = this._params.latency;
+    this._audio = !!params.audio;
+    this._video = !!params.video;
 
     this._shortWindowMs = 300;
     this._longWindowMs = 1500;
@@ -23,10 +21,6 @@ export class LatencyController {
       this._shortWindowMs,
       this._longWindowMs,
     );
-
-    this._startThreshUs = this._startingBufferLevel();
-    this._minThreshUs = 50_000; // 50ms
-    this._discontEval.bufferToKeep = this._latencyMs * 900; // 0.9 of latency
 
     this._warmupMs = 3000;
     this._holdMs = 500;
@@ -37,11 +31,8 @@ export class LatencyController {
     this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
     this._rateK = 0.0002;
 
-    this._minLatencyDelta = 40;
-    this._allowedLatencyDelta = params.tolerance - this._latencyMs;
-    if (this._allowedLatencyDelta < this._minLatencyDelta) {
-      this._allowedLatencyDelta = this._minLatencyDelta;
-    }
+    this._setLatency(params.latency);
+    this._setLatencyDelta(params.tolerance);
     this._minRateChangeIntervalMs = 500;
     this._minSeekIntervalMs = 3000; // don't seek more frequently
 
@@ -55,6 +46,9 @@ export class LatencyController {
       this._latencyControlFn = this._syncPlaybackLatency;
       this._syncModePolicy = new SyncModePolicy(params.syncBuffer, params.port);
       this._syncModePolicy.logger = this._logger;
+    }
+    if (params.port) {
+      params.port.addEventListener("message", this._portMsgHandler.bind(this));
     }
 
     this._logger.debug(
@@ -157,6 +151,15 @@ export class LatencyController {
     return this._availableUs <= this._minThreshUs;
   }
 
+  setParams(params) {
+    if (params.latency > 0) {
+      this._setLatency(params.latency);
+    }
+    if (params.latencyTolerance > 0) {
+      this._setLatencyDelta(params.latencyTolerance);
+    }
+  }
+
   set speedFn(fn) {
     this._setSpeed = fn;
   }
@@ -177,6 +180,32 @@ export class LatencyController {
       return;
     }
     this._syncModePolicy.ptsOffset = val;
+  }
+
+  _setLatency(latency) {
+    let lDiff = 0;
+    if (this._latencyMs > 0) {
+      lDiff = latency - this._latencyMs;
+    }
+    this._latencyMs = latency;
+    this._discontEval.bufferToKeep = latency * 900; // 0.9 of latency
+    this._startThreshUs = this._startingBufferLevel();
+    this._minThreshUs = 50_000; // 50ms
+
+    if (lDiff < 0) {
+      this._calculateAvailable();
+      const now = this._getCurTimeMs();
+      this._lastSeekTime = -this._minSeekIntervalMs;
+      this._seek(true, -lDiff, this._availableUs / 1000, now);
+    }
+  }
+
+  _setLatencyDelta(latencyTolerance) {
+    this._minLatencyDeltaMs = 40;
+    this._allowedLatencyDeltaMs = latencyTolerance - this._latencyMs;
+    if (this._allowedLatencyDeltaMs < this._minLatencyDeltaMs) {
+      this._allowedLatencyDeltaMs = this._minLatencyDeltaMs;
+    }
   }
 
   _checkPending() {
@@ -260,12 +289,12 @@ export class LatencyController {
     const deltaMs = bufMin - this._latencyMs;
     // const stable = Math.abs(bufMin - bufEma) < (this._latencyMs * 0.1);
 
-    if (deltaMs > this._allowedLatencyDelta) {
+    if (deltaMs > this._allowedLatencyDeltaMs) {
       this._restoreLatency = true;
     }
 
     let goMove = false;
-    if (deltaMs > this._minLatencyDelta && this._restoreLatency) {
+    if (deltaMs > this._minLatencyDeltaMs && this._restoreLatency) {
       // this._logger.debug(`Delta ms=${deltaMs}, buffer ms=${bufMin}, age ms=${age}`);
       // wait for holdMs to avoid acting on single spikes
       if (!this._pendingStableSince) {
@@ -390,5 +419,13 @@ export class LatencyController {
     this._stateMgr.setMinBufferMs("long", this._longB);
     this._emaB = this._bufferMeter.ema();
     this._stateMgr.setMinBufferMs("ema", this._emaB);
+  }
+
+  _portMsgHandler(event) {
+    const msg = event.data;
+    if (!msg || msg.aux) return;
+    if (msg.type === "latency-params") {
+      this.setParams(msg.data);
+    }
   }
 }

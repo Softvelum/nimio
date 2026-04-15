@@ -47,7 +47,7 @@ export class AudioConfig {
     );
   }
 
-  set(config) {
+  updateFrom(config) {
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount;

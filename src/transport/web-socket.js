@@ -66,6 +66,7 @@ self.onmessage = (e) => {
 
     socket.onopen = () => {
       console.debug(`Connection established for socket id = ${socket.id}`);
+      self.postMessage({ aux: true, connected: true });
     };
 
     socket.onclose = (wsEv) => {
@@ -78,6 +79,7 @@ self.onmessage = (e) => {
       if (wsEv.target.id === curSocketId) {
         socket = undefined;
         self.postMessage({ type: "disconnect", data: { code: codeHuman } });
+        self.postMessage({ aux: true, connected: false });
       }
     };
     return;
@@ -96,7 +98,7 @@ self.onmessage = (e) => {
       }),
     );
   } else if (type === "stop") {
-    if (e.data.sns && e.data.sns.length > 0) {
+    if (e.data.sns && e.data.sns.length >= 0) {
       socket.send(
         JSON.stringify({
           command: "Cancel",
@@ -109,6 +111,7 @@ self.onmessage = (e) => {
       socket.onclose = undefined;
       socket.close();
       socket = undefined;
+      self.postMessage({ aux: true, connected: false });
     }
   } else {
     if (protocolAgent) protocolAgent.handleMessage(type, e.data);

@@ -1,16 +1,30 @@
 import { multiInstanceService } from "@/shared/service";
 import { checkSupportedCodecs } from "@/media/decoders/checker";
+import { STATE } from "@/shared/values";
 
 class PlaybackContext {
   constructor(instName) {
     this._instName = instName;
 
+    // LIVE
     this._curConf = [];
     this._streams = [];
     this._streamsMap = {};
     this._ordRenditions = [];
     this._ordVideoRenditions = [];
     this._ordAudioRenditions = [];
+
+    // VOD
+    this._levels = [];
+    this._lvl2stream = {};
+    this._strm2level = {};
+    this._rend2level = {};
+    this._ordLevels = [];
+
+    this._state = {
+      value: STATE.STOPPED,
+      initial: false,
+    };
 
     this._autoAbr = false;
   }
@@ -76,6 +90,7 @@ class PlaybackContext {
             height: streamInfo.height,
             vcodec: streamInfo.vcodec,
             rendition: streamInfo.name,
+            name: streams[i].stream,
           });
         }
       }
@@ -164,6 +179,10 @@ class PlaybackContext {
     return this._curConf[type] && idx === this._curConf[type].idx;
   }
 
+  isCurrentLevel(levelIdx) {
+    return this._curLevelIdx === levelIdx;
+  }
+
   getStreamsConfig() {
     let res = [];
     for (let i = 0; i < this._streams.length; i++) {
@@ -187,6 +206,161 @@ class PlaybackContext {
     return res;
   }
 
+  hasLive() {
+    return this._ordRenditions.length > 0;
+  }
+
+  hasVod() {
+    return this._levels.length > 0;
+  }
+
+  setLevels(levels, parentUrl) {
+    this._levels = [];
+    this._levelCount = 0;
+    this._lvl2stream = {};
+    this._strm2level = {};
+    this._rend2level = {};
+    this._ordLevels = [];
+
+    let pPath = new URL(parentUrl).pathname;
+    pPath = pPath.slice(0, pPath.lastIndexOf("/") + 1);
+    for (let i = 0; i < levels.length; i++) {
+      let lUrl = new URL(levels[i].url[0]);
+      let lPath = lUrl.pathname.slice(0, lUrl.pathname.lastIndexOf("/") + 1);
+
+      let nStart =
+        lPath.length > pPath.length && lPath.startsWith(pPath)
+          ? pPath.length
+          : 1;
+      let lvl = {
+        idx: i,
+        name: lPath.slice(nStart, -1),
+        session: lUrl.search.slice(1),
+        data: levels[i],
+      };
+
+      this._levels[i] = lvl;
+
+      let streamIdx = this._streamsMap[lvl.name];
+      if (streamIdx !== undefined) {
+        this._lvl2stream[i] = streamIdx;
+        this._strm2level[streamIdx] = i;
+      }
+
+      if (levels[i].height > 0) {
+        this._addOrderedLevel(i, levels[i].height);
+
+        let rend = levels[i].height + "p";
+        this._levels[i].rend = rend;
+
+        if (!this._rend2level[rend]) {
+          this._rend2level[rend] = [];
+        }
+        this._rend2level[rend].push(i);
+        this._levels[i].rIdx = this._rend2level[rend].length - 1;
+      }
+    }
+
+    let curVConf = this._curConf.video;
+    let curAConf = this._curConf.audio;
+    if (curVConf?.idx !== undefined) {
+      if (this._strm2level[curVConf.idx] !== undefined) {
+        this._curLevelIdx = this._strm2level[curVConf.idx];
+      } else {
+        this._curLevelIdx = this.getMinimumLevelIdx();
+      }
+    } else if (curAConf?.idx !== undefined) {
+      if (this._strm2level[curAConf.idx] !== undefined) {
+        this._curLevelIdx = this._strm2level[curAConf.idx];
+      } else {
+        this._curLevelIdx = 0;
+      }
+    }
+  }
+
+  getMinimumLevelIdx() {
+    let min = 1000000;
+    for (let i = 0; i < this._levels.length; i++) {
+      if (this._levels[i].data.height && this._levels[i].data.height < min) {
+        min = this._levels[i].data.height;
+        return i;
+      }
+    }
+
+    return 0;
+  }
+
+  updateCurrentLevel(data) {
+    if (this._curLevelIdx >= 0 && data.details) {
+      this._levels[this._curLevelIdx].data.details = data.details;
+    }
+  }
+
+  getCurrentLevel() {
+    if (this._curLevelIdx >= 0) {
+      return this._levels[this._curLevelIdx];
+    }
+  }
+
+  setCurrentLevelIdx(idx) {
+    this._curLevelIdx = idx;
+
+    if (!this.hasLive()) return;
+    let curVConf = this._curConf.video;
+    if (!curVConf) return;
+    if (curVConf.idx !== undefined && this._lvl2stream[idx] !== undefined) {
+      curVConf.idx = this._lvl2stream[idx];
+    }
+  }
+
+  getRenditionLevelIdx(rend, idx) {
+    let res = this._rend2level[rend];
+    if (res) res = res[idx];
+    return res;
+  }
+
+  getLevelByName(name) {
+    for (let i = 0; i < this._levels.length; i++) {
+      if (this._levels[i].name === name) {
+        return this._levels[i];
+      }
+    }
+  }
+
+  getStreamByName(name) {
+    let idx = this._streamsMap[name];
+    if (undefined !== idx) {
+      return this._streams[idx];
+    }
+  }
+
+  setState(val, initial) {
+    this._state.value = val;
+    if (initial !== undefined) {
+      this._state.initial = initial;
+    }
+  }
+
+  resetState() {
+    this._state.value = STATE.STOPPED;
+    this._state.initial = false;
+  }
+
+  _addOrderedLevel(idx, height) {
+    let oPos = 0;
+    for (let j = 0; j < this._ordLevels.length; j++) {
+      if (height < this._levels[this._ordLevels[j]].data.height) {
+        break;
+      }
+      oPos++;
+    }
+    if (oPos === this._ordLevels.length) {
+      this._ordLevels[oPos] = idx;
+    } else {
+      this._ordLevels.splice(oPos, 0, idx);
+    }
+  }
+
   get streams() {
     return this._streams;
   }
@@ -201,6 +375,18 @@ class PlaybackContext {
 
   get audioRenditions() {
     return this._ordAudioRenditions;
+  }
+
+  get levels() {
+    return this._levels;
+  }
+
+  get orderedLevels() {
+    return this._ordLevels;
+  }
+
+  get state() {
+    return this._state;
   }
 
   get autoAbr() {
@@ -240,12 +426,13 @@ class PlaybackContext {
 
   _cpAudioRenditions(target, source) {
     for (let i = 0; i < source.length; i++) {
-      let streamInfo = this._streams[source[i].idx].stream_info;
-      if (streamInfo.acodecSupported) {
+      let stream = this._streams[source[i].idx];
+      if (stream.stream_info.acodecSupported) {
         target.push({
           idx: source[i].idx,
-          bandwidth: streamInfo.bandwidth,
-          acodec: streamInfo.acodec,
+          bandwidth: stream.stream_info.bandwidth,
+          acodec: stream.stream_info.acodec,
+          name: stream.stream,
         });
       }
     }

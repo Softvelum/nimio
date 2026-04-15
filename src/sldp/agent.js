@@ -67,6 +67,7 @@ export class SLDPAgent {
         ptsMs = timestamp / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsMs);
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
+        // console.debug(`A frame uts: ${ptsUs}, pts: ${timestamp}`);
         break;
       case WEB.AVC_KEY_FRAME:
       case WEB.HEVC_KEY_FRAME:
@@ -117,7 +118,8 @@ export class SLDPAgent {
       status.info.length === 0 ||
       !status.info[0].stream_info
     ) {
-      console.error("Invalid status received:", status);
+      console.warn("Invalid or empty status received:", status);
+      self.postMessage({ type: "error" });
       return;
     }
 

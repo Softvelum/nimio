@@ -1,3 +1,5 @@
+import { MODE } from "./shared/values";
+
 export const NimioRenditions = {
   getRenditions(type) {
     if (!this._context) return [];
@@ -25,28 +27,17 @@ export const NimioRenditions = {
     return this._renditionParams(type, rendition);
   },
 
-  setVideoRendition(id) {
-    return this.setCurrentRendition("video", id);
-  },
-
-  setAudioRendition(id) {
-    return this.setCurrentRendition("audio", id);
-  },
-
   setCurrentRendition(type, id) {
     this._logger.debug(`set ${type} rendition ID ${id}`);
-
-    if (!this._context) return false;
-    if (!this._checkRenditionType(type)) return false;
     if (!this._isSwitchPossible(type)) return false;
 
-    let rIdx = id - 1;
-    if (this._context.isCurrentStream(type, rIdx)) {
+    let rendIdx = id - 1;
+    if (this._context.isCurrentStream(type, rendIdx)) {
       this._logger.debug("specified rendition is already the current one");
       return true;
     }
 
-    let stream = this._context.streams[rIdx];
+    let stream = this._context.streams[rendIdx];
     if (
       !stream ||
       !stream.stream_info ||
@@ -65,22 +56,30 @@ export const NimioRenditions = {
       return false;
     }
 
+    this._eventBus.emit("nimio:rendition-select", {
+      rendition: stream.stream_info.name,
+      name: stream.stream,
+    });
+
     this._nextRenditionData = {
-      idx: rIdx,
-      trackId: this._sldpManager.requestStream(type, rIdx),
-      name: stream.stream_info.name,
+      idx: rendIdx,
+      trackId: this._sldpManager.requestStream(type, rendIdx),
+      rendition: stream.stream_info.name,
+      name: stream.stream,
     };
 
     return true;
   },
 
-  _onRenditionChange(rend) {
-    if (!rend) return false;
-    if (rend.name === "Auto") {
+  _onRenditionChange(data) {
+    if (data.mode !== MODE.LIVE || !data.rend) return;
+
+    if (data.rend.name === "Auto") {
+      this._eventBus.emit("nimio:rendition-select", { rendition: "Auto" });
       return this.startAbr();
     }
     this.stopAbr();
-    return this.setCurrentRendition("video", rend.id);
+    return this.setCurrentRendition("video", data.rend.id);
   },
 
   _onRenditionSwitchResult(type, done) {
@@ -93,6 +92,7 @@ export const NimioRenditions = {
       );
 
       this._eventBus.emit("nimio:rendition-set", {
+        rendition: this._nextRenditionData.rendition,
         name: this._nextRenditionData.name,
         id: nextId,
       });
@@ -105,14 +105,6 @@ export const NimioRenditions = {
     this._logger.debug(
       `${type} rendition switch to ID ${nextId} ${done ? "completed successfully" : "failed"}`,
     );
-  },
-
-  _checkRenditionType(type) {
-    if (type !== "video" && type !== "audio") {
-      this._logger.error("Rendition type must be either 'video' or 'audio'");
-      return false;
-    }
-    return true;
   },
 
   _renditionParams(type, rendition) {

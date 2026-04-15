@@ -43,26 +43,29 @@
           latency: 1000,
           latencyTolerance: 2200,
           startOffset: 2000,
+          // syncBuffer: 3000,
           // videoOnly: true,
           // audioOnly: true,
           metricsOverlay: true,
           logLevel: "debug",
           // muted: true,
-          // adaptiveBitrate: {
-          //   initialRendition: "720p",
-          // },
-          adaptiveBitrate: false,
+          adaptiveBitrate: {
+            initialRendition: "720p",
+          },
           vuMeter: {
             container: "vu-meter",
             type: "input",
           },
           workletLogs: true,
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
-          // syncBuffer: 3000,
+          vod: {
+            startupVodFailover: true,
+          },
+          splashScreen: "splash.jpg",
         });
 
-        window.nimio.on("nimio:play", (inst, contId) => {
-          console.log("Nimio play event", inst, contId);
+        window.nimio.on("nimio:play", () => {
+          console.log("Nimio play event");
         });
       }
 

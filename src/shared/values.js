@@ -20,3 +20,12 @@ export const IDX = {
   MIN_BUFFER_EMA: 17,
   CURRENT_SPEED: 18,
 };
+export const MODE = {
+  LIVE: "live",
+  VOD: "vod",
+  PEND: "pend",
+};
+export const ERROR = {
+  NO_SRC: "No playable sources found",
+  NOT_SUP: "Player is not supported in current browser",
+};

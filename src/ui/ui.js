@@ -2,14 +2,20 @@ import {} from "./ui.css";
 import { DebugView } from "./debug-view";
 import controlsHtml from "./controls.html?raw";
 import controlsCss from "./controls.css?raw";
+import { UISeekBar } from "./seek-bar";
+import { UITimeIndicator } from "./time-indicator";
+import { LoggersFactory } from "@/shared/logger";
+import { PlaybackProgressService } from "@/playback/progress-service";
+import { MODE } from "@/shared/values";
 
-export class Ui {
-  constructor(container, opts, eventBus) {
+export class UI {
+  constructor(instName, container, opts, eventBus) {
     this._state = "pause";
     this._muted = false;
+    this._instName = instName;
     this._eventBus = eventBus;
-    this._logger = opts.logger;
     this._autoAbr = opts.autoAbr;
+    this._audioOnly = opts.audioOnly;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -21,26 +27,32 @@ export class Ui {
     });
     this._container.classList.add("nimio-container");
 
-    // todo if no options, get from container
+    this._logger = LoggersFactory.create(this._instName, "UI");
+
+    // TODO: if no options, get from container
     this._baseWidth = opts.width;
     this._baseHeight = opts.height;
+    // TODO: get from frame properties
+    this._ar = this._baseWidth / this._baseHeight;
 
-    this._canvas = document.createElement("canvas");
-    this._updateCanvasSize(this._baseWidth, this._baseHeight);
-    this._dpr = window.devicePixelRatio || 1;
-    this._logger.warn("DPR", this._dpr);
+    this._mode = MODE.LIVE;
+    this._outputs = [];
+    this._createCanvas();
+    if (opts.vod) {
+      this._createMediaElement();
+      this._mediaElement.pending = false;
+    }
 
-    this._cctx = this._canvas.getContext("2d");
+    this._outputs.forEach(this._applyBasicStyle);
+
+    this._updateOutputSize(this._baseWidth, this._baseHeight);
+    this._logger.debug(`Device DPR = ${this._dpr}`);
+
     this._cctx.save();
     this._cctx.scale(this._dpr, this._dpr);
     this._cctx.restore();
-    Object.assign(this._canvas.style, {
-      cursor: "pointer",
-      zIndex: 10,
-      margin: "auto",
-      "background-color": "grey",
-    });
-    this._container.appendChild(this._canvas);
+
+    this._outputs.forEach((elem) => this._container.appendChild(elem));
 
     this._btnPlayPause = document.createElement("div");
     this._btnPlayPause.classList.add("play-pause");
@@ -55,17 +67,20 @@ export class Ui {
     this._addPlaybackEventHandlers();
     this._addDisplayEventHandlers();
 
-    this._createControls();
+    this._createControls(opts);
     this._setupEasing();
     if (opts.fullscreen) {
       this._toggleFullscreen();
     }
+    if (opts.splashScreen) {
+      this._splashScreenUrl = `url("${opts.splashScreen}")`;
+    }
+    this._setBackground();
   }
 
   destroy() {
-    if (this._hideTimer) {
-      clearTimeout(this._hideTimer);
-    }
+    this._clearHideControlsTimer();
+    this._removeSeekBar();
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
@@ -93,6 +108,10 @@ export class Ui {
     this._buttonPlayPause.querySelector(".icon-pause").style.display = "block";
   }
 
+  drawFrame(frame) {
+    this._cctx.drawImage(frame, 0, 0, this._curWidth, this._curHeight);
+  }
+
   showControls(anim) {
     this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._btnPlayPause.style.opacity = "0.7";
@@ -109,6 +128,26 @@ export class Ui {
     this._controlsBar.style.opacity = "0";
   }
 
+  clear() {
+    this._cctx.clearRect(0, 0, this._curWidth, this._curHeight);
+  }
+
+  toggleMode(mode) {
+    if (mode === this._mode) return;
+
+    if (mode === MODE.LIVE) {
+      this._removeMediaElement();
+      this._canvas.style.display = "block";
+      this._liveSign.style.display = "inline-grid";
+    } else {
+      this._addMediaElement();
+      this._canvas.style.display = "none";
+      this._mediaElement.style.display = "block";
+      this._liveSign.style.display = "none";
+    }
+    this._mode = mode;
+  }
+
   appendDebugOverlay(state, videoBuffer) {
     return new DebugView(this._container, state, videoBuffer);
   }
@@ -117,12 +156,52 @@ export class Ui {
     return this._canvas;
   }
 
+  get mediaElement() {
+    return this._mediaElement;
+  }
+
   get size() {
-    let box = this._canvas.getBoundingClientRect();
+    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
+    let box = output.getBoundingClientRect();
     return [box.width, box.height];
   }
 
-  _createControls() {
+  _createCanvas() {
+    this._canvas = document.createElement("canvas");
+    this._bCanvas = new OffscreenCanvas(0, 0);
+    this._cctx = this._canvas.getContext("2d");
+    this._bctx = this._bCanvas.getContext("2d");
+
+    this._outputs.push(this._canvas);
+  }
+
+  _createMediaElement() {
+    let type = this._audioOnly ? "audio" : "video";
+    this._mediaElement = document.createElement(type);
+    this._mediaElement.setAttribute("playsinline", "playsinline");
+    this._mediaElement.style["background-color"] = "#000";
+    this._mediaElement.style.display = "none";
+    this._outputs.push(this._mediaElement);
+  }
+
+  _addMediaElement() {
+    if (!this._mediaElement.pending) return;
+
+    this._createMediaElement();
+    this._applyBasicStyle(this._mediaElement);
+    this._applySize(this._mediaElement, this._curWidth, this._curHeight);
+    this._canvas.after(this._mediaElement);
+  }
+
+  _removeMediaElement() {
+    if (this._mediaElement.pending) return;
+
+    this._outputs.length = 1; // Media Element is always second
+    this._mediaElement.remove();
+    this._mediaElement.pending = true;
+  }
+
+  _createControls(opts) {
     const tpl = document.createElement("template");
     tpl.innerHTML = controlsHtml.trim();
 
@@ -136,6 +215,25 @@ export class Ui {
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
     this._menuPopover = this._controlsBar.querySelector(".menu-popover");
     this._menuSection = this._menuPopover.querySelector(".menu-section");
+    if (opts.vod) {
+      this._seekBar = new UISeekBar(this._instName, this._controlsBar);
+      this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
+      this._playPrgSvc.setUI(this._seekBar);
+
+      this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
+      this._playPrgSvc.setTimeIndUI(this._timeInd);
+
+      // if (!this._audioOnly) {
+      //   this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
+      //     parent: this._controlBar,
+      //     left: parseInt(getComputedStyle(this._seekBar.node()).left),
+      //     preview: vod.thumbnails,
+      //   });
+      //   this._seekBar.hoverHandler = this._thumbnailPreview;
+      //   this._controlBar.appendChild(this._thumbnailPreview.node());
+      // }
+      this._liveSign = this._controlsBar.querySelector(".live-wrap");
+    }
     this._addControlsEventHandlers();
 
     this._onFullscreenClick = this._toggleFullscreen.bind(this);
@@ -173,12 +271,20 @@ export class Ui {
     this._onRenditionsReceived = this._onRenditionsReceived.bind(this);
     this._onAdaptiveBitrateSet = this._onAdaptiveBitrateSet.bind(this);
     this._onRendMenuSelected = this._onRendMenuSelected.bind(this);
+    this._onPlaybackStarting = this._onPlaybackStarting.bind(this);
+    this._onPlaybackStarted = this._onPlaybackStarted.bind(this);
+    this._onPlaybackPaused = this._onPlaybackPaused.bind(this);
+    this._onPlaybackEnded = this._onPlaybackEnded.bind(this);
 
     this._eventBus.on("nimio:volume-set", this._onVolumeSet);
     this._eventBus.on("nimio:muted", this._onMuteUnmuteSet);
     this._eventBus.on("nimio:rendition-set", this._onRenditionSet);
     this._eventBus.on("nimio:rendition-list", this._onRenditionsReceived);
     this._eventBus.on("nimio:abr", this._onAdaptiveBitrateSet);
+    this._eventBus.on("nimio:play", this._onPlaybackStarting);
+    this._eventBus.on("nimio:pause", this._onPlaybackPaused);
+    this._eventBus.on("nimio:playback-start", this._onPlaybackStarted);
+    this._eventBus.on("nimio:playback-end", this._onPlaybackEnded);
   }
 
   _removePlaybackEventHandlers() {
@@ -187,6 +293,10 @@ export class Ui {
     this._eventBus.off("nimio:rendition-set", this._onRenditionSet);
     this._eventBus.off("nimio:rendition-list", this._onRenditionsReceived);
     this._eventBus.off("nimio:abr", this._onAdaptiveBitrateSet);
+    this._eventBus.off("nimio:play", this._onPlaybackStarting);
+    this._eventBus.off("nimio:pause", this._onPlaybackPaused);
+    this._eventBus.off("nimio:playback-start", this._onPlaybackStarted);
+    this._eventBus.off("nimio:playback-end", this._onPlaybackEnded);
   }
 
   _addDisplayEventHandlers() {
@@ -205,6 +315,25 @@ export class Ui {
     window.removeEventListener("orientationchange", this._onOrientChange);
   }
 
+  _removeSeekBar() {
+    if (this._seekBar) {
+      this._playPrgSvc.unsetUI();
+      this._seekBar.destroy();
+      this._seekBar = undefined;
+    }
+
+    if (this._timeInd) {
+      this._playPrgSvc.unsetTimeIndUI();
+      this._timeInd.destroy();
+      this._timeInd = undefined;
+    }
+
+    // if (this._thumbnailPreview) {
+    //   this._thumbnailPreview.destroy();
+    //   this._thumbnailPreview = undefined;
+    // }
+  }
+
   _setupEasing() {
     this._hideTimer = null;
     this._onMouseMove = (e) => this._handleMouseMove(e);
@@ -220,7 +349,8 @@ export class Ui {
     }
 
     const autoBtn = this._menuSection.querySelector("button.rendition-auto");
-    autoBtn.style.display = this._autoAbr ? "block" : "none";
+    let showAuto = this._autoAbr && renditions.length > 0;
+    autoBtn.style.display = showAuto ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
     this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();
@@ -248,7 +378,7 @@ export class Ui {
       res.style.display = "block";
       if (this._curRendition) {
         const delim = "\u00A0\u00A0";
-        res.textContent = `Auto${delim}${this._curRendition.name}`;
+        res.textContent = `Auto${delim}${this._curRendition.rendition}`;
       }
     } else {
       res.textContent = "Auto";
@@ -263,7 +393,10 @@ export class Ui {
 
   _selectRendition(selectedBtn) {
     let selRendition = selectedBtn._rendition || { name: "Auto" };
-    this._eventBus.emit("ui:rendition-change", selRendition);
+    this._eventBus.emit("ui:rendition-select", {
+      mode: this._mode,
+      rend: selRendition,
+    });
   }
 
   _onRendMenuSelected(e) {
@@ -289,7 +422,7 @@ export class Ui {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
         !this._autoAbr &&
-        this._curRendition.name === btn.dataset.rendition &&
+        this._curRendition.rendition === btn.dataset.rendition &&
         this._curRendition.id === parseInt(btn.dataset.rid);
       btn.setAttribute("aria-checked", isSel ? "true" : "false");
     });
@@ -301,6 +434,16 @@ export class Ui {
   }
 
   _handleResize() {
+    if (this._resizeQueued) return;
+
+    this._resizeQueued = true;
+    requestAnimationFrame(() => {
+      this._resizeQueued = false;
+      this._resizeAndRedraw();
+    });
+  }
+
+  _resizeAndRedraw() {
     if (this._isPlayerFullscreen()) {
       const screenAspect = window.innerWidth / window.innerHeight;
 
@@ -313,19 +456,40 @@ export class Ui {
         newHeight = Math.round(newWidth / this._ar);
       }
 
-      this._updateCanvasSize(newWidth, newHeight);
+      this._updateOutputSize(newWidth, newHeight);
     } else {
-      this._updateCanvasSize(this._baseWidth, this._baseHeight);
+      this._updateOutputSize(this._baseWidth, this._baseHeight);
     }
   }
 
-  _updateCanvasSize(width, height) {
-    // TODO: check if DPR is needed here
-    this._canvas.width = width;
-    this._canvas.height = height;
-    this._canvas.style.width = `${width}px`;
-    this._canvas.style.height = `${height}px`;
-    this._ar = width / height;
+  _updateOutputSize(w, h) {
+    if (this._mode === MODE.LIVE) {
+      this._updateCanvasSize(w, h);
+    }
+    this._outputs.forEach((elem) => {
+      this._applySize(elem, w, h);
+    });
+    this._curWidth = w;
+    this._curHeight = h;
+  }
+
+  _updateCanvasSize(w, h) {
+    // DPR can change when dragging window between monitors, browser zoom, external display attach/detach
+    this._dpr = window.devicePixelRatio || 1;
+
+    let devW = w * this._dpr;
+    let devH = h * this._dpr;
+    if (this._canvas.width === devW && this._canvas.height === devH) return;
+
+    this._bCanvas.width = devW;
+    this._bCanvas.height = devH;
+    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._bctx.drawImage(this._canvas, 0, 0);
+
+    this._canvas.width = devW;
+    this._canvas.height = devH;
+    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
   }
 
   _handleOrientChange(e) {
@@ -336,8 +500,10 @@ export class Ui {
 
   _handleClick(e) {
     let isPlayClicked = "pause" === this._state;
-    isPlayClicked ? this.drawPause() : this.drawPlay();
-    this._eventBus.emit("ui:play-pause-click", isPlayClicked);
+    this._eventBus.emit("ui:play-pause-click", {
+      mode: this._mode,
+      play: isPlayClicked,
+    });
   }
 
   _handleMuteUnmuteClick() {
@@ -380,18 +546,30 @@ export class Ui {
 
   _handleMouseMove(e) {
     this.showControls(true);
-    clearTimeout(this._hideTimer);
-
-    this._hideTimer = setTimeout(() => {
-      this.hideControls(true);
-    }, 2000);
+    this._clearHideControlsTimer();
+    this._setHideControlsTimer(2);
   }
 
   _handleMouseOut(e) {
+    this._clearHideControlsTimer();
     this.hideControls(true);
-    if (this._hideTimer) {
-      clearTimeout(this._hideTimer);
-    }
+  }
+
+  _setHideControlsTimer(secs) {
+    this._hideTimer = setTimeout(() => {
+      if (this._seekBar && this._seekBar.isPending()) {
+        this._clearHideControlsTimer();
+        this._setHideControlsTimer(secs);
+      } else {
+        this.hideControls(true);
+      }
+    }, 1000 * secs);
+  }
+
+  _clearHideControlsTimer() {
+    if (!this._hideTimer) return;
+    clearTimeout(this._hideTimer);
+    this._hideTimer = undefined;
   }
 
   async _toggleFullscreen(e) {
@@ -421,5 +599,56 @@ export class Ui {
       this._logger.warn("No fullscreen API is available");
     }
     if (e) e.stopPropagation();
+  }
+
+  _onPlaybackStarting() {
+    this.drawPause();
+  }
+
+  _onPlaybackStarted() {
+    this.drawPause();
+    this._unsetBackground();
+  }
+
+  _onPlaybackPaused() {
+    this.drawPlay();
+  }
+
+  _onPlaybackEnded(data) {
+    if (data.mode === MODE.LIVE) this._setBackground();
+    this.drawPlay();
+  }
+
+  _setBackground() {
+    if (this._splashScreenUrl) {
+      this._canvas.style.removeProperty("background-color");
+      setTimeout(() => {
+        // misterious chrome bug
+        this._canvas.style["background-color"] = "#000";
+        this._canvas.style["background-image"] = this._splashScreenUrl;
+        this._canvas.style["background-size"] = "cover";
+      }, 0);
+    } else {
+      this._canvas.style["background-color"] = "#000";
+    }
+  }
+
+  _unsetBackground() {
+    if (!this._splashScreenUrl) return;
+    this._canvas.style["background-image"] = "";
+    this._canvas.style["background-size"] = "";
+  }
+
+  _applyBasicStyle(elem) {
+    Object.assign(elem.style, {
+      cursor: "pointer",
+      zIndex: 10,
+      margin: "auto",
+    });
+  }
+
+  _applySize(elem, w, h) {
+    elem.style.width = `${w}px`;
+    elem.style.height = `${h}px`;
   }
 }

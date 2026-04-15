@@ -10,7 +10,7 @@ export class AdvertizerEvaluator {
     this._swCnt = 0;
 
     if (port) {
-      port.addEventListener("message", this._portMessageHandler.bind(this));
+      port.addEventListener("message", this._portMsgHandler.bind(this));
       port.postMessage("transp-discont-eval-ready");
     } else {
       this._pendingActions = [];
@@ -134,7 +134,7 @@ export class AdvertizerEvaluator {
     this._bufToKeep = valUs;
   }
 
-  _portMessageHandler(event) {
+  _portMsgHandler(event) {
     const msg = event.data;
     if (!msg || msg.aux) return;
     if (msg.type === "transp-track-action") {

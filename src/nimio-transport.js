@@ -1,3 +1,4 @@
+import { MODE } from "./shared/values";
 import { AudioConfig } from "./audio/config";
 import { TransportAdapter } from "./transport/adapter";
 
@@ -13,6 +14,7 @@ export const NimioTransport = {
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
       disconnect: this._onDisconnect.bind(this),
+      error: this._onTransportError.bind(this),
     };
     this._eventBus.on("transp:track-action", this._onTrackAction.bind(this));
   },
@@ -46,17 +48,32 @@ export const NimioTransport = {
   },
 
   _onDisconnect(data) {
+    if (this._state.isStopped()) return;
+
     this._state.stop();
-    this._sldpManager.resetCurrentStreams();
+    this._sldpManager.resetRequestedStreams();
     if (this._isAutoAbr()) {
       this._abrController.stop({ hard: true });
     }
     this._resetPlayback();
     if (!this._reconnect.schedule(this._playCb)) {
       this._logger.debug("Stop reconnecting");
-      return this._ui.drawPlay();
+      this._eventBus.emit("aux:playback-error", {
+        type: "NO_SRC",
+        mode: MODE.LIVE,
+        stop: true,
+      });
+      return;
     }
     this._logger.debug("Attempt to reconnect");
+  },
+
+  _onTransportError() {
+    this.stop();
+    this._eventBus.emit("aux:playback-error", {
+      type: "NO_SRC",
+      mode: MODE.LIVE,
+    });
   },
 
   _onVideoSetupReceived(data) {
@@ -83,15 +100,23 @@ export const NimioTransport = {
 
     this._eventBus.emit("nimio:rendition-list", this._makeUiRenditionList());
     let curRend = this._context.getCurrentRendition("video");
+
     this._eventBus.emit("nimio:rendition-set", {
-      name: curRend.rendition,
+      rendition: curRend.rendition,
+      name: curRend.name,
       id: curRend.idx + 1,
     });
   },
 
   _onAudioSetupReceived(data) {
     if (!data || !data.config) {
-      // TODO: show UI error notification if noVideo
+      if (this._noVideo) {
+        this._eventBus.emit("aux:playback-error", {
+          type: "NO_SRC",
+          mode: MODE.LIVE,
+        });
+      }
+      // TODO: handle switch to VOD
       return this._noVideo ? this.stop(true) : this._startNoAudioMode();
     }
 
@@ -108,6 +133,8 @@ export const NimioTransport = {
   },
 
   _onVideoCodecDataReceived(data) {
+    if (this._state.isStopped()) return;
+
     this._runMetrics(data);
     this._timestampManager.rebaseTrack(data.trackId);
 
@@ -128,6 +155,8 @@ export const NimioTransport = {
   },
 
   _onAudioCodecDataReceived(data) {
+    if (this._state.isStopped()) return;
+
     this._runMetrics(data);
     this._timestampManager.rebaseTrack(data.trackId);
 
@@ -149,13 +178,13 @@ export const NimioTransport = {
       }
 
       audioAvailable = true;
-      this._audioConfig = newCfg;
+      this._audioConfig.updateFrom(newCfg);
       buffer = this._tempBuffer;
       decoderFlow = this._nextRenditionData.decoderFlow;
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
       if (!this._audioBuffer || this._audioConfig.isCompatible(newCfg)) {
-        this._audioConfig = newCfg;
+        this._audioConfig.updateFrom(newCfg);
         audioAvailable = this._prepareAudioOutput();
       } else {
         this._logger.warn(

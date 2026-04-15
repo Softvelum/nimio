@@ -1,4 +1,4 @@
-import { currentTimeGetterMs } from "@/shared/helpers";
+import { currentTimeGetterMs } from "@/shared/time-helpers";
 import { retrieveClockOffset } from "@/sync-mode/clock";
 
 export class SyncModePolicy {

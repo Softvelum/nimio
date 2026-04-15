@@ -1,39 +1,20 @@
-import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
-import wsTransportUrl from "./transport/web-socket?worker&url";
-import { IDX } from "./shared/values";
-import { StateManager } from "./state-manager";
-import { SLDPManager } from "./sldp/manager";
-import { PlaybackContext } from "./playback/context";
-import { Ui } from "./ui/ui";
-import { FrameBuffer } from "./media/buffers/frame-buffer";
-import { WritableAudioBuffer } from "./media/buffers/writable-audio-buffer";
-import { WritableTransAudioBuffer } from "./media/buffers/writable-trans-audio-buffer";
-import { DecoderFlowVideo } from "./media/decoders/flow-video";
-import { DecoderFlowAudio } from "./media/decoders/flow-audio";
-import { TimestampManager } from "./media/decoders/timestamp-manager";
-import { createConfig } from "./player-config";
-import { AudioConfig } from "./audio/config";
-import { AudioGapsProcessor } from "./media/processors/audio-gaps-processor";
-import { LatencyController } from "./latency-controller";
-import { NimioTransport } from "./nimio-transport";
-import { NimioRenditions } from "./nimio-renditions";
-import { NimioAbr } from "./nimio-abr";
-import { NimioVolume } from "./nimio-volume";
-import { NimioEvents } from "./nimio-events";
-import { NimioSyncMode } from "./nimio-sync-mode";
-import { MetricsManager } from "./metrics/manager";
-import { LoggersFactory } from "./shared/logger";
-import { AudioContextProvider } from "./audio/context-provider";
-import { AudioGraphController } from "./audio/graph-controller";
-import { AudioVolumeController } from "./audio/volume-controller";
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
-import { WorkletLogReceiver } from "./shared/worklet-log-receiver";
-import { createSharedBuffer, isSharedBuffer } from "./shared/shared-buffer";
+import { MODE, ERROR } from "./shared/values";
+import { UI } from "./ui/ui";
+import { NimioLive } from "./nimio-live";
+import { NimioVod } from "./nimio-vod";
+import { NimioEvents } from "./nimio-events";
+import { NimioVolume } from "./nimio-volume";
+import { NimioExtAPI } from "./nimio-ext-api";
+import { createConfig, updateConfigStreamURL } from "./player-config";
 import { resolveContainer } from "./shared/container";
-import { Reconnector } from "./reconnector";
-import { SyncModeClock } from "./sync-mode/clock";
-import { AdvertizerEvaluator } from "./advertizer/evaluator";
+import { PlaybackContext } from "./playback/context";
+import { PlaybackProgressService } from "./playback/progress-service";
+import { PlaybackProgressProxy } from "./playback/progress-proxy";
+import { VUMeterService } from "./vumeter/service";
+import { LoggersFactory } from "./shared/logger";
+import { AudioVolumeController } from "./audio/volume-controller";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -54,11 +35,12 @@ export default class Nimio {
     }
     this._instName = options.instanceName;
     ScriptPathProvider.getInstance(this._instName).setScriptPath(scriptPath);
+    this._eventBus = EventBus.getInstance(this._instName);
 
     this._config = createConfig(options);
     this._logger = LoggersFactory.create(this._instName, "Nimio");
     this._logger.debug("Nimio " + this.version());
-    this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
+
     const { element: containerElem, storageKey } = resolveContainer(
       this._config.container,
       { logger: this._logger, fallbackId: this._instName },
@@ -66,151 +48,116 @@ export default class Nimio {
     this._config.container = containerElem;
     this._config.volumeId = storageKey;
 
-    this._eventBus = EventBus.getInstance(this._instName);
-
-    const idxCount = Object.values(IDX).reduce((total, val) => {
-      total += Array.isArray(val) ? val.length : 1;
-      return total;
-    }, 0);
-    this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
-    this._sabShared = isSharedBuffer(this._sab);
-    this._state = new StateManager(this._sab, { shared: this._sabShared });
-    this._state.stop();
-
-    this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
-    this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
-    this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
-    this._noVideo = this._config.audioOnly;
-    this._noAudio = this._config.videoOnly;
-    if (this._noVideo && this._noAudio) {
-      this._logger.warn("Both video and audio only modes are set. Skipping.");
-      this._config.videoOnly = this._config.audioOnly = false;
-      this._noVideo = this._noAudio = false;
-    }
-
-    this._addUiEventHandlers();
-    this._ui = new Ui(
+    this._ui = new UI(
+      this._instName,
       this._config.container,
       {
-        width: this._config.width, //todo get from video?
+        width: this._config.width, // TODO: get from video?
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
-        logger: LoggersFactory.create(this._instName, "Nimio UI"),
         autoAbr: !!this._config.adaptiveBitrate,
-        fullscreen: !!this._config.fullscreen && !this._noVideo,
+        fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
+        splashScreen: this._config.splashScreen,
+        audioOnly: this._config.audioOnly,
+        vod: this._config.vod,
       },
       this._eventBus,
     );
-    this._pauseTimeoutId = null;
 
-    this._metricsManager = MetricsManager.getInstance(this._instName);
-    if (this._config.metricsOverlay) {
-      this._debugView = this._ui.appendDebugOverlay(
-        this._state,
-        this._videoBuffer,
-      );
-    }
-    this._timestampManager = TimestampManager.getInstance(this._instName);
-    this._timestampManager.init({
-      dropZeroDurationFrames: this._config.dropZeroDurationFrames,
-    });
-
-    this._resetPlaybackTimestamps();
-    this._renderVideoFrame = this._renderVideoFrame.bind(this);
-    this._ctx = this._ui.canvas.getContext("2d");
-
-    this._decoderFlows = { video: null, audio: null };
-    this._initTransport(this._instName, wsTransportUrl);
     this._context = PlaybackContext.getInstance(this._instName);
-    this._sldpManager = new SLDPManager(this._instName);
-    this._sldpManager.init(this._transport, this._config);
-    this._reconnect = new Reconnector(this._instName, this._config.reconnects);
-
-    this._audioWorkletReady = null;
-    this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
-    this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
-    this._audioGraphCtrl = AudioGraphController.getInstance(this._instName);
     this._audioVolumeCtrl = AudioVolumeController.getInstance(this._instName);
-
-    if (this._config.adaptiveBitrate) {
-      this._createAbrController();
-    }
+    this._addVolumeEventHandlers();
     this._createVUMeter();
 
-    this._advertizerEval = new AdvertizerEvaluator(this._instName);
-    this._createLatencyController();
-    if (this._config.syncBuffer > 0) {
-      this._createSyncModeParams();
+    this._livePlayer = new NimioLive(this._instName, this._ui, this._config);
+    if (this._config.vod) {
+      this._vodPlayer = new NimioVod(this._instName, this._config.vod);
+      this._eventBus.on("nimio:connection-established", this._onLiveConnected);
     }
 
-    this._playCb = this.play.bind(this);
-    if (this._config.autoplay) {
-      setTimeout(this._playCb, 0);
-      setTimeout(() => {
-        this._ui.hideControls(true);
-      }, 1000);
-    }
-  }
+    this._actPlayer = this._livePlayer;
+    this._mode = MODE.LIVE;
+    this._eventBus.on("aux:playback-error", this._onError);
 
-  play() {
-    if (this._state.isPlaying()) return;
-
-    const initialPlay = !this._state.isPaused();
-    this._cancelPauseTimeout();
-
-    this._state.start();
-    this._latencyCtrl.start();
-    if (this._isAutoAbr()) {
-      this._startAbrController();
-    }
-    this._eventBus.emit("nimio:play", this._instName, this._config.container);
-
-    requestAnimationFrame(this._renderVideoFrame);
-
-    if (initialPlay) {
-      this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
-      if (this._debugView) {
-        this._debugView.start();
-      }
-    } else if (this._audioCtxProvider.isSuspended()) {
-      this._audioCtxProvider.get().resume();
-    }
-
-    this._ui.drawPause();
-  }
-
-  pause() {
-    if (this._state.isPaused()) return;
-
-    this._state.pause();
-    this._latencyCtrl.pause();
-    this._reconnect.stop();
-    if (this._isAutoAbr()) this._abrController.stop();
-    this._pauseTimeoutId = setTimeout(() => {
-      this._logger.debug("Auto stop");
-      this.stop(true); // TODO: check possibility to reuse socket
-    }, this._config.pauseTimeout);
-  }
-
-  stop(closeConnection) {
-    this._state.stop();
-    this._sldpManager.stop({ closeConnection });
-    this._reconnect.reset();
-    if (this._debugView) this._debugView.stop();
-
-    if (this._isAutoAbr()) {
-      this._abrController.stop({ hard: true });
-    }
-    this._resetPlayback();
-
-    this._ui.drawPlay();
+    this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
+    this._playProgressSvc.positionChangeCb = this._onPlaybackPositionChange;
+    this._playProgressProxy = new PlaybackProgressProxy(
+      this._eventBus,
+      this._playProgressSvc,
+    );
   }
 
   destroy() {
-    this.stop(true);
+    if (!this._ui) return;
+
     this._ui.destroy();
+    this._ui = undefined;
+    this._removeVolumeEventHandlers();
     this._vuMeterSvc.clear();
-    this._removeUiEventHandlers();
+
+    if (this._vodPlayer) {
+      this._vodPlayer.destroy();
+      this._vodPlayer = undefined;
+    }
+
+    this._livePlayer.destroy();
+    this._livePlayer = undefined;
+    this._eventBus.off("nimio:connection-established", this._onLiveConnected);
+    this._eventBus.off("aux:playback-error", this._onError);
+  }
+
+  setParameters(params) {
+    this._livePlayer.setParameters(params);
+  }
+
+  play() {
+    this._actPlayer.play();
+  }
+
+  setStreamURL(url) {
+    updateConfigStreamURL(this._config, url);
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      this._vodPlayer.stop(() => {
+        this._livePlayer.attach(this._ui);
+        this._livePlayer.setStreamURL();
+      });
+      return;
+    }
+
+    this._livePlayer.setStreamURL();
+  }
+
+  pause() {
+    this._actPlayer.pause();
+  }
+
+  stop() {
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      this._vodPlayer.stop(() => {
+        this._livePlayer.attach(this._ui);
+        this._livePlayer.stop(true);
+      });
+      return;
+    }
+
+    this._livePlayer.stop(true);
+  }
+
+  seekVod(position) {
+    if (this._vodPlayer && this._vodPlayer.isRunning()) {
+      return this._playProgressProxy.seekVod(position);
+    }
+
+    return this._runVodFromStart(position);
+  }
+
+  seekLive(buffer) {
+    if (buffer === undefined || buffer === null) buffer = 0;
+    return this._playProgressProxy.seekLive(buffer);
+  }
+
+  getVodPlayerHandler() {
+    return this._vodPlayer?.isLoaded() ? this._vodPlayer.getHandler() : null;
   }
 
   version() {
@@ -221,488 +168,157 @@ export default class Nimio {
     return __NIMIO_VERSION__;
   }
 
-  _addUiEventHandlers() {
-    this._onPlayPauseClick = this._onPlayPauseClick.bind(this);
-    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
-    this._onVolumeChange = this._onVolumeChange.bind(this);
-    this._onRenditionChange = this._onRenditionChange.bind(this);
-
-    this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    this._eventBus.on("ui:volume-change", this._onVolumeChange);
-    this._eventBus.on("ui:rendition-change", this._onRenditionChange);
+  _createVUMeter() {
+    this._vuMeterSvc = VUMeterService.getInstance(this._instName);
+    this._vuMeterSvc.init(this._config.vuMeter, (magnitudes, decibels) => {
+      this._eventBus.emit("nimio:vumeter-update", { magnitudes, decibels });
+    });
   }
 
-  _removeUiEventHandlers() {
-    this._eventBus.off("ui:play-pause-click", this._onPlayPauseClick);
-    this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
-    this._eventBus.off("ui:volume-change", this._onVolumeChange);
-    this._eventBus.off("ui:rendition-change", this._onRenditionChange);
+  _runVodFromStart(pos) {
+    if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
+      this._vodPlayer.initialize(this._ui.mediaElement).then(() => {
+        let curState = this._context.state.value;
+        this._switchToVod(pos);
+        this._context.setState(curState, true);
+        this._context.autoAbr = !!this._config.adaptiveBitrate;
+      });
+
+      return true;
+    }
+
+    return false;
   }
 
-  _onPlayPauseClick = function (isPlayClicked) {
-    isPlayClicked ? this.play() : this.pause();
+  _switchToVod(position) {
+    if (!this._vodPlayer || this._mode === MODE.VOD) return false;
+    this._mode = MODE.PEND;
+
+    return this._livePlayer.detach(() => {
+      // TODO: re-check parameters
+      this._actPlayer = this._vodPlayer;
+      this._actPlayer.attach(this._ui, position, () => {
+        this._mode = MODE.VOD;
+      });
+    });
+  }
+
+  _switchToLive(latency) {
+    if (!this._vodPlayer || this._mode === MODE.LIVE) return false;
+    this._mode = MODE.PEND;
+
+    this._logger.debug(
+      `Attach live with ${latency === 0 ? "default latency" : "latency = " + latency}`,
+    );
+
+    // pbError shows that VOD player couldn't play stream on start
+    // that means that there is no playable stream source at the moment
+    let pbError =
+      this._context.state.initial && this._vodPlayer.hasPlaybackErrors();
+    return this._vodPlayer.detach(() => {
+      this._actPlayer = this._livePlayer;
+      this._actPlayer.attach(this._ui, { latency, pbError });
+      this._mode = MODE.LIVE;
+    });
+  }
+
+  _onLivePlaybackError(type, allowFailover) {
+    this._logger.warn(`Live playback error: ${ERROR[type]}`);
+    switch (type) {
+      case "NOT_SUP":
+        this._eventBus.emit("nimio:playback-error", {
+          error: ERROR[type],
+          mode: MODE.LIVE,
+        });
+        break;
+      case "NO_SRC":
+        // Start playback from the beginning
+        let vodStarted = false;
+        if (allowFailover && this._config.vod?.startupVodFailover) {
+          // TODO: VOD failover happens on the first run only, to make it
+          // always try VOD use the same logic as seekVod() method does
+          vodStarted = this._runVodFromStart();
+        }
+
+        if (!vodStarted) {
+          if (this._vodPlayer?.isRunning()) {
+            this._vodPlayer.stop();
+          }
+          this._eventBus.emit("nimio:playback-error", {
+            error: ERROR[type],
+            mode: MODE.LIVE,
+          });
+        }
+        break;
+      default:
+        this._logger.error(`Live error type is not recognized: ${type}`);
+        break;
+    }
+  }
+
+  _onVodPlaybackError(type) {
+    // Switch to live player for now.
+    this._logger.warn(`VOD playback error: ${ERROR[type]}`);
+    if (this._config.vod?.liveFailover) {
+      this._switchToLive(0);
+    } else {
+      this._eventBus.emit("nimio:playback-error", {
+        error: ERROR[type],
+        mode: MODE.VOD,
+      });
+    }
+  }
+
+  _onError = (data) => {
+    if (data.mode === MODE.LIVE) {
+      this._onLivePlaybackError(data.type, !data.stop);
+    } else {
+      this._onVodPlaybackError(data.type);
+    }
   };
 
-  _renderVideoFrame() {
-    if (this._noVideo || !this._state.isPlaying()) return true;
+  _onLiveConnected = () => {
+    if (!this._vodPlayer || this._vodPlayer.isPlaying()) return;
+    this._vodPlayer.initialize();
+  };
 
-    requestAnimationFrame(this._renderVideoFrame);
-    if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
-      return true;
-    }
-
-    let curPlayedTsUs;
-    if (this._audioCtxProvider.isSuspended()) {
-      curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
-    } else {
-      curPlayedTsUs = this._latencyCtrl.loadCurrentTsUs();
-    }
-    this._updateBufferLevelMetrics();
-
-    if (this._latencyCtrl.isPending()) return true;
-
-    const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
-    if (!frame) {
-      // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-      return true;
-    }
-
-    this._ctx.drawImage(
-      frame,
-      0,
-      0,
-      this._ctx.canvas.width,
-      this._ctx.canvas.height,
+  _onPlaybackPositionChange = (mode, val) => {
+    this._logger.debug(
+      `_onPlaybackPositionChange new mode = ${mode}, value = ${val}, cur mode = ${this._mode}`,
     );
-    frame.close();
-  }
+    if (this._mode === MODE.PEND) return false;
 
-  // TODO: move this function with renderVideoFrame to a separate component
-  _setSpeed(speed, availableMs) {
-    if (this._speed === speed) return;
-    this._speed = speed;
-    this._logger.debug(`speed ${speed}`, availableMs);
-  }
-
-  _createMainDecoderFlow(type, data) {
-    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
-    this._decoderFlows[type] = new flowClass(
-      this._config.instanceName,
-      data.trackId,
-      data.timescale,
-    );
-
-    let decoderFlow = this._decoderFlows[type];
-    decoderFlow.onStartTsNotSet =
-      type === "video"
-        ? this._onVideoStartTsNotSet.bind(this)
-        : this._onAudioStartTsNotSet.bind(this);
-    decoderFlow.onDecodingError = this._onDecodingError.bind(this);
-    decoderFlow.onSwitchResult = (done, msg) => {
-      if (msg && !done) {
-        this._logger.error(msg);
-      }
-      this._onRenditionSwitchResult(type, done);
-    };
-    decoderFlow.onInputCancel = () => {
-      this._sldpManager.cancelStream(decoderFlow.trackId);
-    };
-    decoderFlow.setConfig(data.config);
-    this._eventBus.emit("transp:track-action", {
-      op: "main",
-      id: data.trackId,
-      type,
-    });
-  }
-
-  _createNextRenditionFlow(type, data) {
-    let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
-    this._nextRenditionData.decoderFlow = new flowClass(
-      this._config.instanceName,
-      data.trackId,
-      data.timescale,
-    );
-    this._nextRenditionData.decoderFlow.onInputCancel = () => {
-      this._sldpManager.cancelStream(data.trackId);
-    };
-    this._nextRenditionData.decoderFlow.setConfig(data.config);
-  }
-
-  _isNextRenditionTrack(trackId) {
-    return (
-      this._nextRenditionData && this._nextRenditionData.trackId === trackId
-    );
-  }
-
-  async _onVideoStartTsNotSet(frame) {
-    if (this._playbackStartTsUs !== 0) return true;
-    if (this._firstVideoFrameTsUs === 0) {
-      this._firstVideoFrameTsUs = frame.timestamp;
-      if (this._firstAudioFrameTsUs > 0) {
-        this._setPlaybackStartTs();
-        return true;
-      }
+    if (mode === this._mode) {
+      return this._actPlayer.goto(val);
     }
 
-    if (
-      this._noAudio ||
-      (!this._audioContext && this._videoBuffer.getTimeCapacity() >= 0.5)
-    ) {
-      this._setPlaybackStartTs("video");
+    return mode === MODE.VOD ? this._switchToVod(val) : this._switchToLive(val);
+  };
 
-      if (!this._noAudio && this._audioCtxProvider.isRunning()) {
-        // it doesn't make sense to start no audio mode via audio worklet
-        // if audio context is suspended
-        await this._startNoAudioMode();
-      }
-    }
-
-    return true;
+  _addVolumeEventHandlers() {
+    this._onMuteUnmuteClick = this._onMuteUnmuteClick.bind(this);
+    this._onVolumeChange = this._onVolumeChange.bind(this);
+    this._eventBus.on("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.on("ui:volume-change", this._onVolumeChange);
   }
 
-  async _onAudioStartTsNotSet(frame) {
-    if (
-      this._audioConfig.sampleRate !== frame.sampleRate ||
-      this._audioConfig.numberOfChannels !== frame.numberOfChannels
-    ) {
-      this._logger.error(
-        `Audio config (sampleRate=${this._audioConfig.sampleRate}, channels=${this._audioConfig.numberOfChannels}) differs from the actual (sampleRate=${frame.sampleRate}, channels=${frame.numberOfChannels}). Abort audio processor initialization.`,
-      );
+  _removeVolumeEventHandlers() {
+    this._eventBus.off("ui:mute-unmute-click", this._onMuteUnmuteClick);
+    this._eventBus.off("ui:volume-change", this._onVolumeChange);
+  }
+
+  _checkRenditionType(type) {
+    if (type !== "video" && type !== "audio") {
+      this._logger.error("Rendition type must be either 'video' or 'audio'");
       return false;
     }
-
-    // The following workaround is possible for the case when the ASC header contains channels count equal to 0,
-    // which means that the channel layout should be taken from the PCE of the RAW AAC data.
-    // if (this._audioConfig.numberOfChannels === 0) {
-    //   this._audioConfig.numberOfChannels = frame.numberOfChannels;
-    //   if (this._audioBuffer) this._audioBuffer.reset();
-    //   if (!this._prepareAudioOutput()) {
-    //     return false;
-    //   }
-    //   this._decoderFlows["audio"].setBuffer(this._audioBuffer, this._state);
-    // }
-
-    // create AudioContext with correct sampleRate on first frame
-    await this._initAudioProcessor(frame.sampleRate, frame.numberOfChannels);
-
-    if (!this._audioContext || !this._audioNode) {
-      this._logger.error("Audio context is not initialized. Can't play audio.");
-      this._audioContext = this._audioNode = null;
-      return false;
-    }
-
-    if (this._firstAudioFrameTsUs === 0) {
-      this._firstAudioFrameTsUs = frame.decTimestamp;
-      if (this._firstVideoFrameTsUs) {
-        this._setPlaybackStartTs();
-      } else if (this._noVideo) {
-        this._setPlaybackStartTs("audio");
-      }
-    }
-
     return true;
-  }
-
-  _setPlaybackStartTs(mode) {
-    this._playbackStartTsUs =
-      mode === undefined
-        ? Math.max(this._firstAudioFrameTsUs, this._firstVideoFrameTsUs)
-        : mode === "video"
-          ? this._firstVideoFrameTsUs
-          : this._firstAudioFrameTsUs;
-    this._logger.warn(
-      `set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`,
-    );
-    this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
-  }
-
-  _cancelPauseTimeout() {
-    if (this._pauseTimeoutId === null) return;
-    clearTimeout(this._pauseTimeoutId);
-    this._pauseTimeoutId = null;
-  }
-
-  _resetPlayback() {
-    this._ctx.clearRect(0, 0, this._ctx.canvas.width, this._ctx.canvas.height);
-
-    this._videoBuffer.reset();
-    this._noVideo = this._config.audioOnly;
-
-    this._stopAudio();
-    this._noAudio = this._config.videoOnly;
-    if (this._audioBuffer) {
-      this._audioBuffer.reset();
-      this._audioBuffer = null;
-    }
-    this._latencyCtrl.reset();
-    if (this._syncModeParams) this._syncModeParams = {};
-    this._advertizerEval.reset();
-
-    if (this._nextRenditionData) {
-      if (this._nextRenditionData.decoderFlow) {
-        this._nextRenditionData.decoderFlow.destroy();
-      }
-      this._nextRenditionData = null;
-    }
-
-    ["video", "audio"].forEach((type) => {
-      if (this._decoderFlows[type]) {
-        this._decoderFlows[type].destroy();
-        this._decoderFlows[type] = null;
-      }
-    });
-
-    this._state.setPlaybackStartTsUs(0);
-    this._state.setVideoLatestTsUs(0);
-    this._state.setAudioLatestTsUs(0);
-    this._state.resetCurrentTsSmp();
-    this._resetPlaybackTimestamps();
-
-    this._vuMeterSvc.stop();
-    this._audioGraphCtrl.dismantle();
-    this._audioCtxProvider.reset();
-
-    this._cancelPauseTimeout();
-    this._workletLogReceiver.reset();
-  }
-
-  _resetPlaybackTimestamps() {
-    this._playbackStartTsUs = 0;
-    this._firstAudioFrameTsUs = this._firstVideoFrameTsUs = 0;
-  }
-
-  _onDecodingError(kind) {
-    if (kind === "video") this._setNoVideo();
-    if (kind === "audio") this._setNoAudio();
-
-    if (this._noVideo && this._noAudio) {
-      // TODO: show error message in UI
-      this.stop(true);
-    }
-  }
-
-  _prepareAudioOutput() {
-    this._logger.debug("prepareAudioOutput");
-    if (this._audioConfig.numberOfChannels < 1) {
-      if (!this._noAudio) {
-        this._startNoAudioMode();
-      }
-      return false;
-    }
-
-    if (this._noAudio) {
-      // Stop no audio mode if it was started previously
-      this._stopAudio();
-    }
-
-    if (!this._audioBuffer) {
-      let AudioBufferClass = this._sabShared
-        ? WritableAudioBuffer
-        : WritableTransAudioBuffer;
-      this._audioBuffer = AudioBufferClass.allocate(
-        this._bufferSec * 6, // reserve 6 times buffer size for development (TODO: reduce later)
-        this._audioConfig.sampleRate,
-        this._audioConfig.numberOfChannels,
-        this._audioConfig.sampleCount,
-      );
-
-      this._audioBuffer.addPreprocessor(
-        new AudioGapsProcessor(
-          this._audioConfig.sampleCount,
-          this._audioConfig.sampleRate,
-          this._logger,
-        ),
-      );
-    }
-
-    return true;
-  }
-
-  async _initAudioProcessor(sampleRate, channels, idle) {
-    if (!this._audioContext) {
-      this._audioCtxProvider.init(sampleRate);
-      this._logger.debug("Init audio processor", sampleRate, channels);
-      this._audioCtxProvider.setChannelCount(channels);
-      this._audioContext = this._audioCtxProvider.get();
-
-      if (!this._audioContext) {
-        this._logger.error(
-          "Audio context is not initialized. Can't play audio.",
-        );
-        this._setNoAudio(true);
-        return;
-      }
-
-      if (sampleRate !== this._audioContext.sampleRate) {
-        this._logger.error(
-          "Unsupported sample rate",
-          sampleRate,
-          this._audioContext.sampleRate,
-        );
-      }
-
-      if (!this._audioContext.audioWorklet) {
-        this._logger.error(
-          "AudioWorklet is not supported in this environment.",
-        );
-        this._setNoAudio(true);
-        return;
-      }
-
-      // load processor
-      this._audioWorkletReady = this._audioContext.audioWorklet
-        .addModule(audioProcUrl)
-        .catch((err) => {
-          this._logger.error("Audio worklet error", err);
-        });
-
-      this._vuMeterSvc.setAudioInfo({ sampleRate, channels });
-    }
-
-    await this._audioWorkletReady;
-    if (this._audioNode) return;
-
-    let procOptions = {
-      instanceName: this._config.instanceName,
-      sampleRate: sampleRate,
-      stateSab: this._sab,
-      stateSabShared: this._sabShared,
-      latency: this._config.latency,
-      latencyTolerance: this._config.latencyTolerance,
-      latencyAdjustMethod: this._config.latencyAdjustMethod,
-      idle: idle || false,
-      videoEnabled: !this._noVideo,
-      logLevel: this._config.logLevel,
-      enableLogs: this._config.workletLogs,
-    };
-
-    if (!idle && this._audioBuffer) {
-      procOptions.sampleCount = this._audioConfig.sampleCount;
-      procOptions.capacity = this._audioBuffer.bufferCapacity;
-      if (this._audioBuffer.isShareable) {
-        procOptions.audioSab = this._audioBuffer.buffer;
-      }
-      if (this._config.syncBuffer > 0) {
-        procOptions.syncBuffer = this._config.syncBuffer;
-      }
-    }
-
-    this._audioNode = new AudioWorkletNode(
-      this._audioContext,
-      "audio-nimio-processor",
-      {
-        numberOfInputs: 0,
-        numberOfOutputs: 1,
-        outputChannelCount: [channels],
-        processorOptions: procOptions,
-      },
-    );
-
-    this._audioNode.port.start();
-    this._workletLogReceiver.add(this._audioNode);
-    if (!this._state.isShared()) {
-      this._state.attachPort(this._audioNode.port);
-    }
-    if (!procOptions.audioSab && this._audioBuffer) {
-      this._audioBuffer.setPort(this._audioNode.port);
-    }
-
-    this._audioVolumeCtrl.init(this._config);
-    this._audioGraphCtrl.setSource(this._audioNode, channels);
-    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
-    this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
-    if (this._audioCtxProvider.isSuspended()) {
-      this._audioContext.resume();
-    }
-
-    if (this._config.syncBuffer > 0) {
-      let smc = new SyncModeClock(this._audioNode.port);
-      await smc.sync();
-      this._applySyncModeParams();
-    }
-    this._sendPendingAdvertizerActions();
-
-    if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
-      this._vuMeterSvc.start();
-    }
-  }
-
-  _setNoVideo(yes) {
-    if (yes === undefined) yes = true;
-    this._noVideo = yes;
-    this._latencyCtrl.videoEnabled = !yes;
-  }
-
-  _setNoAudio(yes) {
-    if (yes === undefined) yes = true;
-    this._noAudio = yes;
-    this._latencyCtrl.audioEnabled = !yes;
-    this._logger.debug("Set no audio:", yes);
-  }
-
-  async _startNoAudioMode() {
-    this._setNoAudio();
-    await this._initAudioProcessor(48000, 1, true);
-    this._logger.debug("No audio mode started");
-  }
-
-  _stopAudio() {
-    this._logger.debug("stopAudio");
-    if (this._audioContext) {
-      this._audioContext.close();
-      this._audioContext = this._audioNode = this._audioWorkletReady = null;
-    }
-    if (this._audioBuffer) {
-      this._audioBuffer.reset();
-    }
-    this._setNoAudio(false);
-  }
-
-  _updateBufferLevelMetrics() {
-    if (this._isAutoAbr()) {
-      let curTimeMs = performance.now();
-      if (this._lastBufUpdMs > 0 && curTimeMs - this._lastBufUpdMs >= 100) {
-        this._reportBufferLevel(this._latencyCtrl.availableMs("video"));
-        this._lastBufUpdMs = curTimeMs;
-      }
-    }
-  }
-
-  _reportBufferLevel(ms) {
-    let trackId = this._decoderFlows["video"].trackId;
-    this._metricsManager.reportBufLevel(trackId, ms / 1000);
-    if (ms < this._lowBufferMs) {
-      this._metricsManager.reportLowBuffer(trackId);
-    }
-  }
-
-  _createLatencyController() {
-    this._latencyCtrl = new LatencyController(
-      this._config.instanceName,
-      this._state,
-      this._audioConfig,
-      this._advertizerEval,
-      {
-        latency: this._config.latency,
-        tolerance: this._config.latencyTolerance,
-        adjustMethod: this._config.latencyAdjustMethod,
-        video: !this._noVideo,
-        audio: !this._noAudio,
-        syncBuffer: this._config.syncBuffer,
-      },
-    );
-    this._speed = 1;
-    this._latencyCtrl.speedFn = this._setSpeed.bind(this);
   }
 }
 
 Object.assign(Nimio.prototype, NimioEvents);
-Object.assign(Nimio.prototype, NimioTransport);
-Object.assign(Nimio.prototype, NimioRenditions);
-Object.assign(Nimio.prototype, NimioAbr);
 Object.assign(Nimio.prototype, NimioVolume);
-Object.assign(Nimio.prototype, NimioSyncMode);
+Object.assign(Nimio.prototype, NimioExtAPI);
 
 if (typeof window !== "undefined") {
   // Expose globally when used via <script type="module"> without manual assignment

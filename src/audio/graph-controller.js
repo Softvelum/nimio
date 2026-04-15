@@ -90,6 +90,22 @@ class AudioGraphController {
     }
   }
 
+  removeSource() {
+    let srcConns = [];
+    if (this._source?._outconns) {
+      for (let i = 0; i < this._source._outconns.length; i++) {
+        this._source.disconnect(this._source._outconns[i]);
+      }
+      srcConns = this._source._outconns;
+      this._source._outconns = [];
+    }
+    for (let i = 0; i < srcConns.length; i++) {
+      let idx = srcConns[i]._inconns.indexOf(this._source);
+      if (idx >= 0) srcConns[i]._inconns.splice(idx, 1);
+    }
+    this._source = undefined;
+  }
+
   // opts:
   // - connectDest - connect appended node to the audio context destination
   // - connectPrev - connect appended node to the previous node
@@ -116,11 +132,14 @@ class AudioGraphController {
       let outConns = prevNode._outconns;
       for (let i = 0; i < outConns.length; i++) {
         prevNode.disconnect(outConns[i]);
-        node.connect(outConns[i]);
-        node._outconns.push(outConns[i]);
-        let idx = outConns[i]._inconns.indexOf(prevNode);
-        if (idx >= 0) {
-          outConns[i]._inconns[idx] = node;
+        let nodeIdx = outConns[i]._inconns.indexOf(node);
+        let prevNodeIdx = outConns[i]._inconns.indexOf(prevNode);
+        if (nodeIdx < 0) {
+          node.connect(outConns[i]);
+          node._outconns.push(outConns[i]);
+          outConns[i]._inconns[prevNodeIdx] = node;
+        } else {
+          outConns[i]._inconns.splice(prevNodeIdx, 1);
         }
       }
       prevNode._outconns.length = 0;
@@ -145,7 +164,7 @@ class AudioGraphController {
       prevNode = this._source;
     }
 
-    this._nodes.shift(node);
+    this._nodes.unshift(node);
     node._inconns = [];
     node._outconns = [];
 
@@ -157,11 +176,14 @@ class AudioGraphController {
       let inConns = nextNode._inconns;
       for (let i = 0; i < inConns.length; i++) {
         inConns[i].disconnect(nextNode);
-        inConns[i].connect(node);
-        node._inconns.push(inConns[i]);
-        let idx = inConns[i]._outconns.indexOf(nextNode);
-        if (idx >= 0) {
-          inConns[i]._outconns[idx] = node;
+        let nodeIdx = inConns[i]._outconns.indexOf(node);
+        let nextNodeIdx = inConns[i]._outconns.indexOf(nextNode);
+        if (nodeIdx < 0) {
+          inConns[i].connect(node);
+          node._inconns.push(inConns[i]);
+          inConns[i]._outconns[nextNodeIdx] = node;
+        } else {
+          inConns[i]._outconns.splice(nextNodeIdx, 1);
         }
       }
       nextNode._inconns.length = 0;

@@ -34,34 +34,33 @@ export class SLDPManager {
         this._handleSyncParams(status);
       }
       await this._processStatus(status.info);
-      this._play(this._curStreams);
+      this._sendRequest("play", { streams: this._curStreams });
+      this._curStreams = [];
     });
   }
 
   start(url) {
     this._context.setSourceUrl(url);
-    this._transport.send("start", {
+    this._sendRequest("start", {
       url: url,
       protocols: ["sldp.softvelum.com"],
       syncMode: this._useSyncMode,
     });
+    this._eventBus.emit("nimio:connection-started", url);
   }
 
   stop(opts = {}) {
-    this._transport.send("stop", {
-      close: !!opts.closeConnection,
-      sns: this.resetCurrentStreams(),
-    });
+    const sns = this.resetRequestedStreams();
+    if (sns.length === 0) return;
+
+    this._sendRequest("stop", { sns, close: !!opts.closeConnection });
   }
 
-  resetCurrentStreams() {
-    const sns = this._curStreams.map((s) => s.sn);
-    for (let i = 0; i < sns.length; i++) {
-      delete this._reqStreams[sns[i]];
-    }
-    this._curStreams = [];
-
+  resetRequestedStreams() {
+    const sns = Object.keys(this._reqStreams);
     this._transport.send("removeTimescale", sns);
+    this._reqStreams = {};
+
     return sns;
   }
 
@@ -79,7 +78,7 @@ export class SLDPManager {
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
     this._reqStreams[ss.sn] = idx;
-    this._play([ss]);
+    this._sendRequest("play", { streams: [ss] });
 
     return ss.sn;
   }
@@ -94,7 +93,7 @@ export class SLDPManager {
     if (type === "audio") timescale = stream.stream_info.atimescale;
     this._transport.send("timescale", { [sp.sn]: timescale });
 
-    this._play([sp]);
+    this._sendRequest("play", { streams: [sp] });
     return sp.sn;
   }
 
@@ -106,25 +105,52 @@ export class SLDPManager {
     }
 
     delete this._reqStreams[sn];
-    this._transport.send("stop", { sns: [sn] });
+    this._sendRequest("stop", { sns: [sn] });
     this._transport.send("removeTimescale", [sn]);
   }
 
   cancelProbe(sn, doRequest) {
     this._logger.debug(`cancel probe SN ${sn}, req ${doRequest}`);
     if (doRequest) {
-      this._transport.send("stop", { sns: [sn] });
+      this._sendRequest("stop", { sns: [sn] });
     }
     this._transport.send("removeTimescale", [sn]);
   }
 
-  _play(streams) {
-    this._transport.send("play", { streams });
+  keepAliveConnection() {
+    if (this._keepAliveTimer) return;
+    this._keepAliveTimer = setTimeout(() => {
+      if (!this._transport.connected) this._keepAliveTimer = undefined;
+      if (!this._keepAliveTimer) return;
+      this._logger.debug(`send keep alive request`);
+      this._sendRequest("stop", { sns: [] });
+      this.keepAliveConnection();
+    }, 10000);
+  }
+
+  requestCurrentStreams() {
+    this._processCurrentStreams();
+    this._sendRequest("play", { streams: this._curStreams });
+    this._curStreams = [];
+  }
+
+  _sendRequest(command, data) {
+    this._keepAliveTimer = undefined;
+    this._transport.send(command, data);
   }
 
   async _processStatus(streams) {
     await this._context.setStreams(streams);
 
+    this._processCurrentStreams();
+
+    this._eventBus.emit(
+      "nimio:connection-established",
+      this._context.getStreamsConfig(),
+    );
+  }
+
+  _processCurrentStreams() {
     let gotVideo = !this._hasVideo;
     let vIdx;
     if (!gotVideo) {
@@ -203,11 +229,6 @@ export class SLDPManager {
     this._transport.runCallback("videoSetup", vsetup);
     this._transport.runCallback("audioSetup", asetup);
     this._transport.send("timescale", timescale);
-
-    this._eventBus.emit(
-      "nimio:connection-established",
-      this._context.getStreamsConfig(),
-    );
   }
 
   _pushCurStream(type, stream) {
