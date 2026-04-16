@@ -38,10 +38,6 @@ class SPSHolder {
     return this._codec;
   }
 
-  sps() {
-    return this._sps;
-  }
-
   parseSPS(data, start, end) {
     if (!this._spsParser || this._sps.timingInfo) return;
 
@@ -55,6 +51,10 @@ class SPSHolder {
       this._resetSPS();
     }
     this._dcParser.parse(data, this._sps);
+  }
+
+  get sps() {
+    return this._sps;
   }
 
   _resetParsers() {

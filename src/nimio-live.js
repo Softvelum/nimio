@@ -359,6 +359,16 @@ export class NimioLive {
     return this._ui.captionController.setCaptionTrack(name);
   }
 
+  getCurrentTimestamp() {
+    // if (this._audioCtxProvider.isSuspended()) {
+    //   return this._latencyCtrl.getCurrentVideoTime();
+    // } else {
+    //   return this._latencyCtrl.getCurrentTsUs();
+    // }
+    // TODO: complete implementation of this method
+    return 0;
+  }
+
   _attachUI(ui) {
     this._ui = ui;
     this._ui.toggleMode(MODE.LIVE);

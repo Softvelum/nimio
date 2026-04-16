@@ -71,6 +71,17 @@ export const NimioRenditions = {
     return true;
   },
 
+  getCurrentStreamBandwidth() {
+    let result = 0;
+    ["audio", "video"].forEach((type) => {
+      if (!this._decoderFlows[type]) return;
+      let m = this._metricsManager.getMetric(this._decoderFlows[type].trackId);
+      if (m) result += m.latestBandwidth();
+    });
+
+    return result;
+  },
+
   _onRenditionChange(data) {
     if (data.mode !== MODE.LIVE || !data.rend) return;
 

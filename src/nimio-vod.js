@@ -80,6 +80,51 @@ export class NimioVod {
       });
   }
 
+  initialize(mediaElement) {
+    return this._loadSourcePromise
+      .then(() => {
+        if (
+          this._state === VOD_STATE.NULL ||
+          this._state === VOD_STATE.PLAY ||
+          this._url === this._config.url
+        )
+          return;
+
+        if (this._state === VOD_STATE.INIT) {
+          const EV = Hls.Events;
+          this._pHandler.on(EV.MANIFEST_PARSED, this._onManifestParsed);
+          this._pHandler.on(EV.LEVEL_LOADED, this._onLevelLoaded);
+          this._pHandler.on(EV.MEDIA_DETACHED, this._onMediaDetached);
+          this._pHandler.on(EV.MEDIA_ATTACHED, this._onMediaAttached);
+          this._pHandler.on(EV.BUFFER_CODECS, this._onBufferCodecs);
+          this._pHandler.on(EV.LEVEL_SWITCHED, this._onLevelSwitched);
+          this._pHandler.on(EV.ERROR, this._onError);
+
+          this._pHandler.on(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg);
+          this._pHandler.on(EV.BUFFER_APPENDING, this._onBufferAppending);
+
+          // this._pHandler.on(EV.LEVEL_SWITCHING, this._onLevelSwitching);
+          // this._pHandler.on(EV.FRAG_PARSING_USERDATA, this._onParseUserData);
+          // this._pHandler.on(EV.FRAG_PARSING_METADATA, this._onParseMetaData);
+          // this._pHandler.on(EV.FRAG_PARSED, this._onFragParsed);
+          // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
+          // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
+          // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
+          this._playbackService.init(mediaElement);
+          this._addUIEventHandlers();
+          this._state = VOD_STATE.SYNC;
+        }
+
+        this._url = this._config.url;
+        this._pHandler.loadSource(this._fullUrl());
+      })
+      .catch((err) => {
+        this._logger.error(
+          "Can not initialize VOD player because HLS.js library was not loaded",
+        );
+      });
+  }
+
   destroy() {
     if (this._state === VOD_STATE.NULL) return;
     if (!this._pHandler) return;
@@ -243,35 +288,6 @@ export class NimioVod {
     return this.onChangeRendition(lvl.rend, lvl.rIdx);
   }
 
-  _formatStream(lvl) {
-    if (!lvl) return null;
-
-    let stream = {
-      name: lvl.name,
-      bandwidth: lvl.data.bitrate,
-    };
-    if (lvl.data.width > 0) stream.width = lvl.data.width;
-    if (lvl.data.height > 0) stream.height = lvl.data.height;
-
-    return stream;
-  }
-
-  _formatRendition(lvl) {
-    if (!lvl) return null;
-
-    let rendition = {
-      id: lvl.idx + 1,
-      rendition: lvl.rend,
-      bandwidth: lvl.data.bitrate,
-    };
-    if (lvl.data.width > 0) rendition.width = lvl.data.width;
-    if (lvl.data.height > 0) rendition.height = lvl.data.height;
-    if (lvl.data.videoCodec) rendition.vcodec = lvl.data.videoCodec;
-    if (lvl.data.audioCodec) rendition.acodec = lvl.data.audioCodec;
-
-    return rendition;
-  }
-
   getStreams() {
     let streams = [];
     let ords = this._context.orderedLevels;
@@ -314,49 +330,9 @@ export class NimioVod {
     return false;
   }
 
-  initialize(mediaElement) {
-    return this._loadSourcePromise
-      .then(() => {
-        if (
-          this._state === VOD_STATE.NULL ||
-          this._state === VOD_STATE.PLAY ||
-          this._url === this._config.url
-        )
-          return;
-
-        if (this._state === VOD_STATE.INIT) {
-          const EV = Hls.Events;
-          this._pHandler.on(EV.MANIFEST_PARSED, this._onManifestParsed);
-          this._pHandler.on(EV.LEVEL_LOADED, this._onLevelLoaded);
-          this._pHandler.on(EV.MEDIA_DETACHED, this._onMediaDetached);
-          this._pHandler.on(EV.MEDIA_ATTACHED, this._onMediaAttached);
-          this._pHandler.on(EV.BUFFER_CODECS, this._onBufferCodecs);
-          this._pHandler.on(EV.LEVEL_SWITCHED, this._onLevelSwitched);
-          this._pHandler.on(EV.ERROR, this._onError);
-
-          this._pHandler.on(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg);
-          this._pHandler.on(EV.BUFFER_APPENDING, this._onBufferAppending);
-
-          // this._pHandler.on(EV.LEVEL_SWITCHING, this._onLevelSwitching);
-          // this._pHandler.on(EV.FRAG_PARSING_USERDATA, this._onParseUserData);
-          // this._pHandler.on(EV.FRAG_PARSING_METADATA, this._onParseMetaData);
-          // this._pHandler.on(EV.FRAG_PARSED, this._onFragParsed);
-          // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
-          // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
-          // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
-          this._playbackService.init(mediaElement);
-          this._addUIEventHandlers();
-          this._state = VOD_STATE.SYNC;
-        }
-
-        this._url = this._config.url;
-        this._pHandler.loadSource(this._fullUrl());
-      })
-      .catch((err) => {
-        this._logger.error(
-          "Can not initialize VOD player because HLS.js library was not loaded",
-        );
-      });
+  getCurrentTimestamp() {
+    if (this._state !== VOD_STATE.PLAY || !this._ui) return 0;
+    return Math.round(this._ui.mediaElement.currentTime * 1_000_000);
   }
 
   attach(ui, position, callback) {
@@ -528,6 +504,35 @@ export class NimioVod {
 
   onLeavePip() {
     this._playbackService.resumeIfAutoPaused();
+  }
+
+  _formatStream(lvl) {
+    if (!lvl) return null;
+
+    let stream = {
+      name: lvl.name,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) stream.width = lvl.data.width;
+    if (lvl.data.height > 0) stream.height = lvl.data.height;
+
+    return stream;
+  }
+
+  _formatRendition(lvl) {
+    if (!lvl) return null;
+
+    let rendition = {
+      id: lvl.idx + 1,
+      rendition: lvl.rend,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) rendition.width = lvl.data.width;
+    if (lvl.data.height > 0) rendition.height = lvl.data.height;
+    if (lvl.data.videoCodec) rendition.vcodec = lvl.data.videoCodec;
+    if (lvl.data.audioCodec) rendition.acodec = lvl.data.audioCodec;
+
+    return rendition;
   }
 
   _addScriptTag(url) {

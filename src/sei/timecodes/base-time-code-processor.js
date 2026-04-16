@@ -4,7 +4,7 @@ import { BitReader } from "@/shared/bit-reader";
 export class BaseTimeCodeProcessor {
   constructor(instanceId) {
     this._instId = instanceId;
-    this._sps = SPSHolder.getInstance(instanceId).sps();
+    this._sps = SPSHolder.getInstance(instanceId).sps;
     this._bitr = new BitReader();
     this.type = "timecode";
   }
