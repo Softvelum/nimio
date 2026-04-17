@@ -68,6 +68,8 @@ class AudioGraphController {
   }
 
   setSource(src, channels) {
+    if (!src) return false;
+
     let srcConns = [];
     if (this._source?._outconns) {
       for (let i = 0; i < this._source._outconns.length; i++) {
@@ -84,13 +86,18 @@ class AudioGraphController {
       this.setChannelCount(channels);
     }
 
-    for (let i = 0; i < srcConns.length; i++) {
-      this._source.connect(srcConns[i]);
-      this._source._outconns.push(srcConns[i]);
-      let idx = srcConns[i]._inconns.indexOf(oldSrc);
-      if (idx >= 0) {
-        srcConns[i]._inconns[idx] = this._source;
+    try {
+      for (let i = 0; i < srcConns.length; i++) {
+        this._source.connect(srcConns[i]);
+        this._source._outconns.push(srcConns[i]);
+        let idx = srcConns[i]._inconns.indexOf(oldSrc);
+        if (idx >= 0) {
+          srcConns[i]._inconns[idx] = this._source;
+        }
       }
+    } catch (e) {
+      this._logger.error("Failed to connect source to the graph", e);
+      return false;
     }
 
     return true;

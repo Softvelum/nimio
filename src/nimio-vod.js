@@ -626,7 +626,7 @@ export class NimioVod {
     if (currentLevel && currentLevel.data.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
-        this._segmTracker.setup(data.details.fragments);
+        this._segmTracker.setup(currentLevel.data.details.fragments);
       }
     }
   };
