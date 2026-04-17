@@ -11,16 +11,16 @@ class PlaybackThumbnailService {
     this._baseUrl = url;
   }
 
-  getUrl(time) {
-    let res;
+  getUrlInfo(time) {
+    let url, thTime;
 
     let seg = this._segmentTracker.get(time);
     if (seg) {
-      let thTime = Math.round(seg.programDateTime / 1000);
-      res = this._baseUrl + thTime + ".mp4";
+      thTime = Math.round(seg.programDateTime / 1000);
+      url = this._baseUrl + thTime + ".mp4";
     }
 
-    return res;
+    return [url, thTime];
   }
 
   isSetUp() {
