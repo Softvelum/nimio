@@ -11,6 +11,7 @@ class PlaybackSegmentTracker {
   }
 
   setup(segments) {
+    this._segments = undefined;
     if (segments && segments.length > 0 && segments[0].programDateTime > 0) {
       this._segments = segments;
       this._ensureSorted();

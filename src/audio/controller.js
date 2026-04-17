@@ -25,6 +25,7 @@ class AudioController {
         `Init audio context, sampleRate = ${sampleRate}, channels = ${channels}`,
       );
       this._audioCtxProvider.init(sampleRate);
+      this._audioGraphCtrl.dismantle();
     }
     this._audioCtxProvider.setChannelCount(channels);
     return this._audioCtxProvider.get();
@@ -39,12 +40,12 @@ class AudioController {
     this._ready = false;
   }
 
-  canConnectSource(node) {
-    return this._audioGraphCtrl.canAcceptSource(node);
+  canConnectNode(node) {
+    return this._audioGraphCtrl.canAcceptNode(node);
   }
 
   connectSource(node, channels) {
-    let needsReassemble = !this._audioGraphCtrl.canAcceptSource(node);
+    let needsReassemble = !this._audioGraphCtrl.canAcceptNode(node);
     if (needsReassemble) {
       this._audioGraphCtrl.dismantle();
     }
