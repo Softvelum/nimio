@@ -57,6 +57,14 @@ describe("PlaybackSegmentTracker", () => {
     expect(tracker.isSetUp()).toBeFalsy();
   });
 
+  it("setup resets segments on invalid setup", () => {
+    const tracker = PlaybackSegmentTracker.getInstance(instanceId + "-setup");
+    tracker.setup(createSegments([{ start: 0, duration: 10 }]));
+
+    tracker.setup([{ start: 0, duration: 10, programDateTime: 0 }]);
+    expect(tracker.isSetUp()).toBeFalsy();
+  });
+
   it("setup sorts segments if not sorted", () => {
     const tracker = PlaybackSegmentTracker.getInstance(
       instanceId + "-unsorted",

@@ -20,14 +20,8 @@ export class UIThumbnailPreview {
     if (this._leftPos === undefined || this._thumbWidth === undefined) {
       this.update();
     }
-    if (this._showPreview && time !== this._lastTime) {
-      let url = this._thumbnailService.getUrl(time);
-      if (url) {
-        this._lastTime = time;
-        this._thumbVideo.removeAttribute("src");
-        this._thumbVideo.load(); // forces abort/reset
-        this._thumbVideo.src = url;
-      }
+    if (this._showPreview) {
+      this._processThumb(time);
     }
 
     let timeStr = secondsToHumanClock(time, "");
@@ -103,5 +97,17 @@ export class UIThumbnailPreview {
     this._calcOffset = opts.offsetFn;
     this._showPreview = opts.preview;
     this._parent = opts.parent;
+  }
+
+  _processThumb(time) {
+    let urlInfo = this._thumbnailService.getUrlInfo(time);
+    if (urlInfo[1] === this._lastTime) return;
+
+    this._thumbVideo.removeAttribute("src");
+    this._thumbVideo.load(); // forces abort/reset of current loading video
+    if (urlInfo[0]) {
+      this._thumbVideo.src = urlInfo[0];
+      this._lastTime = urlInfo[1];
+    }
   }
 }
