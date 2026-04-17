@@ -49,6 +49,10 @@ class AudioController {
       this._audioGraphCtrl.dismantle();
     }
     this._ready = this._audioGraphCtrl.setSource(node, channels);
+    if (!this._ready) {
+      this._logger.error("Failed to set audio source", node);
+      return;
+    }
 
     if (needsReassemble) {
       let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);

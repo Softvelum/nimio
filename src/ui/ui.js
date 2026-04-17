@@ -17,7 +17,7 @@ export class UI {
     this._eventBus = eventBus;
     this._autoAbr = opts.autoAbr;
     this._audioOnly = opts.audioOnly;
-    this._thumbnails = opts.vod.thumbnails;
+    this._thumbnails = opts.vod?.thumbnails;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -197,7 +197,6 @@ export class UI {
   }
 
   _removeMediaElement() {
-    this._removePlayPauseEventHandlers();
     this._mediaElement.remove();
     this._outputs.length = 1; // Media Element is always second in outputs array
   }
@@ -497,7 +496,7 @@ export class UI {
 
   _updateThumbnails() {
     if (this._thumbnailPreview) {
-      this._thumbnailPreview.update({ preview: this._thumbnails });
+      this._thumbnailPreview.update();
     }
   }
 
