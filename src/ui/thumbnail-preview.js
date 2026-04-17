@@ -10,7 +10,7 @@ export class UIThumbnailPreview {
 
   destroy() {
     this._inst = this._thumbnailService = this._calcOffset = undefined;
-    this._parent = this._thumbWrp = this._leftPos = undefined;
+    this._parent = this._thumbWrp = this._leftPos = this._lastTime = undefined;
     this._thumbVideo = this._thumbTime = this._thumb = undefined;
   }
 
@@ -20,9 +20,14 @@ export class UIThumbnailPreview {
     if (this._leftPos === undefined || this._thumbWidth === undefined) {
       this.update();
     }
-    if (this._showPreview) {
+    if (this._showPreview && time !== this._lastTime) {
       let url = this._thumbnailService.getUrl(time);
-      if (url) this._thumbVideo.src = url;
+      if (url) {
+        this._lastTime = time;
+        this._thumbVideo.removeAttribute("src");
+        this._thumbVideo.load(); // forces abort/reset
+        this._thumbVideo.src = url;
+      }
     }
 
     let timeStr = secondsToHumanClock(time, "");

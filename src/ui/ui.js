@@ -219,7 +219,6 @@ export class UI {
   }
 
   _removeMediaElement() {
-    this._removePlayPauseEventHandlers();
     this._mediaElement.remove();
     this._outputs.length = 1; // Media Element is always second in outputs array
   }
@@ -530,7 +529,7 @@ export class UI {
 
   _updateThumbnails() {
     if (this._thumbnailPreview) {
-      this._thumbnailPreview.update({ preview: this._opts.thumbnails });
+      this._thumbnailPreview.update();
     }
   }
 

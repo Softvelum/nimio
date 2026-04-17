@@ -13,6 +13,7 @@ class PlaybackSegmentTracker {
   setup(segments) {
     if (segments && segments.length > 0 && segments[0].programDateTime > 0) {
       this._segments = segments;
+      this._ensureSorted();
     }
   }
 
@@ -36,6 +37,19 @@ class PlaybackSegmentTracker {
     }
 
     return res;
+  }
+
+  _ensureSorted() {
+    let isSorted = true;
+    for (let i = 0; i < this._segments.length - 1; i++) {
+      if (this._segments[i].start > this._segments[i + 1].start) {
+        isSorted = false;
+        break;
+      }
+    }
+    if (!isSorted) {
+      this._segments.sort((a, b) => a.start - b.start);
+    }
   }
 }
 
