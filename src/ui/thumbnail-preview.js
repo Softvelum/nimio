@@ -24,7 +24,7 @@ export class UIThumbnailPreview {
       let url = this._thumbnailService.getUrl(time);
       if (url) {
         this._lastTime = time;
-        this._thumbVideo.removeAttribute('src');
+        this._thumbVideo.removeAttribute("src");
         this._thumbVideo.load(); // forces abort/reset
         this._thumbVideo.src = url;
       }

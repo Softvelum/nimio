@@ -15,7 +15,7 @@ class AudioVolumeController {
     this._audioCtx = this._audioCtxProvider.get();
     this._suspended = this._audioCtxProvider.isSuspended();
     if (this._gainer) {
-      // Audio context is the same, so there's no need to re-initialize 
+      // Audio context is the same, so there's no need to re-initialize
       // volume controller. The volumeId is always the same for given instance
       if (this._audioCtx === this._gainer.context) return;
       muted = this._muted;
