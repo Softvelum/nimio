@@ -486,7 +486,6 @@ enabled: Boolean;
 
 The following features are planned for upcoming releases:
 
-- Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
 - WebTransport protocol
 - Screenshot capture

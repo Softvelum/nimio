@@ -31,6 +31,7 @@ const DEFAULTS = {
   vod: null,
   captions: null,
   timecodes: false,
+  aspectRatio: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

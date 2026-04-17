@@ -31,11 +31,8 @@ export class UI {
 
     this._logger = LoggersFactory.create(this._instName, "UI");
 
-    // TODO: if no options, get from container
-    this._baseWidth = opts.width;
-    this._baseHeight = opts.height;
-    // TODO: get from frame properties
-    this._ar = this._baseWidth / this._baseHeight;
+    this._initPlayerSize();
+    this._initAspectRatio();
     this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
@@ -711,4 +708,132 @@ export class UI {
     elem.style.width = `${w}px`;
     elem.style.height = `${h}px`;
   }
+
+  _initPlayerSize() {
+    // TODO: if no options, get from container
+    // TODO: get from frame properties
+    this._baseWidth = this._opts.width;
+    this._baseHeight = this._opts.height;
+  }
+
+  _initAspectRatio() {
+    if (this._opts.ar) {
+      let ar = this._opts.ar.split(":");
+      if (2 === ar.length) {
+        this._opts.ar = {
+          x: parseInt(ar[0]),
+          y: parseInt(ar[1]),
+        };
+        this._ar = this._opts.ar.x / this._opts.ar.y;
+
+        this._baseHeight = Math.round(this._baseWidth / this._ar);
+        return;
+      }
+    }
+
+    // default calculation
+    this._ar = this._baseWidth / this._baseHeight;
+  }
+
+  // adjustAspectRatio () {
+  //   if( this._opts.ar ) {
+  //     let curStreamSize = this._context.getCurrentVideoStreamSize();
+  //     if( curStreamSize ) {
+  //       let w = curStreamSize.width;
+  //       let h = curStreamSize.height;
+
+  //       let aW = h * this._opts.ar.x / this._opts.ar.y;
+  //       if( aW > w ) {
+  //         let aH = w * this._opts.ar.y / this._opts.ar.x;
+  //         this._adjustY( aH / h, w, h );
+  //       } else if( aW < w) {
+  //         this._adjustX( aW / w, w / aW, w, h );
+  //       }
+  //     }
+  //   } else {
+  //     this._adjustHeight();
+  //   }
+  // }
+
+  // _adjustHeight() {
+  //   if( this.mediaElement && this.playerWrapper && !this.fullscreenReq && (this.container.offsetHeight > 0) ) {
+  //     if( this._isFullscreenMode() ) {
+  //       this._updateFullscreenWrapperSize();
+  //     } else if( '100%' === this.settings.height ) {
+  //       this.playerWrapper.style.height = `${this.container.offsetHeight}px`;
+  //     }
+  //   }
+  // }
+
+  // _adjustX( xR, rX, w, h ) {
+  //   if( !this._processContainerSize() ) {
+  //     return;
+  //   }
+  //   if( !this.cW ) {
+  //     this.cW = this.cH * w * xR / h;
+  //   }
+  //   let vHeight = this.cW * h / w;
+  //   let wrpHeight = vHeight / xR;
+
+  //   let xTransform = 'scaleX(' + xR + ')';
+  //   let xyTransform = ' scale(' + rX + ')';
+  //   let mPercent = 50 * (rX - 1) * h / w;
+  //   if( undefined !== this.cH ) {
+  //     if( this.cH > wrpHeight + 0.5 ) {
+  //       let hDiff = this.cH - wrpHeight;
+  //       wrpHeight = this.cH;
+  //       mPercent += 50 * hDiff / this.cW;
+  //     } else if( this.cH < wrpHeight - 0.5 ) {
+  //       let hDiff = wrpHeight - this.cH;
+  //       wrpHeight = this.cH;
+  //       xyTransform = ' scale(' + wrpHeight / vHeight + ')';
+  //       mPercent -= 50 * hDiff / this.cW;
+  //     }
+  //   }
+  //   this.mediaElement.style.transform = xTransform + xyTransform;
+
+  //   this.mediaElement.style.margin = mPercent + '% 0';
+  //   this.mediaElement.style.height = `${Math.round(vHeight)}px`;
+  //   if( this.playerWrapper ) {
+  //     let vActHeight = this.mediaElement.getBoundingClientRect().height;
+  //     if( vActHeight ) vActHeight = Math.ceil(vActHeight);
+  //     wrpHeight = Math.round(wrpHeight);
+  //     if( wrpHeight < vActHeight ) wrpHeight = vActHeight;
+  //     this.playerWrapper.style.height = `${wrpHeight}px`;
+  //   }
+  // }
+
+  // _adjustY( yR, w, h ) {
+  //   if( !this._processContainerSize() ) {
+  //     return;
+  //   }
+  //   if( !this.cW ) {
+  //     this.cW = this.cH * w / (h * yR);
+  //   }
+  //   let vHeight = this.cW * h / w;
+  //   let wrpHeight = vHeight * yR;
+  //   let hDiff = vHeight - wrpHeight;
+
+  //   let yTransform = 'scaleY(' + yR + ')';
+  //   let xyTransform = '';
+  //   if( undefined !== this.cH ) {
+  //     if( this.cH > wrpHeight + 0.5 ) {
+  //       wrpHeight = this.cH;
+  //       vHeight = wrpHeight + hDiff;
+  //     } else if( this.cH < wrpHeight - 0.5 ) {
+  //       wrpHeight = this.cH;
+  //       vHeight = wrpHeight + hDiff;
+  //       let xyR = wrpHeight / (vHeight * yR);
+  //       xyTransform = ' scale(' + xyR + ')';
+  //     }
+  //   }
+  //   this.mediaElement.style.transform = yTransform + xyTransform;
+
+  //   let mPercent = 50 * (1 - yR) * h / w;
+  //   this.mediaElement.style.margin = '-' + mPercent + '% 0';
+  //   this.mediaElement.style.height = `${Math.round(vHeight)}px`;
+  //   if( this.playerWrapper ) {
+  //     this.playerWrapper.style.height = `${Math.round(wrpHeight)}px`;
+  //   }
+  // }
 }

@@ -63,6 +63,7 @@ export default class Nimio {
         audioOnly: this._config.audioOnly,
         vod: this._config.vod,
         captions: this._config.captions,
+        ar: this._config.aspectRatio,
       },
       this._eventBus,
     );
