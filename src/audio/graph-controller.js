@@ -11,7 +11,7 @@ class AudioGraphController {
   }
 
   assemble(...conns) {
-    this._audCtx = this._audCtxProvider.get();
+    this._ensureAudioContextStored();
     for (let i = 0; i < conns.length; i++) {
       let s = this._getSource(conns[i][0]);
       let d = this._getDestination(conns[i][1]);
@@ -63,7 +63,13 @@ class AudioGraphController {
     }
   }
 
+  canAcceptNode(node) {
+    return node && node.context === this._audCtx;
+  }
+
   setSource(src, channels) {
+    if (!src) return false;
+
     let srcConns = [];
     if (this._source?._outconns) {
       for (let i = 0; i < this._source._outconns.length; i++) {
@@ -80,14 +86,21 @@ class AudioGraphController {
       this.setChannelCount(channels);
     }
 
-    for (let i = 0; i < srcConns.length; i++) {
-      this._source.connect(srcConns[i]);
-      this._source._outconns.push(srcConns[i]);
-      let idx = srcConns[i]._inconns.indexOf(oldSrc);
-      if (idx >= 0) {
-        srcConns[i]._inconns[idx] = this._source;
+    try {
+      for (let i = 0; i < srcConns.length; i++) {
+        this._source.connect(srcConns[i]);
+        this._source._outconns.push(srcConns[i]);
+        let idx = srcConns[i]._inconns.indexOf(oldSrc);
+        if (idx >= 0) {
+          srcConns[i]._inconns[idx] = this._source;
+        }
       }
+    } catch (e) {
+      this._logger.error("Failed to connect source to the graph", e);
+      return false;
     }
+
+    return true;
   }
 
   removeSource() {
@@ -113,11 +126,13 @@ class AudioGraphController {
   appendNode(node, opts = {}) {
     let nLen = this._nodes.length;
     let prevNode, nextNode;
+    this._ensureAudioContextStored();
+
     if (opts.connectPrev) {
       prevNode = nLen > 0 ? this._nodes[nLen - 1] : this._source;
     }
     if (opts.connectDest) {
-      nextNode = this._audCtxProvider.get().destination;
+      nextNode = this._audCtx.destination;
     }
 
     this._nodes.push(node);
@@ -156,9 +171,10 @@ class AudioGraphController {
   prependNode(node, opts = {}) {
     let nLen = this._nodes.length;
     let prevNode, nextNode;
+    this._ensureAudioContextStored();
+
     if (opts.connectNext) {
-      let audCtx = this._audCtxProvider.get();
-      nextNode = nLen > 0 ? this._nodes[0] : audCtx.destination;
+      nextNode = nLen > 0 ? this._nodes[0] : this._audCtx.destination;
     }
     if (opts.connectSource) {
       prevNode = this._source;
@@ -219,6 +235,11 @@ class AudioGraphController {
         break;
       }
     }
+  }
+
+  _ensureAudioContextStored() {
+    // store audio context for current graph instance
+    if (!this._audCtx) this._audCtx = this._audCtxProvider.get();
   }
 
   _getSource(s) {

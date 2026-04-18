@@ -6,6 +6,7 @@ import { UISeekBar } from "./seek-bar";
 import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
+import { UIThumbnailPreview } from "./thumbnail-preview";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -16,6 +17,7 @@ export class UI {
     this._eventBus = eventBus;
     this._autoAbr = opts.autoAbr;
     this._audioOnly = opts.audioOnly;
+    this._thumbnails = opts.vod?.thumbnails;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -38,10 +40,7 @@ export class UI {
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
-    if (opts.vod) {
-      this._createMediaElement();
-      this._mediaElement.pending = false;
-    }
+    if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
 
@@ -136,16 +135,22 @@ export class UI {
     if (mode === this._mode) return;
 
     if (mode === MODE.LIVE) {
-      this._removeMediaElement();
+      this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
     } else {
-      this._addMediaElement();
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       this._liveSign.style.display = "none";
     }
     this._mode = mode;
+  }
+
+  replaceMediaElement() {
+    this._logger.error("replace media element");
+    this._removeMediaElement();
+    this._addMediaElement();
+    this._mediaElement.style.display = "block";
   }
 
   appendDebugOverlay(state, videoBuffer) {
@@ -185,8 +190,6 @@ export class UI {
   }
 
   _addMediaElement() {
-    if (!this._mediaElement.pending) return;
-
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
     this._applySize(this._mediaElement, this._curWidth, this._curHeight);
@@ -194,11 +197,8 @@ export class UI {
   }
 
   _removeMediaElement() {
-    if (this._mediaElement.pending) return;
-
-    this._outputs.length = 1; // Media Element is always second
     this._mediaElement.remove();
-    this._mediaElement.pending = true;
+    this._outputs.length = 1; // Media Element is always second in outputs array
   }
 
   _createControls(opts) {
@@ -223,15 +223,16 @@ export class UI {
       this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
       this._playPrgSvc.setTimeIndUI(this._timeInd);
 
-      // if (!this._audioOnly) {
-      //   this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
-      //     parent: this._controlBar,
-      //     left: parseInt(getComputedStyle(this._seekBar.node()).left),
-      //     preview: vod.thumbnails,
-      //   });
-      //   this._seekBar.hoverHandler = this._thumbnailPreview;
-      //   this._controlBar.appendChild(this._thumbnailPreview.node());
-      // }
+      if (!this._audioOnly) {
+        this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
+          parent: this._controlsBar,
+          preview: this._thumbnails,
+          baseUrl: opts.vod.thumbnailBaseUrl || "",
+          offsetFn: () => this._seekBar.node.getBoundingClientRect().x,
+        });
+        this._seekBar.hoverHandler = this._thumbnailPreview;
+        this._controlsBar.appendChild(this._thumbnailPreview.node);
+      }
       this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }
     this._addControlsEventHandlers();
@@ -328,10 +329,10 @@ export class UI {
       this._timeInd = undefined;
     }
 
-    // if (this._thumbnailPreview) {
-    //   this._thumbnailPreview.destroy();
-    //   this._thumbnailPreview = undefined;
-    // }
+    if (this._thumbnailPreview) {
+      this._thumbnailPreview.destroy();
+      this._thumbnailPreview = undefined;
+    }
   }
 
   _setupEasing() {
@@ -440,6 +441,7 @@ export class UI {
     requestAnimationFrame(() => {
       this._resizeQueued = false;
       this._resizeAndRedraw();
+      this._updateThumbnails();
     });
   }
 
@@ -490,6 +492,12 @@ export class UI {
     this._canvas.height = devH;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
     this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
+  }
+
+  _updateThumbnails() {
+    if (this._thumbnailPreview) {
+      this._thumbnailPreview.update();
+    }
   }
 
   _handleOrientChange(e) {

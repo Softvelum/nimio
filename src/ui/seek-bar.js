@@ -25,10 +25,6 @@ export class UISeekBar {
     this._hoverHandler = this._hoverCallback = undefined;
   }
 
-  node() {
-    return this._seekBar;
-  }
-
   updateDuration(duration) {
     if (this._pending) return;
 
@@ -52,6 +48,10 @@ export class UISeekBar {
 
   isPending() {
     return !!this._pending;
+  }
+
+  get node() {
+    return this._seekBar;
   }
 
   _toggle() {
@@ -257,15 +257,14 @@ export class UISeekBar {
   }
 
   set hoverHandler(handler) {
-    if (handler) {
-      this._hoverHandler = handler;
-      this._hoverCallback = debouncer(
-        this,
-        function (time, pos, width) {
-          if (this._hovered) this._hoverHandler.show(time, pos, width);
-        },
-        15,
-      );
-    }
+    if (!handler) return;
+    this._hoverHandler = handler;
+    this._hoverCallback = debouncer(
+      this,
+      function (time, pos, width) {
+        if (this._hovered) this._hoverHandler.show(time, pos, width);
+      },
+      5,
+    );
   }
 }

@@ -25,6 +25,7 @@ class AudioController {
         `Init audio context, sampleRate = ${sampleRate}, channels = ${channels}`,
       );
       this._audioCtxProvider.init(sampleRate);
+      this._audioGraphCtrl.dismantle();
     }
     this._audioCtxProvider.setChannelCount(channels);
     return this._audioCtxProvider.get();
@@ -35,23 +36,37 @@ class AudioController {
   }
 
   reset() {
-    // TODO: keep audio graph if context doesn't have to be recreated
-    this._audioGraphCtrl.dismantle();
     this._audioCtxProvider.reset();
     this._ready = false;
   }
 
-  setSource(node, channels) {
-    this._audioGraphCtrl.setSource(node, channels);
-    let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
-    this._ready = this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+  canConnectNode(node) {
+    return this._audioGraphCtrl.canAcceptNode(node);
+  }
+
+  connectSource(node, channels) {
+    let needsReassemble = !this._audioGraphCtrl.canAcceptNode(node);
+    if (needsReassemble) {
+      this._audioGraphCtrl.dismantle();
+    }
+    this._ready = this._audioGraphCtrl.setSource(node, channels);
+    if (!this._ready) {
+      this._logger.error("Failed to set audio source", node);
+      return;
+    }
+
+    if (needsReassemble) {
+      let vIdx = this._audioGraphCtrl.appendNode(this._audioVolumeCtrl.node);
+      this._ready = this._audioGraphCtrl.assemble(["src", vIdx], [vIdx, "dst"]);
+    }
+
+    this._ensureAudioContextRunning();
+  }
+
+  _ensureAudioContextRunning() {
     if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
     }
-  }
-
-  removeSource() {
-    this._audioGraphCtrl.removeSource();
   }
 }
 

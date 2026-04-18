@@ -2,6 +2,7 @@ import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { PlaybackContext } from "./playback/context";
 import { PlaybackProgressService } from "./playback/progress-service";
+import { PlaybackSegmentTracker } from "./playback/segment-tracker";
 import { AudioController } from "./audio/controller";
 import { getAudioConfigFromInitSegment } from "./media/helpers/audio";
 import { fillTemplateStr } from "./shared/helpers";
@@ -48,7 +49,7 @@ export class NimioVod {
         this._progressSvc = PlaybackProgressService.getInstance(this._instName);
         this._vuMeterSvc = VUMeterService.getInstance(this._instName);
         this._audioCtrl = AudioController.getInstance(this._instName);
-        // this._segmentTracker = PlaybackSegmentTracker.getInstance(this._instName);
+        this._segmTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
         // if (this._config.timecodes) {
         //   this._spsHolder = SPSHolder.getInstance(this._instName);
@@ -377,8 +378,7 @@ export class NimioVod {
     this._pHandler.loadSource(this._fullUrl());
     this._pHandler.pauseBuffering();
     this._pHandler.attachMedia(this._ui.mediaElement);
-    this._ui.mediaElement.addEventListener("progress", this._onProgress);
-    this._ui.mediaElement.addEventListener("timeupdate", this._onProgress);
+    this._addProgressEventHandlers();
 
     if (position !== undefined) {
       this._logger.debug("after attach should go to " + position);
@@ -428,8 +428,7 @@ export class NimioVod {
   _detachUI() {
     if (!this._ui) return;
 
-    this._ui.mediaElement.removeEventListener("progress", this._onProgress);
-    this._ui.mediaElement.removeEventListener("timeupdate", this._onProgress);
+    this._removeProgressEventHandlers();
     this._ui = undefined;
   }
 
@@ -631,7 +630,7 @@ export class NimioVod {
     if (currentLevel && currentLevel.data.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
-        // this._segmentTracker.setup(data.details.fragments);
+        this._segmTracker.setup(currentLevel.data.details.fragments);
       }
     }
   };
@@ -640,7 +639,7 @@ export class NimioVod {
     // this._logger.warn('_onLevelLoaded details', data.details);
     this._updatePlaylistDuration(data.details);
     if (this._config.thumbnails) {
-      // this._segmentTracker.setup(data.details.fragments);
+      this._segmTracker.setup(data.details.fragments);
     }
     this._playbackErrCnt = 0;
 
@@ -736,9 +735,14 @@ export class NimioVod {
 
     let ctx = this._audioCtrl.initContext(audioConfig.samplingRate, channels);
     if (!this._audioCtrl.isReady()) {
-      this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
-      this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
-      this._audioCtrl.setSource(this._mediaSource, channels);
+      if (!this._audioCtrl.canConnectNode(this._mediaSource)) {
+        this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
+        if (this._mediaSource) {
+          this._reconnectMediaElement();
+        }
+        this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
+      }
+      this._audioCtrl.connectSource(this._mediaSource, channels);
     }
     this._mediaSource.channelCount = channels;
     this._vuMeterSvc.setAudioInfo({
@@ -892,6 +896,19 @@ export class NimioVod {
     return result;
   }
 
+  _reconnectMediaElement() {
+    let currentTime = this._playbackService.getCurrentTime();
+    this._playbackService.resetPosition();
+    this._pHandler.detachMedia();
+    this._removeProgressEventHandlers();
+    this._ui.replaceMediaElement();
+    this._pHandler.attachMedia(this._ui.mediaElement);
+    this._playbackService.init(this._ui.mediaElement);
+    this._playbackService.startPlayback();
+    this._playbackService.setCurrentTime(currentTime);
+    this._addProgressEventHandlers();
+  }
+
   _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPause);
     this._eventBus.on("ui:rendition-select", this._onChangeRendition);
@@ -900,5 +917,14 @@ export class NimioVod {
   _removeUIEventHandlers() {
     this._eventBus.off("ui:play-pause-click", this._onPlayPause);
     this._eventBus.off("ui:rendition-select", this._onChangeRendition);
+  }
+
+  _addProgressEventHandlers() {
+    this._ui.mediaElement.addEventListener("progress", this._onProgress);
+    this._ui.mediaElement.addEventListener("timeupdate", this._onProgress);
+  }
+  _removeProgressEventHandlers() {
+    this._ui.mediaElement.removeEventListener("progress", this._onProgress);
+    this._ui.mediaElement.removeEventListener("timeupdate", this._onProgress);
   }
 }

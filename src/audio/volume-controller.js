@@ -12,10 +12,15 @@ class AudioVolumeController {
   }
 
   init(volumeId, muted) {
-    if (this._gainer) muted = false;
-
     this._audioCtx = this._audioCtxProvider.get();
     this._suspended = this._audioCtxProvider.isSuspended();
+    if (this._gainer) {
+      // Audio context is the same, so there's no need to re-initialize
+      // volume controller. The volumeId is always the same for given instance
+      if (this._audioCtx === this._gainer.context) return;
+      muted = this._muted;
+    }
+
     this._gainer = this._audioCtx.createGain();
     if (!this._gainer) {
       this._logger.error("Can't initialize volume controller");
