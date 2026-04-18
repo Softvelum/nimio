@@ -4,15 +4,18 @@ let videoDecoder;
 let support;
 let params;
 let waitingForKeyframe;
+let errorsCount = 0;
 
 let config = {};
 const decodeTimings = new Map();
 const buffered = [];
+const MAX_RECOVERY_ATTEMPTS = 10;
 
 function createVideoDecoder() {
   return new VideoDecoder({
     output: (frame) => {
       processDecodedFrame(frame);
+      errorsCount = 0;
     },
     error: async (e) => {
       await tryRecoverDecoderError(e.message);
@@ -65,19 +68,24 @@ function pushChunk(data, time) {
 
 async function tryRecoverDecoderError(error) {
   console.error(`Trying to recover from decoder error: ${error}`);
-  if (videoDecoder) {
-    decodeTimings.clear();
-    console.log(`video decoder state is ${videoDecoder.state}`);
-    if (videoDecoder.state !== "closed") {
-      videoDecoder.reset();
-      return;
-    }
+  if (!videoDecoder) return;
 
-    videoDecoder = createVideoDecoder();
-    // configure decoder with the same config
-    await configureDecoder();
-    waitingForKeyframe = true;
+  errorsCount++;
+  if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+    return handleDecoderError(error);
   }
+
+  decodeTimings.clear();
+  console.log(`Recover: video decoder state is ${videoDecoder.state}`);
+  if (videoDecoder.state !== "closed") {
+    videoDecoder.reset();
+    return;
+  }
+
+  videoDecoder = createVideoDecoder();
+  // configure decoder with the same config
+  await configureDecoder();
+  waitingForKeyframe = true;
 }
 
 async function fallbackToSoftwareSupport() {
@@ -126,10 +134,13 @@ self.addEventListener("message", async function (e) {
       config = e.data.config;
       buffered.length = 0;
       support = null;
+      errorsCount = 0;
       break;
     case "codecData":
       if (videoDecoder) {
         support = null;
+        errorsCount = 0;
+        decodeTimings.clear();
         const vd = videoDecoder;
         videoDecoder.flush().finally(function () {
           if (typeof vd.close === "function") vd.close();
@@ -156,6 +167,12 @@ self.addEventListener("message", async function (e) {
       await configureDecoder();
       break;
     case "chunk":
+      if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+        // Decoder failed to recover after multiple attempts,
+        // ignore incoming chunks and wait for shutdown
+        return;
+      }
+
       const chunkData = {
         timestamp: e.data.pts,
         type: e.data.chunkType,
@@ -208,6 +225,7 @@ self.addEventListener("message", async function (e) {
     case "shutdown":
       if (videoDecoder) {
         buffered.length = 0;
+        decodeTimings.clear();
         shutdownDecoder();
         self.postMessage({ type: "shutdownComplete" });
         self.close();

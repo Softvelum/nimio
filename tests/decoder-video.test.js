@@ -4,6 +4,7 @@ let postMessageMock;
 let nowMock;
 let decodeMock;
 let configureMock;
+let resetMock;
 let isConfigSupportedMock;
 let VideoDecoderMock;
 let EncodedVideoChunkMock;
@@ -26,6 +27,7 @@ function setupWorkerGlobals() {
 
   decodeMock = vi.fn();
   configureMock = vi.fn();
+  resetMock = vi.fn();
   isConfigSupportedMock = vi.fn(async function () {
     return { supported: true };
   });
@@ -45,7 +47,9 @@ function setupWorkerGlobals() {
     return {
       decode: decodeMock,
       configure: configureMock,
+      reset: resetMock,
       decodeQueueSize: 1,
+      state: "configured",
     };
   });
   VideoDecoderMock.isConfigSupported = isConfigSupportedMock;
@@ -332,7 +336,9 @@ describe("decoder-video", () => {
     );
 
     // Simulate decoder error
-    errorCallback(new Error("Something went wrong"));
+    for (let i = 0; i <= 10; i++) {
+      errorCallback(new Error("Something went wrong"));
+    }
 
     expect(globalThis.postMessage).toHaveBeenCalledWith({
       type: "decoderError",
