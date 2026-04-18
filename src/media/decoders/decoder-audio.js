@@ -5,11 +5,13 @@ import { getFrameData } from "@/shared/data-helpers";
 let audioDecoder;
 let support;
 let params;
+let errorsCount = 0;
 
 let lastTimestampUs = null;
 let frameDurationUs = null;
 let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
 
+const MAX_RECOVERY_ATTEMPTS = 30;
 const buffered = [];
 let config = {};
 
@@ -17,6 +19,7 @@ function createAudioDecoder() {
   return new AudioDecoder({
     output: (audioFrame) => {
       processDecodedFrame(audioFrame);
+      errorsCount = 0;
     },
     error: (e) => tryRecoverDecoderError(e.message),
   });
@@ -52,21 +55,26 @@ function pushChunk(data) {
 
 function tryRecoverDecoderError(error) {
   console.error(`Trying to recover from decoder error: ${error}`);
-  if (audioDecoder) {
-    if (lastTimestampUs !== null) {
-      lastTimestampUs += frameDurationUs * timestampBuffer.length;
-      timestampBuffer.reset();
-    }
-    console.log(`video decoder state is ${audioDecoder.state}`);
-    if (audioDecoder.state !== "closed") {
-      audioDecoder.reset();
-      return;
-    }
+  if (!audioDecoder) return;
 
-    audioDecoder = createAudioDecoder();
-    // configure decoder with the same config
-    audioDecoder.configure(params);
+  errorsCount++;
+  if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+    return handleDecoderError(error);
   }
+
+  if (lastTimestampUs !== null) {
+    lastTimestampUs += frameDurationUs * timestampBuffer.length;
+    timestampBuffer.reset();
+  }
+  console.log(`Recover: audio decoder state is ${audioDecoder.state}`);
+  if (audioDecoder.state !== "closed") {
+    audioDecoder.reset();
+    return;
+  }
+
+  audioDecoder = createAudioDecoder();
+  // configure decoder with the same config
+  audioDecoder.configure(params);
 }
 
 function shutdownDecoder() {
@@ -90,10 +98,12 @@ self.addEventListener("message", async function (e) {
       timestampBuffer.reset();
       buffered.length = 0;
       support = null;
+      errorsCount = 0;
       break;
     case "codecData":
       if (audioDecoder) {
         support = null;
+        errorsCount = 0;
         await audioDecoder.flush();
         shutdownDecoder();
         lastTimestampUs = null;
@@ -121,6 +131,12 @@ self.addEventListener("message", async function (e) {
       }
       break;
     case "chunk":
+      if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+        // Decoder failed to recover after multiple attempts,
+        // ignore incoming chunks and wait for shutdown
+        return;
+      }
+
       timestampBuffer.push(e.data.pts);
       const chunkData = {
         timestamp: e.data.pts,
