@@ -54,11 +54,12 @@ class SeiProcessor {
     // Check SEI payload according to ANSI-SCTE 128
     let rbsp = NalReader.extractUnit(frame, start, end);
     let curPos = 0;
-    while (curPos < rbsp.length - 1) {
+    let rbspLen = rbsp.length;
+    while (curPos < rbspLen - 1) {
       // The last byte should be rbsp_trailing_bits
       let payloadType = 0;
       let b = 0xff;
-      while (b === 0xff) {
+      while (b === 0xff && curPos < rbspLen) {
         b = rbsp[curPos];
         payloadType += b;
         curPos++;
@@ -66,7 +67,7 @@ class SeiProcessor {
 
       let payloadSize = 0;
       b = 0xff;
-      while (b === 0xff) {
+      while (b === 0xff && curPos < rbspLen) {
         b = rbsp[curPos];
         payloadSize += b;
         curPos++;

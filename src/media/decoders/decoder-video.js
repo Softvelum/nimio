@@ -77,12 +77,12 @@ async function tryRecoverDecoderError(error) {
 
   decodeTimings.clear();
   console.log(`Recover: video decoder state is ${videoDecoder.state}`);
-  if (videoDecoder.state !== "closed") {
+  if (videoDecoder.state === "closed") {
+    videoDecoder = createVideoDecoder();
+  } else {
     videoDecoder.reset();
-    return;
   }
 
-  videoDecoder = createVideoDecoder();
   // configure decoder with the same config
   await configureDecoder();
   waitingForKeyframe = true;
@@ -97,7 +97,7 @@ async function fallbackToSoftwareSupport() {
 }
 
 async function configureDecoder() {
-  if (!support.supported) {
+  if (!support?.supported) {
     return handleDecoderError(`Video codec not supported: ${params.codec}`);
   }
 
@@ -178,7 +178,7 @@ self.addEventListener("message", async function (e) {
         type: e.data.chunkType,
         data: getFrameData(e.data),
       };
-      if (!support || !support.supported) {
+      if (!support?.supported) {
         // Buffer the chunk until the decoder is ready
         buffered.push({
           time: performance.now(),

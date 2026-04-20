@@ -47,13 +47,16 @@ export class Cea608Processor {
 
   _extractCea608DataFromRange(frame, range) {
     let pos = range[0];
+    let frameLen = frame.length;
     let fieldData = [[], []];
 
     pos += 8; // Skip country code(8), provider code(16), user identifier(32) and userDataTypeCode(8)
+    if (pos >= frameLen) return fieldData;
+
     let ccCount = frame[pos] & 0x1f;
     pos += 2; // Advance 1 and skip reserved byte
 
-    for (let i = 0; i < ccCount; i++) {
+    for (let i = 0; i < ccCount && pos < frameLen - 1; i++) {
       let ccValid = frame[pos] & 0x4;
       let ccType = frame[pos] & 0x3;
       pos++;

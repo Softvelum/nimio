@@ -9,7 +9,7 @@ class NalProcessor {
     this._logger = LoggersFactory.create(instName, "NAL Processor");
     // this._spsHolder = SPSHolder.getInstance(instName);
 
-    this._handlers = {};
+    this._handlers = { count: 0 };
     this._ordered = [];
     this._stashed = [];
     this._frameSeqEndTime = 0;
@@ -21,11 +21,12 @@ class NalProcessor {
   }
 
   addNalHandler(handler, type) {
+    if (undefined === this._handlers[type]) this._handlers.count++;
     this._handlers[type] = handler;
   }
 
   handleFrame(data) {
-    if (this._handlers.length === 0) {
+    if (this._handlers.count === 0) {
       return [data];
     }
 
@@ -37,10 +38,7 @@ class NalProcessor {
 
     let processed = [];
     if (data.pts > this._frameSeqEndTime && this._ordered.length > 0) {
-      for (let i = 0; i < this._ordered.length; i++) {
-        this._process(this._ordered[i].pts, this._ordered[i].frame);
-      }
-      this._ordered = [];
+      this._processOrdered();
       processed = this._stashed;
       this._stashed = [];
     }
@@ -51,13 +49,13 @@ class NalProcessor {
   }
 
   reset() {
+    this._processOrdered();
+    this._stashed = [];
+    this._frameSeqEndTime = 0;
+
     for (let t in this._handlers) {
       this._handlers[t].reset();
     }
-
-    this._ordered = [];
-    this._stashed = [];
-    this._frameSeqEndTime = 0;
   }
 
   _addToOrdered(data) {
@@ -67,6 +65,13 @@ class NalProcessor {
     if (data.pts > this._frameSeqEndTime) {
       this._frameSeqEndTime = data.pts;
     }
+  }
+
+  _processOrdered() {
+    for (let i = 0; i < this._ordered.length; i++) {
+      this._process(this._ordered[i].pts, this._ordered[i].frame);
+    }
+    this._ordered = [];
   }
 
   _process(pTime, frame) {

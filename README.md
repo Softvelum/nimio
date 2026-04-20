@@ -200,7 +200,7 @@ These methods are available on every `Nimio` player instance.
   buffer - (optional) buffer size in seconds that the player pertains during live playback.
 
 - `getCaptionTracks()`  
-  Returns map of available CEA-608 caption tracks.  
+  Returns a map of the CEA-608 caption tracks currently available in the stream.  
   **Return value:** object, containing ID: CAP_OBJ pairs, where the ID is one of the following: "CC1", "CC2", "CC3", "CC4". The CAP_OBJ is and object with the following fields:
   - title - caption track title that is shown in caption selection dialog.
   - name - (optional) caption track name defined in caption settings.
@@ -433,7 +433,6 @@ enabled: Boolean;
   **Parameters:**
 
 ```javascript
-  currentTime: Number, // current player time in microseconds
   captions: Array<{
     time: Number, // caption display start time in microseconds
     x: Number, // caption block's horizontal position counted from the left. Can be in range of 0 - 31.
@@ -446,14 +445,14 @@ enabled: Boolean;
         style: { // caption span style object
           foreground: String, // text font color
           background: String, // background color
-          italic: Boolean, // text should be italic if true
+          italics: Boolean, // text should be italic if true
           underline: Boolean, // text should be underlined if true
           flash: Boolean, // span should be blinking if true
         },
       }>
-    }>
-  }>;
-  // If the regions array is empty, it means that the given caption block is used to clear all previous captions from the given time onwards.
+    }> // If the regions array is empty, it means that the given caption block is used to clear all previous captions from the given time onwards
+  }>,
+  currentTime: Number, // current player time in microseconds
 ```
 
 ## Roadmap

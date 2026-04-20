@@ -248,6 +248,7 @@ export class Cea608Parser {
       this.currChNr = -1;
       return true;
     }
+    return false;
   }
 
   /**

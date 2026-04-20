@@ -67,12 +67,12 @@ function tryRecoverDecoderError(error) {
     timestampBuffer.reset();
   }
   console.log(`Recover: audio decoder state is ${audioDecoder.state}`);
-  if (audioDecoder.state !== "closed") {
+  if (audioDecoder.state === "closed") {
+    audioDecoder = createAudioDecoder();
+  } else {
     audioDecoder.reset();
-    return;
   }
 
-  audioDecoder = createAudioDecoder();
   // configure decoder with the same config
   audioDecoder.configure(params);
 }

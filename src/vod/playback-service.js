@@ -60,7 +60,7 @@ class VodPlaybackService {
   setCurrentTime(time) {
     if (!this._mediaElement) return null;
 
-    var curTime = this._mediaElement.currentTime;
+    let curTime = this._mediaElement.currentTime;
     this._logger.debug(`setCurrentTime from ${curTime} to ${time}`);
     this._mediaElement.currentTime = time;
     return time;
@@ -103,10 +103,10 @@ class VodPlaybackService {
     if (this._mediaElement?.paused && this._state === STATE.PLAYING) {
       this._logger.debug("Resume auto paused");
 
-      var autoPauseTime = this.getCurrentTime();
+      let autoPauseTime = this.getCurrentTime();
       this._playMedia({ recover: true });
 
-      var inst = this;
+      let inst = this;
       setTimeout(function () {
         if (inst.getCurrentTime() === 0) {
           inst._logger.debug(

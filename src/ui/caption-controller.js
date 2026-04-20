@@ -24,8 +24,8 @@ class UICaptionController {
   }
 
   init(playerWrapper, settings) {
-    if (typeof settings === "object") {
-      for (var c in settings) {
+    if (typeof settings === "object" && this._activeIdx === -1) {
+      for (let c in settings) {
         let cIdx = ccToIdx[c];
         if (cIdx >= 0) {
           this._captionProps[cIdx] = settings[c];
@@ -46,11 +46,16 @@ class UICaptionController {
   }
 
   deinit() {
+    this._captions = [];
+    this._captionProps = [];
+    this._activeIdx = -1;
+
     if (this._captionList) {
       this._captionList.destroy();
       this._captionList = undefined;
     }
     this._captionPresenter.deinit();
+    this._captionManager.deinit();
   }
 
   resume() {
@@ -72,7 +77,7 @@ class UICaptionController {
       this._activeIdx = idx;
       this._captionManager.setCaptionTrack(idxToCC[this._activeIdx]);
       this._captionPresenter.setActiveCaptionId(idxToCC[this._activeIdx]);
-      this._captionList.activeIdx = idx;
+      if (this._captionList) this._captionList.activeIdx = idx;
 
       return true;
     }
@@ -90,9 +95,11 @@ class UICaptionController {
       if (this._captionProps[idx] && this._captionProps[idx].lang) {
         this._captions[idx].lang = this._captionProps[idx].lang;
       }
-      this._captions[idx].title = this._captionList.getCaptionTitle(idx);
 
-      this._captionList.refresh();
+      if (this._captionList) {
+        this._captions[idx].title = this._captionList.getCaptionTitle(idx);
+        this._captionList.refresh();
+      }
     }
   }
 
