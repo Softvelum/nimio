@@ -136,9 +136,7 @@ export class BitReader {
     const value = this.readUE();
     if (value === null) return null;
 
-    return (value & 1)
-      ? (value + 1) >> 1
-      : -(value >> 1);
+    return value & 1 ? (value + 1) >> 1 : -(value >> 1);
   }
 
   _reset() {
@@ -169,7 +167,7 @@ export class BitReader {
 
   _insufficientBufferError(op, count) {
     console.error(
-      `not enough data to ${op} ${count} bits. Only ${this._availableBits()} available.`
+      `not enough data to ${op} ${count} bits. Only ${this._availableBits()} available.`,
     );
   }
 }
