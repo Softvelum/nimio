@@ -40,7 +40,6 @@ class UICaptionController {
 
     this._captionPresenter.renderable = !!playerWrapper;
     if (this._activeIdx >= 0) {
-      this._captionPresenter.start();
       this._captionPresenter.setActiveCaptionId(idxToCC[this._activeIdx]);
     }
   }

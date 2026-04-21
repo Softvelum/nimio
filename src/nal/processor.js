@@ -9,7 +9,12 @@ class NalProcessor {
     this._logger = LoggersFactory.create(instName, "NAL Processor");
     // this._spsHolder = SPSHolder.getInstance(instName);
 
-    this._handlers = { count: 0 };
+    this._handlers = {};
+    Object.defineProperty(this._handlers, "count", {
+      value: 0,
+      writable: true,
+      enumerable: false,
+    });
     this._ordered = [];
     this._stashed = [];
     this._frameSeqEndTime = 0;

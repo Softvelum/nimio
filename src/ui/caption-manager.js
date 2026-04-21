@@ -24,7 +24,7 @@ class UICaptionManager {
   setCaptionTrack(id) {
     this._clearActiveCaptions(true);
 
-    if (this._container && id >= 0) {
+    if (this._container && id) {
       if (!this._captions[id]) {
         this._captions[id] =
           this._captionRenderer.createCaptionTrackWrapper(id);

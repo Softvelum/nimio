@@ -7,6 +7,8 @@ class CaptionRenderer {
     this._captionId = 0;
     this._nrRows = NR_ROWS;
     this._nrCols = NR_COLS;
+    this._rowPercentage = 100 / this._nrRows;
+    this._colPercentage = 100 / this._nrCols;
   }
 
   getDimensions() {
@@ -248,10 +250,10 @@ class CaptionRenderer {
 
   _getRegionProperties(region) {
     return [
-      `left: ${region.x * 3.125}%;`,
-      `top: ${region.y1 * 6.66}%;`,
-      `width: ${100 - region.x * 3.125}%;`,
-      `height: ${(region.y2 - region.y1 + 1) * 6.66}%;`,
+      `left: ${region.x * this._colPercentage}%;`,
+      `top: ${region.y1 * this._rowPercentage}%;`,
+      `width: ${100 - region.x * this._colPercentage}%;`,
+      `height: ${(region.y2 - region.y1 + 1) * this._rowPercentage}%;`,
       "align-items: flex-start; overflow: visible; -webkit-writing-mode: horizontal-tb;",
       "letter-spacing: calc(1em - 1ch)",
     ].join("");
