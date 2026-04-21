@@ -75,6 +75,7 @@ class SPSHolder {
     this._sps.timeScale = undefined;
     this._sps.fieldSeqFlag = undefined;
     this._sps.maxFps = undefined;
+    this._sps.sar = undefined;
 
     this._sps.timingInfo = false;
     this._sps.generalInfo = false;

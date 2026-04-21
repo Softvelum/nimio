@@ -735,6 +735,7 @@ export class UI {
   }
 
   // adjustAspectRatio () {
+  //   this.orientMq = window.matchMedia("(orientation: portrait)");
   //   if( this._opts.ar ) {
   //     let curStreamSize = this._context.getCurrentVideoStreamSize();
   //     if( curStreamSize ) {
@@ -834,5 +835,62 @@ export class UI {
   //   if( this.playerWrapper ) {
   //     this.playerWrapper.style.height = `${Math.round(wrpHeight)}px`;
   //   }
+  // }
+
+  // _getScreenSize () {
+  //   var isPortrait = this.orientMq.matches;
+
+  //   var result = [screen.width, screen.height];
+  //   if( isPortrait && (screen.width > screen.height) ||
+  //      !isPortrait && (screen.width < screen.height) ) {
+  //     result[0] = screen.height;
+  //     result[1] = screen.width;
+  //   }
+  //   return result;
+  // }
+
+  // _processContainerSize() {
+  //   this.cW = this.settings.width;
+  //   this.cH = this.settings.height;
+  //   let isFullscreen = this._isFullscreenMode();
+  //   if( isFullscreen ) {
+  //     var scrSize = this._getScreenSize();
+  //     this.cW = scrSize[0];
+  //     this.cH = scrSize[1];
+  //     this._stashCurrentSize();
+  //   } else if( !this.stashed ) {
+  //     if( '100%' === this.settings.width ) {
+  //       if( this.stashedContWidth ) {
+  //         this.cW = this.stashedContWidth;
+  //         this.stashedContWidth = undefined;
+  //       } else {
+  //         this.cW = this._getContainerWidth();
+  //         if( !this.cW ) {
+  //           this.cW = this.playerWrapper ? this.playerWrapper.offsetWidth :
+  //                                           this.mediaElement.offsetWidth;
+  //         }
+  //         this.currentContWidth = this.cW;
+  //       }
+  //     }
+  //     if( '100%' === this.settings.height ) {
+  //       if( this.stashedContHeight ) {
+  //         this.cH = this.stashedContHeight;
+  //         this.stashedContHeight = undefined;
+  //       } else {
+  //         this.cH = this._getContainerHeight();
+  //         if( !this.cH ) {
+  //           this.cH = this.playerWrapper ? this.playerWrapper.offsetHeight :
+  //                                           this.mediaElement.offsetHeight;
+  //         }
+  //         this.currentContHeight = this.cH;
+  //       }
+  //     }
+  //     if( !this.settings.width && !this.settings.height ) {
+  //       this.cW = this.mediaElement.offsetWidth;
+  //     }
+  //   } else { // original video element size isn't yet restored after fullscreen mode
+  //     return false;
+  //   }
+  //   return true;
   // }
 }

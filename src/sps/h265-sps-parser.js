@@ -1,4 +1,5 @@
 import { H265BaseUnitParser } from "./h265-base-unit-parser";
+import { getSarFromAspectRatioIdc } from "./helpers";
 
 export class H265SpsParser extends H265BaseUnitParser {
   constructor() {
@@ -278,12 +279,15 @@ export class H265SpsParser extends H265BaseUnitParser {
   _parseVUIParameters(maxNumSubLayersMinus1) {
     const aspectRatioInfoPresentFlag = this._bitr.readBits(1); // aspect_ratio_info_present_flag
     if (aspectRatioInfoPresentFlag) {
-      let aspectRatioIdc = this._bitr.readBits(8); // aspect_ratio_idc
-      // TODO: handle SAR/DAR parameters for correcting the player aspect ratio
-      if (aspectRatioIdc === 255) {
-        this._bitr.readBits(16); // sar_width
-        this._bitr.readBits(16); // sar_height
-      }
+      const aspectRatioIdc = this._bitr.readBits(8);
+      let sar = getSarFromAspectRatioIdc(aspectRatioIdc, () => {
+        let sarW = this._bitr.readBits(16); // sar_width
+        let sarH = this._bitr.readBits(16); // sar_height
+        return { w: sarW, h: sarH };
+      });
+      this._sps.sar = sar;
+    } else {
+      this._sps.sar = getSarFromAspectRatioIdc(1); // default to square pixels
     }
 
     // overscan_info_present_flag
