@@ -1,9 +1,9 @@
 export class UICaptionList {
   constructor(parent, eventBus) {
-    this._btn = parent.querySelector(".btn-captions");
     this._listDlg = parent.querySelector(".caption-menu");
     this._list = parent.querySelector(".caption-section");
-    this._btn.addEventListener("click", this._onBtnClick);
+    this._btn = parent.querySelector(".btn-captions");
+    if (this._btn) this._btn.addEventListener("click", this._onBtnClick);
 
     this._offLabel = "Off";
     this._eventBus = eventBus;
@@ -37,7 +37,9 @@ export class UICaptionList {
   }
 
   destroy() {
-    this._btn.removeEventListener("click", this._onBtnClick);
+    if (this._btn) {
+      this._btn.removeEventListener("click", this._onBtnClick);
+    }
     this._btn = this._listDlg = this._captions = undefined;
   }
 

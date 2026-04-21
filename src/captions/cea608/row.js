@@ -2,7 +2,6 @@ import { NR_COLS } from "./constants";
 import { StyledUnicodeChar } from "./styled-unicode-char";
 import { PenState } from "./pen-state";
 import { Utils } from "./utils";
-import { Logger } from "./logger";
 
 /**
  * CEA-608 row consisting of NR_COLS instances of StyledUnicodeChar.
@@ -55,10 +54,8 @@ export class Row {
       this.pos = absPos;
     }
     if (this.pos < 0) {
-      Logger.log("ERROR", "Negative cursor position " + this.pos);
       this.pos = 0;
     } else if (this.pos > NR_COLS) {
-      Logger.log("ERROR", "Too large cursor position " + this.pos);
       this.pos = NR_COLS;
     }
   }
@@ -91,10 +88,6 @@ export class Row {
     }
     let char = Utils.getCharForByte(byte);
     if (this.pos >= NR_COLS) {
-      Logger.log(
-        "ERROR",
-        `Cannot insert ${byte.toString(16)} (${char}) at position ${this.pos}. Skipping it!`,
-      );
       return;
     }
     this.chars[this.pos].setChar(char, this.currPenState);

@@ -42,7 +42,7 @@ let protocolAgent;
 let socket;
 let curSocketId = 0;
 self.onmessage = (e) => {
-  var type = e.data.type;
+  let type = e.data.type;
 
   if (type === "start") {
     // TODO: check possibility to reuse socket after pause auto stop
