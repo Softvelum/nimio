@@ -1,6 +1,4 @@
 import { Cea608Channel } from "./channel";
-import { Utils } from "./utils";
-import { Logger } from "./logger";
 
 // Tables to look up row from PAC data
 let rowsLowCh1 = {
@@ -95,8 +93,6 @@ export class Cea608Parser {
       b,
       charsFound = false;
 
-    Logger.setTime(pTime);
-
     for (let i = 0; i < byteList.length; i += 2) {
       a = byteList[i] & 0x7f;
       b = byteList[i + 1] & 0x7f;
@@ -109,28 +105,19 @@ export class Cea608Parser {
       ) {
         this.lastCmdA = null;
         this.lastCmdB = null;
-        Logger.log(
-          "DEBUG",
-          `Repeated command (${Utils.numArrayToHexArray([a, b])}) is dropped`,
-        );
         continue; // Repeated commands are dropped (once)
       }
 
       if (a === 0 && b === 0) {
         this.dataCounters.padding += 2;
         continue;
-      } else {
-        Logger.log(
-          "DATA",
-          `[${Utils.numArrayToHexArray([byteList[i], byteList[i + 1]])}] -> (${Utils.numArrayToHexArray([a, b])})`,
-        );
       }
-      cmdFound = this.parseCmd(a, b);
+      cmdFound = this.parseCmd(a, b, pTime);
       if (!cmdFound) {
         cmdFound = this.parseXDSCmd(a, b);
       }
       if (!cmdFound) {
-        cmdFound = this.parseMidrow(a, b);
+        cmdFound = this.parseMidrow(a, b, pTime);
       }
       if (!cmdFound) {
         cmdFound = this.parsePAC(a, b);
@@ -140,13 +127,9 @@ export class Cea608Parser {
       }
       if (!cmdFound) {
         charsFound = this.parseChars(a, b);
-        if (charsFound) {
-          if (this.currChNr && this.currChNr >= 0) {
-            let channel = this.channels[this.currChNr - 1];
-            channel.insertChars(charsFound);
-          } else {
-            Logger.log("WARNING", "No channel found yet. TEXT-MODE?");
-          }
+        if (charsFound && this.currChNr > 0) {
+          let channel = this.channels[this.currChNr - 1];
+          channel.insertChars(charsFound, pTime);
         }
       }
       if (cmdFound) {
@@ -155,14 +138,10 @@ export class Cea608Parser {
         this.dataCounters.char += 2;
       } else {
         this.dataCounters.other += 2;
-        Logger.log(
-          "WARNING",
-          `Couldn't parse cleaned data ${Utils.numArrayToHexArray([a, b])} orig: ${Utils.numArrayToHexArray([byteList[i], byteList[i + 1]])}`,
-        );
       }
     }
 
-    if (this.currChNr >= 0) {
+    if (this.currChNr > 0) {
       this.channels[this.currChNr - 1].reportActive();
     }
   }
@@ -171,7 +150,7 @@ export class Cea608Parser {
    * Parse Command.
    * @returns {Boolean} Tells if a command was found
    */
-  parseCmd(a, b) {
+  parseCmd(a, b, pTime) {
     let chNr = null;
 
     let cond1 =
@@ -195,14 +174,13 @@ export class Cea608Parser {
       if (b === 0x20) {
         channel.cc_RCL();
       } else if (b === 0x21) {
-        channel.cc_BS();
+        channel.cc_BS(pTime);
       } else if (b === 0x22) {
         channel.cc_AOF();
       } else if (b === 0x23) {
         channel.cc_AON();
       } else if (b === 0x24) {
-        channel.cc_DER();
-        Logger.log("DEBUG", JSON.stringify(this.dataCounters));
+        channel.cc_DER(pTime);
       } else if (b === 0x25) {
         channel.cc_RU(2);
       } else if (b === 0x26) {
@@ -218,16 +196,13 @@ export class Cea608Parser {
       } else if (b === 0x2b) {
         channel.cc_RTD();
       } else if (b === 0x2c) {
-        channel.cc_EDM();
-        Logger.log("DEBUG", JSON.stringify(this.dataCounters));
+        channel.cc_EDM(pTime);
       } else if (b === 0x2d) {
-        channel.cc_CR();
-        Logger.log("DEBUG", JSON.stringify(this.dataCounters));
+        channel.cc_CR(pTime);
       } else if (b === 0x2e) {
         channel.cc_ENM();
       } else if (b === 0x2f) {
-        channel.cc_EOC();
-        Logger.log("DEBUG", JSON.stringify(this.dataCounters));
+        channel.cc_EOC(pTime);
       }
     } else {
       //a == 0x17 || a == 0x1F
@@ -248,13 +223,14 @@ export class Cea608Parser {
       this.currChNr = -1;
       return true;
     }
+    return false;
   }
 
   /**
    * Parse midrow styling command
    * @returns {Boolean}
    */
-  parseMidrow(a, b) {
+  parseMidrow(a, b, pTime) {
     let chNr = null;
 
     if ((a === 0x11 || a === 0x19) && 0x20 <= b && b <= 0x2f) {
@@ -264,14 +240,12 @@ export class Cea608Parser {
         chNr = 2;
       }
       if (chNr !== this.currChNr) {
-        Logger.log("ERROR", "Mismatch channel in midrow parsing");
         return false;
       }
       let channel = this.channels[chNr - 1];
       // cea608 spec says midrow codes should inject a space
-      channel.insertChars([0x20]);
+      channel.insertChars([0x20], pTime);
       channel.cc_MIDROW(b);
-      Logger.log("DEBUG", "MIDROW (" + Utils.numArrayToHexArray([a, b]) + ")");
       this.lastCmdA = a;
       this.lastCmdB = b;
       return true;
@@ -385,13 +359,6 @@ export class Cea608Parser {
       } else {
         oneCode = b + 0x90;
       }
-      Logger.log(
-        "INFO",
-        "Special char '" +
-          Utils.getCharForByte(oneCode) +
-          "' in channel " +
-          channelNr,
-      );
       charCodes = [oneCode];
       this.lastCmdA = a;
       this.lastCmdB = b;
@@ -400,10 +367,9 @@ export class Cea608Parser {
       this.lastCmdA = null;
       this.lastCmdB = null;
     }
-    if (charCodes) {
-      let hexCodes = Utils.numArrayToHexArray(charCodes);
-      Logger.log("DEBUG", "Char codes =  " + hexCodes.join(","));
-    }
+    // if (charCodes) {
+    //   let hexCodes = Utils.numArrayToHexArray(charCodes);
+    // }
 
     return charCodes;
   }

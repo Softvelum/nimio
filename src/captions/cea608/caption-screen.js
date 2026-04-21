@@ -1,6 +1,5 @@
 import { NR_ROWS } from "./constants";
 import { Row } from "./row";
-import { Logger } from "./logger";
 
 /**
  * Keep a CEA-608 screen of 32x15 styled characters
@@ -9,7 +8,7 @@ export class CaptionScreen {
   constructor() {
     this.rows = [];
     for (let i = 0; i < NR_ROWS; i++) {
-      this.rows.push(new Row()); // Note that we use zero-based numbering (0-14)
+      this.rows.push(new Row()); // zero-based numbering (0-14)
     }
     this.currRow = NR_ROWS - 1;
     this.nrRollUpRows = null;
@@ -82,13 +81,11 @@ export class CaptionScreen {
   }
 
   setCursor(absPos) {
-    Logger.log("INFO", "setCursor: " + absPos);
     let row = this.rows[this.currRow];
     row.setCursor(absPos);
   }
 
   setPAC(pacData) {
-    Logger.log("INFO", "pacData = " + JSON.stringify(pacData));
     let newRow = pacData.row - 1;
     if (this.nrRollUpRows && newRow < this.nrRollUpRows - 1) {
       newRow = this.nrRollUpRows - 1;
@@ -118,7 +115,6 @@ export class CaptionScreen {
    * Set background/extra foreground, but first do back_space, and then insert space (backwards compatibility).
    */
   setBkgData(bkgData) {
-    Logger.log("INFO", "bkgData = " + JSON.stringify(bkgData));
     this.backSpace();
     this.setPen(bkgData);
     this.insertChar(0x20); //Space
@@ -129,16 +125,12 @@ export class CaptionScreen {
   }
 
   rollUp() {
-    if (this.nrRollUpRows === null) {
-      Logger.log("DEBUG", "roll_up but nrRollUpRows not set yet");
-      return; // Improper setup
-    }
-    Logger.log("TEXT", this.getDisplayText());
+    if (this.nrRollUpRows === null) return; // Improper setup
+
     let topRowIndex = this.currRow + 1 - this.nrRollUpRows;
     let topRow = this.rows.splice(topRowIndex, 1)[0];
     topRow.clear();
     this.rows.splice(this.currRow, 0, topRow);
-    Logger.log("INFO", "Rolling up");
   }
 
   /**

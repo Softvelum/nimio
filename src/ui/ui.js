@@ -71,8 +71,8 @@ export class UI {
       this._captionCtrl.init(this._container, this._opts.captions);
 
       this._captionList = new UICaptionList(this._controlsBar, this._eventBus);
-      this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
       this._captionCtrl.list = this._captionList;
+      this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
     }
     if (this._opts.fullscreen) {
       this._toggleFullscreen();
@@ -158,7 +158,6 @@ export class UI {
   }
 
   replaceMediaElement() {
-    this._logger.error("replace media element");
     this._removeMediaElement();
     this._addMediaElement();
     this._mediaElement.style.display = "block";

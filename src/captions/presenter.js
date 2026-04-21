@@ -184,7 +184,7 @@ class CaptionPresenter {
   _createDispatchTimer() {
     let presenter = this;
     this._dispatchTimer = setTimeout(function () {
-      this._dispatchTimer = undefined;
+      presenter._dispatchTimer = undefined;
       if (presenter._enabled) {
         presenter._dispatchCaptions();
         presenter._createDispatchTimer();
@@ -193,30 +193,32 @@ class CaptionPresenter {
   }
 
   _dispatchCaptions() {
-    let captions = this._captions[this._activeCaptionId];
-    if (!captions || captions.length === 0) {
+    let actCaptions = this._captions[this._activeCaptionId];
+    if (!actCaptions || actCaptions.length === 0) {
       return;
     }
 
     let curTime = this._getCurrentTime();
     let updCaptions = [];
-    for (let i = 0; i < captions.length; i++) {
-      if (curTime >= captions[i].start && !captions[i].added) {
-        this._captionManager.addActiveCaption(captions[i].capHTMLElement);
-        captions[i].added = true;
-      } else if (-1 !== captions[i].end && captions[i].end <= curTime) {
-        if (captions[i].added) {
+    for (let i = 0; i < actCaptions.length; i++) {
+      if (curTime >= actCaptions[i].start && !actCaptions[i].added) {
+        this._captionManager.addActiveCaption(actCaptions[i].capHTMLElement);
+        actCaptions[i].added = true;
+      } else if (-1 !== actCaptions[i].end && actCaptions[i].end <= curTime) {
+        if (actCaptions[i].added) {
           try {
             this._captionManager.removeActiveCaption(
-              captions[i].capHTMLElement,
+              actCaptions[i].capHTMLElement,
             );
           } catch (err) {
             this._logger.error("Error removing active caption", err);
           }
         }
+        // Skip adding this caption to updCaptions, effectively removing it
+        // from the active captions list
         continue;
       }
-      updCaptions.push(captions[i]);
+      updCaptions.push(actCaptions[i]);
     }
     this._captions[this._activeCaptionId] = updCaptions;
   }
