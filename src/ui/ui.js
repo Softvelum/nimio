@@ -115,7 +115,8 @@ export class UI {
   }
 
   drawFrame(frame) {
-    this._cctx.drawImage(frame, 0, 0, this._curWidth, this._curHeight);
+    let lm = this._layoutMgr;
+    this._cctx.drawImage(frame, 0, 0, lm.width, lm.height);
   }
 
   showControls(anim) {
@@ -135,7 +136,7 @@ export class UI {
   }
 
   clear() {
-    this._cctx.clearRect(0, 0, this._curWidth, this._curHeight);
+    this._cctx.clearRect(0, 0, this._layoutMgr.width, this._layoutMgr.height);
   }
 
   toggleMode(mode) {
@@ -458,11 +459,6 @@ export class UI {
     });
   }
 
-  _isPlayerFullscreen() {
-    let fElem = document.fullscreenElement || document.webkitFullscreenElement;
-    return fElem === this._container;
-  }
-
   _handleResize() {
     if (this._resizeQueued) return;
 
@@ -470,27 +466,8 @@ export class UI {
     requestAnimationFrame(() => {
       this._resizeQueued = false;
       this._resizeAndRedraw();
-      this._updateThumbnails();
+      if (this._thumbnailPreview) this._thumbnailPreview.update();
     });
-  }
-
-  _resizeAndRedraw() {
-    if (this._isPlayerFullscreen()) {
-      const screenAspect = window.innerWidth / window.innerHeight;
-
-      let newWidth, newHeight;
-      if (screenAspect > this._ar) {
-        newHeight = window.innerHeight;
-        newWidth = Math.round(newHeight * this._ar);
-      } else {
-        newWidth = window.innerWidth;
-        newHeight = Math.round(newWidth / this._ar);
-      }
-
-      this._updateOutputSize(newWidth, newHeight);
-    } else {
-      this._updateOutputSize(this._baseWidth, this._baseHeight);
-    }
   }
 
   _updateOutputSize(w, h) {
@@ -521,18 +498,6 @@ export class UI {
     this._canvas.height = devH;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
     this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
-  }
-
-  _updateThumbnails() {
-    if (this._thumbnailPreview) {
-      this._thumbnailPreview.update();
-    }
-  }
-
-  _handleOrientChange(e) {
-    // orientationchange can fire before actual size update
-    // TODO: rework this using more granular approach involving aspect ratio
-    setTimeout(this._onResize, 250);
   }
 
   _handleClick(e) {
@@ -610,35 +575,6 @@ export class UI {
     this._hideTimer = undefined;
   }
 
-  async _toggleFullscreen(e) {
-    let fReq;
-    if (!this._isPlayerFullscreen()) {
-      let fsOpts = { navigationUI: "hide" };
-      if (this._container.requestFullscreen) {
-        fReq = this._container.requestFullscreen(fsOpts);
-      } else if (this._container.webkitRequestFullscreen) {
-        fReq = this._container.webkitRequestFullscreen(fsOpts);
-      }
-    } else {
-      if (document.exitFullscreen) {
-        fReq = document.exitFullscreen();
-      } else if (document.cancelFullScreen) {
-        fReq = document.cancelFullScreen();
-      } else if (document.webkitCancelFullScreen) {
-        fReq = document.webkitCancelFullScreen();
-      }
-    }
-
-    if (fReq) {
-      await fReq.catch((err) => {
-        this._logger.error("Failed to toggle fullscreen mode:", err);
-      });
-    } else {
-      this._logger.warn("No fullscreen API is available");
-    }
-    if (e) e.stopPropagation();
-  }
-
   _onPlaybackStarting() {
     this.drawPause();
   }
@@ -701,37 +637,6 @@ export class UI {
       zIndex: 10,
       margin: "auto",
     });
-  }
-
-  _applySize(elem, w, h) {
-    elem.style.width = `${w}px`;
-    elem.style.height = `${h}px`;
-  }
-
-  _initPlayerSize() {
-    // TODO: if no options, get from container
-    // TODO: get from frame properties
-    this._baseWidth = this._opts.width;
-    this._baseHeight = this._opts.height;
-  }
-
-  _initAspectRatio() {
-    if (this._opts.ar) {
-      let ar = this._opts.ar.split(":");
-      if (2 === ar.length) {
-        this._opts.ar = {
-          x: parseInt(ar[0]),
-          y: parseInt(ar[1]),
-        };
-        this._ar = this._opts.ar.x / this._opts.ar.y;
-
-        this._baseHeight = Math.round(this._baseWidth / this._ar);
-        return;
-      }
-    }
-
-    // default calculation
-    this._ar = this._baseWidth / this._baseHeight;
   }
 
   // adjustAspectRatio () {
