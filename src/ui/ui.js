@@ -28,11 +28,13 @@ export class UI {
       position: "relative",
     });
     this._container.classList.add("nimio-container");
-
     this._logger = LoggersFactory.create(this._instName, "UI");
 
-    this._initPlayerSize();
-    this._initAspectRatio();
+    this._layoutMgr = new UILayoutManager(
+      this._opts.width,
+      this._opts.height,
+      this._opts.ar,
+    );
     this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
@@ -42,7 +44,7 @@ export class UI {
 
     this._outputs.forEach(this._applyBasicStyle);
 
-    this._updateOutputSize(this._baseWidth, this._baseHeight);
+    this._updateOutputSize(this._layoutMgr.width, this._layoutMgr.height);
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
     this._cctx.save();
@@ -459,6 +461,40 @@ export class UI {
     });
   }
 
+  async _toggleFullscreen(e) {
+    let fReq;
+    if (!this._isPlayerFullscreen()) {
+      let fsOpts = { navigationUI: "hide" };
+      if (this._container.requestFullscreen) {
+        fReq = this._container.requestFullscreen(fsOpts);
+      } else if (this._container.webkitRequestFullscreen) {
+        fReq = this._container.webkitRequestFullscreen(fsOpts);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        fReq = document.exitFullscreen();
+      } else if (document.cancelFullScreen) {
+        fReq = document.cancelFullScreen();
+      } else if (document.webkitCancelFullScreen) {
+        fReq = document.webkitCancelFullScreen();
+      }
+    }
+
+    if (fReq) {
+      await fReq.catch((err) => {
+        this._logger.error("Failed to toggle fullscreen mode:", err);
+      });
+    } else {
+      this._logger.warn("No fullscreen API is available");
+    }
+    if (e) e.stopPropagation();
+  }
+
+  _isPlayerFullscreen() {
+    let fElem = document.fullscreenElement || document.webkitFullscreenElement;
+    return fElem === this._container;
+  }
+
   _handleResize() {
     if (this._resizeQueued) return;
 
@@ -470,6 +506,11 @@ export class UI {
     });
   }
 
+  _handleOrientChange(e) {
+    // orientationchange can fire before actual size update
+    setTimeout(this._onResize, 250);
+  }
+
   _updateOutputSize(w, h) {
     if (this._mode === MODE.LIVE) {
       this._updateCanvasSize(w, h);
@@ -477,8 +518,11 @@ export class UI {
     this._outputs.forEach((elem) => {
       this._applySize(elem, w, h);
     });
-    this._curWidth = w;
-    this._curHeight = h;
+  }
+
+  _applySize(elem, w, h) {
+    elem.style.width = `${w}px`;
+    elem.style.height = `${h}px`;
   }
 
   _updateCanvasSize(w, h) {

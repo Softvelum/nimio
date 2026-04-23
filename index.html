@@ -39,7 +39,7 @@
           container: "video",
           autoplay: true,
           width: 476,
-          height: 268,
+          height: 476, // 268,
           latency: 1000,
           latencyTolerance: 2200,
           startOffset: 2000,
@@ -70,9 +70,9 @@
           //   CC2: { name: "Second track", lang: "French" },
           // },
 
-          // timecodes: true,
+          timecodes: true,
 
-          aspectRatio: "16:9",
+          // aspectRatio: "3:1",
         });
 
         window.nimio.on("nimio:play", () => {
