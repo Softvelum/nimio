@@ -1,3 +1,7 @@
+function getBoxLength(d, off) {
+  return (d[off] << 24) | (d[off + 1] << 16) | (d[off + 2] << 8) | d[off + 3];
+}
+
 export function getAudioConfigFromInitSegment(codec, data) {
   let config = {};
 
@@ -9,11 +13,7 @@ export function getAudioConfigFromInitSegment(codec, data) {
   let segLength = data.byteLength;
   let offset = 0;
   while (offset + 8 < segLength && phase < path.length) {
-    let boxl =
-      (data[offset] << 24) |
-      (data[offset + 1] << 16) |
-      (data[offset + 2] << 8) |
-      data[offset + 3];
+    let boxl = getBoxLength(data, offset);
     let name = [];
     for (let i = 4; i < 8; i++) {
       name.push(String.fromCharCode(data[offset + i]));

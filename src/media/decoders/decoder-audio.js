@@ -1,15 +1,29 @@
 import { RingBuffer } from "@/shared/ring-buffer";
 import { adjustCodecId } from "./checker";
+import { getFrameData } from "@/shared/data-helpers";
 
 let audioDecoder;
 let support;
+let params;
+let errorsCount = 0;
 
 let lastTimestampUs = null;
 let frameDurationUs = null;
 let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
 
+const MAX_RECOVERY_ATTEMPTS = 30;
 const buffered = [];
 let config = {};
+
+function createAudioDecoder() {
+  return new AudioDecoder({
+    output: (audioFrame) => {
+      processDecodedFrame(audioFrame);
+      errorsCount = 0;
+    },
+    error: (e) => tryRecoverDecoderError(e.message),
+  });
+}
 
 function processDecodedFrame(audioFrame) {
   let rawTimestamp = timestampBuffer.pop();
@@ -32,8 +46,35 @@ function processDecodedFrame(audioFrame) {
 }
 
 function pushChunk(data) {
+  if (audioDecoder.state !== "configured") return false;
+
   const encodedChunk = new EncodedAudioChunk(data);
   audioDecoder.decode(encodedChunk);
+  return true;
+}
+
+function tryRecoverDecoderError(error) {
+  console.error(`Trying to recover from decoder error: ${error}`);
+  if (!audioDecoder) return;
+
+  errorsCount++;
+  if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+    return handleDecoderError(error);
+  }
+
+  if (lastTimestampUs !== null) {
+    lastTimestampUs += frameDurationUs * timestampBuffer.length;
+    timestampBuffer.reset();
+  }
+  console.log(`Recover: audio decoder state is ${audioDecoder.state}`);
+  if (audioDecoder.state === "closed") {
+    audioDecoder = createAudioDecoder();
+  } else {
+    audioDecoder.reset();
+  }
+
+  // configure decoder with the same config
+  audioDecoder.configure(params);
 }
 
 function shutdownDecoder() {
@@ -57,23 +98,20 @@ self.addEventListener("message", async function (e) {
       timestampBuffer.reset();
       buffered.length = 0;
       support = null;
+      errorsCount = 0;
       break;
     case "codecData":
       if (audioDecoder) {
         support = null;
+        errorsCount = 0;
         await audioDecoder.flush();
         shutdownDecoder();
         lastTimestampUs = null;
       }
-      audioDecoder = new AudioDecoder({
-        output: (audioFrame) => {
-          processDecodedFrame(audioFrame);
-        },
-        error: (e) => handleDecoderError(e.message),
-      });
+      audioDecoder = createAudioDecoder();
 
       Object.assign(config, e.data.config);
-      let params = {
+      params = {
         codec: config.codec,
         sampleRate: config.sampleRate,
         numberOfChannels: config.numberOfChannels,
@@ -93,17 +131,17 @@ self.addEventListener("message", async function (e) {
       }
       break;
     case "chunk":
-      const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-      const frame = frameWithHeader.subarray(
-        e.data.framePos,
-        frameWithHeader.byteLength,
-      );
+      if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+        // Decoder failed to recover after multiple attempts,
+        // ignore incoming chunks and wait for shutdown
+        return;
+      }
 
       timestampBuffer.push(e.data.pts);
       const chunkData = {
         timestamp: e.data.pts,
         type: "key",
-        data: frame,
+        data: getFrameData(e.data),
       };
 
       if (!support || !support.supported) {
@@ -114,13 +152,29 @@ self.addEventListener("message", async function (e) {
 
       if (buffered.length > 0) {
         // Process buffered chunks before the new one
-        for (let i = 0; i < buffered.length; i++) {
-          pushChunk(buffered[i]);
+        let i = 0;
+        for (; i < buffered.length; i++) {
+          if (!pushChunk(buffered[i])) {
+            break;
+          }
         }
-        buffered.length = 0;
+        if (i === buffered.length) {
+          buffered.length = 0;
+        } else {
+          console.warn(
+            `Stopped processing buffered chunks at ${i} due to decoder wasn't ready`,
+          );
+          if (i > 0) buffered.splice(0, i);
+        }
       }
 
-      pushChunk(chunkData);
+      let processed = pushChunk(chunkData);
+      if (!processed) {
+        console.warn(
+          `Decoder not ready, buffering chunk with ts = ${chunkData.timestamp}`,
+        );
+        buffered.push(chunkData);
+      }
       break;
     case "shutdown":
       if (audioDecoder) {

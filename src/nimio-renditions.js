@@ -91,6 +91,10 @@ export const NimioRenditions = {
         this._nextRenditionData.trackId,
       );
 
+      if (type === "video" && this._nalProcessor) {
+        this._updateNalUnitProcessors(this._decoderFlows["video"].codec);
+      }
+
       this._eventBus.emit("nimio:rendition-set", {
         rendition: this._nextRenditionData.rendition,
         name: this._nextRenditionData.name,

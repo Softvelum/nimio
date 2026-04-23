@@ -1,9 +1,27 @@
+import { getFrameData } from "@/shared/data-helpers";
+
 let videoDecoder;
 let support;
+let params;
+let waitingForKeyframe;
+let errorsCount = 0;
 
 let config = {};
 const decodeTimings = new Map();
 const buffered = [];
+const MAX_RECOVERY_ATTEMPTS = 10;
+
+function createVideoDecoder() {
+  return new VideoDecoder({
+    output: (frame) => {
+      processDecodedFrame(frame);
+      errorsCount = 0;
+    },
+    error: async (e) => {
+      await tryRecoverDecoderError(e.message);
+    },
+  });
+}
 
 function processDecodedFrame(videoFrame) {
   const t0 = decodeTimings.get(videoFrame.timestamp);
@@ -36,12 +54,41 @@ function handleDecoderError(error) {
 }
 
 function pushChunk(data, time) {
+  if (videoDecoder.state !== "configured") return false;
+  if (waitingForKeyframe) {
+    if (data.type !== "key") return true;
+    waitingForKeyframe = false;
+  }
+
   const encodedChunk = new EncodedVideoChunk(data);
   videoDecoder.decode(encodedChunk);
   decodeTimings.set(encodedChunk.timestamp, time);
+  return true;
 }
 
-async function fallbackToSoftwareSupport(params) {
+async function tryRecoverDecoderError(error) {
+  console.error(`Trying to recover from decoder error: ${error}`);
+  if (!videoDecoder) return;
+
+  errorsCount++;
+  if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+    return handleDecoderError(error);
+  }
+
+  decodeTimings.clear();
+  console.log(`Recover: video decoder state is ${videoDecoder.state}`);
+  if (videoDecoder.state === "closed") {
+    videoDecoder = createVideoDecoder();
+  } else {
+    videoDecoder.reset();
+  }
+
+  // configure decoder with the same config
+  await configureDecoder();
+  waitingForKeyframe = true;
+}
+
+async function fallbackToSoftwareSupport() {
   console.warn(
     "Hardware acceleration not supported, falling back to software decoding",
   );
@@ -49,8 +96,8 @@ async function fallbackToSoftwareSupport(params) {
   support = await VideoDecoder.isConfigSupported(params);
 }
 
-async function configureDecoder(params) {
-  if (!support.supported) {
+async function configureDecoder() {
+  if (!support?.supported) {
     return handleDecoderError(`Video codec not supported: ${params.codec}`);
   }
 
@@ -65,8 +112,8 @@ async function configureDecoder(params) {
     console.warn("configureDecoder exception raised");
     if (params.hardwareAcceleration === "prefer-hardware") {
       // last ditch attempt
-      await fallbackToSoftwareSupport(params);
-      return await configureDecoder(params);
+      await fallbackToSoftwareSupport();
+      return await configureDecoder();
     }
     handleDecoderError(error.message);
   }
@@ -87,23 +134,21 @@ self.addEventListener("message", async function (e) {
       config = e.data.config;
       buffered.length = 0;
       support = null;
+      errorsCount = 0;
       break;
     case "codecData":
       if (videoDecoder) {
         support = null;
+        errorsCount = 0;
+        decodeTimings.clear();
         const vd = videoDecoder;
         videoDecoder.flush().finally(function () {
           if (typeof vd.close === "function") vd.close();
         });
       }
-      videoDecoder = new VideoDecoder({
-        output: (frame) => {
-          processDecodedFrame(frame);
-        },
-        error: (e) => handleDecoderError(e.message),
-      });
+      videoDecoder = createVideoDecoder();
 
-      let params = {
+      params = {
         codec: config.codec,
         codedWidth: config.width,
         codedHeight: config.height,
@@ -118,22 +163,22 @@ self.addEventListener("message", async function (e) {
       }
 
       support = await VideoDecoder.isConfigSupported(params);
-      if (!support.supported) await fallbackToSoftwareSupport(params);
-      await configureDecoder(params);
+      if (!support.supported) await fallbackToSoftwareSupport();
+      await configureDecoder();
       break;
     case "chunk":
-      const frameWithHeader = new Uint8Array(e.data.frameWithHeader);
-      const frame = frameWithHeader.subarray(
-        e.data.framePos,
-        frameWithHeader.byteLength,
-      );
+      if (errorsCount > MAX_RECOVERY_ATTEMPTS) {
+        // Decoder failed to recover after multiple attempts,
+        // ignore incoming chunks and wait for shutdown
+        return;
+      }
 
       const chunkData = {
         timestamp: e.data.pts,
         type: e.data.chunkType,
-        data: frame,
+        data: getFrameData(e.data),
       };
-      if (!support || !support.supported) {
+      if (!support?.supported) {
         // Buffer the chunk until the decoder is ready
         buffered.push({
           time: performance.now(),
@@ -144,17 +189,37 @@ self.addEventListener("message", async function (e) {
 
       if (buffered.length > 0) {
         // Process buffered chunks before the new one
-        for (let i = 0; i < buffered.length; i++) {
-          pushChunk(buffered[i].chunk, buffered[i].time);
+        let i = 0;
+        for (; i < buffered.length; i++) {
+          if (!pushChunk(buffered[i].chunk, buffered[i].time)) {
+            break;
+          }
         }
-        buffered.length = 0;
+        if (i === buffered.length) {
+          buffered.length = 0;
+        } else {
+          console.warn(
+            `Stopped processing buffered chunks at ${i} due to decoder wasn't ready`,
+          );
+          if (i > 0) buffered.splice(0, i);
+        }
       }
 
-      pushChunk(chunkData, performance.now());
+      let processed = pushChunk(chunkData, performance.now());
+      if (!processed) {
+        console.warn(
+          `Decoder not ready, buffering chunk with ts = ${chunkData.timestamp}`,
+        );
+        buffered.push({
+          time: performance.now(),
+          chunk: chunkData,
+        });
+      }
       break;
     case "shutdown":
       if (videoDecoder) {
         buffered.length = 0;
+        decodeTimings.clear();
         shutdownDecoder();
         self.postMessage({ type: "shutdownComplete" });
         self.close();

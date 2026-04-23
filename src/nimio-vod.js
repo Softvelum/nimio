@@ -300,7 +300,7 @@ export class NimioVod {
 
   // TODO: handle CC related methods
   getCaptionTracks() {
-    return [];
+    return {};
   }
 
   getCurrentCaptionTrack() {
@@ -393,10 +393,7 @@ export class NimioVod {
     if (this._state !== VOD_STATE.PLAY) return false;
 
     this._setDetachedState(callback);
-
-    // if (this._nalProcessor) {
-    //   this._nalProcessor.reset();
-    // }
+    if (this._nalProcessor) this._nalProcessor.reset();
 
     if (this._context.hasVod()) {
       this._loadCurrentLevel();
@@ -429,6 +426,7 @@ export class NimioVod {
     if (!this._ui) return;
 
     this._removeProgressEventHandlers();
+    this._ui.setDetached();
     this._ui = undefined;
   }
 
@@ -437,9 +435,8 @@ export class NimioVod {
 
     this._logger.debug("goto " + position);
     this._playbackService.setCurrentTime(position);
-    // if (this._nalProcessor) {
-    //   this._nalProcessor.reset();
-    // }
+    if (this._nalProcessor) this._nalProcessor.reset();
+
     return true;
   }
 
@@ -500,8 +497,8 @@ export class NimioVod {
       name: lvl.name,
     });
 
+    this._context.autoAbr = false;
     if (this._context.isCurrentLevel(levelIdx)) {
-      this._context.autoAbr = false;
       this._eventBus.emit("nimio:abr", false);
       return this._applyCurrentRendition(true);
     }
@@ -512,7 +509,6 @@ export class NimioVod {
     // this._pHandler.currentLevel = levelIdx; // immediate rendition change
     this._pHandler.nextLevel = levelIdx; // rendition change will occur on the next segment
     this._pHandler.autoLevelCapping = 0;
-    this._context.autoAbr = false;
 
     return true;
   }

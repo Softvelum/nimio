@@ -7,6 +7,8 @@ import { UITimeIndicator } from "./time-indicator";
 import { LoggersFactory } from "@/shared/logger";
 import { PlaybackProgressService } from "@/playback/progress-service";
 import { UIThumbnailPreview } from "./thumbnail-preview";
+import { UICaptionController } from "./caption-controller";
+import { UICaptionList } from "./caption-list";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -15,9 +17,7 @@ export class UI {
     this._muted = false;
     this._instName = instName;
     this._eventBus = eventBus;
-    this._autoAbr = opts.autoAbr;
-    this._audioOnly = opts.audioOnly;
-    this._thumbnails = opts.vod?.thumbnails;
+    this._opts = opts;
 
     this._container = container;
     if (!this._container || !this._container.appendChild) {
@@ -36,6 +36,7 @@ export class UI {
     this._baseHeight = opts.height;
     // TODO: get from frame properties
     this._ar = this._baseWidth / this._baseHeight;
+    this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
     this._outputs = [];
@@ -68,11 +69,19 @@ export class UI {
 
     this._createControls(opts);
     this._setupEasing();
-    if (opts.fullscreen) {
+    if (this._opts.captions && !this._opts.audioOnly) {
+      this._captionCtrl = UICaptionController.getInstance(this._instName);
+      this._captionCtrl.init(this._container, this._opts.captions);
+
+      this._captionList = new UICaptionList(this._controlsBar, this._eventBus);
+      this._captionCtrl.list = this._captionList;
+      this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
+    }
+    if (this._opts.fullscreen) {
       this._toggleFullscreen();
     }
-    if (opts.splashScreen) {
-      this._splashScreenUrl = `url("${opts.splashScreen}")`;
+    if (this._opts.splashScreen) {
+      this._splashScreenUrl = `url("${this._opts.splashScreen}")`;
     }
     this._setBackground();
   }
@@ -80,6 +89,7 @@ export class UI {
   destroy() {
     this._clearHideControlsTimer();
     this._removeSeekBar();
+    this._removeCaptions();
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
@@ -138,19 +148,26 @@ export class UI {
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
+      if (this._captionCtrl) {
+        this._captionList.refresh();
+      }
     } else {
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       this._liveSign.style.display = "none";
     }
+
     this._mode = mode;
   }
 
   replaceMediaElement() {
-    this._logger.error("replace media element");
     this._removeMediaElement();
     this._addMediaElement();
     this._mediaElement.style.display = "block";
+  }
+
+  setDetached() {
+    this._hideCaptions();
   }
 
   appendDebugOverlay(state, videoBuffer) {
@@ -163,6 +180,10 @@ export class UI {
 
   get mediaElement() {
     return this._mediaElement;
+  }
+
+  get captionController() {
+    return this._captionCtrl;
   }
 
   get size() {
@@ -181,7 +202,7 @@ export class UI {
   }
 
   _createMediaElement() {
-    let type = this._audioOnly ? "audio" : "video";
+    let type = this._opts.audioOnly ? "audio" : "video";
     this._mediaElement = document.createElement(type);
     this._mediaElement.setAttribute("playsinline", "playsinline");
     this._mediaElement.style["background-color"] = "#000";
@@ -213,8 +234,8 @@ export class UI {
     this._buttonVolume = this._controlsBar.querySelector(".btn-volume");
     this._volumeRange = this._controlsBar.querySelector(".volume-range");
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
-    this._menuPopover = this._controlsBar.querySelector(".menu-popover");
-    this._menuSection = this._menuPopover.querySelector(".menu-section");
+    this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
+    this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
       this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
@@ -223,10 +244,10 @@ export class UI {
       this._timeInd = new UITimeIndicator(this._instName, this._controlsBar);
       this._playPrgSvc.setTimeIndUI(this._timeInd);
 
-      if (!this._audioOnly) {
+      if (!this._opts.audioOnly) {
         this._thumbnailPreview = new UIThumbnailPreview(this._instName, {
           parent: this._controlsBar,
-          preview: this._thumbnails,
+          preview: this._opts.thumbnails,
           baseUrl: opts.vod.thumbnailBaseUrl || "",
           offsetFn: () => this._seekBar.node.getBoundingClientRect().x,
         });
@@ -335,6 +356,13 @@ export class UI {
     }
   }
 
+  _removeCaptions() {
+    if (!this._captionCtrl) return;
+    this._captionCtrl.deinit();
+    this._captionCtrl = undefined;
+    this._captionList = undefined;
+  }
+
   _setupEasing() {
     this._hideTimer = null;
     this._onMouseMove = (e) => this._handleMouseMove(e);
@@ -349,11 +377,11 @@ export class UI {
       return;
     }
 
-    const autoBtn = this._menuSection.querySelector("button.rendition-auto");
-    let showAuto = this._autoAbr && renditions.length > 0;
+    const autoBtn = this._abrMenuSection.querySelector("button.rendition-auto");
+    let showAuto = this._opts.abrEnabled && renditions.length > 0;
     autoBtn.style.display = showAuto ? "block" : "none";
     autoBtn.dataset.rendition = "auto";
-    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn !== autoBtn) btn.remove();
     });
 
@@ -366,14 +394,14 @@ export class UI {
       button.dataset.rid = rendition.id;
       button.textContent = rendition.name;
       button._rendition = rendition;
-      this._menuSection.appendChild(button);
+      this._abrMenuSection.appendChild(button);
     });
 
     this._enableSelection();
   }
 
   _toggleAutoAbrButton() {
-    const res = this._menuSection.querySelector("button.rendition-auto");
+    const res = this._abrMenuSection.querySelector("button.rendition-auto");
     res.setAttribute("aria-checked", this._autoAbr ? "true" : "false");
     if (this._autoAbr) {
       res.style.display = "block";
@@ -388,8 +416,8 @@ export class UI {
   }
 
   _enableSelection() {
-    this._menuSection.removeEventListener("click", this._onRendMenuSelected);
-    this._menuSection.addEventListener("click", this._onRendMenuSelected);
+    this._abrMenuSection.removeEventListener("click", this._onRendMenuSelected);
+    this._abrMenuSection.addEventListener("click", this._onRendMenuSelected);
   }
 
   _selectRendition(selectedBtn) {
@@ -404,7 +432,11 @@ export class UI {
     const btn = e.target.closest("button.menu-item");
     if (!btn) return;
     this._selectRendition(btn);
-    this._menuPopover.hidden = true;
+    this._closeAbrMenu();
+  }
+
+  _closeAbrMenu() {
+    this._abrMenuPopover.hidden = true;
   }
 
   _onRenditionSet(rData) {
@@ -419,7 +451,7 @@ export class UI {
     }
     this._toggleAutoAbrButton();
 
-    this._menuSection.querySelectorAll("button.menu-item").forEach((btn) => {
+    this._abrMenuSection.querySelectorAll("button.menu-item").forEach((btn) => {
       if (btn.dataset.rendition === "auto") return;
       let isSel =
         !this._autoAbr &&
@@ -549,7 +581,8 @@ export class UI {
   }
 
   _handleSettingsClick(e) {
-    this._menuPopover.hidden = !this._menuPopover.hidden;
+    if (this._captionList) this._captionList.closeDialog();
+    this._abrMenuPopover.hidden = !this._abrMenuPopover.hidden;
   }
 
   _handleMouseMove(e) {
@@ -613,17 +646,29 @@ export class UI {
     this.drawPause();
   }
 
-  _onPlaybackStarted() {
+  _onPlaybackStarted(data) {
     this.drawPause();
     this._unsetBackground();
+    if (data.mode === MODE.LIVE) {
+      if (this._captionCtrl) {
+        this._captionCtrl.resume();
+        this._captionList.refresh();
+      }
+    }
   }
 
-  _onPlaybackPaused() {
+  _onPlaybackPaused(data) {
+    if (data.mode === MODE.LIVE) {
+      if (this._captionCtrl) this._captionCtrl.pause();
+    }
     this.drawPlay();
   }
 
   _onPlaybackEnded(data) {
-    if (data.mode === MODE.LIVE) this._setBackground();
+    if (data.mode === MODE.LIVE) {
+      this._setBackground();
+      this._hideCaptions();
+    }
     this.drawPlay();
   }
 
@@ -645,6 +690,12 @@ export class UI {
     if (!this._splashScreenUrl) return;
     this._canvas.style["background-image"] = "";
     this._canvas.style["background-size"] = "";
+  }
+
+  _hideCaptions() {
+    if (!this._captionCtrl) return;
+    this._captionCtrl.clear();
+    this._captionList.hide();
   }
 
   _applyBasicStyle(elem) {

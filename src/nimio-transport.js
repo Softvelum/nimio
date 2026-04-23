@@ -1,5 +1,9 @@
 import { MODE } from "./shared/values";
 import { AudioConfig } from "./audio/config";
+import { VideoHelper } from "./media/helpers/video";
+import { NalProcessor } from "./nal/processor";
+import { SeiProcessor } from "./sei/processor";
+import { CaptionPresenter } from "./captions/presenter";
 import { TransportAdapter } from "./transport/adapter";
 
 export const NimioTransport = {
@@ -96,6 +100,11 @@ export const NimioTransport = {
     if (this._isAutoAbr()) {
       this._rendProvider.init(this._config.adaptiveBitrate, this._ui.size);
       this._startAbrController();
+    }
+
+    if (this._config.captions || this._config.timecodes) {
+      this._initNalUnitProcessors(data.config.codec);
+      this._decoderFlows["video"].nalProcessor = this._nalProcessor;
     }
 
     this._eventBus.emit("nimio:rendition-list", this._makeUiRenditionList());
@@ -260,5 +269,64 @@ export const NimioTransport = {
       res.push({ name: renditions[i].rendition, id: renditions[i].idx + 1 });
     }
     return res;
+  },
+
+  _initNalUnitProcessors(codec) {
+    let codecGen = VideoHelper.getVideoCodecGen(codec);
+    if (codecGen === "H264" || codecGen === "H265") {
+      // For now we use NAL processor for captions and pic time messages only.
+      // So an SPS parsing is only available for the above features.
+      this._logger.debug(`Set NAL and SEI processor's codec = ${codecGen}`);
+      this._nalProcessor = NalProcessor.getInstance(this._instName);
+      this._nalProcessor.setCodec(codecGen);
+      this._seiProcessor = SeiProcessor.getInstance(this._instName);
+      this._seiProcessor.setCodec(codecGen);
+      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
+
+      this._seiProcessor.init();
+      // if (this._config.timecodes) {
+      //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
+      // }
+      if (this._config.captions) {
+        this._initCaptionProcessing();
+      }
+    }
+  },
+
+  _initCaptionProcessing() {
+    this._captionPresenter = CaptionPresenter.getInstance(this._instName);
+    this._captionPresenter.currentTimeFn = () => {
+      return this._latencyCtrl.getCurrentTsUs();
+    };
+    if (this._eventBus.hasListeners("nimio:captions-arrived")) {
+      this._captionPresenter.onCaptionsArrived = (caps, curTime) => {
+        this._eventBus.emit("nimio:captions-arrived", caps, curTime);
+      };
+    } else {
+      this._captionPresenter.onCaptionsArrived = null;
+    }
+    this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
+  },
+
+  _updateNalUnitProcessors(codec) {
+    if (!this._nalProcessor || !this._seiProcessor) return;
+
+    let codecGen = VideoHelper.getVideoCodecGen(codec);
+    if (
+      (codecGen !== "H264" && codecGen !== "H265") ||
+      this._nalProcessor?.codec === codecGen
+    ) {
+      return;
+    }
+
+    this._logger.debug(`Update NAL and SEI processor's codec = ${codecGen}`);
+    this._nalProcessor.setCodec(codecGen);
+    this._seiProcessor.setCodec(codecGen);
+    if (this._config.captions) {
+      this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
+    }
+    // if (this._config.timecodes) {
+    //   this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
+    // }
   },
 };

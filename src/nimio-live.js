@@ -169,11 +169,6 @@ export class NimioLive {
     }
   }
 
-  attachUI(ui) {
-    this._ui = ui;
-    this._ui.toggleMode(MODE.LIVE);
-  }
-
   attach(ui, params) {
     if (this._ui) return false;
 
@@ -193,7 +188,7 @@ export class NimioLive {
       this.setParameters(params);
     }
 
-    this.attachUI(ui);
+    this._attachUI(ui);
 
     if (params.pbError) {
       // the stream isn't in fact discontinued, but it couldn't be played
@@ -238,7 +233,7 @@ export class NimioLive {
     if (this._debugView) {
       this._debugView.clear();
     }
-    this._ui = undefined;
+    this._detachUI();
 
     if (callback) callback();
 
@@ -349,6 +344,31 @@ export class NimioLive {
     }
   }
 
+  getCaptionTracks() {
+    if (!this._ui || !this._ui.captionController) return {};
+    return this._ui.captionController.getCaptionTracks();
+  }
+
+  getCurrentCaptionTrack() {
+    if (!this._ui || !this._ui.captionController) return {};
+    return this._ui.captionController.getCurrentCaptionTrack();
+  }
+
+  setCaptionTrack(name) {
+    if (!this._ui || !this._ui.captionController) return false;
+    return this._ui.captionController.setCaptionTrack(name);
+  }
+
+  _attachUI(ui) {
+    this._ui = ui;
+    this._ui.toggleMode(MODE.LIVE);
+  }
+
+  _detachUI() {
+    this._ui.setDetached();
+    this._ui = undefined;
+  }
+
   _addUIEventHandlers() {
     this._eventBus.on("ui:play-pause-click", this._onPlayPauseClick);
     this._eventBus.on("ui:rendition-select", this._onRenditionChange);
@@ -376,7 +396,7 @@ export class NimioLive {
     if (this._audioCtxProvider.isSuspended()) {
       curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
     } else {
-      curPlayedTsUs = this._latencyCtrl.loadCurrentTsUs();
+      curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
     }
     this._updateBufferLevelMetrics();
 
@@ -575,6 +595,7 @@ export class NimioLive {
         this._decoderFlows[type] = null;
       }
     });
+    if (this._nalProcessor) this._nalProcessor.reset();
 
     this._state.setPlaybackStartTsUs(0);
     this._state.setVideoLatestTsUs(0);
