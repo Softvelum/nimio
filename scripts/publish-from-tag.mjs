@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageJsonPath = resolve(repoRoot, "package.json");
 const packageLockPath = resolve(repoRoot, "package-lock.json");
+const npmEnv = {
+  ...process.env,
+  npm_config_cache: resolve(repoRoot, ".npm-cache"),
+};
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -60,18 +64,44 @@ function getExactTag() {
   }
 }
 
-function getVersionFromTag(tag) {
-  const version = tag.replace(/^v/, "");
+function getDescribeVersion() {
+  try {
+    return run("git", ["describe", "--tags"]);
+  } catch {
+    throw new Error(
+      "Cannot determine version from git tags. Create a release tag first.",
+    );
+  }
+}
+
+function getVersionFromGitDescription(description) {
+  const version = description.replace(/^v/, "");
   const semverPattern =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
   if (!semverPattern.test(version)) {
     throw new Error(
-      `Tag "${tag}" does not map to a valid npm semver version. Expected a tag like v1.2.3.`,
+      `Git version "${description}" does not map to a valid npm semver version. Expected a tag like v1.2.3.`,
     );
   }
 
   return version;
+}
+
+function getPublishVersion() {
+  const description = getExactTag();
+  return {
+    description,
+    version: getVersionFromGitDescription(description),
+  };
+}
+
+function getDryRunVersion() {
+  const description = getDescribeVersion();
+  return {
+    description,
+    version: getVersionFromGitDescription(description),
+  };
 }
 
 function snapshotFiles(paths) {
@@ -94,27 +124,38 @@ function setPackageVersion(version) {
   writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`);
 }
 
+function hasNpmTag(args) {
+  return args.includes("--tag") || args.some((arg) => arg.startsWith("--tag="));
+}
+
 let snapshots;
 let publishResult;
 
 try {
-  ensureTrackedWorktreeClean();
+  if (!dryRun) {
+    ensureTrackedWorktreeClean();
+  }
 
-  const tag = getExactTag();
-  const version = getVersionFromTag(tag);
+  const { description, version } = dryRun
+    ? getDryRunVersion()
+    : getPublishVersion();
 
   snapshots = snapshotFiles([packageJsonPath, packageLockPath]);
   setPackageVersion(version);
 
   const publishArgs = ["publish", "--access", "public", ...npmArgs];
+  if (dryRun && version.includes("-") && !hasNpmTag(npmArgs)) {
+    publishArgs.push("--tag", "dry-run");
+  }
   if (dryRun) publishArgs.push("--dry-run");
 
   console.log(
-    `Publishing nimio-player@${version} from git tag ${tag}${dryRun ? " (dry run)" : ""}`,
+    `Publishing nimio-player@${version} from git version ${description}${dryRun ? " (dry run)" : ""}`,
   );
 
   publishResult = spawnSync("npm", publishArgs, {
     cwd: repoRoot,
+    env: npmEnv,
     stdio: "inherit",
   });
 
