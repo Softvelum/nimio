@@ -57,14 +57,50 @@ https://softvelum.com/nimio/demo/ - Stable
 
 Read the [first beta release announcement](https://softvelum.com/2025/05/introducing-nimio-nextgen-player/) with the list of current features.
 
+## Installation
+
+Nimio can be used either as an npm package in a bundler-based project, or as a standalone build loaded directly in the browser.
+
+### Option A. npm package (bundler: Vite, webpack, Rollup, Parcel, etc.)
+
+```bash
+npm install nimio-player
+```
+
+```javascript
+import Nimio from "nimio-player";
+import "nimio-player/style.css";
+
+const nimio = new Nimio({
+  streamUrl: "wss://example.com/stream",
+  container: "#player",
+});
+```
+
+Web Workers and the `AudioWorklet` processor used by Nimio are emitted as separate chunks next to the main file. Modern bundlers pick them up automatically via `new Worker(new URL(...), import.meta.url)` — no extra configuration is required.
+
+### Option B. Standalone build (no bundler)
+
+Download the latest `dist.tar.gz` from the [Releases](https://github.com/Softvelum/nimio/releases) page and host its contents on your server, or build it yourself:
+
+```bash
+git clone https://github.com/Softvelum/nimio.git
+cd nimio
+npm install
+npm run build
+```
+
+The build produces versioned files in `dist/`: `nimio-<version>.js`, `nimio-<version>.css` and a ready-to-use `demo.html`.
+
 ## Quick Start
 
 ```html
-<script type="module" src="/dist/nimio.js"></script>
+<link rel="stylesheet" href="/path/to/nimio.css" />
+<script type="module" src="/path/to/nimio.js"></script>
 
 <div id="player"></div>
 
-<script>
+<script type="module">
   const nimio = new Nimio({
     streamUrl: "wss://example.com/stream",
     container: "#player",
@@ -467,6 +503,17 @@ The following features are planned for upcoming releases:
 - Extended Player API
 - OffscreenCanvas rendering
 - Resume from pause in DVR mode (no auto-jump to live)
+
+## Development
+
+Common scripts:
+
+- `npm run dev` — start the Vite dev server with the demo page.
+- `npm run build` — produce the standalone build in `dist/` (versioned file names + `demo.html`).
+- `npm run build:pkg` — produce the npm package layout in `pkg/` (stable `nimio.js`/`nimio.css` + worker chunks in `pkg/assets/`).
+- `npm run build:all` — run both builds.
+- `npm run tar` — pack `dist/` into `dist.tar.gz` for standalone distribution.
+- `npm run test` / `npm run test:ci` — run the test suite.
 
 ## Contributing
 
