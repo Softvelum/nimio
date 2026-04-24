@@ -1,20 +1,65 @@
 {
-  "name": "nimio",
-  "description": "Nimio SLDP 2.0 Player",
-  "version": "0.0.1",
+  "name": "nimio-player",
+  "description": "Nimio SLDP 2.0 Player — lightweight JS player built on WebCodecs",
+  "version": "1.8.0",
   "author": "Dmitrii Shovtiuk <shovtyuk@gmail.com>",
   "license": "MIT",
   "type": "module",
+  "main": "pkg/nimio.js",
+  "module": "pkg/nimio.js",
+  "exports": {
+    ".": {
+      "import": "./pkg/nimio.js",
+      "default": "./pkg/nimio.js"
+    },
+    "./style.css": "./pkg/nimio.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "pkg",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "sldp",
+    "webcodecs",
+    "player",
+    "low-latency",
+    "streaming",
+    "websocket",
+    "video",
+    "softvelum"
+  ],
+  "homepage": "https://softvelum.com/nimio/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Softvelum/nimio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Softvelum/nimio/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:pkg": "vite build --config vite.lib.config.js",
+    "build:all": "npm run build && npm run build:pkg",
     "tar": "COPYFILE_DISABLE=1 tar -czf dist.tar.gz --no-xattrs dist",
     "preview": "vite preview",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "vitest",
     "test:ci": "vitest run",
-    "coverage": "npx vitest run --coverage tests"
+    "coverage": "npx vitest run --coverage tests",
+    "prepublishOnly": "npm run test:ci && npm run build:pkg"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
