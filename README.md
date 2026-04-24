@@ -238,7 +238,6 @@ These methods are available on every `Nimio` player instance.
 - `getCaptionTracks()`  
   Returns a map of the CEA-608 caption tracks currently available in the stream.  
   **Return value:** object, containing ID: CAP_OBJ pairs, where the ID is one of the following: "CC1", "CC2", "CC3", "CC4". The CAP_OBJ is and object with the following fields:
-
   - title - caption track title that is shown in caption selection dialog.
   - name - (optional) caption track name defined in caption settings.
   - lang - (optional) caption track language defined in caption settings.
