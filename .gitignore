@@ -15,6 +15,10 @@ dist-ssr
 coverage/*
 ssl/*.key
 ssl/*.crt
+.npm-cache
+examples/*/.local-package
+examples/*/*.tgz
+examples/*/.vite
 
 # Editor directories and files
 .vscode/*

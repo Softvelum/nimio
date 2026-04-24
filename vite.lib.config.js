@@ -10,6 +10,7 @@ try {
 }
 
 export default defineConfig({
+  base: "./",
   publicDir: false,
   define: {
     __NIMIO_VERSION__: JSON.stringify(version),
