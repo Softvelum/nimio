@@ -59,6 +59,8 @@
     "dev:pkg:webpack": "npm run build:pkg && npm run install:pkg:webpack && npm --prefix examples/webpack-package run dev",
     "test:pkg:webpack": "npm run build:pkg && npm run install:pkg:webpack && npm --prefix examples/webpack-package run build",
     "tar": "COPYFILE_DISABLE=1 tar -czf dist.tar.gz --no-xattrs dist",
+    "publish:tag": "node scripts/publish-from-tag.mjs",
+    "publish:tag:dry-run": "node scripts/publish-from-tag.mjs --dry-run",
     "preview": "vite preview",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
