@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +15,7 @@ if (!examplePath) {
 const exampleDir = resolve(repoRoot, examplePath);
 const packageDir = resolve(exampleDir, ".local-package");
 const localTarball = resolve(packageDir, "nimio-player-local.tgz");
+const installedPackageDir = resolve(exampleDir, "node_modules/nimio-player");
 const npmEnv = {
   ...process.env,
   npm_config_cache: resolve(repoRoot, ".npm-cache"),
@@ -47,9 +48,20 @@ if (!packedFile) {
 copyFileSync(resolve(packageDir, packedFile), localTarball);
 console.log(`Packed ${packedFile} -> ${localTarball}`);
 
+rmSync(installedPackageDir, { recursive: true, force: true });
+
 execFileSync(
   "npm",
-  ["--prefix", exampleDir, "install", localTarball, "--force"],
+  [
+    "--prefix",
+    exampleDir,
+    "install",
+    localTarball,
+    "--force",
+    "--package-lock=false",
+    "--no-audit",
+    "--no-fund",
+  ],
   {
     cwd: repoRoot,
     env: npmEnv,

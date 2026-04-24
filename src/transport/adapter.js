@@ -4,7 +4,7 @@ export class TransportAdapter {
   constructor(instName, workerUrl) {
     this._logger = LoggersFactory.create(instName, "Transport");
 
-    this._worker = new Worker(new URL(workerUrl, import.meta.url), {
+    this._worker = new Worker(workerUrl, {
       type: "module",
     });
     this._callbacks = {};
