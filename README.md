@@ -512,8 +512,30 @@ Common scripts:
 - `npm run build` — produce the standalone build in `dist/` (versioned file names + `demo.html`).
 - `npm run build:pkg` — produce the npm package layout in `pkg/` (stable `nimio.js`/`nimio.css` + worker chunks in `pkg/assets/`).
 - `npm run build:all` — run both builds.
+- `npm run test:pkg:vite` — build the npm package, install it into the Vite smoke-test app from a local `npm pack` tarball, and run the app production build.
+- `npm run dev:pkg:vite` — build and install the local package tarball, then start the Vite smoke-test app for manual browser testing.
 - `npm run tar` — pack `dist/` into `dist.tar.gz` for standalone distribution.
 - `npm run test` / `npm run test:ci` — run the test suite.
+
+### npm package smoke test
+
+The `examples/vite-package` project verifies that the npm package works when
+consumed by a real Vite app. It imports `nimio-player` and
+`nimio-player/style.css` from a local tarball generated with `npm pack`, so the
+test covers the published package shape (`files`, `exports`, CSS, worker chunks,
+and AudioWorklet assets), not just the source tree.
+
+Run the build smoke test from the repository root:
+
+```bash
+npm run test:pkg:vite
+```
+
+For manual playback testing in a browser:
+
+```bash
+npm run dev:pkg:vite
+```
 
 ## Contributing
 
