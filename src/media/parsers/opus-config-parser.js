@@ -23,12 +23,14 @@ export function parseOpusConfig(opusPacket) {
     let durationMs = 0;
     if (cfg >= 0 && cfg <= 11) {
       // SILK: 10, 20, 40, 60 ms
+      // prettier-ignore
       durationMs = 10 * (1 << (cfg % 4));
     } else if (cfg >= 12 && cfg <= 15) {
       // Hybrid: only 10 or 20 ms
       durationMs = cfg % 2 === 0 ? 10 : 20;
     } else if (cfg >= 16 && cfg <= 31) {
       // CELT: 2.5, 5, 10, 20 ms
+      // prettier-ignore
       durationMs = 2.5 * (1 << (cfg % 4));
     }
     return durationMs * 48; // OPUS has constant sample rate 48Khz
