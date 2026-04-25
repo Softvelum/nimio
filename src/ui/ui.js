@@ -9,6 +9,7 @@ import { PlaybackProgressService } from "@/playback/progress-service";
 import { UIThumbnailPreview } from "./thumbnail-preview";
 import { UICaptionController } from "./caption-controller";
 import { UICaptionList } from "./caption-list";
+import { UILayoutManager } from "./layout-manager";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -30,11 +31,7 @@ export class UI {
     this._container.classList.add("nimio-container");
     this._logger = LoggersFactory.create(this._instName, "UI");
 
-    this._layoutMgr = new UILayoutManager(
-      this._opts.width,
-      this._opts.height,
-      this._opts.ar,
-    );
+    this._layoutMgr = new UILayoutManager(this._opts.ar);
     this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
@@ -43,8 +40,10 @@ export class UI {
     if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
-
-    this._updateOutputSize(this._layoutMgr.width, this._layoutMgr.height);
+    this._outputs.forEach((elem) => {
+      elem.style.width = this._toCssSize(this._opts.width);
+      elem.style.height = this._toCssSize(this._opts.height);
+    });
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
     this._cctx.save();
@@ -516,13 +515,9 @@ export class UI {
       this._updateCanvasSize(w, h);
     }
     this._outputs.forEach((elem) => {
-      this._applySize(elem, w, h);
+      elem.style.width = w;
+      elem.style.height = h;
     });
-  }
-
-  _applySize(elem, w, h) {
-    elem.style.width = `${w}px`;
-    elem.style.height = `${h}px`;
   }
 
   _updateCanvasSize(w, h) {
@@ -681,6 +676,13 @@ export class UI {
       zIndex: 10,
       margin: "auto",
     });
+  }
+
+  _toCssSize(value) {
+    if (typeof value === "number") {
+      return `${value}px`;
+    }
+    return value;
   }
 
   // adjustAspectRatio () {

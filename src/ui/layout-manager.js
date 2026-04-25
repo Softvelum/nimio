@@ -1,7 +1,5 @@
-class UILayoutManager {
-  constructor(width, height, ar) {
-    this._cssWidth = this._toCssSize(width);
-    this._cssHeight = this._toCssSize(height);
+export class UILayoutManager {
+  constructor(ar) {
     this._initAspectRatio(ar);
   }
 
@@ -10,31 +8,23 @@ class UILayoutManager {
       const screenAspect = window.innerWidth / window.innerHeight;
 
       let newWidth, newHeight;
-      if (screenAspect > this._ar) {
+      if (screenAspect > this._far) {
         newHeight = window.innerHeight;
-        newWidth = Math.round(newHeight * this._ar);
+        newWidth = Math.round(newHeight * this._far);
       } else {
         newWidth = window.innerWidth;
-        newHeight = Math.round(newWidth / this._ar);
+        newHeight = Math.round(newWidth / this._far);
       }
     }
   }
 
-
-
   _initAspectRatio(ar) {
     if (!ar) return;
 
-    let ar = ar.split(":").join("/").split("/");
+    ar = ar.split(":").join("/").split("/");
     if (ar.length !== 2) return;
     ar = { x: parseInt(ar[0]), y: parseInt(ar[1]) };
-    this._sar = ar.x / ar.y;
+    this._far = ar.x / ar.y;
   }
 
-  _toCssSize(value) {
-    if (typeof value === "number") {
-      return `${value}px`;
-    }
-    return value;
-  }
 }
