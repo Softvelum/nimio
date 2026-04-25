@@ -162,10 +162,11 @@ nimio = new Nimio({
       default: true, // (optional) defines whether given track should be enabled by default. If this parameter isn’t specified for any of the tracks, then captions won’t be shown on the player start.
     },
     CC2: {
-      name: "Third track", // (optional) track name
+      name: "Second track", // (optional) track name
       lang: "French", // (optional) track language
     },
   },
+  timecodes: true, // enables handling of SEI picture timing (H264) and SEI time code (H265) messages
 });
 
 nimio.play();
@@ -251,6 +252,20 @@ These methods are available on every `Nimio` player instance.
   **Return value:** boolean status (`true` - track is set successfully, `false` - specified track can't be set).  
   **Parameters:**  
   ID - either caption track ID value, which can be one of the following: "CC1", "CC2", "CC3", "CC4" or "OFF" to turn off captions.
+
+- `getCurrentStreamBandwidth()`  
+  Returns stream's bandwidth in bits per second.
+
+- `getVodThumbnailUrl(time)`  
+  Returns the URL to the thumbnail of the current VOD stream at the given time in seconds. More specifically, the thumbnail is the keyframe of the HLS segment that covers the given time.  
+  IMPORTANT: This functionality only works if Nimble Streamer is configured with the `dvr_hls_add_program_date_time` parameter enabled. If there is no thumbnail at the specified time or if Nimble Streamer isn't configured with the above parameter, the result is undefined.  
+  **Return value:** string with the requested thumbnail URL.  
+  **Parameters:**  
+  time - time of the thumbnail in seconds from 0 to the length of the DVR archive
+
+- `getStreamEncodedFramerate()`  
+  Returns framerate value calculated from the SPS parameters. Applicable only when the "timecodes" init parameter is enabled. If there are no relevant parameters in the SPS, the method will return undefined. The method should be run after the player started to receive video frames. E.g. it can be run on the first "nimio:sei-timecode" event emission.  
+  **Return value:** integer value of the current stream's framerate, encoded in the SPS.
 
 ### Static Methods
 
@@ -491,13 +506,23 @@ enabled: Boolean;
   currentTime: Number, // current player time in microseconds
 ```
 
+- `nimio:sei-timecode`  
+  Emitted each time a new SEI picture timing or SEI time code message is parsed by the player.  
+  **Parameters:**
+
+```javascript
+  frameTs: Number, // timestamp of a frame to which the given SEI picture timing message is attached. The timestamp is calculated according to the stream's timescale
+  clockTs: Number, // clockTimstamp from the SEI message which is calculated according to the Rec. ITU-T H.264 document.
+  stringTs: String, // timecode from the SEI message in the form "hh:mm:ss.n_frames time_offset"
+  mode: String, // "live" - the timecode is retrieved from a Live stream, "vod" - the timecode is retrieved from a VOD stream;
+```
+
 ## Roadmap
 
 The following features are planned for upcoming releases:
 
 - Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
-- SEI timecodes support
 - WebTransport protocol
 - Screenshot capture
 - Extended Player API

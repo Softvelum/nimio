@@ -58,16 +58,30 @@
           },
           workletLogs: true,
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
-          vod: {
-            startupVodFailover: true,
-            thumbnails: true,
-          },
           splashScreen: "splash.jpg",
+
+          // vod: {
+          //   startupVodFailover: true,
+          //   thumbnails: true,
+          // },
+
+          // captions: {
+          //   CC1: { name: "First track", lang: "English", default: true },
+          //   CC2: { name: "Second track", lang: "French" },
+          // },
+
+          // timecodes: true,
         });
 
         window.nimio.on("nimio:play", () => {
           console.log("Nimio play event");
         });
+        // window.nimio.on("nimio:captions-arrived", (caps, curTime) => {
+        //   console.log("Nimio captions arrived", caps, curTime);
+        // });
+        // window.nimio.on("nimio:sei-timecode", (frameTs, clockTs, stringTs, mode) => {
+        //   console.log("Nimio sei timecode arrived", frameTs, clockTs, stringTs, mode);
+        // });
       }
 
       document

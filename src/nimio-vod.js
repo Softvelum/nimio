@@ -11,6 +11,9 @@ import { throttler } from "./shared/helpers";
 import { VodPlaybackService } from "./vod/playback-service";
 import { STATE, MODE } from "./shared/values";
 import { EventBus } from "./event-bus";
+import { NalProcessor } from "./nal/processor";
+import { SeiProcessor } from "./sei/processor";
+import { SPSHolder } from "./sps/holder";
 
 const VOD_STATE = {
   NULL: 0,
@@ -35,6 +38,7 @@ export class NimioVod {
     this._loadSourcePromise
       .then((script) => {
         this._pHandler = new Hls({
+          abrMaxWithRealBitrate: true,
           // autoStartLoad: false,
           // workerPath: this._workerPath,
           // debug: true,
@@ -51,11 +55,11 @@ export class NimioVod {
         this._audioCtrl = AudioController.getInstance(this._instName);
         this._segmTracker = PlaybackSegmentTracker.getInstance(this._instName);
 
-        // if (this._config.timecodes) {
-        //   this._spsHolder = SPSHolder.getInstance(this._instName);
-        //   this._nalProcessor = NalProcessor.getInstance(this._instName);
-        //   this._seiProcessor = SeiProcessor.getInstance(this._instName);
-        // }
+        if (this._config.timecodes) {
+          this._spsHolder = SPSHolder.getInstance(this._instName);
+          this._nalProcessor = NalProcessor.getInstance(this._instName);
+          this._seiProcessor = SeiProcessor.getInstance(this._instName);
+        }
 
         this._onProgress = throttler(
           this,
@@ -73,6 +77,51 @@ export class NimioVod {
         this._logger.error(
           "Can not load HLS.js library from given source",
           script,
+        );
+      });
+  }
+
+  initialize(mediaElement) {
+    return this._loadSourcePromise
+      .then(() => {
+        if (
+          this._state === VOD_STATE.NULL ||
+          this._state === VOD_STATE.PLAY ||
+          this._url === this._config.url
+        )
+          return;
+
+        if (this._state === VOD_STATE.INIT) {
+          const EV = Hls.Events;
+          this._pHandler.on(EV.MANIFEST_PARSED, this._onManifestParsed);
+          this._pHandler.on(EV.LEVEL_LOADED, this._onLevelLoaded);
+          this._pHandler.on(EV.MEDIA_DETACHED, this._onMediaDetached);
+          this._pHandler.on(EV.MEDIA_ATTACHED, this._onMediaAttached);
+          this._pHandler.on(EV.BUFFER_CODECS, this._onBufferCodecs);
+          this._pHandler.on(EV.LEVEL_SWITCHED, this._onLevelSwitched);
+          this._pHandler.on(EV.ERROR, this._onError);
+
+          this._pHandler.on(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg);
+          this._pHandler.on(EV.BUFFER_APPENDING, this._onBufferAppending);
+
+          // this._pHandler.on(EV.LEVEL_SWITCHING, this._onLevelSwitching);
+          // this._pHandler.on(EV.FRAG_PARSING_USERDATA, this._onParseUserData);
+          // this._pHandler.on(EV.FRAG_PARSING_METADATA, this._onParseMetaData);
+          // this._pHandler.on(EV.FRAG_PARSED, this._onFragParsed);
+          // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
+          // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
+          // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
+          this._playbackService.init(mediaElement);
+          this._addUIEventHandlers();
+          this._state = VOD_STATE.SYNC;
+        }
+
+        this._url = this._config.url;
+        this._pHandler.loadSource(this._fullUrl());
+      })
+      .catch((err) => {
+        this._logger.error(
+          "Can not initialize VOD player because HLS.js library was not loaded",
         );
       });
   }
@@ -120,13 +169,13 @@ export class NimioVod {
     if (this._state >= VOD_STATE.SYNC) {
       this._vuMeterSvc.stop();
       this._playbackService.clear();
-      // if (this._config.timecodes) {
-      //   this._nalProcessor.reset();
-      //   this._nalProcessor = undefined;
-      //   this._seiProcessor = undefined;
-      //   this._picTimingProcessor = undefined;
-      //   this._spsHolder = undefined;
-      // }
+      if (this._config.timecodes) {
+        this._nalProcessor.reset();
+        this._nalProcessor = undefined;
+        this._seiProcessor = undefined;
+        this._picTimingProcessor = undefined;
+        this._spsHolder = undefined;
+      }
     }
 
     this._state = VOD_STATE.NULL;
@@ -240,35 +289,6 @@ export class NimioVod {
     return this.onChangeRendition(lvl.rend, lvl.rIdx);
   }
 
-  _formatStream(lvl) {
-    if (!lvl) return null;
-
-    let stream = {
-      name: lvl.name,
-      bandwidth: lvl.data.bitrate,
-    };
-    if (lvl.data.width > 0) stream.width = lvl.data.width;
-    if (lvl.data.height > 0) stream.height = lvl.data.height;
-
-    return stream;
-  }
-
-  _formatRendition(lvl) {
-    if (!lvl) return null;
-
-    let rendition = {
-      id: lvl.idx + 1,
-      rendition: lvl.rend,
-      bandwidth: lvl.data.bitrate,
-    };
-    if (lvl.data.width > 0) rendition.width = lvl.data.width;
-    if (lvl.data.height > 0) rendition.height = lvl.data.height;
-    if (lvl.data.videoCodec) rendition.vcodec = lvl.data.videoCodec;
-    if (lvl.data.audioCodec) rendition.acodec = lvl.data.audioCodec;
-
-    return rendition;
-  }
-
   getStreams() {
     let streams = [];
     let ords = this._context.orderedLevels;
@@ -295,7 +315,8 @@ export class NimioVod {
   }
 
   getCurrentStreamBandwidth() {
-    return 0;
+    let curLvl = this._context.getCurrentLevel();
+    return curLvl ? this._pHandler.levels[curLvl.idx].realBitrate : 0;
   }
 
   // TODO: handle CC related methods
@@ -311,49 +332,9 @@ export class NimioVod {
     return false;
   }
 
-  initialize(mediaElement) {
-    return this._loadSourcePromise
-      .then(() => {
-        if (
-          this._state === VOD_STATE.NULL ||
-          this._state === VOD_STATE.PLAY ||
-          this._url === this._config.url
-        )
-          return;
-
-        if (this._state === VOD_STATE.INIT) {
-          const EV = Hls.Events;
-          this._pHandler.on(EV.MANIFEST_PARSED, this._onManifestParsed);
-          this._pHandler.on(EV.LEVEL_LOADED, this._onLevelLoaded);
-          this._pHandler.on(EV.MEDIA_DETACHED, this._onMediaDetached);
-          this._pHandler.on(EV.MEDIA_ATTACHED, this._onMediaAttached);
-          this._pHandler.on(EV.BUFFER_CODECS, this._onBufferCodecs);
-          this._pHandler.on(EV.LEVEL_SWITCHED, this._onLevelSwitched);
-          this._pHandler.on(EV.ERROR, this._onError);
-
-          this._pHandler.on(EV.FRAG_PARSING_INIT_SEGMENT, this._onParseInitSeg);
-          this._pHandler.on(EV.BUFFER_APPENDING, this._onBufferAppending);
-
-          // this._pHandler.on(EV.LEVEL_SWITCHING, this._onLevelSwitching);
-          // this._pHandler.on(EV.FRAG_PARSING_USERDATA, this._onParseUserData);
-          // this._pHandler.on(EV.FRAG_PARSING_METADATA, this._onParseMetaData);
-          // this._pHandler.on(EV.FRAG_PARSED, this._onFragParsed);
-          // this._pHandler.on(EV.FRAG_LOADING, this._onFragLoading);
-          // this._pHandler.on(EV.FRAG_LOADED, this._onFragLoaded);
-          // this._pHandler.on(EV.FRAG_BUFFERED, this._onFragBuffered);
-          this._playbackService.init(mediaElement);
-          this._addUIEventHandlers();
-          this._state = VOD_STATE.SYNC;
-        }
-
-        this._url = this._config.url;
-        this._pHandler.loadSource(this._fullUrl());
-      })
-      .catch((err) => {
-        this._logger.error(
-          "Can not initialize VOD player because HLS.js library was not loaded",
-        );
-      });
+  getCurrentTimestamp() {
+    if (this._state !== VOD_STATE.PLAY || !this._ui) return 0;
+    return Math.round(this._ui.mediaElement.currentTime * 1_000_000);
   }
 
   attach(ui, position, callback) {
@@ -453,15 +434,6 @@ export class NimioVod {
     return this._state === VOD_STATE.PLAY;
   }
 
-  setCallbacks(cbs) {
-    if (cbs.onTimecodeArrived) {
-      this._sdk.onTimecodeArrived = cbs.onTimecodeArrived;
-      if (this._picTimingProcessor) {
-        this._picTimingProcessor.setCallback(this._onTimecodeArrived);
-      }
-    }
-  }
-
   hasPlaybackErrors() {
     return this._playbackErrCnt > 0;
   }
@@ -534,6 +506,35 @@ export class NimioVod {
 
   onLeavePip() {
     this._playbackService.resumeIfAutoPaused();
+  }
+
+  _formatStream(lvl) {
+    if (!lvl) return null;
+
+    let stream = {
+      name: lvl.name,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) stream.width = lvl.data.width;
+    if (lvl.data.height > 0) stream.height = lvl.data.height;
+
+    return stream;
+  }
+
+  _formatRendition(lvl) {
+    if (!lvl) return null;
+
+    let rendition = {
+      id: lvl.idx + 1,
+      rendition: lvl.rend,
+      bandwidth: lvl.data.bitrate,
+    };
+    if (lvl.data.width > 0) rendition.width = lvl.data.width;
+    if (lvl.data.height > 0) rendition.height = lvl.data.height;
+    if (lvl.data.videoCodec) rendition.vcodec = lvl.data.videoCodec;
+    if (lvl.data.audioCodec) rendition.acodec = lvl.data.audioCodec;
+
+    return rendition;
   }
 
   _addScriptTag(url) {
@@ -777,16 +778,14 @@ export class NimioVod {
     }
   };
 
-  _onTimecodeArrived = (frameTs, clockTs, stringTs) => {
-    // this._onTimecodeArrivedCallback(frameTs, clockTs, stringTs, {
-    //   vod: true,
-    // });
+  _onTimecodeArrived = (frameTs, clkTs, strTs) => {
+    this._eventBus.emit("nimio:sei-timecode", frameTs, clkTs, strTs, MODE.VOD);
   };
 
   _onParseInitSeg = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
     if (this._config.timecodes) {
-      // let prevCodec = this._spsHolder.getCodec();
+      let prevCodec = this._spsHolder.getCodec();
       if (
         !data.tracks ||
         !data.tracks.video ||
@@ -803,33 +802,32 @@ export class NimioVod {
       this._timescale = cd.timescale;
       this._trackId = cd.trackId;
 
-      // this._spsHolder.setCodec(cd.codec);
-      // this._spsHolder.parseDecoderConfig(cd.data);
+      this._spsHolder.setCodec(cd.codec);
+      this._spsHolder.parseDecoderConfig(cd.data);
 
-      // if (prevCodec) this._nalProcessor.reset();
-      // if (prevCodec === this._spsHolder.getCodec()) {
-      //   this._initPicTimingProcessor();
-      //   // codec is the same, there's no point in resetting related nal handlers
-      //   return;
-      // }
+      if (prevCodec) this._nalProcessor.reset();
+      if (prevCodec === this._spsHolder.getCodec()) {
+        this._initPicTimingProcessor();
+        // codec is the same, there's no point in resetting related nal handlers
+        return;
+      }
 
-      // this._nalProcessor.setCodec(cd.codec);
-      // this._seiProcessor.init();
-      // this._seiProcessor.setCodec(cd.codec);
-      // this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
-      // this._initPicTimingProcessor();
+      this._nalProcessor.setCodec(cd.codec);
+      this._seiProcessor.init();
+      this._seiProcessor.setCodec(cd.codec);
+      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
+      this._initPicTimingProcessor();
     }
   };
 
   _initPicTimingProcessor() {
     this._picTimingProcessor = this._seiProcessor.getPicTimingHandler();
-    if (!this._picTimingProcessor) {
-      this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
-    }
+    if (this._picTimingProcessor) return;
 
-    // if (this._sdk.onTimecodeArrived) {
-    //   this._picTimingProcessor.setCallback(this._onTimecodeArrived);
-    // }
+    this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
+    if (this._eventBus.hasListeners("nimio:sei-timecode")) {
+      this._picTimingProcessor.onTimecode = this._onTimecodeArrived;
+    }
   }
 
   _onBufferAppending = (name, buffer) => {
@@ -842,7 +840,7 @@ export class NimioVod {
         this._trackId,
       );
       for (let i = 0; i < frames.length; i++) {
-        this._nalProcessor.handleFrame(frames[i][0], frames[i][1]);
+        this._nalProcessor.handleFrame(frames[i]);
       }
     }
   };

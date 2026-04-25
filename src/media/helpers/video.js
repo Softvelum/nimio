@@ -152,7 +152,7 @@ export class VideoHelper {
   static getFramesFromDataSegment(data, timescale, trackId) {
     let result = [];
 
-    let timeOffset = 0;
+    let timeOffs = 0;
     const moofs = this.findBox(data, ["moof"]);
     for (let i = 0; i < moofs.length; i++) {
       const moofOffset = moofs[i].byteOffset - 8;
@@ -171,7 +171,7 @@ export class VideoHelper {
         }
 
         if (baseTime !== undefined) {
-          timeOffset = baseTime;
+          timeOffs = baseTime;
         }
 
         const tfhds = this.findBox(trafs[j], ["tfhd"]);
@@ -211,7 +211,7 @@ export class VideoHelper {
 
             let sampleDuration = 0;
             let sampleSize = 0;
-            let compositionOffset = 0;
+            let compositionOffs = 0;
 
             let trunOffset = 8; // past version, flags, and sample count
             let dataOffset = 0;
@@ -226,7 +226,7 @@ export class VideoHelper {
               trunOffset += 4;
             }
 
-            let sampleOffset = dataOffset + moofOffset;
+            let sampleOffs = dataOffset + moofOffset;
 
             const sampleDurationPresent = (flags & 0x000100) !== 0;
             const sampleSizePresent = (flags & 0x000200) !== 0;
@@ -250,22 +250,19 @@ export class VideoHelper {
               }
               if (compositionOffsetsPresent) {
                 if (version === 0) {
-                  compositionOffset = this.readUint32(truns[n], trunOffset);
+                  compositionOffs = this.readUint32(truns[n], trunOffset);
                 } else {
-                  compositionOffset = this.readSint32(truns[n], trunOffset);
+                  compositionOffs = this.readSint32(truns[n], trunOffset);
                 }
                 trunOffset += 4;
               }
 
-              const sample = data.subarray(
-                sampleOffset,
-                sampleOffset + sampleSize,
-              );
-              let ts = timeOffset + compositionOffset / timescale;
-              result.push([ts, sample]);
+              const frame = data.subarray(sampleOffs, sampleOffs + sampleSize);
+              let pts = timeOffs + compositionOffs / timescale;
+              result.push({ pts, frame });
 
-              sampleOffset += sampleSize;
-              timeOffset += sampleDuration / timescale;
+              sampleOffs += sampleSize;
+              timeOffs += sampleDuration / timescale;
             }
           }
         }

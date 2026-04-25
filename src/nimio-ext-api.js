@@ -45,4 +45,22 @@ export const NimioExtAPI = {
   setCaptionTrack(name) {
     return this._actPlayer.setCaptionTrack(name);
   },
+
+  getCurrentStreamBandwidth() {
+    return this._actPlayer.getCurrentStreamBandwidth();
+  },
+
+  getStreamEncodedFramerate() {
+    return this._spsHolder.sps?.maxFps;
+  },
+
+  getVodThumbnailUrl(time) {
+    if (this._thumbnailSvc && this._thumbnailSvc.isSetUp()) {
+      return this._thumbnailSvc.getUrl(time);
+    }
+  },
+
+  getCurrentTimestamp() {
+    return this._actPlayer.getCurrentTimestamp();
+  },
 };

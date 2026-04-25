@@ -200,6 +200,8 @@ export class DecoderFlow {
           this._trackId = this._switchPeerFlow.trackId;
           this._codec = this._switchPeerFlow.codec;
           this._timescale = this._switchPeerFlow.timescale;
+          this._finalizeSwitch(this._switchPeerFlow);
+
           this._switchPeerFlow = null;
           this._switchContext = null;
           this._onSwitchResult(true);
@@ -335,6 +337,9 @@ export class DecoderFlow {
   }
   get codec() {
     return this._codec;
+  }
+  get codecData() {
+    return this._codecData;
   }
 
   get onStartTsNotSet() {

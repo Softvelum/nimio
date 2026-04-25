@@ -1,7 +1,7 @@
 import { multiInstanceService } from "@/shared/service";
 import { NalReader } from "@/nal/reader";
-// import { H264PicTimingProcessor } from "timecodes/h264_pic_timing_processor";
-// import { H265TimeCodeProcessor } from "timecodes/h265_time_code_processor";
+import { H264PicTimingProcessor } from "./timecodes/h264-pic-timing-processor";
+import { H265TimeCodeProcessor } from "./timecodes/h265-time-code-processor";
 import { Cea608Processor } from "@/captions/cea608-processor";
 import { LoggersFactory } from "@/shared/logger";
 
@@ -32,12 +32,12 @@ class SeiProcessor {
 
   addPicTimingHandler() {
     let ptProcessor;
-    // if (this._codec === "H264") {
-    //   ptProcessor = new H264PicTimingProcessor(this._instName);
-    // } else if (this._codec === "H265") {
-    //   ptProcessor = new H265TimeCodeProcessor(this._instName);
-    // }
-    // this._handlers.push(ptProcessor);
+    if (this._codec === "H264") {
+      ptProcessor = new H264PicTimingProcessor(this._instName);
+    } else if (this._codec === "H265") {
+      ptProcessor = new H265TimeCodeProcessor(this._instName);
+    }
+    this._handlers.push(ptProcessor);
 
     return ptProcessor;
   }
@@ -72,7 +72,8 @@ class SeiProcessor {
         payloadSize += b;
         curPos++;
       }
-      // this._logger.debug('SEI payload type = ' + payloadType + ' and payloadSize = ' + payloadSize);
+
+      // this._logger.debug(`SEI payload type = ${payloadType} and payloadSize = ${payloadSize}`);
       for (let i = 0; i < this._handlers.length; i++) {
         if (
           this._handlers[i].isMatching(
