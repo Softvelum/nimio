@@ -79,7 +79,7 @@ export const NimioRenditions = {
       if (m) result += m.latestBandwidth();
     });
 
-    return result;
+    return Math.round(result);
   },
 
   _onRenditionChange(data) {

@@ -38,6 +38,7 @@ export class NimioVod {
     this._loadSourcePromise
       .then((script) => {
         this._pHandler = new Hls({
+          abrMaxWithRealBitrate: true,
           // autoStartLoad: false,
           // workerPath: this._workerPath,
           // debug: true,
@@ -314,7 +315,8 @@ export class NimioVod {
   }
 
   getCurrentStreamBandwidth() {
-    return 0;
+    let curLvl = this._context.getCurrentLevel();
+    return curLvl ? this._pHandler.levels[curLvl.idx].realBitrate : 0;
   }
 
   // TODO: handle CC related methods
