@@ -15,6 +15,8 @@ import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { AudioVolumeController } from "./audio/volume-controller";
+import { PlaybackThumbnailService } from "./playback/thumbnail-service";
+import { SPSHolder } from "./sps/holder";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -86,6 +88,10 @@ export default class Nimio {
       this._eventBus,
       this._playProgressSvc,
     );
+    this._thumbnailSvc = PlaybackThumbnailService.getInstance(this._instName);
+    if (this._config.timecodes || this._config.captions) {
+      this._spsHolder = SPSHolder.getInstance(this._instName);
+    }
   }
 
   destroy() {
