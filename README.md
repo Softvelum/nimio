@@ -475,8 +475,8 @@ enabled: Boolean;
   **Parameters:**
 
 ```javascript
-  frameTs: Number, // timestamp of a frame to which the given SEI picture timing message is attached. The timestamp is calculated according to the stream's timescale
-  clockTs: Number, // clockTimstamp from the SEI message which is calculated according to the Rec. ITU-T H.264 document.
+  frameTs: Number, // timestamp of a frame to which the given SEI picture timing message is attached. The timestamp is defined in microseconds
+  clockTs: Number, // clockTimestamp from the SEI message which is calculated according to the Rec. ITU-T H.264 document.
   stringTs: String, // timecode from the SEI message in the form "hh:mm:ss.n_frames time_offset"
   mode: String, // "live" - the timecode is retrieved from a Live stream, "vod" - the timecode is retrieved from a VOD stream;
 ```

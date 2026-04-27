@@ -26,6 +26,4 @@ export class DecoderFlowAudio extends DecoderFlow {
     }
     this._state.setAudioDecoderQueue(data.decoderQueue);
   }
-
-  _finalizeSwitch(peerFlow) {}
 }

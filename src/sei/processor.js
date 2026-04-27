@@ -36,8 +36,10 @@ class SeiProcessor {
       ptProcessor = new H264PicTimingProcessor(this._instName);
     } else if (this._codec === "H265") {
       ptProcessor = new H265TimeCodeProcessor(this._instName);
+    } else {
+      this._logger.error(`Unsupported codec ${this._codec}`);
     }
-    this._handlers.push(ptProcessor);
+    if (ptProcessor) this._handlers.push(ptProcessor);
 
     return ptProcessor;
   }

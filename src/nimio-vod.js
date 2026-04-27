@@ -574,6 +574,28 @@ export class NimioVod {
     }
   }
 
+  _initPicTimingProcessor() {
+    this._picTimingProcessor = this._seiProcessor.getPicTimingHandler();
+    if (!this._picTimingProcessor) {
+      this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
+    }
+
+    this._eventBus.onListenerAdded(
+      "nimio:sei-timecode",
+      this._enableTimecodeEventHandler.bind(this),
+    );
+  }
+
+  _enableTimecodeEventHandler() {
+    if (!this._picTimingProcessor) return;
+    this._picTimingProcessor.onTimecode = this._onTimecodeArrived.bind(this);
+  }
+
+  _onTimecodeArrived(frameTs, clkTs, strTs) {
+    let fTsUs = Math.round(frameTs * 1_000_000);
+    this._eventBus.emit("nimio:sei-timecode", fTsUs, clkTs, strTs, MODE.VOD);
+  }
+
   _onManifestParsed = (event, data) => {
     if (!data.levels || data.levels.length === 0) return;
 
@@ -778,57 +800,42 @@ export class NimioVod {
     }
   };
 
-  _onTimecodeArrived = (frameTs, clkTs, strTs) => {
-    this._eventBus.emit("nimio:sei-timecode", frameTs, clkTs, strTs, MODE.VOD);
-  };
-
   _onParseInitSeg = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
-    if (this._config.timecodes) {
-      let prevCodec = this._spsHolder.getCodec();
-      if (
-        !data.tracks ||
-        !data.tracks.video ||
-        !data.tracks.video.initSegment
-      ) {
-        return;
-      }
+    if (!this._config.timecodes) return;
+    if (
+      !data.tracks ||
+      !data.tracks.video ||
+      !data.tracks.video.initSegment
+    ) {
+      return;
+    }
 
-      let cd = VideoHelper.getCodecDataFromInitSegment(
-        data.tracks.video.initSegment,
-      );
-      if (!cd.codec || !cd.data) return;
+    let cd = VideoHelper.getCodecDataFromInitSegment(
+      data.tracks.video.initSegment,
+    );
+    if (!cd.codec || !cd.data) return;
 
-      this._timescale = cd.timescale;
-      this._trackId = cd.trackId;
+    this._timescale = cd.timescale;
+    this._trackId = cd.trackId;
 
-      this._spsHolder.setCodec(cd.codec);
-      this._spsHolder.parseDecoderConfig(cd.data);
+    const prevCodec = this._spsHolder.getCodec();
+    this._spsHolder.setCodec(cd.codec);
+    this._spsHolder.parseDecoderConfig(cd.data);
 
-      if (prevCodec) this._nalProcessor.reset();
-      if (prevCodec === this._spsHolder.getCodec()) {
-        this._initPicTimingProcessor();
-        // codec is the same, there's no point in resetting related nal handlers
-        return;
-      }
-
-      this._nalProcessor.setCodec(cd.codec);
-      this._seiProcessor.init();
-      this._seiProcessor.setCodec(cd.codec);
-      this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
+    if (prevCodec) this._nalProcessor.reset();
+    if (prevCodec === this._spsHolder.getCodec()) {
       this._initPicTimingProcessor();
+      // codec is the same, there's no point in resetting related nal handlers
+      return;
     }
+
+    this._nalProcessor.setCodec(cd.codec);
+    this._seiProcessor.init();
+    this._seiProcessor.setCodec(cd.codec);
+    this._nalProcessor.addNalHandler(this._seiProcessor, "SEI");
+    this._initPicTimingProcessor();
   };
-
-  _initPicTimingProcessor() {
-    this._picTimingProcessor = this._seiProcessor.getPicTimingHandler();
-    if (this._picTimingProcessor) return;
-
-    this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
-    if (this._eventBus.hasListeners("nimio:sei-timecode")) {
-      this._picTimingProcessor.onTimecode = this._onTimecodeArrived;
-    }
-  }
 
   _onBufferAppending = (name, buffer) => {
     if (this._config.timecodes) {

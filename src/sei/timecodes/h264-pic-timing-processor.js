@@ -23,7 +23,7 @@ export class H264PicTimingProcessor extends BaseTimeCodeProcessor {
       let picStruct = this._bitr.readBits(4);
 
       let numClockTs = seiNumClockTsTable[picStruct];
-      if (numClockTs === undefined) return null;
+      if (numClockTs === undefined) return result;
 
       for (let i = 0; i < numClockTs; i++) {
         // check clock_timestamp_flag

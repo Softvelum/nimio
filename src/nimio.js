@@ -89,7 +89,9 @@ export default class Nimio {
       this._playProgressSvc,
     );
     this._thumbnailSvc = PlaybackThumbnailService.getInstance(this._instName);
-    this._spsHolder = SPSHolder.getInstance(this._instName);
+    if (this._config.timecodes || this._config.captions) {
+      this._spsHolder = SPSHolder.getInstance(this._instName);
+    }
   }
 
   destroy() {

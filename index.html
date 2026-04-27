@@ -60,17 +60,17 @@
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
           splashScreen: "splash.jpg",
 
-          // vod: {
-          //   startupVodFailover: true,
-          //   thumbnails: true,
-          // },
+          vod: {
+            startupVodFailover: true,
+            thumbnails: true,
+          },
 
-          // captions: {
-          //   CC1: { name: "First track", lang: "English", default: true },
-          //   CC2: { name: "Second track", lang: "French" },
-          // },
+          captions: {
+            CC1: { name: "First track", lang: "English", default: true },
+            CC2: { name: "Second track", lang: "French" },
+          },
 
-          // timecodes: true,
+          timecodes: true,
         });
 
         window.nimio.on("nimio:play", () => {

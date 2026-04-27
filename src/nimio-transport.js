@@ -294,14 +294,18 @@ export const NimioTransport = {
     this._captionPresenter.currentTimeFn = () => {
       return this._latencyCtrl.getCurrentTsUs();
     };
-    if (this._eventBus.hasListeners("nimio:captions-arrived")) {
-      this._captionPresenter.onCaptionsArrived = (caps, curTime) => {
-        this._eventBus.emit("nimio:captions-arrived", caps, curTime);
-      };
-    } else {
-      this._captionPresenter.onCaptionsArrived = null;
-    }
+    this._eventBus.onListenerAdded(
+      "nimio:captions-arrived",
+      this._enableCaptionsEventHandler.bind(this),
+    );
     this._seiProcessor.addCea608CaptionsHandler(this._captionPresenter);
+  },
+
+  _enableCaptionsEventHandler() {
+    if (!this._captionPresenter) return;
+    this._captionPresenter.onCaptionsArrived = (caps, curTime) => {
+      this._eventBus.emit("nimio:captions-arrived", caps, curTime);
+    };
   },
 
   _updateNalUnitProcessors(codec) {
@@ -326,9 +330,15 @@ export const NimioTransport = {
 
   _initTimecodeProcessing() {
     this._picTimingProcessor = this._seiProcessor.addPicTimingHandler();
-    if (this._eventBus.hasListeners("nimio:sei-timecode")) {
-      this._picTimingProcessor.onTimecode = this._onTimecodeArrived.bind(this);
-    }
+    this._eventBus.onListenerAdded(
+      "nimio:sei-timecode",
+      this._enableTimecodeEventHandler.bind(this),
+    );
+  },
+
+  _enableTimecodeEventHandler() {
+    if (!this._picTimingProcessor) return;
+    this._picTimingProcessor.onTimecode = this._onTimecodeArrived.bind(this);
   },
 
   _onTimecodeArrived(frameTs, clkTs, strTs) {

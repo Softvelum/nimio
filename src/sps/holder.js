@@ -4,10 +4,11 @@ import { H264DecConfParser } from "./h264-dec-conf-parser";
 import { H265SpsParser } from "./h265-sps-parser";
 import { H265VpsParser } from "./h265-vps-parser";
 import { H265DecConfParser } from "./h265-dec-conf-parser";
+import { LoggersFactory } from "@/shared/logger";
 
 class SPSHolder {
   constructor(instName) {
-    this._instId = instName;
+    this._instName = instName;
     this._sps = {
       hasTimecodeParams: function () {
         return (
@@ -15,12 +16,14 @@ class SPSHolder {
         );
       },
     };
+    this._logger = LoggersFactory.create(this._instName, "SPSHolder");
   }
 
   setCodec(codec) {
     if (this._codec === codec) return;
     if (this._codec) {
       this._resetParsers();
+      this._resetSPS();
     }
 
     this._codec = codec;
@@ -31,6 +34,8 @@ class SPSHolder {
       this._spsParser = new H265SpsParser();
       this._vpsParser = new H265VpsParser();
       this._dcParser = new H265DecConfParser(this._spsParser, this._vpsParser);
+    } else {
+      this._logger.error(`Unsupported codec ${codec}`);
     }
   }
 
@@ -62,6 +67,7 @@ class SPSHolder {
   }
 
   _resetSPS() {
+    // keep the SPS object reference but reset all its properties
     this._sps.profileIdc = undefined;
     this._sps.levelIdc = undefined;
     this._sps.spsId = undefined;

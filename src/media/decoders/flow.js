@@ -200,7 +200,7 @@ export class DecoderFlow {
           this._trackId = this._switchPeerFlow.trackId;
           this._codec = this._switchPeerFlow.codec;
           this._timescale = this._switchPeerFlow.timescale;
-          this._finalizeSwitch(this._switchPeerFlow);
+          this._applyCodecDataFromFlow(this._switchPeerFlow);
 
           this._switchPeerFlow = null;
           this._switchContext = null;
@@ -325,6 +325,8 @@ export class DecoderFlow {
     this._decoder.removeEventListener("message", this._decoderListener);
     this._decoderListener = null;
   }
+
+  _applyCodecDataFromFlow() {} // abstract base method
 
   get trackId() {
     return this._trackId;
