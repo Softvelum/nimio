@@ -803,11 +803,7 @@ export class NimioVod {
   _onParseInitSeg = (name, data) => {
     // console.log('Frag parsing init segment', name, data);
     if (!this._config.timecodes) return;
-    if (
-      !data.tracks ||
-      !data.tracks.video ||
-      !data.tracks.video.initSegment
-    ) {
+    if (!data.tracks || !data.tracks.video || !data.tracks.video.initSegment) {
       return;
     }
 
