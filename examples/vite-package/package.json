@@ -1,0 +1,17 @@
+{
+  "name": "nimio-vite-package-smoke",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --force",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "nimio-player": "file:.local-package/nimio-player-local.tgz"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  }
+}

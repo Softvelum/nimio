@@ -26,7 +26,7 @@ export class DecoderFlow {
     this._timestampManager.addTrack(this._trackId, this._type);
 
     this._eventBus = EventBus.getInstance(instanceName);
-    this._decoder = new Worker(new URL(url, import.meta.url), {
+    this._decoder = new Worker(url, {
       type: "module",
     });
     this._addDecoderListener();
