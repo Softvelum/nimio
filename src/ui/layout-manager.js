@@ -1,6 +1,13 @@
 export class UILayoutManager {
-  constructor(ar) {
+  constructor(width, height, ar) {
+    this._width = this._toCssSize(width);
+    this._height = this._toCssSize(height);
     this._initAspectRatio(ar);
+  }
+
+  setFrameSize(width, height) {
+    this._frameWidth = width;
+    this._frameHeight = height;
   }
 
   computeLayout(cWidth, cHeight, mode, isFullscreen) {
@@ -18,6 +25,10 @@ export class UILayoutManager {
     }
   }
 
+  computeRenderProps(cWidth, cHeight, mode, isFullscreen) {
+
+  }
+
   _initAspectRatio(ar) {
     if (!ar) return;
 
@@ -25,6 +36,13 @@ export class UILayoutManager {
     if (ar.length !== 2) return;
     ar = { x: parseInt(ar[0]), y: parseInt(ar[1]) };
     this._far = ar.x / ar.y;
+  }
+
+  _toCssSize(value) {
+    if (typeof value === "number") {
+      return `${value}px`;
+    }
+    return value;
   }
 
 }

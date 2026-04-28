@@ -27,11 +27,16 @@ export class UI {
     Object.assign(this._container.style, {
       display: "inline-flex",
       position: "relative",
+      "background-color": "#000",
     });
     this._container.classList.add("nimio-container");
     this._logger = LoggersFactory.create(this._instName, "UI");
 
-    this._layoutMgr = new UILayoutManager(this._opts.ar);
+    this._layoutMgr = new UILayoutManager(
+      this._opts.width,
+      this._opts.height,
+      this._opts.ar,
+    );
     this._autoAbr = this._opts.abrEnabled;
 
     this._mode = MODE.LIVE;
@@ -40,10 +45,6 @@ export class UI {
     if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
-    this._outputs.forEach((elem) => {
-      elem.style.width = this._toCssSize(this._opts.width);
-      elem.style.height = this._toCssSize(this._opts.height);
-    });
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
     this._cctx.save();
@@ -212,7 +213,7 @@ export class UI {
   _addMediaElement() {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
-    this._applySize(this._mediaElement, this._curWidth, this._curHeight);
+    // this._applySize(this._mediaElement, this._curWidth, this._curHeight);
     this._canvas.after(this._mediaElement);
   }
 
@@ -678,11 +679,8 @@ export class UI {
     });
   }
 
-  _toCssSize(value) {
-    if (typeof value === "number") {
-      return `${value}px`;
-    }
-    return value;
+  adjustAspectRatio() {
+    this._mediaElement.style.height = "360px";
   }
 
   // adjustAspectRatio () {
