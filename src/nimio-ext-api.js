@@ -51,7 +51,7 @@ export const NimioExtAPI = {
   },
 
   getStreamEncodedFramerate() {
-    return this._spsHolder.sps?.maxFps;
+    return this._spsHolder?.sps?.maxFps;
   },
 
   getVodThumbnailUrl(time) {

@@ -45,7 +45,6 @@ export class H265SpsParser extends H265BaseUnitParser {
     let spsSubLayerOrderInfoPresent = this._bitr.readBits(1);
     let subLayerStart = spsSubLayerOrderInfoPresent ? 0 : spsMaxSubLayersMinus1;
 
-    // TODO: debug!
     let i = 0;
     for (i = subLayerStart; i <= spsMaxSubLayersMinus1; i++) {
       this._bitr.readUE(); // max_dec_pic_buffering_minus1
@@ -160,7 +159,7 @@ export class H265SpsParser extends H265BaseUnitParser {
     stRPS.inter_ref_pic_set_prediction_flag = 0;
     stRPS.delta_idx_minus1 = 0;
 
-    if (stRpsIdx != 0) {
+    if (stRpsIdx !== 0) {
       stRPS.inter_ref_pic_set_prediction_flag = this._bitr.readBits(1);
     }
 
@@ -245,7 +244,7 @@ export class H265SpsParser extends H265BaseUnitParser {
         /* 7-51 */
         stRPS.UsedByCurrPicS0[i] = this._bitr.readBits(1);
 
-        if (i == 0) {
+        if (i === 0) {
           /* 7-53 */
           stRPS.DeltaPocS0[i] = -(deltaPocS0Minus1[i] + 1);
         } else {
@@ -261,7 +260,7 @@ export class H265SpsParser extends H265BaseUnitParser {
         /* 7-52 */
         stRPS.UsedByCurrPicS1[j] = this._bitr.readBits(1);
 
-        if (j == 0) {
+        if (j === 0) {
           /* 7-54 */
           stRPS.DeltaPocS1[j] = deltaPocS1Minus1[j] + 1;
         } else {
@@ -336,7 +335,7 @@ export class H265SpsParser extends H265BaseUnitParser {
       this._calcMaxFps();
 
       // There is currently no need to parse hrd parameters for H265
-      // howerver it might be necessary in the future so keep it commented
+      // however it might be necessary in the future so keep it commented
       // let pocProportionalToTimingFlag = this._bitr.readBits(1); // poc_proportional_to_timing_flag
       // if (pocProportionalToTimingFlag) {
       //   this._bitr.readUE(); // vui_num_ticks_poc_diff_one_minus1

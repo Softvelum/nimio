@@ -2,9 +2,9 @@ import { SPSHolder } from "@/sps/holder";
 import { BitReader } from "@/shared/bit-reader";
 
 export class BaseTimeCodeProcessor {
-  constructor(instanceId) {
-    this._instId = instanceId;
-    this._sps = SPSHolder.getInstance(instanceId).sps;
+  constructor(instName) {
+    this._instName = instName;
+    this._sps = SPSHolder.getInstance(instName).sps;
     this._bitr = new BitReader();
     this.type = "timecode";
   }

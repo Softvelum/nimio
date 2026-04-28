@@ -137,7 +137,7 @@ export function parseMp3Config(codecData) {
       mpegVersionIndex = 0; // reserved is MPEG 2.5
     }
     let layerIndex = (codecData[1] >> 1) & 0x03;
-    if (layerIndex != 0) {
+    if (layerIndex !== 0) {
       config.sampleCount = MPEG_SAMPLES_PER_FRAME[mpegVersionIndex][layerIndex];
       let bitrateIndex = (codecData[2] >> 4) & 0x0f;
       config.bitrate =

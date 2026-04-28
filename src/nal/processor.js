@@ -50,6 +50,7 @@ class NalProcessor {
       this._logger.warn(`Drop ${this._ordered.length} frames due to disorder`);
       this._ordered.length = 0;
       this._stashed.length = 0;
+      this._frameSeqEndTime = 0;
     }
 
     this._addToOrdered(data);

@@ -1,9 +1,11 @@
 export const NimioEvents = {
   on(event, listener) {
+    this._eventBus.runEventSubscriptionHook(event);
     return this._eventBus.addListener(event, listener);
   },
 
   once(event, listener) {
+    this._eventBus.runEventSubscriptionHook(event);
     return this._eventBus.once(event, listener);
   },
 

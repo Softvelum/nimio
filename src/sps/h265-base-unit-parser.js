@@ -65,7 +65,7 @@ export class H265BaseUnitParser {
   }
 
   // There is currently no need to parse hrd parameters for H265
-  // howerver it might be necessary in the future so keep it commented
+  // however it might be necessary in the future so keep it commented
   // _parseHRDParameters(maxNumSubLayersMinus1) {
   //   // default values
   //   this._sps.initialCpbRemovalDelayLength = 24;

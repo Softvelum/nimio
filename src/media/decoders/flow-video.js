@@ -48,7 +48,7 @@ export class DecoderFlowVideo extends DecoderFlow {
     this._nalProcessor.handleFrame(data);
   }
 
-  _finalizeSwitch(peerFlow) {
+  _applyCodecDataFromFlow(peerFlow) {
     if (!peerFlow.codecData) return;
     this._codecData = peerFlow.codecData;
     this._readSpsParamsFromCodecData(this._codecData);
