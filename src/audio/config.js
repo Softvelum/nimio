@@ -1,6 +1,7 @@
 import { parseAACConfig } from "@/media/parsers/aac-config-parser";
 import { parseMp3Config } from "@/media/parsers/mp3-config-parser";
 import { parseOpusConfig } from "@/media/parsers/opus-config-parser";
+import { parseFlacConfig } from "@/media/parsers/flac-config-parser";
 
 export class AudioConfig {
   constructor(sampleRate = 0, numberOfChannels = 0, sampleCount = 0) {
@@ -11,6 +12,7 @@ export class AudioConfig {
       AAC: parseAACConfig,
       MP3: parseMp3Config,
       OPUS: parseOpusConfig,
+      FLAC: parseFlacConfig,
     };
   }
 

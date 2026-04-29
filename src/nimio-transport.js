@@ -171,6 +171,11 @@ export const NimioTransport = {
 
     let audioAvailable, decoderFlow, buffer;
     let newCfg = new AudioConfig().parse(data.data, data.family);
+
+    // let updData = new Uint8Array(data.data.length + 4);
+    // updData.set([0x00, 0x00, 0x00, 0x22]);
+    // updData.set(data.data, 4);
+    // data.data = updData;
     if (this._isNextRenditionTrack(data.trackId)) {
       if (!this._audioConfig.isCompatible(newCfg)) {
         this._logger.warn(

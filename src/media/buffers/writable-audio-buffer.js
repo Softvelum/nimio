@@ -73,13 +73,13 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _attachTempBuffers() {
     let offset = this._sabOffset;
-    this._tempF32 = new Float32Array(this._sab, offset, this._frameSize);
+    this._tempF32 = new Int32Array(this._sab, offset, this._frameSize);
     offset += this._frameBytes;
     this._tempI16 = new Int16Array(this._sab, offset, this._frameSize);
   }
 
   _allocTempBuffers() {
-    this._tempF32 = new Float32Array(this._frameSize);
+    this._tempF32 = new Int32Array(this._frameSize);
     this._tempI16 = new Int16Array(this._frameSize);
   }
 
@@ -103,7 +103,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     for (let ch = 0; ch < this.numChannels; ch++) {
       let elOffset = ch;
       for (let i = 0; i < this._sampleCount; i++) {
-        let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset];
+        // TODO: this is just a test, rework
+        let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset] / 2147483648;
         target[channelOffset + i] = val;
         elOffset += this.numChannels;
       }

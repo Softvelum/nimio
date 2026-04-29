@@ -6,6 +6,7 @@ const IS_SEQUENCE_HEADER = [
   WEB.AVC_SEQUENCE_HEADER,
   WEB.HEVC_SEQUENCE_HEADER,
   WEB.AV1_SEQUENCE_HEADER,
+  WEB.FLAC_SEQUENCE_HEADER,
 ].reduce((o, v) => ((o[v] = true), o), {});
 
 export class SLDPAgent {
@@ -49,10 +50,11 @@ export class SLDPAgent {
       case WEB.AVC_SEQUENCE_HEADER:
       case WEB.HEVC_SEQUENCE_HEADER:
       case WEB.AV1_SEQUENCE_HEADER:
+      case WEB.FLAC_SEQUENCE_HEADER:
         this._sendCodecData(
           trackId,
           frameWthHdr.subarray(dtPos, frameSize),
-          frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
+          frameType === WEB.AAC_SEQUENCE_HEADER || frameType === WEB.FLAC_SEQUENCE_HEADER ? "audio" : "video",
           frameType,
         );
         break;
@@ -64,6 +66,7 @@ export class SLDPAgent {
           this._sendCodecData(trackId, codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
+      case WEB.FLAC_FRAME:
         ptsMs = timestamp / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsMs);
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
@@ -158,6 +161,7 @@ export class SLDPAgent {
   }
 
   _sendCodecData(trackId, data, type, frameType) {
+    console.log("send codec data", type, data.length);
     self.postMessage({
       type: type === "video" ? "videoCodec" : "audioCodec",
       data: {
