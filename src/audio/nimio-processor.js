@@ -61,7 +61,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     if (!this._idle) {
       this._createAudioBuffer(options.processorOptions);
     }
-
+    this.port.addEventListener("message", this._portMsgHandler);
     this._speed = 1;
   }
 
@@ -128,6 +128,15 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
       this._audioBuffer.setPort(this.port);
     }
   }
+
+  _portMsgHandler = (event) => {
+    const msg = event.data;
+    if (!msg || msg.aux) return;
+    if (msg.type === "audio-status") {
+      this._idle = !msg.data.enabled;
+      this._latencyCtrl.audioEnabled = msg.data.enabled;
+    }
+  };
 }
 
 registerProcessor("audio-nimio-processor", AudioNimioProcessor);

@@ -73,39 +73,56 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
   _attachTempBuffers() {
     let offset = this._sabOffset;
-    this._tempF32 = new Int32Array(this._sab, offset, this._frameSize);
+    this._tempF32 = new Float32Array(this._sab, offset, this._frameSize);
     offset += this._frameBytes;
+    this._tempS32 = new Int32Array(this._sab, offset, this._frameSize);
+    offset += this._frameSize * Int32Array.BYTES_PER_ELEMENT;
     this._tempI16 = new Int16Array(this._sab, offset, this._frameSize);
   }
 
   _allocTempBuffers() {
-    this._tempF32 = new Int32Array(this._frameSize);
+    this._tempF32 = new Float32Array(this._frameSize);
+    this._tempS32 = new Int32Array(this._frameSize);
     this._tempI16 = new Int16Array(this._frameSize);
   }
 
-  _copyChannelPlanar(audioFrame, target, chIdx, format) {
-    if (format === "s16") {
-      audioFrame.copyTo(this._tempI16, { layout: "planar", planeIndex: chIdx });
+  _copyChannelPlanar(frame, target, chIdx, format) {
+    const isInt16 = format === "s16";
+    if (isInt16 || format === "s32") {
+      let temp = isInt16 ? this._tempI16 : this._tempS32;
+      frame.copyTo(temp, { layout: "planar", planeIndex: chIdx });
+
+      const peakAmp = isInt16 ? 32768 : 2147483648;
       for (let i = 0; i < this._sampleCount; i++) {
-        target[i] = this._tempI16[i] / 32768;
+        target[i] = temp[i] / peakAmp;
       }
+    } else if (format === "f32") {
+      frame.copyTo(target, { layout: "planar", planeIndex: chIdx });
     } else {
-      audioFrame.copyTo(target, { layout: "planar", planeIndex: chIdx });
+      throw new Error(`Unsupported audio format: ${format}`);
     }
   }
 
   _copyInterleaved(audioFrame, target, format) {
-    const isInt16 = format === "s16";
-    let temp = isInt16 ? this._tempI16 : this._tempF32;
+    let peakAmp = 1;
+    let temp = this._tempF32;
+
+    if (format === "s16") {
+      peakAmp = 32768;
+      temp = this._tempI16;
+    } else if (format === "s32") {
+      peakAmp = 2147483648;
+      temp = this._tempS32;
+    } else if (format !== "f32") {
+      throw new Error(`Unsupported audio format: ${format}`);
+    }
     audioFrame.copyTo(temp, { layout: "interleaved", planeIndex: 0 });
 
     let channelOffset = 0;
     for (let ch = 0; ch < this.numChannels; ch++) {
       let elOffset = ch;
       for (let i = 0; i < this._sampleCount; i++) {
-        // TODO: this is just a test, rework
-        let val = isInt16 ? temp[elOffset] / 32768 : temp[elOffset] / 2147483648;
-        target[channelOffset + i] = val;
+        target[channelOffset + i] = temp[elOffset] / peakAmp;
         elOffset += this.numChannels;
       }
       channelOffset += this._sampleCount;
