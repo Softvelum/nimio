@@ -44,7 +44,7 @@ function makeCodecParams(type, codec) {
     params.sampleRate = 48000; // Default sample rate
     params.numberOfChannels = 2; // Default number of channels
     if (codec === "flac") {
-      params.description = new Uint8Array([0x00])
+      params.description = new Uint8Array([0x00]);
     }
   }
 

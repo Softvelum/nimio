@@ -16,7 +16,9 @@ export function parseFlacConfig(data) {
   const maxBlockSize = readUint16();
 
   if (minBlockSize !== maxBlockSize) {
-    console.warn(`Min block size ${minBlockSize} !== max block size ${maxBlockSize}`);
+    console.warn(
+      `Min block size ${minBlockSize} !== max block size ${maxBlockSize}`,
+    );
   }
 
   // skip frame sizes (6 bytes)
@@ -24,12 +26,10 @@ export function parseFlacConfig(data) {
 
   // sample rate (20 bits)
   const sampleRate =
-    (data[offset] << 12) |
-    (data[offset + 1] << 4) |
-    (data[offset + 2] >> 4);
+    (data[offset] << 12) | (data[offset + 1] << 4) | (data[offset + 2] >> 4);
 
   // channels - 1 (3 bits)
-  const numberOfChannels = ((data[offset + 2] & 0x0E) >> 1) + 1;
+  const numberOfChannels = ((data[offset + 2] & 0x0e) >> 1) + 1;
 
   // bits per sample - 1 (5 bits)
   // const bitsPerSample =
