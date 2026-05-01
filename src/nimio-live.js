@@ -804,7 +804,11 @@ export class NimioLive {
 
   async _startNoAudioMode() {
     this._setNoAudio();
-    await this._initAudioProcessor(48000, 1, true);
+    try {
+      await this._initAudioProcessor(48000, 1, true);
+    } catch (err) {
+      this._logger.error("Failed to start no audio mode", err);
+    }
     this._logger.debug("No audio mode started");
   }
 

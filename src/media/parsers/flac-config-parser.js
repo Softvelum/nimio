@@ -29,7 +29,7 @@ export function parseFlacConfig(data) {
     (data[offset] << 12) | (data[offset + 1] << 4) | (data[offset + 2] >> 4);
 
   // channels - 1 (3 bits)
-  const numberOfChannels = ((data[offset + 2] & 0x0e) >> 1) + 1;
+  const numberOfChannels = ((data[offset + 2] & 0b00001110) >> 1) + 1;
 
   // bits per sample - 1 (5 bits)
   // const bitsPerSample =

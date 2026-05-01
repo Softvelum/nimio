@@ -25,7 +25,7 @@ export class AudioConfig {
     let config = parserFn(codecData);
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
-    this._sampleCount = config.sampleCount;
+    this._sampleCount = config.sampleCount > 255 ? config.sampleCount : 256;
 
     return this;
   }

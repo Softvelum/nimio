@@ -71,15 +71,6 @@ describe("WritableAudioBuffer", () => {
     expect(wab.getReadIdx()).toBe(0);
   });
 
-  it("pushFrame throws if audioFrame.numberOfFrames mismatch", () => {
-    const badFrame = createMockAudioFrame({
-      numberOfFrames: wab.sampleCount - 1,
-    });
-    expect(() => wab.pushFrame(badFrame)).toThrow(
-      `audioFrame must contain ${wab.sampleCount} samples, got ${badFrame.numberOfFrames}`,
-    );
-  });
-
   it("pushFrame calls preprocessors process method", () => {
     const preprocessor = { process: vi.fn(), setBufferIface() {} };
     wab.addPreprocessor(preprocessor);

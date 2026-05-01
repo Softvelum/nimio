@@ -133,6 +133,11 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
     const msg = event.data;
     if (!msg || msg.aux) return;
     if (msg.type === "audio-status") {
+      if (msg.data.enabled && !this._audioBuffer) {
+        // just in case avoid enabling audio without buffer
+        this._logger.error("Cannot enable audio: buffer is not initialized");
+        return;
+      }
       this._idle = !msg.data.enabled;
       this._latencyCtrl.audioEnabled = msg.data.enabled;
     }

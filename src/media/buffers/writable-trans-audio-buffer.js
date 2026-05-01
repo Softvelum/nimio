@@ -31,10 +31,10 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
     return writtenIdx;
   }
 
-  pushSilence(timestamp) {
+  pushSilence(ts) {
     if (this._isDetached()) return -1;
 
-    const writtenIdx = super.pushSilence(timestamp);
+    const writtenIdx = super.pushSilence(ts);
     this._scheduleFrame(writtenIdx);
     return writtenIdx;
   }
@@ -147,6 +147,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
       );
       this._sendMessage({ type: "tb:overflow" });
     }
+    return wIdx;
   }
 }
 
