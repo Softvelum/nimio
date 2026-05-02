@@ -130,7 +130,7 @@ export function parseMp3Config(codecData) {
     ], // 1111
   ];
 
-  let config = {};
+  let config = { description: codecData };
   if ((codecData[0] & 0xff) == 0xff && (codecData[1] & 0xe0) == 0xe0) {
     let mpegVersionIndex = (codecData[1] >> 3) & 0x03;
     if (mpegVersionIndex == 1) {

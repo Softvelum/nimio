@@ -36,6 +36,22 @@ export async function checkSupportedCodecs(type, codecs) {
   return support;
 }
 
+function defaultFlacDescription() {
+  // A minimal FLAC STREAMINFO metadata block (42 bytes) with default values
+  const fd = new Uint8Array([
+    0x66, 0x4c, 0x61, 0x43, // fLaC
+    0x00, 0x00, 0x00, 0x22, // metadata block header (34 bytes length)
+    0x12, 0x00, // min block size (4608 samples)
+    0x12, 0x00, // max block size (4608 samples)
+    0x00, 0x00, 0x00, // min frame size (0 - unknown)
+    0x00, 0x00, 0x00, // max frame size (0 - unknown)
+    0x0b, 0xb8, 0x03, 0xf0, // sample rate (48000 Hz), channels (2), bits per sample (32)
+    // rest of the STREAMINFO can be zeros
+    ...new Uint8Array(34 - 14),
+  ]);
+  return fd;
+}
+
 function makeCodecParams(type, codec) {
   const params = { codec: adjustCodecId(codec) };
   if (type === "audio") {
@@ -44,7 +60,7 @@ function makeCodecParams(type, codec) {
     params.sampleRate = 48000; // Default sample rate
     params.numberOfChannels = 2; // Default number of channels
     if (codec === "flac") {
-      params.description = new Uint8Array([0x00]);
+      params.description = defaultFlacDescription();
     }
   }
 

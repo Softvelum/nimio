@@ -115,7 +115,7 @@ self.addEventListener("message", async function (e) {
         codec: config.codec,
         sampleRate: config.sampleRate,
         numberOfChannels: config.numberOfChannels,
-        description: e.data.codecData,
+        description: config.description,
       };
 
       support = await AudioDecoder.isConfigSupported(params);

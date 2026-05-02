@@ -26,6 +26,7 @@ export class AudioConfig {
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount > 255 ? config.sampleCount : 256;
+    this._description = config.description;
 
     return this;
   }
@@ -53,6 +54,7 @@ export class AudioConfig {
     this._sampleRate = config.sampleRate;
     this._numberOfChannels = config.numberOfChannels;
     this._sampleCount = config.sampleCount;
+    this._description = config.description;
   }
 
   get() {
@@ -60,6 +62,7 @@ export class AudioConfig {
       sampleRate: this._sampleRate,
       numberOfChannels: this._numberOfChannels,
       sampleCount: this._sampleCount,
+      description: this._description,
     };
   }
 
@@ -73,5 +76,9 @@ export class AudioConfig {
 
   get sampleCount() {
     return this._sampleCount;
+  }
+
+  get description() {
+    return this._description;
   }
 }

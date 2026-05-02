@@ -36,10 +36,15 @@ export function parseFlacConfig(data) {
   //   (((data[offset + 2] & 0x01) << 4) |
   //     (data[offset + 3] >> 4)) + 1;
 
+  const description = new Uint8Array(data.length + 8);
+  // "fLaC" + metadata block header (8 bytes)
+  description.set([0x66, 0x4c, 0x61, 0x43, 0x00, 0x00, 0x00, 0x22]);
+  description.set(data, 8);
+
   return {
-    minSampleCount: minBlockSize,
     sampleCount: maxBlockSize,
     sampleRate,
     numberOfChannels,
+    description,
   };
 }

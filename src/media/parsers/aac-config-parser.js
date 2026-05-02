@@ -1,5 +1,4 @@
-export function parseAACConfig(codecData) {
-  const data = new Uint8Array(codecData);
+export function parseAACConfig(data) {
   if (data.length < 2) {
     throw new Error("ASC parsing error. codecData too small");
   }
@@ -18,7 +17,7 @@ export function parseAACConfig(codecData) {
     freqIndex = ((data[0] & 0x07) << 1) | (data[1] >> 7);
   }
 
-  let config = { audioObjectType: objectType };
+  let config = { audioObjectType: objectType, description: data };
   if (15 === freqIndex) {
     if (31 === objectType) {
       config.sampleRate =
