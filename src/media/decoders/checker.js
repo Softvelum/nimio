@@ -38,6 +38,7 @@ export async function checkSupportedCodecs(type, codecs) {
 
 function defaultFlacDescription() {
   // A minimal FLAC STREAMINFO metadata block (42 bytes) with default values
+  // prettier-ignore
   const fd = new Uint8Array([
     0x66, 0x4c, 0x61, 0x43, // fLaC
     0x00, 0x00, 0x00, 0x22, // metadata block header (34 bytes length)

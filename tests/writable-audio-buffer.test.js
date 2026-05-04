@@ -94,7 +94,7 @@ describe("WritableAudioBuffer", () => {
           ch * wab.sampleCount,
           (ch + 1) * wab.sampleCount,
         ),
-        { layout: "planar", planeIndex: ch },
+        { planeIndex: ch },
       );
     }
   });
@@ -108,7 +108,6 @@ describe("WritableAudioBuffer", () => {
     expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
       expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
-        layout: "planar",
         planeIndex: ch,
       });
     }
@@ -129,7 +128,6 @@ describe("WritableAudioBuffer", () => {
     wab.pushFrame(frame);
 
     expect(spyCopyTo).toHaveBeenCalledWith(wab._tempF32, {
-      layout: "interleaved",
       planeIndex: 0,
     });
 
@@ -153,10 +151,7 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
-      layout: "interleaved",
-      planeIndex: 0,
-    });
+    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, { planeIndex: 0 });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
     const fBuffer = wab._frames[lastWriteIdx];
@@ -188,7 +183,6 @@ describe("WritableAudioBuffer", () => {
     expect(spyCopyTo).toHaveBeenCalledWith(
       singleChannelBuffer._frames[singleChannelBuffer.getWriteIdx() - 1],
       {
-        layout: "planar",
         planeIndex: 0,
       },
     );

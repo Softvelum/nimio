@@ -57,7 +57,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       this._rates[writeIdx] = 1;
       curFrameEndTs = pushStartTs + this._frameUs;
     }
-    
+
     let skipCount = 0;
     if (pushStartTs < this._interTs) {
       skipCount = Math.floor((this._interTs - pushStartTs) / this._sampleUs);
@@ -65,17 +65,15 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       this._pushSilenceInterRange(pushStartTs, writeIdx);
     }
 
-
-    
-    if (pushEndTs <= curFrameEndTs) {
-      this._copyFrame(audioFrame, this._frames[writeIdx]);
-      this._interIdx += frameCount;
-      if (this._interIdx === this._sampleCount) {
-        this._interIdx = 0;
-        this._incWriteIdx(writeIdx);
-      }
-      return writeIdx;
-    }
+    // if (pushEndTs <= curFrameEndTs) {
+    //   this._copyFrame(audioFrame, this._frames[writeIdx]);
+    //   this._interIdx += frameCount;
+    //   if (this._interIdx === this._sampleCount) {
+    //     this._interIdx = 0;
+    //     this._incWriteIdx(writeIdx);
+    //   }
+    //   return writeIdx;
+    // }
 
     // if (this._interIdx + audioFrame.numberOfFrames >= this._sampleCount) {
     //   this._interIdx += audioFrame.numberOfFrames - this._sampleCount;
@@ -193,7 +191,6 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     const format = frame.format.split("-");
     if (format[format.length - 1] === "planar") {
     } else {
-
     }
   }
 
