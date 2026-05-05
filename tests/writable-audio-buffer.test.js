@@ -23,6 +23,27 @@ function createMockAudioFrame(options = {}) {
   };
 }
 
+function snapshotMock(impl) {
+  const calls = [];
+
+  const mock = vi.fn((...args) => {
+    // clone arguments at call time
+    const snap = args.map(arg =>
+      typeof arg === 'object' && arg !== null
+        ? structuredClone(arg)
+        : arg
+    );
+
+    calls.push(snap);
+
+    return impl?.(...args);
+  });
+
+  mock.snapshots = calls;
+
+  return mock;
+}
+
 function createTestBuffer(options = {}) {
   const {
     bufferSec = 1,
@@ -83,33 +104,32 @@ describe("WritableAudioBuffer", () => {
 
   it("pushFrame copies planar data per channel when format ends with -planar", () => {
     const frame = createMockAudioFrame({ format: "f32-planar" });
-    const spyCopyTo = vi.spyOn(frame, "copyTo");
+    frame.copyTo = snapshotMock(frame.copyTo);
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
+    expect(frame.copyTo.snapshots.length).toBe(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(
-        wab._frames[wab.getWriteIdx() - 1].subarray(
-          ch * wab.sampleCount,
-          (ch + 1) * wab.sampleCount,
-        ),
-        { planeIndex: ch },
-      );
+      const snapArr = new Float32Array(frame.copyTo.snapshots[ch][0]);
+      expect(snapArr).toEqual(wab._frames[wab.getWriteIdx() - 1].subarray(
+        ch * wab.sampleCount,
+        (ch + 1) * wab.sampleCount,
+      ));
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({ planeIndex: ch });
     }
   });
 
   it("pushFrame copies s16-planar data per channel", () => {
     const frame = createMockAudioFrame({ format: "s16-planar" });
-    const spyCopyTo = vi.spyOn(frame, "copyTo");
+    frame.copyTo = snapshotMock(frame.copyTo);
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
+    expect(frame.copyTo.snapshots.length).toBe(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
-        planeIndex: ch,
-      });
+      const snapArr = new Int16Array(frame.copyTo.snapshots[ch][0]);
+      expect(snapArr).toEqual(wab._tempI16);
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({ planeIndex: ch });
     }
 
     let lastChannel = wab._frames[wab.getWriteIdx() - 1].subarray(
