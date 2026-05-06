@@ -28,10 +28,8 @@ function snapshotMock(impl) {
 
   const mock = vi.fn((...args) => {
     // clone arguments at call time
-    const snap = args.map(arg =>
-      typeof arg === 'object' && arg !== null
-        ? structuredClone(arg)
-        : arg
+    const snap = args.map((arg) =>
+      typeof arg === "object" && arg !== null ? structuredClone(arg) : arg,
     );
 
     calls.push(snap);
@@ -111,10 +109,12 @@ describe("WritableAudioBuffer", () => {
     expect(frame.copyTo.snapshots.length).toBe(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
       const snapArr = new Float32Array(frame.copyTo.snapshots[ch][0]);
-      expect(snapArr).toEqual(wab._frames[wab.getWriteIdx() - 1].subarray(
-        ch * wab.sampleCount,
-        (ch + 1) * wab.sampleCount,
-      ));
+      expect(snapArr).toEqual(
+        wab._frames[wab.getWriteIdx() - 1].subarray(
+          ch * wab.sampleCount,
+          (ch + 1) * wab.sampleCount,
+        ),
+      );
       expect(frame.copyTo.snapshots[ch][1]).toEqual({ planeIndex: ch });
     }
   });

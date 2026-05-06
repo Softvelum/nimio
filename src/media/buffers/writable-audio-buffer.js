@@ -81,7 +81,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     if (pushEndTs - curFrameEndTs < this._sampleUs) {
       // frame fits in the current buffer slot, just copy it
       if (this._interIdx + frameCount - opts.frameOffset > this._sampleCount) {
-        console.warn(`Frame doesn't fit while ts diff is enough ${pushEndTs - curFrameEndTs}, push diff = ${pushEndTs - pushStartTs}, expected frame count = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}, extra frames = ${this._interIdx + frameCount - opts.frameOffset - this._sampleCount}`);
+        console.warn(
+          `Frame doesn't fit while ts diff is enough ${pushEndTs - curFrameEndTs}, push diff = ${pushEndTs - pushStartTs}, expected frame count = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}, extra frames = ${this._interIdx + frameCount - opts.frameOffset - this._sampleCount}`,
+        );
         opts.frameCount = this._sampleCount - this._interIdx + opts.frameOffset;
       }
       this._copyFrame(audioFrame, this._frames[writeIdx], opts);
@@ -100,8 +102,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       opts.frameCount > frameCount - opts.frameOffset ||
       opts.frameCount <= 0
     ) {
-      console.error(`
-        Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
+      console.error(
+        `Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
       );
       opts.frameCount = frameCount - opts.frameOffset;
     }
@@ -113,8 +115,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     opts.frameOffset += opts.frameCount;
     opts.frameCount = frameCount - opts.frameOffset;
     if (opts.frameCount <= 0) {
-      console.error(`
-        Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
+      console.error(
+        `Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
       );
       opts.frameCount = 0;
     }
@@ -141,11 +143,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
     this._fillSilence(this._frames[writeIdx], this._interIdx);
     const nextIdx = this._incWriteIdx(writeIdx);
-    this._rates[nextIdx] = 1;
-    this._timestamps[nextIdx] = ts > curFrameEndTs ? ts : curFrameEndTs;
-    this._interIdx = 0;
-    this._interTs = this._timestamps[nextIdx];
-    console.log('Silence frame pushed, interIdx =', this._interIdx, 'interTs =', this._interTs);
+    this._initFrameBuffer(nextIdx, ts > curFrameEndTs ? ts : curFrameEndTs);
+
     return this._pushSilenceInterRange(pushedFrameEndTs, nextIdx);
   }
 
@@ -197,11 +196,10 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
       this._fillSilence(this._frames[writeIdx], this._interIdx, endIdx);
       this._interIdx = endIdx;
       this._interTs = endTs;
-      console.log(`Silence inter range pushed, interIdx = ${this._interIdx}, interTs = ${this._interTs}`);
+
       if (this._interIdx === this._sampleCount) {
         this._interIdx = 0;
         this._interTs = this._timestamps[writeIdx] + this._frameUs;
-        console.log('interIdx = 0, InterTs after inter silence range pushed set to', this._interTs);
         this._incWriteIdx(writeIdx);
       }
     }

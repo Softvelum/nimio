@@ -16,8 +16,8 @@ export function parseFlacConfig(data) {
   const maxBlockSize = readUint16();
 
   if (minBlockSize !== maxBlockSize) {
-    console.warn(
-      `Min block size ${minBlockSize} !== max block size ${maxBlockSize}`,
+    console.log(
+      `FLAC min block size ${minBlockSize} !== max block size ${maxBlockSize}`,
     );
   }
 
