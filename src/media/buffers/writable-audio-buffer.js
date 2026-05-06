@@ -42,7 +42,7 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     if (pushEndTs - this._interTs < this._sampleUs) {
       // skip somehow misordered frame
       console.warn(
-        `Skip frame with decTimestamp ${pushStartTs} as it's earlier than interTs ${this._interTs} by ${this._interTs - pushStartTs} us`,
+        `Skip frame with decTimestamp ${pushStartTs} as it's earlier than last ts = ${this._interTs} by ${this._interTs - pushStartTs} us`,
       );
       return writeIdx;
     }
@@ -60,15 +60,16 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
 
     let opts = { frameOffset: 0 };
-    if (pushStartTs < this._interTs) {
-      let toSkip = Math.floor((this._interTs - pushStartTs) / this._sampleUs);
+    let newDist = pushStartTs - this._interTs;
+    if (-newDist >= this._sampleUs) {
+      let toSkip = Math.floor(-newDist / this._sampleUs);
       console.warn(
-        `Frame is earlier than interTs by ${this._interTs - pushStartTs} us, skip ${toSkip} frames, interTs = ${this._interTs}`,
+        `New frame ts is less than last ts by ${-newDist} us, skip ${toSkip} frames, last ts = ${this._interTs}`,
       );
       opts.frameOffset = toSkip;
-    } else if (pushStartTs - this._interTs > this._sampleUs) {
+    } else if (newDist > this._sampleUs) {
       console.warn(
-        `Gap ${pushStartTs - this._interTs} (${Math.round((pushStartTs - this._interTs) / this._sampleUs)} smpls) between interTs and frame start, fill with silence, interTs = ${this._interTs}, pushStartTs = ${pushStartTs}`,
+        `Gap ${newDist} (${Math.round(newDist / this._sampleUs)} smpls) between the last ts and frame start, fill with silence, last ts = ${this._interTs}, pushStartTs = ${pushStartTs}`,
       );
       this._pushSilenceInterRange(pushStartTs, writeIdx);
       if (this._interIdx === 0) {
