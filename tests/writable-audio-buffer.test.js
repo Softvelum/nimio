@@ -115,7 +115,10 @@ describe("WritableAudioBuffer", () => {
           (ch + 1) * wab.sampleCount,
         ),
       );
-      expect(frame.copyTo.snapshots[ch][1]).toEqual({ planeIndex: ch });
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({
+        planeIndex: ch,
+        frameOffset: 0,
+      });
     }
   });
 
@@ -129,7 +132,10 @@ describe("WritableAudioBuffer", () => {
     for (let ch = 0; ch < wab.numChannels; ch++) {
       const snapArr = new Int16Array(frame.copyTo.snapshots[ch][0]);
       expect(snapArr).toEqual(wab._tempI16);
-      expect(frame.copyTo.snapshots[ch][1]).toEqual({ planeIndex: ch });
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({
+        planeIndex: ch,
+        frameOffset: 0,
+      });
     }
 
     let lastChannel = wab._frames[wab.getWriteIdx() - 1].subarray(
@@ -149,6 +155,7 @@ describe("WritableAudioBuffer", () => {
 
     expect(spyCopyTo).toHaveBeenCalledWith(wab._tempF32, {
       planeIndex: 0,
+      frameOffset: 0,
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
@@ -171,7 +178,10 @@ describe("WritableAudioBuffer", () => {
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, { planeIndex: 0 });
+    expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
+      planeIndex: 0,
+      frameOffset: 0,
+    });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
     const fBuffer = wab._frames[lastWriteIdx];
@@ -204,6 +214,7 @@ describe("WritableAudioBuffer", () => {
       singleChannelBuffer._frames[singleChannelBuffer.getWriteIdx() - 1],
       {
         planeIndex: 0,
+        frameOffset: 0,
       },
     );
   });
