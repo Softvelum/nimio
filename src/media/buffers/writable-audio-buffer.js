@@ -33,27 +33,14 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     let writeIdx = this.getWriteIdx();
     let pushStartTs = audioFrame.decTimestamp;
     if (this._interIdx === 0) {
-      this._timestamps[writeIdx] = pushStartTs;
-      this._rates[writeIdx] = 1;
-      this._interTs = pushStartTs;
-      console.log('InterTs in the beginning set to', this._interTs);
+      this._initFrameBuffer(writeIdx, pushStartTs);
     }
 
     let frameCount = audioFrame.numberOfFrames;
     let pushEndTs = pushStartTs + frameCount * this._sampleUs;
 
-    if (this._prevPushEndTs !== undefined) {
-      let diff = pushStartTs - this._prevPushEndTs;
-      console.log(`pushFrame called, decTimestamp = ${pushStartTs}, range = ${pushEndTs - pushStartTs} (${Math.round((pushEndTs - pushStartTs) / this._sampleUs)} smpls), prev diff = ${diff} (${Math.round(diff / this._sampleUs)} smpls)`);
-      if (Math.abs(diff / this._sampleUs) > 1) {
-        console.warn(`Large timestamp gap ${Math.round(diff / this._sampleUs)} samples`);
-      }
-    }
-    this._prevPushEndTs = pushEndTs;
-
     if (pushEndTs - this._interTs < this._sampleUs) {
       // skip somehow misordered frame
-      // debugger;
       console.warn(
         `Skip frame with decTimestamp ${pushStartTs} as it's earlier than interTs ${this._interTs} by ${this._interTs - pushStartTs} us`,
       );
@@ -62,31 +49,31 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
     let curFrameEndTs = this._timestamps[writeIdx] + this._frameUs;
     if (pushStartTs - curFrameEndTs > this._sampleUs) {
-      // debugger;
       console.warn(
-        `Gap detected ${pushStartTs - curFrameEndTs} before pushing frame: pushStartTs ${pushStartTs} > curFrameEndTs ${curFrameEndTs}, fill with silence`,
+        `Gap ${pushStartTs - curFrameEndTs} (${Math.round((pushStartTs - curFrameEndTs) / this._sampleUs)} smpls) before pushing frame: pushStartTs ${pushStartTs} > curFrameEndTs ${curFrameEndTs}, fill with silence`,
       );
+      // move to the next frame buffer
       this._pushSilenceInterRange(pushStartTs, writeIdx);
       writeIdx = this.getWriteIdx();
-      this._timestamps[writeIdx] = pushStartTs;
-      this._rates[writeIdx] = 1;
-      this._interTs = pushStartTs;
+      this._initFrameBuffer(writeIdx, pushStartTs);
       curFrameEndTs = pushStartTs + this._frameUs;
     }
 
     let opts = { frameOffset: 0 };
     if (pushStartTs < this._interTs) {
       let toSkip = Math.floor((this._interTs - pushStartTs) / this._sampleUs);
-      console.log(`Frame is earlier than interTs by ${this._interTs - pushStartTs} us, skip ${toSkip} frames, interTs = ${this._interTs}`);
+      console.warn(
+        `Frame is earlier than interTs by ${this._interTs - pushStartTs} us, skip ${toSkip} frames, interTs = ${this._interTs}`,
+      );
       opts.frameOffset = toSkip;
     } else if (pushStartTs - this._interTs > this._sampleUs) {
-      console.log(`Gap between prev frame and current frame is ${pushStartTs - this._interTs}, push silence in between, interTs = ${this._interTs}`);
+      console.warn(
+        `Gap ${pushStartTs - this._interTs} (${Math.round((pushStartTs - this._interTs) / this._sampleUs)} smpls) between interTs and frame start, fill with silence, interTs = ${this._interTs}, pushStartTs = ${pushStartTs}`,
+      );
       this._pushSilenceInterRange(pushStartTs, writeIdx);
       if (this._interIdx === 0) {
         writeIdx = this.getWriteIdx();
-        this._timestamps[writeIdx] = pushStartTs;
-        this._rates[writeIdx] = 1;
-        this._interTs = pushStartTs;
+        this._initFrameBuffer(writeIdx, pushStartTs);
         curFrameEndTs = pushStartTs + this._frameUs;
       }
     }
@@ -94,14 +81,13 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     if (pushEndTs - curFrameEndTs < this._sampleUs) {
       // frame fits in the current buffer slot, just copy it
       if (this._interIdx + frameCount - opts.frameOffset > this._sampleCount) {
-        console.log(`Frame doesn't fit while ts diff is ok ${pushEndTs - curFrameEndTs}, push diff = ${pushEndTs - pushStartTs}`);
-        debugger;
+        console.warn(`Frame doesn't fit while ts diff is enough ${pushEndTs - curFrameEndTs}, push diff = ${pushEndTs - pushStartTs}, expected frame count = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}, extra frames = ${this._interIdx + frameCount - opts.frameOffset - this._sampleCount}`);
+        opts.frameCount = this._sampleCount - this._interIdx + opts.frameOffset;
       }
       this._copyFrame(audioFrame, this._frames[writeIdx], opts);
       this._interIdx += frameCount - opts.frameOffset;
       this._interTs = pushEndTs;
-      console.log(`Frame copied, size = ${frameCount}, offset = ${opts.frameOffset}, interIdx = ${this._interIdx}, interTs = ${this._interTs}`);
-      if (this._interIdx === this._sampleCount) {
+      if (this._interIdx >= this._sampleCount) {
         this._interIdx = 0;
         this._incWriteIdx(writeIdx);
       }
@@ -110,8 +96,10 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
 
     // first part copy
     opts.frameCount = this._sampleCount - this._interIdx;
-    if (opts.frameCount > frameCount - opts.frameOffset) {
-      debugger;
+    if (
+      opts.frameCount > frameCount - opts.frameOffset ||
+      opts.frameCount <= 0
+    ) {
       console.error(`
         Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
       );
@@ -119,17 +107,12 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
     this._copyFrame(audioFrame, this._frames[writeIdx], opts);
     writeIdx = this._incWriteIdx(writeIdx);
-    this._rates[writeIdx] = 1;
-    this._timestamps[writeIdx] = curFrameEndTs;
-    this._interTs = curFrameEndTs;
-    this._interIdx = 0;
-    console.log(`First part copied, size = ${opts.frameCount}, offset = ${opts.frameOffset}, interIdx = ${this._interIdx}, interTs = ${this._interTs}`);
+    this._initFrameBuffer(writeIdx, curFrameEndTs);
 
     // remaining part copy
     opts.frameOffset += opts.frameCount;
     opts.frameCount = frameCount - opts.frameOffset;
     if (opts.frameCount <= 0) {
-      debugger;
       console.error(`
         Frame count calculation error: frames to read = ${opts.frameCount}, offset = ${opts.frameOffset}, frameCount = ${frameCount}, interIdx = ${this._interIdx}, sampleCount = ${this._sampleCount}`,
       );
@@ -138,7 +121,6 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     this._copyFrame(audioFrame, this._frames[writeIdx], opts);
     this._interIdx = opts.frameCount;
     this._interTs = pushEndTs;
-    console.log(`Second part copied, size = ${opts.frameCount}, offset = ${opts.frameOffset}, interIdx = ${this._interIdx}, interTs = ${this._interTs}`);
 
     return writeIdx;
   }
@@ -193,9 +175,15 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     this._tempI16 = new Int16Array(this._frameSize);
   }
 
-  _pushSilenceFrame(ts, writeIdx) {
+  _initFrameBuffer(writeIdx, ts) {
     this._timestamps[writeIdx] = ts;
     this._rates[writeIdx] = 1;
+    this._interIdx = 0;
+    this._interTs = ts;
+  }
+
+  _pushSilenceFrame(ts, writeIdx) {
+    this._initFrameBuffer(writeIdx, ts);
     this._frames[writeIdx].fill(0);
     this._incWriteIdx(writeIdx);
     return writeIdx;
@@ -238,8 +226,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     // currently it's supported in Chrome but not in Firefox, so we have to do the copying manually for now
     if (format[format.length - 1] === "planar") {
       let offset = this._interIdx;
+      let frameCount = opts.frameCount || frame.numberOfFrames;
       for (let ch = 0; ch < this.numChannels; ch++) {
-        const chBuffer = target.subarray(offset, offset + this._sampleCount);
+        const chBuffer = target.subarray(offset, offset + frameCount);
         opts.planeIndex = ch;
         this._copyChannelPlanar(frame, chBuffer, format[0], opts);
         offset += this._sampleCount;
@@ -283,13 +272,8 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     } else if (format !== "f32") {
       throw new Error(`Unsupported audio format: ${format}`);
     }
+    frame.copyTo(temp, opts);
 
-    try {
-      frame.copyTo(temp, opts);
-    } catch (e) {
-      console.log("Error copying frame data, dumping debug info", opts);
-      debugger;
-    }
     let frameCount = opts.frameCount || frame.numberOfFrames;
     format === "f32"
       ? this._deinterleave(temp, target, frameCount)

@@ -8,8 +8,10 @@ let params;
 let errorsCount = 0;
 
 let lastTimestampUs = null;
-let frameDurationUs = null;
-let timestampBuffer = new RingBuffer("Audio Decoder", 3000);
+let lastFrameDurationUs = null;
+
+const BUFFER_SIZE = 3000;
+let timestampBuffer = new RingBuffer("Audio Decoder", BUFFER_SIZE);
 
 const MAX_RECOVERY_ATTEMPTS = 30;
 const buffered = [];
@@ -29,9 +31,13 @@ function processDecodedFrame(audioFrame) {
   let rawTimestamp = timestampBuffer.pop();
   let decTimestamp = audioFrame.timestamp;
   if (decTimestamp === rawTimestamp && lastTimestampUs !== null) {
-    decTimestamp = lastTimestampUs + frameDurationUs;
+    decTimestamp = lastTimestampUs + lastFrameDurationUs;
   }
   lastTimestampUs = decTimestamp;
+  if (config.codec === "flac") {
+    // FLAC frames can have variable number of samples
+    lastFrameDurationUs = (1e6 * audioFrame.numberOfFrames) / config.sampleRate;
+  }
 
   self.postMessage(
     {
@@ -63,7 +69,13 @@ function tryRecoverDecoderError(error) {
   }
 
   if (lastTimestampUs !== null) {
-    lastTimestampUs += frameDurationUs * timestampBuffer.length;
+    // TODO: investigate possibility of duration array for better estimation
+    // instead of using the last frame duration
+    if (config.codec !== "flac") {
+      lastTimestampUs += lastFrameDurationUs * timestampBuffer.length;
+    } else {
+      lastTimestampUs = null;
+    }
     timestampBuffer.reset();
   }
   console.log(`Recover: audio decoder state is ${audioDecoder.state}`);
@@ -122,7 +134,7 @@ self.addEventListener("message", async function (e) {
       if (support.supported) {
         try {
           audioDecoder.configure(params);
-          frameDurationUs = (1e6 * config.sampleCount) / config.sampleRate;
+          lastFrameDurationUs = (1e6 * config.sampleCount) / config.sampleRate;
         } catch (error) {
           handleDecoderError(error.message);
         }
