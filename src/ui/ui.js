@@ -118,7 +118,7 @@ export class UI {
 
   drawFrame(frame) {
     let lm = this._layoutMgr;
-    this._cctx.drawImage(frame, 0, 0, lm.width, lm.height);
+    this._cctx.drawImage(frame, 0, 0, lm.frameWidth, lm.frameHeight);
   }
 
   showControls(anim) {
@@ -138,7 +138,8 @@ export class UI {
   }
 
   clear() {
-    this._cctx.clearRect(0, 0, this._layoutMgr.width, this._layoutMgr.height);
+    let lm = this._layoutMgr;
+    this._cctx.clearRect(0, 0, lm.frameWidth, lm.frameHeight);
   }
 
   toggleMode(mode) {
