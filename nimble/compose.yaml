@@ -1,0 +1,25 @@
+services:
+  nimble:
+    image: ubuntu:nimble
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nimble_ubuntu_24
+    volumes:
+      - ./log:/var/log/nimble/
+      - ./conf:/etc/nimble/
+    ports:
+      - "8081:8081"
+      - "8443:8443"
+      - "1935:1935"
+      - "1544:1544"
+    networks:
+      - local_net
+
+networks:
+  local_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.168.0.0/16
