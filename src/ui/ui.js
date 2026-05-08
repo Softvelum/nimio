@@ -13,23 +13,29 @@ import { UILayoutManager } from "./layout-manager";
 import { MODE } from "@/shared/values";
 
 export class UI {
-  constructor(instName, container, opts, eventBus) {
+  constructor(instName, parent, opts, eventBus) {
     this._state = "pause";
     this._muted = false;
     this._instName = instName;
     this._eventBus = eventBus;
     this._opts = opts;
+    this._logger = LoggersFactory.create(this._instName, "UI");
 
-    this._container = container;
-    if (!this._container || !this._container.appendChild) {
+    this._parent = parent;
+    if (!this._parent || !this._parent.appendChild) {
       throw new Error("UI container element is not valid");
     }
+
+    this._container = document.createElement("div");
+    this._parent.appendChild(this._container);
+
     Object.assign(this._container.style, {
       display: "inline-flex",
       position: "relative",
       "background-color": "#000",
     });
     this._container.classList.add("nimio-container");
+
     this._logger = LoggersFactory.create(this._instName, "UI");
 
     this._layoutMgr = new UILayoutManager(
@@ -37,8 +43,14 @@ export class UI {
       this._opts.height,
       this._opts.ar,
     );
-    this._autoAbr = this._opts.abrEnabled;
+    this._eventBus.on("aux:layout-update", data => {
+      this._layoutMgr.setFrameSize(data.width, data.height);
+      if (!this._container) return;
+      this._updateLayout(this._container.getBoundingClientRect());
+    });
+    this._createResizeObserver();
 
+    this._autoAbr = this._opts.abrEnabled;
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
@@ -76,6 +88,8 @@ export class UI {
       this._captionCtrl.list = this._captionList;
       this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
     }
+
+    this._orientMq = window.matchMedia("(orientation: portrait)");
     if (this._opts.fullscreen) {
       this._toggleFullscreen();
     }
@@ -95,9 +109,11 @@ export class UI {
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
+    this._resizeObserver.unobserve(this._container);
     while (this._container.firstChild) {
       this._container.removeChild(this._container.firstChild);
     }
+    this._parent.removeChild(this._container);
   }
 
   drawPlay() {
@@ -323,19 +339,16 @@ export class UI {
   }
 
   _addDisplayEventHandlers() {
-    this._onResize = this._handleResize.bind(this);
-    this._onOrientChange = this._handleOrientChange.bind(this);
-    document.addEventListener("fullscreenchange", this._onResize);
-    document.addEventListener("webkitfullscreenchange", this._onResize);
-    window.addEventListener("resize", this._onResize);
-    window.addEventListener("orientationchange", this._onOrientChange);
+    this._onLayoutUpd = this._handleViewportUpdate.bind(this);
+    document.addEventListener("fullscreenchange", this._onLayoutUpd);
+    document.addEventListener("webkitfullscreenchange", this._onLayoutUpd);
+    window.addEventListener("orientationchange", this._onLayoutUpd);
   }
 
   _removeDisplayEventHandlers() {
-    document.removeEventListener("fullscreenchange", this._onResize);
-    document.removeEventListener("webkitfullscreenchange", this._onResize);
-    window.removeEventListener("resize", this._onResize);
-    window.removeEventListener("orientationchange", this._onOrientChange);
+    document.removeEventListener("fullscreenchange", this._onLayoutUpd);
+    document.removeEventListener("webkitfullscreenchange", this._onLayoutUpd);
+    window.removeEventListener("orientationchange", this._onLayoutUpd);
   }
 
   _removeSeekBar() {
@@ -496,20 +509,40 @@ export class UI {
     return fElem === this._container;
   }
 
-  _handleResize() {
-    if (this._resizeQueued) return;
+  _createResizeObserver() {
+    this._resizeObserver = new ResizeObserver(entries => {
+      this._updateLayout(entries[0].contentRect);
+    });
+    this._resizeObserver.observe(this._container);
+  }
 
-    this._resizeQueued = true;
+  _handleViewportUpdate() {
+    if (this._viewportUpdatePending) return;
+
+    this._viewportUpdatePending = true;
+    // double RAF for fullscreen and orientation change events
     requestAnimationFrame(() => {
-      this._resizeQueued = false;
-      this._resizeAndRedraw();
+      requestAnimationFrame(() => {
+        this._viewportUpdatePending = false;
+        if (!this._container) return;
+        this._updateLayout(this._container.getBoundingClientRect());
+      });
+    });
+  }
+
+  _updateLayout(rect) {
+    if (this._layoutUpdatePending) return;
+
+    this._layoutUpdatePending = true;
+    requestAnimationFrame(() => {
+      this._layoutUpdatePending = false;
+      this._resizeAndRedraw(rect);
       if (this._thumbnailPreview) this._thumbnailPreview.update();
     });
   }
 
-  _handleOrientChange(e) {
-    // orientationchange can fire before actual size update
-    setTimeout(this._onResize, 250);
+  _resizeAndRedraw(rect) {
+    this._container.style.width = "360px";
   }
 
   _updateOutputSize(w, h) {
@@ -681,166 +714,20 @@ export class UI {
   }
 
   adjustAspectRatio() {
-    this._mediaElement.style.height = "360px";
+    this._container.getBoundingClientRect();
+    this._layoutMgr.computeLayout();
   }
 
-  // adjustAspectRatio () {
-  //   this.orientMq = window.matchMedia("(orientation: portrait)");
-  //   if( this._opts.ar ) {
-  //     let curStreamSize = this._context.getCurrentVideoStreamSize();
-  //     if( curStreamSize ) {
-  //       let w = curStreamSize.width;
-  //       let h = curStreamSize.height;
-
-  //       let aW = h * this._opts.ar.x / this._opts.ar.y;
-  //       if( aW > w ) {
-  //         let aH = w * this._opts.ar.y / this._opts.ar.x;
-  //         this._adjustY( aH / h, w, h );
-  //       } else if( aW < w) {
-  //         this._adjustX( aW / w, w / aW, w, h );
-  //       }
-  //     }
-  //   } else {
-  //     this._adjustHeight();
-  //   }
-  // }
-
-  // _adjustHeight() {
-  //   if( this.mediaElement && this.playerWrapper && !this.fullscreenReq && (this.container.offsetHeight > 0) ) {
-  //     if( this._isFullscreenMode() ) {
-  //       this._updateFullscreenWrapperSize();
-  //     } else if( '100%' === this.settings.height ) {
-  //       this.playerWrapper.style.height = `${this.container.offsetHeight}px`;
-  //     }
-  //   }
-  // }
-
-  // _adjustX( xR, rX, w, h ) {
-  //   if( !this._processContainerSize() ) {
-  //     return;
-  //   }
-  //   if( !this.cW ) {
-  //     this.cW = this.cH * w * xR / h;
-  //   }
-  //   let vHeight = this.cW * h / w;
-  //   let wrpHeight = vHeight / xR;
-
-  //   let xTransform = 'scaleX(' + xR + ')';
-  //   let xyTransform = ' scale(' + rX + ')';
-  //   let mPercent = 50 * (rX - 1) * h / w;
-  //   if( undefined !== this.cH ) {
-  //     if( this.cH > wrpHeight + 0.5 ) {
-  //       let hDiff = this.cH - wrpHeight;
-  //       wrpHeight = this.cH;
-  //       mPercent += 50 * hDiff / this.cW;
-  //     } else if( this.cH < wrpHeight - 0.5 ) {
-  //       let hDiff = wrpHeight - this.cH;
-  //       wrpHeight = this.cH;
-  //       xyTransform = ' scale(' + wrpHeight / vHeight + ')';
-  //       mPercent -= 50 * hDiff / this.cW;
-  //     }
-  //   }
-  //   this.mediaElement.style.transform = xTransform + xyTransform;
-
-  //   this.mediaElement.style.margin = mPercent + '% 0';
-  //   this.mediaElement.style.height = `${Math.round(vHeight)}px`;
-  //   if( this.playerWrapper ) {
-  //     let vActHeight = this.mediaElement.getBoundingClientRect().height;
-  //     if( vActHeight ) vActHeight = Math.ceil(vActHeight);
-  //     wrpHeight = Math.round(wrpHeight);
-  //     if( wrpHeight < vActHeight ) wrpHeight = vActHeight;
-  //     this.playerWrapper.style.height = `${wrpHeight}px`;
-  //   }
-  // }
-
-  // _adjustY( yR, w, h ) {
-  //   if( !this._processContainerSize() ) {
-  //     return;
-  //   }
-  //   if( !this.cW ) {
-  //     this.cW = this.cH * w / (h * yR);
-  //   }
-  //   let vHeight = this.cW * h / w;
-  //   let wrpHeight = vHeight * yR;
-  //   let hDiff = vHeight - wrpHeight;
-
-  //   let yTransform = 'scaleY(' + yR + ')';
-  //   let xyTransform = '';
-  //   if( undefined !== this.cH ) {
-  //     if( this.cH > wrpHeight + 0.5 ) {
-  //       wrpHeight = this.cH;
-  //       vHeight = wrpHeight + hDiff;
-  //     } else if( this.cH < wrpHeight - 0.5 ) {
-  //       wrpHeight = this.cH;
-  //       vHeight = wrpHeight + hDiff;
-  //       let xyR = wrpHeight / (vHeight * yR);
-  //       xyTransform = ' scale(' + xyR + ')';
-  //     }
-  //   }
-  //   this.mediaElement.style.transform = yTransform + xyTransform;
-
-  //   let mPercent = 50 * (1 - yR) * h / w;
-  //   this.mediaElement.style.margin = '-' + mPercent + '% 0';
-  //   this.mediaElement.style.height = `${Math.round(vHeight)}px`;
-  //   if( this.playerWrapper ) {
-  //     this.playerWrapper.style.height = `${Math.round(wrpHeight)}px`;
-  //   }
-  // }
-
-  // _getScreenSize () {
-  //   var isPortrait = this.orientMq.matches;
-
-  //   var result = [screen.width, screen.height];
-  //   if( isPortrait && (screen.width > screen.height) ||
-  //      !isPortrait && (screen.width < screen.height) ) {
-  //     result[0] = screen.height;
-  //     result[1] = screen.width;
-  //   }
-  //   return result;
-  // }
-
-  // _processContainerSize() {
-  //   this.cW = this.settings.width;
-  //   this.cH = this.settings.height;
-  //   let isFullscreen = this._isFullscreenMode();
-  //   if( isFullscreen ) {
-  //     var scrSize = this._getScreenSize();
-  //     this.cW = scrSize[0];
-  //     this.cH = scrSize[1];
-  //     this._stashCurrentSize();
-  //   } else if( !this.stashed ) {
-  //     if( '100%' === this.settings.width ) {
-  //       if( this.stashedContWidth ) {
-  //         this.cW = this.stashedContWidth;
-  //         this.stashedContWidth = undefined;
-  //       } else {
-  //         this.cW = this._getContainerWidth();
-  //         if( !this.cW ) {
-  //           this.cW = this.playerWrapper ? this.playerWrapper.offsetWidth :
-  //                                           this.mediaElement.offsetWidth;
-  //         }
-  //         this.currentContWidth = this.cW;
-  //       }
-  //     }
-  //     if( '100%' === this.settings.height ) {
-  //       if( this.stashedContHeight ) {
-  //         this.cH = this.stashedContHeight;
-  //         this.stashedContHeight = undefined;
-  //       } else {
-  //         this.cH = this._getContainerHeight();
-  //         if( !this.cH ) {
-  //           this.cH = this.playerWrapper ? this.playerWrapper.offsetHeight :
-  //                                           this.mediaElement.offsetHeight;
-  //         }
-  //         this.currentContHeight = this.cH;
-  //       }
-  //     }
-  //     if( !this.settings.width && !this.settings.height ) {
-  //       this.cW = this.mediaElement.offsetWidth;
-  //     }
-  //   } else { // original video element size isn't yet restored after fullscreen mode
-  //     return false;
-  //   }
-  //   return true;
-  // }
+  _getScreenSize () {
+    let isPortrait = this._orientMq.matches;
+    let result = [screen.width, screen.height];
+    if (
+      isPortrait && (screen.width > screen.height) ||
+      !isPortrait && (screen.width < screen.height)
+    ) {
+      result[0] = screen.height;
+      result[1] = screen.width;
+    }
+    return result;
+  }
 }

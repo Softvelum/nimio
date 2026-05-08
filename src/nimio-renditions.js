@@ -96,11 +96,15 @@ export const NimioRenditions = {
   _onRenditionSwitchResult(type, done) {
     let nextId = this._nextRenditionData.idx + 1;
     if (done) {
-      this._context.setCurrentStream(
+      let curStream = this._context.setCurrentStream(
         type,
         this._nextRenditionData.idx,
         this._nextRenditionData.trackId,
       );
+      this._eventBus.emit("aux:layout-update", {
+        width: curStream.stream_info.width,
+        height: curStream.stream_info.height,
+      });
 
       if (type === "video" && this._nalProcessor) {
         this._updateNalUnitProcessors(this._decoderFlows["video"].codec);

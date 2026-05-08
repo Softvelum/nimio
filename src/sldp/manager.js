@@ -211,6 +211,10 @@ export class SLDPManager {
     if (gotVideo && vIdx !== undefined) {
       let trackId = this._nextStreamNumber(true);
       let stream = this._context.setCurrentStream("video", vIdx, trackId);
+      this._eventBus.emit("aux:layout-update", {
+        width: stream.stream_info.width,
+        height: stream.stream_info.height,
+      });
       this._pushCurStream("video", stream);
       vsetup = this._setupObject("video", trackId, stream.stream_info);
       timescale[trackId] = vsetup.timescale;

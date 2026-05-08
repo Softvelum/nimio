@@ -625,8 +625,7 @@ export class NimioVod {
 
       currentLevel = this._context.getCurrentLevel();
       this._sessionParam = currentLevel.session;
-
-      this._ui.adjustAspectRatio();
+      this._updateUiLayout(currentLevel);
 
       if (this._state === VOD_STATE.PLAY) {
         this._eventBus.emit("nimio:rendition-list", this._makeUiLevelsList());
@@ -703,7 +702,7 @@ export class NimioVod {
     this._applyCurrentRendition();
     this._switchInProgress = false;
 
-    // this._ui.adjustAspectRatio();
+    this._updateUiLayout(lvl);
   };
 
   _applyCurrentRendition(skipInitResolution) {
@@ -721,6 +720,13 @@ export class NimioVod {
     }
 
     return curLvl;
+  }
+
+  _updateUiLayout(lvl) {
+    this._eventBus.emit("aux:layout-update", {
+      width: lvl.data.width,
+      height: lvl.data.height,
+    });
   }
 
   _onMediaAttached = () => {
