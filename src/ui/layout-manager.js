@@ -13,7 +13,6 @@ export class UILayoutManager {
   }
 
   setFrameSize(width, height) {
-    this._frameWidth = width;
     this._frameHeight = height;
     if (!this._forcedAr) {
       this._setAspectRatio(width, height);
@@ -43,36 +42,28 @@ export class UILayoutManager {
       res.output["aspect-ratio"] = this._ar.str;
       if (cAspect > this._ar.val) {
         res.output.height = "100%";
+        res.output.width = "auto";
       } else {
         res.output.width = "100%";
+        res.output.height = "auto";
       }
     }
 
     return res;
   }
 
-  computeRenderProps(cWidth, cHeight, dpr, mode) {
-    if (mode !== MODE.LIVE || !this._ar || !cWidth || !cHeight) return null;
-    
-    let width = Math.round(cWidth * dpr);
-    let height = Math.round(cHeight * dpr);
-    let sourceWidth = this._frameHeight * this._ar.val;
+  computeRenderProps(width, height) {
+    if (!this._ar || !width || !height) return null;
 
+    let sourceWidth = this._frameHeight * this._ar.val;
     let scale = Math.min(width / sourceWidth, height / this._frameHeight);
+
     let dWidth = sourceWidth * scale;
     let dHeight = this._frameHeight * scale;
     let dx = Math.round((width - dWidth) / 2);
     let dy = Math.round((height - dHeight) / 2);
 
     return { width, height, dWidth, dHeight, dx, dy };
-  }
-
-  get frameWidth() {
-    return this._frameWidth || 0;
-  }
-
-  get frameHeight() {
-    return this._frameHeight || 0;
   }
 
   _initAspectRatio(ar) {

@@ -28,16 +28,16 @@ export class UI {
 
     this._container = document.createElement("div");
     this._parent.appendChild(this._container);
-
+    this._container.classList.add("nimio-container");
     Object.assign(this._container.style, {
-      display: "inline-flex",
+      display: "block",
       position: "relative",
       "background-color": "#000",
     });
-    this._container.classList.add("nimio-container");
 
     this._logger = LoggersFactory.create(this._instName, "UI");
 
+    this._dpr = window.devicePixelRatio || 1;
     this._layoutMgr = new UILayoutManager(
       this._opts.width,
       this._opts.height,
@@ -133,8 +133,10 @@ export class UI {
   }
 
   drawFrame(frame) {
-    let lm = this._layoutMgr;
-    this._cctx.drawImage(frame, 0, 0, lm.frameWidth, lm.frameHeight);
+    let rp = this._rendProps;
+    if (!rp) return;
+
+    this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
   }
 
   showControls(anim) {
@@ -154,8 +156,8 @@ export class UI {
   }
 
   clear() {
-    let lm = this._layoutMgr;
-    this._cctx.clearRect(0, 0, lm.frameWidth, lm.frameHeight);
+    if (!this._rendProps) return;
+    this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
   }
 
   toggleMode(mode) {
@@ -230,7 +232,6 @@ export class UI {
   _addMediaElement() {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
-    // this._applySize(this._mediaElement, this._curWidth, this._curHeight);
     this._canvas.after(this._mediaElement);
   }
 
@@ -511,7 +512,9 @@ export class UI {
 
   _createResizeObserver() {
     this._resizeObserver = new ResizeObserver(entries => {
-      this._updateLayout(entries[0].contentRect);
+      requestAnimationFrame(() => {
+        this._updateLayout(entries[0].contentRect);
+      });
     });
     this._resizeObserver.observe(this._container);
   }
@@ -542,36 +545,84 @@ export class UI {
   }
 
   _resizeAndRedraw(rect) {
-    this._container.style.width = "360px";
-  }
+    let cssProps = this._layoutMgr.computeLayout(
+      rect.width,
+      rect.height,
+      this._mode,
+      this._isPlayerFullscreen(),
+    );
+    if (!cssProps) return;
 
-  _updateOutputSize(w, h) {
-    if (this._mode === MODE.LIVE) {
-      this._updateCanvasSize(w, h);
+    this._logger.debug(`Layout props`, JSON.stringify(cssProps, null, 2));
+
+    this._container.style.width = cssProps.container.width;
+    this._container.style.height = cssProps.container.height;
+    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
+    output.style.width = cssProps.output.width;
+    output.style.height = cssProps.output.height;
+    output.style["object-fit"] = cssProps.output["object-fit"];
+    if (cssProps.output["aspect-ratio"]) {
+      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
     }
-    this._outputs.forEach((elem) => {
-      elem.style.width = w;
-      elem.style.height = h;
-    });
+    if (this._mode === MODE.LIVE) {
+      this._prevRendProps = this._rendProps;
+      this._rendProps = this._layoutMgr.computeRenderProps(
+        rect.width,
+        rect.height,
+      );
+      this._logger.debug(`Rect w = ${rect.width}, h = ${rect.height}`);
+      this._logger.warn(`Render props`, JSON.stringify(this._rendProps, null, 2));
+      this._updateCanvasSize();
+    }
   }
 
-  _updateCanvasSize(w, h) {
-    // DPR can change when dragging window between monitors, browser zoom, external display attach/detach
+  _updateCanvasSize() {
+    // DPR can change when dragging window between monitors,
+    // browser zoom, external display attach/detach
     this._dpr = window.devicePixelRatio || 1;
+    let dprWidth = this._rendProps.width * this._dpr;
+    let dprHeight = this._rendProps.height * this._dpr;
+    if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
+      return;
+    }
+    // if (this._prevRendProps) {
+    //   let wDiff = this._rendProps.width - this._prevRendProps.width;
+    //   let hDiff = this._rendProps.height - this._prevRendProps.height;
+    //   if (wDiff >= 0 && wDiff < 5 || hDiff >= 0 && hDiff < 5) return;
+    // }
 
-    let devW = w * this._dpr;
-    let devH = h * this._dpr;
-    if (this._canvas.width === devW && this._canvas.height === devH) return;
-
-    this._bCanvas.width = devW;
-    this._bCanvas.height = devH;
+    this._bCanvas.width = dprWidth
+    this._bCanvas.height = dprHeight;
     this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    this._bctx.drawImage(this._canvas, 0, 0);
 
-    this._canvas.width = devW;
-    this._canvas.height = devH;
+    const prp = this._prevRendProps || this._rendProps;
+    const rp = this._rendProps;
+    this._bctx.drawImage(
+      this._canvas,
+      prp.dx,
+      prp.dy,
+      prp.dWidth,
+      prp.dHeight,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+    );
+
+    this._canvas.width = dprWidth
+    this._canvas.height = dprHeight;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
+    this._cctx.drawImage(
+      this._bCanvas,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+    );
   }
 
   _handleClick(e) {
@@ -716,18 +767,5 @@ export class UI {
   adjustAspectRatio() {
     this._container.getBoundingClientRect();
     this._layoutMgr.computeLayout();
-  }
-
-  _getScreenSize () {
-    let isPortrait = this._orientMq.matches;
-    let result = [screen.width, screen.height];
-    if (
-      isPortrait && (screen.width > screen.height) ||
-      !isPortrait && (screen.width < screen.height)
-    ) {
-      result[0] = screen.height;
-      result[1] = screen.width;
-    }
-    return result;
   }
 }
