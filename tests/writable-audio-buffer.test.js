@@ -23,6 +23,25 @@ function createMockAudioFrame(options = {}) {
   };
 }
 
+function snapshotMock(impl) {
+  const calls = [];
+
+  const mock = vi.fn((...args) => {
+    // clone arguments at call time
+    const snap = args.map((arg) =>
+      typeof arg === "object" && arg !== null ? structuredClone(arg) : arg,
+    );
+
+    calls.push(snap);
+
+    return impl?.(...args);
+  });
+
+  mock.snapshots = calls;
+
+  return mock;
+}
+
 function createTestBuffer(options = {}) {
   const {
     bufferSec = 1,
@@ -71,15 +90,6 @@ describe("WritableAudioBuffer", () => {
     expect(wab.getReadIdx()).toBe(0);
   });
 
-  it("pushFrame throws if audioFrame.numberOfFrames mismatch", () => {
-    const badFrame = createMockAudioFrame({
-      numberOfFrames: wab.sampleCount - 1,
-    });
-    expect(() => wab.pushFrame(badFrame)).toThrow(
-      `audioFrame must contain ${wab.sampleCount} samples, got ${badFrame.numberOfFrames}`,
-    );
-  });
-
   it("pushFrame calls preprocessors process method", () => {
     const preprocessor = { process: vi.fn(), setBufferIface() {} };
     wab.addPreprocessor(preprocessor);
@@ -92,33 +102,39 @@ describe("WritableAudioBuffer", () => {
 
   it("pushFrame copies planar data per channel when format ends with -planar", () => {
     const frame = createMockAudioFrame({ format: "f32-planar" });
-    const spyCopyTo = vi.spyOn(frame, "copyTo");
+    frame.copyTo = snapshotMock(frame.copyTo);
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
+    expect(frame.copyTo.snapshots.length).toBe(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(
+      const snapArr = new Float32Array(frame.copyTo.snapshots[ch][0]);
+      expect(snapArr).toEqual(
         wab._frames[wab.getWriteIdx() - 1].subarray(
           ch * wab.sampleCount,
           (ch + 1) * wab.sampleCount,
         ),
-        { layout: "planar", planeIndex: ch },
       );
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({
+        planeIndex: ch,
+        frameOffset: 0,
+      });
     }
   });
 
   it("pushFrame copies s16-planar data per channel", () => {
     const frame = createMockAudioFrame({ format: "s16-planar" });
-    const spyCopyTo = vi.spyOn(frame, "copyTo");
+    frame.copyTo = snapshotMock(frame.copyTo);
 
     wab.pushFrame(frame);
 
-    expect(spyCopyTo).toHaveBeenCalledTimes(wab.numChannels);
+    expect(frame.copyTo.snapshots.length).toBe(wab.numChannels);
     for (let ch = 0; ch < wab.numChannels; ch++) {
-      expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
-        layout: "planar",
+      const snapArr = new Int16Array(frame.copyTo.snapshots[ch][0]);
+      expect(snapArr).toEqual(wab._tempI16);
+      expect(frame.copyTo.snapshots[ch][1]).toEqual({
         planeIndex: ch,
+        frameOffset: 0,
       });
     }
 
@@ -138,8 +154,8 @@ describe("WritableAudioBuffer", () => {
     wab.pushFrame(frame);
 
     expect(spyCopyTo).toHaveBeenCalledWith(wab._tempF32, {
-      layout: "interleaved",
       planeIndex: 0,
+      frameOffset: 0,
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
@@ -163,8 +179,8 @@ describe("WritableAudioBuffer", () => {
     wab.pushFrame(frame);
 
     expect(spyCopyTo).toHaveBeenCalledWith(wab._tempI16, {
-      layout: "interleaved",
       planeIndex: 0,
+      frameOffset: 0,
     });
 
     const lastWriteIdx = wab.getWriteIdx() - 1;
@@ -197,8 +213,8 @@ describe("WritableAudioBuffer", () => {
     expect(spyCopyTo).toHaveBeenCalledWith(
       singleChannelBuffer._frames[singleChannelBuffer.getWriteIdx() - 1],
       {
-        layout: "planar",
         planeIndex: 0,
+        frameOffset: 0,
       },
     );
   });

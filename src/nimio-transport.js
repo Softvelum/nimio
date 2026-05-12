@@ -216,7 +216,7 @@ export const NimioTransport = {
     }
 
     if (audioAvailable) {
-      decoderFlow.setCodecData({ codecData: data.data, config: newCfg.get() });
+      decoderFlow.setCodecData({ config: this._audioConfig.get() });
       decoderFlow.setBuffer(buffer, this._state);
     }
   },
