@@ -41,7 +41,7 @@ function defaultFlacDescription() {
   // prettier-ignore
   const fd = new Uint8Array([
     0x66, 0x4c, 0x61, 0x43, // fLaC
-    0x00, 0x00, 0x00, 0x22, // metadata block header (34 bytes length)
+    0x80, 0x00, 0x00, 0x22, // metadata block header (34 bytes length)
     0x12, 0x00, // min block size (4608 samples)
     0x12, 0x00, // max block size (4608 samples)
     0x00, 0x00, 0x00, // min frame size (0 - unknown)
