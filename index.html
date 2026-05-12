@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="ws://192.168.129.129:8081/test/test"
+      value="wss://demo-nimble.softvelum.com/live/bbb"
     />
     <button
       id="initNimioButton"
@@ -60,17 +60,17 @@
           latencyAdjustMethod: "fast-forward", // "fast-forward" | "seek"
           splashScreen: "splash.jpg",
 
-          // vod: {
-          //   startupVodFailover: true,
-          //   thumbnails: true,
-          // },
+          vod: {
+            startupVodFailover: true,
+            thumbnails: true,
+          },
 
-          // captions: {
-          //   CC1: { name: "First track", lang: "English", default: true },
-          //   CC2: { name: "Second track", lang: "French" },
-          // },
+          captions: {
+            CC1: { name: "First track", lang: "English", default: true },
+            CC2: { name: "Second track", lang: "French" },
+          },
 
-          // timecodes: true,
+          timecodes: true,
         });
 
         window.nimio.on("nimio:play", () => {
