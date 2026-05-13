@@ -101,8 +101,8 @@ class AudioVolumeController {
 
   _getStoredVolume() {
     let res = 100;
-    if (!window.localStorage) return res;
     try {
+      if (!window.localStorage) return res;
       let volume = localStorage.getItem(`nimio_volume_${this._storageId}`);
       if (volume === null) volume = localStorage.getItem("nimio_volume_all");
       res = parseInt(volume);
@@ -118,9 +118,9 @@ class AudioVolumeController {
   _storeVolume(val) {
     if (val < 0) val = 0;
     if (val > 100 || isNaN(val)) val = 100;
-    if (!window.localStorage) return val;
 
     try {
+      if (!window.localStorage) return val;
       localStorage.setItem(`nimio_volume_${this._storageId}`, val);
       localStorage.setItem("nimio_volume_all", val);
     } catch (e) {
