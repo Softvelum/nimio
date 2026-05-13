@@ -16,6 +16,8 @@ export const WEB = {
   AV1_SEQUENCE_HEADER: 16,
   AV1_KEY_FRAME: 17,
   AV1_FRAME: 18,
+  FLAC_SEQUENCE_HEADER: 19,
+  FLAC_FRAME: 20,
 };
 
 export const CODEC_FAMILY_MAP = Object.fromEntries(

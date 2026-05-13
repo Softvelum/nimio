@@ -19,6 +19,7 @@ describe("parseAACConfig", () => {
       sampleRate: 44100,
       numberOfChannels: 2,
       sampleCount: 1024,
+      description: codecData,
     });
   });
 
@@ -31,6 +32,7 @@ describe("parseAACConfig", () => {
       sampleRate: 44100,
       numberOfChannels: 4,
       sampleCount: 1024,
+      description: codecData,
     });
   });
 
@@ -50,6 +52,7 @@ describe("parseAACConfig", () => {
       sampleRate: 1048832,
       numberOfChannels: 15,
       sampleCount: 1024,
+      description: codecData,
     });
   });
 
@@ -61,6 +64,7 @@ describe("parseAACConfig", () => {
       sampleRate: 16440,
       numberOfChannels: 8,
       sampleCount: 960,
+      description: codecData,
     });
   });
 
@@ -72,6 +76,7 @@ describe("parseAACConfig", () => {
       sampleRate: 96000,
       numberOfChannels: 11,
       sampleCount: 960,
+      description: codecData,
     });
   });
 
@@ -88,12 +93,14 @@ describe("parseAACConfig", () => {
       const byte1 = (objectType << 3) | ((freqIndex & 0x0e) >> 1);
       const byte2 = ((freqIndex & 0x01) << 7) | (2 << 3); // channels = 2 (0b10)
 
-      const config = parseAACConfig(new Uint8Array([byte1, byte2]));
+      const codecData = new Uint8Array([byte1, byte2]);
+      const config = parseAACConfig(codecData);
       expect(config).toEqual({
         audioObjectType: 2,
         sampleRate: rate,
         numberOfChannels: 2,
         sampleCount: 1024,
+        description: codecData,
       });
     });
   });

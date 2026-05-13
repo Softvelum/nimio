@@ -1,8 +1,5 @@
-import {
-  createSharedBuffer,
-  isSharedArrayBufferSupported,
-  isSharedBuffer,
-} from "@/shared/shared-buffer";
+import { createSharedBuffer, isSharedBuffer } from "@/shared/shared-buffer";
+import { isSharedArrayBufferSupported } from "@/shared/shared-buffer";
 
 function audioFrameSize(numChannels, sampleCount) {
   return numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT;
@@ -44,9 +41,10 @@ export class SharedAudioBuffer {
 
     // one frame = Float64 timestamp(2 Float32) + Float32 rate + frame size
     const fAuxSize = 3 * capacity * Float32Array.BYTES_PER_ELEMENT;
-    // 2 temp buffers for s16 and f32 data
+    // 3 temp buffers for s16, s32 and f32 data
     const tempSize =
       numChannels * sampleCount * Float32Array.BYTES_PER_ELEMENT +
+      numChannels * sampleCount * Int32Array.BYTES_PER_ELEMENT +
       numChannels * sampleCount * Int16Array.BYTES_PER_ELEMENT;
 
     let fullSize = SharedAudioBuffer.HEADER_BYTES + fAuxSize + tempSize;

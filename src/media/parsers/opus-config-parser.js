@@ -49,5 +49,6 @@ export function parseOpusConfig(opusPacket) {
     sampleRate: 48000,
     numberOfChannels: 2, // Nimble streamer supports only 2 channels
     sampleCount: samplesPerFrame * numFrames,
+    description: opusPacket,
   };
 }

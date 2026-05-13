@@ -624,7 +624,15 @@ export class NimioLive {
 
   _onDecodingError(kind) {
     if (kind === "video") this._setNoVideo();
-    if (kind === "audio") this._setNoAudio();
+    if (kind === "audio") {
+      if (!this._noVideo && this._playbackStartTsUs > 0) {
+        // audio decoding failed after video started
+        // start no audio mode to continue playback with video only
+        this._startNoAudioMode();
+      } else {
+        this._setNoAudio();
+      }
+    }
 
     if (this._noVideo && this._noAudio) {
       this._eventBus.emit("aux:playback-error", {
@@ -684,7 +692,7 @@ export class NimioLive {
         this._logger.error(
           "Audio context is not initialized. Can't play audio.",
         );
-        this._setNoAudio(true);
+        this._setNoAudio();
         return;
       }
 
@@ -698,7 +706,7 @@ export class NimioLive {
 
       if (!this._audioContext.audioWorklet) {
         this._logger.error("AudioWorklet is not supported in this environment");
-        this._setNoAudio(true);
+        this._setNoAudio();
         return;
       }
 
@@ -757,7 +765,7 @@ export class NimioLive {
     if (!this._state.isShared()) {
       this._state.attachPort(this._audioNode.port);
     }
-    if (!procOptions.audioSab && this._audioBuffer) {
+    if (this._audioBuffer && !this._audioBuffer.isShareable) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
 
@@ -785,12 +793,22 @@ export class NimioLive {
     if (yes === undefined) yes = true;
     this._noAudio = yes;
     this._latencyCtrl.audioEnabled = !yes;
+    if (this._audioWorkletReady && this._audioNode) {
+      this._audioNode.port.postMessage({
+        type: "audio-status",
+        data: { enabled: !yes },
+      });
+    }
     this._logger.debug("Set no audio:", yes);
   }
 
   async _startNoAudioMode() {
     this._setNoAudio();
-    await this._initAudioProcessor(48000, 1, true);
+    try {
+      await this._initAudioProcessor(48000, 1, true);
+    } catch (err) {
+      this._logger.error("Failed to start no audio mode", err);
+    }
     this._logger.debug("No audio mode started");
   }
 

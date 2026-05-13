@@ -48,7 +48,7 @@ export class LatencyController {
       this._syncModePolicy.logger = this._logger;
     }
     if (params.port) {
-      params.port.addEventListener("message", this._portMsgHandler.bind(this));
+      params.port.addEventListener("message", this._portMsgHandler);
     }
 
     this._logger.debug(
@@ -421,11 +421,11 @@ export class LatencyController {
     this._stateMgr.setMinBufferMs("ema", this._emaB);
   }
 
-  _portMsgHandler(event) {
+  _portMsgHandler = (event) => {
     const msg = event.data;
     if (!msg || msg.aux) return;
     if (msg.type === "latency-params") {
       this.setParams(msg.data);
     }
-  }
+  };
 }

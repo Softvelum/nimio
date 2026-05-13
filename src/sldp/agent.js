@@ -2,11 +2,17 @@ import { WEB, CODEC_FAMILY_MAP } from "./data-types";
 import { ByteReader } from "@/shared/byte-reader";
 
 const IS_SEQUENCE_HEADER = [
-  WEB.AAC_SEQUENCE_HEADER,
   WEB.AVC_SEQUENCE_HEADER,
   WEB.HEVC_SEQUENCE_HEADER,
   WEB.AV1_SEQUENCE_HEADER,
+  WEB.AAC_SEQUENCE_HEADER,
+  WEB.FLAC_SEQUENCE_HEADER,
 ].reduce((o, v) => ((o[v] = true), o), {});
+
+const AUDIO_SEQ_HEADERS = new Set([
+  WEB.AAC_SEQUENCE_HEADER,
+  WEB.FLAC_SEQUENCE_HEADER,
+]);
 
 export class SLDPAgent {
   constructor() {
@@ -45,14 +51,15 @@ export class SLDPAgent {
     let ptsMs, ptsUs;
     let isKey = false;
     switch (frameType) {
-      case WEB.AAC_SEQUENCE_HEADER:
       case WEB.AVC_SEQUENCE_HEADER:
       case WEB.HEVC_SEQUENCE_HEADER:
       case WEB.AV1_SEQUENCE_HEADER:
+      case WEB.AAC_SEQUENCE_HEADER:
+      case WEB.FLAC_SEQUENCE_HEADER:
         this._sendCodecData(
           trackId,
           frameWthHdr.subarray(dtPos, frameSize),
-          frameType === WEB.AAC_SEQUENCE_HEADER ? "audio" : "video",
+          AUDIO_SEQ_HEADERS.has(frameType) ? "audio" : "video",
           frameType,
         );
         break;
@@ -64,6 +71,7 @@ export class SLDPAgent {
           this._sendCodecData(trackId, codecData, "audio", frameType);
         }
       case WEB.AAC_FRAME:
+      case WEB.FLAC_FRAME:
         ptsMs = timestamp / (timescale / 1000);
         ptsUs = Math.round(1000 * ptsMs);
         this._sendAudioChunk(frameWthHdr, ptsUs, dtPos, showTime);
