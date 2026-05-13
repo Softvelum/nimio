@@ -13,12 +13,10 @@ export class UILayoutManager {
   }
 
   pause() {
-    console.warn("Pause layout manager");
     this._paused = true;
   }
 
   resume() {
-    console.warn("Resume layout manager")
     this._paused = false;
   }
 

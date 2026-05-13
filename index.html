@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="wss://drm-test-cf.softvelum.com/live/black_symphony"
+      value="wss://demo-nimble.softvelum.com/live/bbb"
     />
     <button
       id="initNimioButton"
@@ -23,8 +23,8 @@
     </button>
     <br />
     <br />
-    <div style="display: inline-flex">
-      <div id="video"></div>
+    <div style="display: inline-flex; width: 60%;">
+      <div id="video" style="width: calc(100% - 80px)"></div>
       <div id="vu-meter" style="width: 80px; height: 268px"></div>
     </div>
     <script type="module">
@@ -38,10 +38,10 @@
           streamUrl: streamUrl,
           container: "video",
           autoplay: true,
-          width: 476,
-          height: 476, // 268,
+          width: "100%",
+          height: 268,
           latency: 1000,
-          latencyTolerance: 2200,
+          latencyTolerance: 2000,
           startOffset: 2000,
           // syncBuffer: 3000,
           // videoOnly: true,

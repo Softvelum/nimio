@@ -558,8 +558,6 @@ export class UI {
     );
     if (!cssProps) return;
 
-    this._logger.debug(`Layout props`, JSON.stringify(cssProps, null, 2));
-
     this._container.style.width = cssProps.container.width;
     this._container.style.height = cssProps.container.height;
     let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
@@ -575,8 +573,6 @@ export class UI {
         rect.width,
         rect.height,
       );
-      this._logger.debug(`Rect w = ${rect.width}, h = ${rect.height}`);
-      this._logger.warn(`Render props`, JSON.stringify(this._rendProps, null, 2));
       this._updateCanvasSize();
     }
   }
@@ -590,11 +586,6 @@ export class UI {
     if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
       return;
     }
-    // if (this._prevRendProps) {
-    //   let wDiff = this._rendProps.width - this._prevRendProps.width;
-    //   let hDiff = this._rendProps.height - this._prevRendProps.height;
-    //   if (wDiff >= 0 && wDiff < 5 || hDiff >= 0 && hDiff < 5) return;
-    // }
 
     this._bCanvas.width = dprWidth
     this._bCanvas.height = dprHeight;
