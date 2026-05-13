@@ -173,6 +173,10 @@ export class UI {
     } else {
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
+      if (!this._isPlayerFullscreen() && this._rendProps) {
+        this._mediaElement.style.width = `${this._rendProps.width}px`;
+        this._mediaElement.style.height = `${this._rendProps.height}px`;
+      }
       this._liveSign.style.display = "none";
     }
 
@@ -186,6 +190,7 @@ export class UI {
   }
 
   setDetached() {
+    this._layoutMgr.pause();
     this._hideCaptions();
   }
 
@@ -707,6 +712,7 @@ export class UI {
   _onPlaybackStarted(data) {
     this.drawPause();
     this._unsetBackground();
+    this._layoutMgr.resume();
     if (data.mode === MODE.LIVE) {
       if (this._captionCtrl) {
         this._captionCtrl.resume();
@@ -727,6 +733,7 @@ export class UI {
       this._setBackground();
       this._hideCaptions();
     }
+    this._layoutMgr.pause();
     this.drawPlay();
   }
 
@@ -761,11 +768,7 @@ export class UI {
       cursor: "pointer",
       zIndex: 10,
       margin: "auto",
+      position: "relative",
     });
-  }
-
-  adjustAspectRatio() {
-    this._container.getBoundingClientRect();
-    this._layoutMgr.computeLayout();
   }
 }

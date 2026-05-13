@@ -12,6 +12,16 @@ export class UILayoutManager {
     }
   }
 
+  pause() {
+    console.warn("Pause layout manager");
+    this._paused = true;
+  }
+
+  resume() {
+    console.warn("Resume layout manager")
+    this._paused = false;
+  }
+
   setFrameSize(width, height) {
     this._frameHeight = height;
     if (!this._forcedAr) {
@@ -24,7 +34,7 @@ export class UILayoutManager {
   }
 
   computeLayout(cWidth, cHeight, mode, isFullscreen) {
-    if (!this._ar) return null;
+    if (!this._ar || this._paused) return null;
 
     let res = {
       container: {
@@ -33,14 +43,22 @@ export class UILayoutManager {
       },
     };
 
-    res.output = { "object-fit": this._forcedAr ? "fill" : "contain" };
+    res.output = {
+      "object-fit": this._forcedAr ? "fill" : "contain",
+      "aspect-ratio": this._ar.str,
+    };
     if (mode === MODE.LIVE) {
-      res.output.width = "100%";
-      res.output.height = "100%";
+      if (res.container.width !== "auto") {
+        res.output.width = "100%";
+      }
+      if (res.container.height !== "auto") {
+        res.output.height = "100%";
+      }
     } else if (mode === MODE.VOD) {
       let cAspect = cWidth / cHeight;
-      res.output["aspect-ratio"] = this._ar.str;
-      if (cAspect > this._ar.val) {
+      let wDiff = (cAspect - this._ar.val) * cHeight;
+      if (wDiff > -1) {
+        // width difference doesn't exceed 1 pixel
         res.output.height = "100%";
         res.output.width = "auto";
       } else {
@@ -53,7 +71,7 @@ export class UILayoutManager {
   }
 
   computeRenderProps(width, height) {
-    if (!this._ar || !width || !height) return null;
+    if (!this._ar || !width || !height || this._paused) return null;
 
     let sourceWidth = this._frameHeight * this._ar.val;
     let scale = Math.min(width / sourceWidth, height / this._frameHeight);
