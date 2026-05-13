@@ -43,11 +43,6 @@ export class UI {
       this._opts.height,
       this._opts.ar,
     );
-    this._eventBus.on("aux:layout-update", data => {
-      this._layoutMgr.setFrameSize(data.width, data.height);
-      if (!this._container) return;
-      this._updateLayout(this._container.getBoundingClientRect());
-    });
     this._createResizeObserver();
 
     this._autoAbr = this._opts.abrEnabled;
@@ -89,7 +84,6 @@ export class UI {
       this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
     }
 
-    this._orientMq = window.matchMedia("(orientation: portrait)");
     if (this._opts.fullscreen) {
       this._toggleFullscreen();
     }
@@ -345,16 +339,19 @@ export class UI {
   }
 
   _addDisplayEventHandlers() {
-    this._onLayoutUpd = this._handleViewportUpdate.bind(this);
-    document.addEventListener("fullscreenchange", this._onLayoutUpd);
-    document.addEventListener("webkitfullscreenchange", this._onLayoutUpd);
-    window.addEventListener("orientationchange", this._onLayoutUpd);
+    this._onViewportUpd = this._handleViewportUpdate.bind(this);
+    document.addEventListener("fullscreenchange", this._onViewportUpd);
+    document.addEventListener("webkitfullscreenchange", this._onViewportUpd);
+    window.addEventListener("orientationchange", this._onViewportUpd);
+    this._onLayoutUpdate = this._handleLayoutUpdate.bind(this);
+    this._eventBus.on("aux:layout-update", this._onLayoutUpdate);
   }
 
   _removeDisplayEventHandlers() {
-    document.removeEventListener("fullscreenchange", this._onLayoutUpd);
-    document.removeEventListener("webkitfullscreenchange", this._onLayoutUpd);
-    window.removeEventListener("orientationchange", this._onLayoutUpd);
+    document.removeEventListener("fullscreenchange", this._onViewportUpd);
+    document.removeEventListener("webkitfullscreenchange", this._onViewportUpd);
+    window.removeEventListener("orientationchange", this._onViewportUpd);
+    this._eventBus.off("aux:layout-update", this._onLayoutUpdate);
   }
 
   _removeSeekBar() {
@@ -516,12 +513,18 @@ export class UI {
   }
 
   _createResizeObserver() {
-    this._resizeObserver = new ResizeObserver(entries => {
+    this._resizeObserver = new ResizeObserver((entries) => {
       requestAnimationFrame(() => {
         this._updateLayout(entries[0].contentRect);
       });
     });
     this._resizeObserver.observe(this._container);
+  }
+
+  _handleLayoutUpdate(data) {
+    this._layoutMgr.setFrameSize(data.width, data.height);
+    if (!this._container) return;
+    this._updateLayout(this._container.getBoundingClientRect());
   }
 
   _handleViewportUpdate() {
@@ -587,7 +590,7 @@ export class UI {
       return;
     }
 
-    this._bCanvas.width = dprWidth
+    this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;
     this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
@@ -605,7 +608,7 @@ export class UI {
       rp.dHeight,
     );
 
-    this._canvas.width = dprWidth
+    this._canvas.width = dprWidth;
     this._canvas.height = dprHeight;
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
     this._cctx.drawImage(
