@@ -28,8 +28,7 @@ export class LatencyController {
     this._minRate = 0.9;
     this._minRateStep = 1 / 128;
     this._maxRate = 1.25;
-    this._rateK = 0.00015; // proportional gain: rate = 1 + rateK * deltaMs
-    this._rateK = 0.0002;
+    this._rateK = 0.0002; // proportional gain: rate = 1 + rateK * deltaMs
 
     this._setLatency(params.latency);
     this._setLatencyDelta(params.tolerance);

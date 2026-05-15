@@ -23,8 +23,8 @@
     </button>
     <br />
     <br />
-    <div style="display: inline-flex">
-      <div id="video"></div>
+    <div style="display: inline-flex; width: 60%">
+      <div id="video" style="width: calc(100% - 80px)"></div>
       <div id="vu-meter" style="width: 80px; height: 268px"></div>
     </div>
     <script type="module">
@@ -38,10 +38,10 @@
           streamUrl: streamUrl,
           container: "video",
           autoplay: true,
-          width: 476,
+          width: "100%",
           height: 268,
           latency: 1000,
-          latencyTolerance: 2200,
+          latencyTolerance: 2000,
           startOffset: 2000,
           // syncBuffer: 3000,
           // videoOnly: true,
@@ -71,6 +71,8 @@
           },
 
           timecodes: true,
+
+          // aspectRatio: "3:1",
         });
 
         window.nimio.on("nimio:play", () => {

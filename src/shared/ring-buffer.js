@@ -39,7 +39,6 @@ export class RingBuffer {
 
   pop() {
     if (this.isEmpty()) {
-      this._logger.warn("Can't pop from empty ring buffer");
       return null;
     }
 
