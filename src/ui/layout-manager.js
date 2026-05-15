@@ -21,6 +21,8 @@ export class UILayoutManager {
   }
 
   setFrameSize(width, height) {
+    if (!width || !height) return;
+
     this._frameHeight = height;
     if (!this._forcedAr) {
       this._setAspectRatio(width, height);
@@ -31,15 +33,17 @@ export class UILayoutManager {
     }
   }
 
-  computeLayout(cWidth, cHeight, mode, isFullscreen) {
+  containerLayout(isFullscreen) {
+    return {
+      width: isFullscreen ? "100vw" : this._cssWidth,
+      height: isFullscreen ? "100vh" : this._cssHeight,
+    };
+  }
+
+  fullLayout(cWidth, cHeight, mode, isFullscreen) {
     if (!this._ar || this._paused) return null;
 
-    let res = {
-      container: {
-        width: isFullscreen ? "100vw" : this._cssWidth,
-        height: isFullscreen ? "100vh" : this._cssHeight,
-      },
-    };
+    let res = { container: this.containerLayout(isFullscreen) };
 
     res.output = {
       "object-fit": this._forcedAr ? "fill" : "contain",

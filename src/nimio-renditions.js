@@ -38,11 +38,7 @@ export const NimioRenditions = {
     }
 
     let stream = this._context.streams[rendIdx];
-    if (
-      !stream ||
-      !stream.stream_info ||
-      !stream.stream_info[`${type[0]}codecSupported`]
-    ) {
+    if (!stream?.stream_info?.[`${type[0]}codecSupported`]) {
       this._logger.error(
         `${type} rendition with ID ${id} is not found or not supported`,
       );
@@ -101,10 +97,12 @@ export const NimioRenditions = {
         this._nextRenditionData.idx,
         this._nextRenditionData.trackId,
       );
-      this._eventBus.emit("aux:layout-update", {
-        width: curStream.stream_info.width,
-        height: curStream.stream_info.height,
-      });
+      if (curStream?.stream_info) {
+        this._eventBus.emit("aux:layout-update", {
+          width: curStream.stream_info.width,
+          height: curStream.stream_info.height,
+        });
+      }
 
       if (type === "video" && this._nalProcessor) {
         this._updateNalUnitProcessors(this._decoderFlows["video"].codec);

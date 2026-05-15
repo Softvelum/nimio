@@ -5,7 +5,10 @@ export function parseFlacConfig(data) {
   let offset = 0;
   let isPureStreamInfoBlock = data.byteLength === STREAMINFO_BLOCK_SIZE;
   if (!isPureStreamInfoBlock) {
-    if (!dataStartsWith4Bytes(data, "fLaC")) {
+    if (
+      !dataStartsWith4Bytes(data, "fLaC") ||
+      data.byteLength < STREAMINFO_BLOCK_SIZE + 8
+    ) {
       throw new Error("Invalid FLAC STREAMINFO metadata");
     }
     // full stream metadata received

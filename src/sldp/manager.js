@@ -211,23 +211,27 @@ export class SLDPManager {
     if (gotVideo && vIdx !== undefined) {
       let trackId = this._nextStreamNumber(true);
       let stream = this._context.setCurrentStream("video", vIdx, trackId);
-      this._eventBus.emit("aux:layout-update", {
-        width: stream.stream_info.width,
-        height: stream.stream_info.height,
-      });
-      this._pushCurStream("video", stream);
-      vsetup = this._setupObject("video", trackId, stream.stream_info);
-      timescale[trackId] = vsetup.timescale;
-      this._reqStreams[trackId] = vIdx;
+      if (stream?.stream_info) {
+        this._eventBus.emit("aux:layout-update", {
+          width: stream.stream_info.width,
+          height: stream.stream_info.height,
+        });
+        this._pushCurStream("video", stream);
+        vsetup = this._setupObject("video", trackId, stream.stream_info);
+        timescale[trackId] = vsetup.timescale;
+        this._reqStreams[trackId] = vIdx;
+      }
     }
 
     if (gotAudio && aIdx !== undefined) {
       let trackId = this._nextStreamNumber(true);
       let stream = this._context.setCurrentStream("audio", aIdx, trackId);
-      this._pushCurStream("audio", stream);
-      asetup = this._setupObject("audio", trackId, stream.stream_info);
-      timescale[trackId] = asetup.timescale;
-      this._reqStreams[trackId] = aIdx;
+      if (stream?.stream_info) {
+        this._pushCurStream("audio", stream);
+        asetup = this._setupObject("audio", trackId, stream.stream_info);
+        timescale[trackId] = asetup.timescale;
+        this._reqStreams[trackId] = aIdx;
+      }
     }
 
     this._transport.runCallback("videoSetup", vsetup);

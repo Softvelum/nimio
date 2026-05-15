@@ -688,24 +688,16 @@ export class NimioLive {
 
     if (!this._audioContext || this._audioContext.sampleRate !== sampleRate) {
       this._audioContext = this._audioCtrl.initContext(sampleRate, channels);
+      let err;
       if (!this._audioContext) {
-        this._logger.error(
-          "Audio context is not initialized. Can't play audio.",
-        );
-        this._setNoAudio();
-        return;
+        err = "Audio context is not initialized. Can't play audio.";
+      } else if (sampleRate !== this._audioContext.sampleRate) {
+        err = `Unsupported sample rate ${sampleRate}, audio context has ${this._audioContext.sampleRate}`;
+      } else if (!this._audioContext.audioWorklet) {
+        err = "AudioWorklet is not supported in this environment";
       }
-
-      if (sampleRate !== this._audioContext.sampleRate) {
-        this._logger.error(
-          "Unsupported sample rate",
-          sampleRate,
-          this._audioContext.sampleRate,
-        );
-      }
-
-      if (!this._audioContext.audioWorklet) {
-        this._logger.error("AudioWorklet is not supported in this environment");
+      if (err) {
+        this._logger.error(err);
         this._setNoAudio();
         return;
       }

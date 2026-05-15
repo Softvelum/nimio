@@ -35,14 +35,13 @@ export class UI {
       "background-color": "#000",
     });
 
-    this._logger = LoggersFactory.create(this._instName, "UI");
-
     this._dpr = window.devicePixelRatio || 1;
     this._layoutMgr = new UILayoutManager(
       this._opts.width,
       this._opts.height,
       this._opts.ar,
     );
+    Object.assign(this._container.style, this._layoutMgr.containerLayout());
     this._createResizeObserver();
 
     this._autoAbr = this._opts.abrEnabled;
@@ -168,6 +167,7 @@ export class UI {
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       if (!this._isPlayerFullscreen() && this._rendProps) {
+        // keep the media element size same as the canvas during switch
         this._mediaElement.style.width = `${this._rendProps.width}px`;
         this._mediaElement.style.height = `${this._rendProps.height}px`;
       }
@@ -522,6 +522,8 @@ export class UI {
   }
 
   _handleLayoutUpdate(data) {
+    if (!data.width || !data.height) return;
+
     this._layoutMgr.setFrameSize(data.width, data.height);
     if (!this._container) return;
     this._updateLayout(this._container.getBoundingClientRect());
@@ -553,7 +555,7 @@ export class UI {
   }
 
   _resizeAndRedraw(rect) {
-    let cssProps = this._layoutMgr.computeLayout(
+    let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
       this._mode,
@@ -567,9 +569,8 @@ export class UI {
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
     output.style["object-fit"] = cssProps.output["object-fit"];
-    if (cssProps.output["aspect-ratio"]) {
-      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-    }
+    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+
     if (this._mode === MODE.LIVE) {
       this._prevRendProps = this._rendProps;
       this._rendProps = this._layoutMgr.computeRenderProps(
