@@ -83,6 +83,11 @@ export class UILayoutManager {
     let dx = Math.round((width - dWidth) / 2);
     let dy = Math.round((height - dHeight) / 2);
 
+    width = Math.round(width);
+    height = Math.round(height);
+    dWidth = Math.round(dWidth);
+    dHeight = Math.round(dHeight);
+
     return { width, height, dWidth, dHeight, dx, dy };
   }
 

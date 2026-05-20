@@ -364,10 +364,9 @@ export class NimioVod {
     if (position !== undefined) {
       this._logger.debug("after attach should go to " + position);
       this.goto(position);
-      return true;
     }
 
-    return false;
+    return true;
   }
 
   detach(callback) {
