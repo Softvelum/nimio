@@ -89,8 +89,21 @@ export class UILayoutManager {
   _initAspectRatio(ar) {
     if (!ar) return;
 
-    ar = ar.split(":").join("/").split("/");
-    if (ar.length !== 2) return;
+    switch (typeof ar) {
+      case "number":
+        ar = [ar, 1];
+        break;
+      case "string":
+        ar = ar.split(":").join("/").split("/");
+        if (ar.length > 2) return;
+        if (ar.length === 1) {
+          ar[1] = 1; // default height to 1 if only one value is provided
+        }
+        break;
+      default:
+        return;
+    }
+
     this._setAspectRatio(ar[0], ar[1]);
   }
 
