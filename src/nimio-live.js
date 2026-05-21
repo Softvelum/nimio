@@ -28,6 +28,7 @@ import { SyncModeClock } from "./sync-mode/clock";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
 import { AudioController } from "./audio/controller";
+import { MediaGrabber } from "./grabber"
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -103,6 +104,10 @@ export class NimioLive {
       setTimeout(() => {
         if (this._ui) this._ui.hideControls(true);
       }, 1000);
+    }
+
+    if (this.config.screenshots) {
+      this._createMediaGrabber(this.config.screenshots);
     }
   }
 
@@ -862,7 +867,15 @@ export class NimioLive {
     }
     this._latencyCtrl.setParams(params);
   }
+
+_createMediaGrabber(params) {
+  this._grabber = MediaGrabber()
+  const rate = params?.rate ?? -1;
+  this._grabber.setRate(rate);
 }
+
+}
+
 
 Object.assign(NimioLive.prototype, NimioTransport);
 Object.assign(NimioLive.prototype, NimioRenditions);
