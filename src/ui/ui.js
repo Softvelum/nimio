@@ -132,6 +132,14 @@ export class UI {
     this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
   }
 
+  getImageData() {
+    let rp = this._rendProps;
+    if (!rp) {
+      return null;
+    }
+    return this._cctx.getImageData(0, 0, rp.width, rp.height);
+  }
+
   showControls(anim) {
     this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._btnPlayPause.style.opacity = "0.7";

@@ -40,7 +40,7 @@ class MediaGrabber {
 
       this._enabled = true;
       this._init();
-      this._requestNextFrame();
+      //this._requestNextFrame();
     }
   }
 
@@ -77,7 +77,7 @@ class MediaGrabber {
 
   }
 
-  _handleFrame (metadata) {
+  handleFrame (pts, fn) {
     if ((this._rate === 0) || (metadata.presentedFrames <= 1)) {
       return;
     }
@@ -103,11 +103,10 @@ class MediaGrabber {
     if (doReq) {
       let mg = this,
           pts = metadata.mediaTime;
-      createImageBitmap(this._mediaElement).then(function (bitmap) {
-        if (mg._handleBitmap) {
-          mg._handleBitmap(bitmap, pts);
-        }
-      });
+      let bitmat = fn();
+      if (bitmap && mg._handleBitmap) {
+        mg._handleBitmap(bitmap, pts);
+      }
     }
   }
 
@@ -118,31 +117,31 @@ class MediaGrabber {
     }, [ bmp ]);
   }
 
-  _handleBitmapWithCanvas (bmp, pts) {
-    this._canvas.width = bmp.width;
-    this._canvas.height = bmp.height;
-    this._canvasCtx.drawImage(bmp, 0, 0);
+  // _handleBitmapWithCanvas (bmp, pts) {
+  //   this._canvas.width = bmp.width;
+  //   this._canvas.height = bmp.height;
+  //   this._canvasCtx.drawImage(bmp, 0, 0);
 
-    this._onScreenshotReady(
-      this._canvasCtx.getImageData(0, 0, bmp.width, bmp.height),
-      pts
-    );
+  //   this._onScreenshotReady(
+  //     this._canvasCtx.getImageData(0, 0, bmp.width, bmp.height),
+  //     pts
+  //   );
 
-    bmp.close();
-  }
+  //   bmp.close();
+  // }
 
-  _requestNextFrame () {
-    if (this._enabled && this._mediaElement) {
+  // _requestNextFrame () {
+  //   if (this._enabled && this._mediaElement) {
 
-      let mg = this;
-      this._mediaElement.requestVideoFrameCallback(function (now, metadata) {
+  //     let mg = this;
+  //     this._mediaElement.requestVideoFrameCallback(function (now, metadata) {
 
-        mg._handleFrame(metadata);
-        mg._requestNextFrame();
-      });
+  //       mg._handleFrame(metadata);
+  //       mg._requestNextFrame();
+  //     });
 
-    }
-  }
+  //   }
+  // }
 
 
 

@@ -426,8 +426,14 @@ export class NimioLive {
     if (!this._playbackStarted) {
       this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
+      this._grabber?.start();
     }
     this._ui.drawFrame(frame);
+    if (this._grabber) {
+      this._grabber.handleFrame(frame.timestamp, () => {
+        return this._ui.getImageData();
+      })
+    }
     frame.close();
   }
 
@@ -611,6 +617,8 @@ export class NimioLive {
       }
     });
     if (this._nalProcessor) this._nalProcessor.reset();
+    
+    this._grabber?.stop();
 
     this._state.setPlaybackStartTsUs(0);
     this._state.setVideoLatestTsUs(0);
