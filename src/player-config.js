@@ -4,8 +4,8 @@ const DEFAULTS = {
   streamUrl: null,
   container: null,
   autoplay: false,
-  width: 476,
-  height: 268,
+  width: null,
+  height: null,
   latency: 200,
   latencyTolerance: "auto",
   latencyAdjustMethod: "fast-forward",
@@ -31,6 +31,7 @@ const DEFAULTS = {
   vod: null,
   captions: null,
   timecodes: false,
+  aspectRatio: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];

@@ -240,7 +240,7 @@ export class DecoderFlow {
         return;
       }
 
-      if (frame.timestamp >= this._switchPeerFlow.firstSwitchTsUs) {
+      if (frame.timestamp >= srcFirstTsUs) {
         this._logger.debug(
           `Finalize switch for dst ts: ${frame.timestamp}, src ts: ${this._switchPeerFlow.firstSwitchTsUs}`,
         );

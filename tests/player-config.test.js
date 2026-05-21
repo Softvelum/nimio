@@ -26,8 +26,8 @@ describe("createConfig", () => {
     expect(config.streamUrl).toBe("wss://localhost/app/stream");
     expect(config.container).toEqual({});
     expect(config.autoplay).toBe(false);
-    expect(config.width).toBe(476);
-    expect(config.height).toBe(268);
+    expect(config.width).toBeNull();
+    expect(config.height).toBeNull();
     expect(config.fullBufferMs).toBe(200 + 1000 + 3000);
   });
 

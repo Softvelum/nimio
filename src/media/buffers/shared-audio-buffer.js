@@ -39,7 +39,7 @@ export class SharedAudioBuffer {
     }
     const capacity = Math.ceil((bufferSec * sampleRate) / sampleCount);
 
-    // one frame = Float64 timestamp(2 Float32) + Float32 rate + frame size
+    // one frame = Float64 timestamp(2 Float32) + Float32 rate
     const fAuxSize = 3 * capacity * Float32Array.BYTES_PER_ELEMENT;
     // 3 temp buffers for s16, s32 and f32 data
     const tempSize =

@@ -1,11 +1,20 @@
 export function parseFlacConfig(data) {
-  const STREAMINFO_LENGTH = 34;
-
-  if (!data || data.byteLength !== STREAMINFO_LENGTH) {
-    throw new Error("Invalid FLAC STREAMINFO metadata");
-  }
+  const STREAMINFO_BLOCK_SIZE = 34;
+  if (!data) throw new Error("No STREAMINFO metadata provided");
 
   let offset = 0;
+  let isPureStreamInfoBlock = data.byteLength === STREAMINFO_BLOCK_SIZE;
+  if (!isPureStreamInfoBlock) {
+    if (
+      !dataStartsWith4Bytes(data, "fLaC") ||
+      data.byteLength < STREAMINFO_BLOCK_SIZE + 8
+    ) {
+      throw new Error("Invalid FLAC STREAMINFO metadata");
+    }
+    // full stream metadata received
+    offset = 8;
+  }
+
   const readUint16 = () => {
     const value = (data[offset] << 8) | data[offset + 1];
     offset += 2;
@@ -42,10 +51,15 @@ export function parseFlacConfig(data) {
   // channels - 1 (3 bits)
   const numberOfChannels = ((data[offset + 2] & 0b00001110) >> 1) + 1;
 
-  const description = new Uint8Array(data.byteLength + 8);
-  // "fLaC" + metadata block header (8 bytes)
-  description.set([0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22]);
-  description.set(data, 8);
+  let description;
+  if (isPureStreamInfoBlock) {
+    description = new Uint8Array(data.byteLength + 8);
+    // "fLaC" + metadata block header (8 bytes)
+    description.set([0x66, 0x4c, 0x61, 0x43, 0x80, 0x00, 0x00, 0x22]);
+    description.set(data, 8);
+  } else {
+    description = data;
+  }
 
   return {
     sampleCount: maxBlockSize,
@@ -53,4 +67,17 @@ export function parseFlacConfig(data) {
     numberOfChannels,
     description,
   };
+}
+
+function dataStartsWith4Bytes(arr, str) {
+  if (arr.byteLength < 4 || str.length !== 4) return false;
+
+  const view = new DataView(arr.buffer, arr.byteOffset, 4);
+  const expected =
+    (str.charCodeAt(0) << 24) |
+    (str.charCodeAt(1) << 16) |
+    (str.charCodeAt(2) << 8) |
+    str.charCodeAt(3);
+
+  return view.getUint32(0) === expected >>> 0;
 }

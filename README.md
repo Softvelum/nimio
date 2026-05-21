@@ -115,8 +115,8 @@ nimio = new Nimio({
   streamUrl: "wss://example.com/stream", //SLDP stream URL
   container: "#player", // CSS selector or HTMLElement
   //optional parameters:
-  width: 476,
-  height: 268,
+  width: 476, // player width in pixels or CSS string, e.g. "100%"
+  height: 268, // player height in pixels or CSS string, e.g. "auto"
   latency: 600, // Target latency in ms
   startOffset: 1000, // Startup offset in ms
   pauseTimeout: 3000, // ms until auto-stop when paused
@@ -167,6 +167,7 @@ nimio = new Nimio({
     },
   },
   timecodes: true, // enables handling of SEI picture timing (H264) and SEI time code (H265) messages
+  aspectRatio: "16:9", // defines aspect ratio which video is forcefully adjusted to
 });
 
 nimio.play();
@@ -521,7 +522,6 @@ enabled: Boolean;
 
 The following features are planned for upcoming releases:
 
-- Automatic aspect ratio detection
 - Picture-in-Picture (PiP)
 - WebTransport protocol
 - Screenshot capture

@@ -364,10 +364,9 @@ export class NimioVod {
     if (position !== undefined) {
       this._logger.debug("after attach should go to " + position);
       this.goto(position);
-      return true;
     }
 
-    return false;
+    return true;
   }
 
   detach(callback) {
@@ -625,6 +624,7 @@ export class NimioVod {
 
       currentLevel = this._context.getCurrentLevel();
       this._sessionParam = currentLevel.session;
+      this._updateUiLayout(currentLevel);
 
       if (this._state === VOD_STATE.PLAY) {
         this._eventBus.emit("nimio:rendition-list", this._makeUiLevelsList());
@@ -646,7 +646,7 @@ export class NimioVod {
     // this._logger.warn('Manifest with levels', data.levels.length);
 
     this._context.updateCurrentLevel(data.levels[0]);
-    if (currentLevel && currentLevel.data.details) {
+    if (currentLevel?.data?.details) {
       this._updatePlaylistDuration(currentLevel.data.details);
       if (this._config.thumbnails) {
         this._segmTracker.setup(currentLevel.data.details.fragments);
@@ -700,7 +700,8 @@ export class NimioVod {
     this._context.setCurrentLevelIdx(lvl.idx);
     this._applyCurrentRendition();
     this._switchInProgress = false;
-    // this._ui.adjustAspectRatio();
+
+    this._updateUiLayout(lvl);
   };
 
   _applyCurrentRendition(skipInitResolution) {
@@ -718,6 +719,13 @@ export class NimioVod {
     }
 
     return curLvl;
+  }
+
+  _updateUiLayout(lvl) {
+    this._eventBus.emit("aux:layout-update", {
+      width: lvl.data.width,
+      height: lvl.data.height,
+    });
   }
 
   _onMediaAttached = () => {

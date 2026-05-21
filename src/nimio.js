@@ -54,7 +54,7 @@ export default class Nimio {
       this._instName,
       this._config.container,
       {
-        width: this._config.width, // TODO: get from video?
+        width: this._config.width,
         height: this._config.height,
         metricsOverlay: this._config.metricsOverlay,
         abrEnabled: !!this._config.adaptiveBitrate,
@@ -63,6 +63,7 @@ export default class Nimio {
         audioOnly: this._config.audioOnly,
         vod: this._config.vod,
         captions: this._config.captions,
+        ar: this._config.aspectRatio,
       },
       this._eventBus,
     );

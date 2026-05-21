@@ -9,43 +9,48 @@ import { PlaybackProgressService } from "@/playback/progress-service";
 import { UIThumbnailPreview } from "./thumbnail-preview";
 import { UICaptionController } from "./caption-controller";
 import { UICaptionList } from "./caption-list";
+import { UILayoutManager } from "./layout-manager";
 import { MODE } from "@/shared/values";
 
 export class UI {
-  constructor(instName, container, opts, eventBus) {
+  constructor(instName, parent, opts, eventBus) {
     this._state = "pause";
     this._muted = false;
     this._instName = instName;
     this._eventBus = eventBus;
     this._opts = opts;
-
-    this._container = container;
-    if (!this._container || !this._container.appendChild) {
-      throw new Error("UI container element is not valid");
-    }
-    Object.assign(this._container.style, {
-      display: "inline-flex",
-      position: "relative",
-    });
-    this._container.classList.add("nimio-container");
-
     this._logger = LoggersFactory.create(this._instName, "UI");
 
-    // TODO: if no options, get from container
-    this._baseWidth = opts.width;
-    this._baseHeight = opts.height;
-    // TODO: get from frame properties
-    this._ar = this._baseWidth / this._baseHeight;
-    this._autoAbr = this._opts.abrEnabled;
+    this._parent = parent;
+    if (!this._parent || !this._parent.appendChild) {
+      throw new Error("UI container element is not valid");
+    }
 
+    this._container = document.createElement("div");
+    this._parent.appendChild(this._container);
+    this._container.classList.add("nimio-container");
+    Object.assign(this._container.style, {
+      display: "block",
+      position: "relative",
+      "background-color": "#000",
+    });
+
+    this._dpr = window.devicePixelRatio || 1;
+    this._layoutMgr = new UILayoutManager(
+      this._opts.width,
+      this._opts.height,
+      this._opts.ar,
+    );
+    Object.assign(this._container.style, this._layoutMgr.containerLayout());
+    this._createResizeObserver();
+
+    this._autoAbr = this._opts.abrEnabled;
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
     if (opts.vod) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
-
-    this._updateOutputSize(this._baseWidth, this._baseHeight);
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
     this._cctx.save();
@@ -77,6 +82,7 @@ export class UI {
       this._captionCtrl.list = this._captionList;
       this._eventBus.on("aux:caption-list-open", () => this._closeAbrMenu());
     }
+
     if (this._opts.fullscreen) {
       this._toggleFullscreen();
     }
@@ -96,9 +102,11 @@ export class UI {
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
+    this._resizeObserver.unobserve(this._container);
     while (this._container.firstChild) {
       this._container.removeChild(this._container.firstChild);
     }
+    this._parent.removeChild(this._container);
   }
 
   drawPlay() {
@@ -118,7 +126,10 @@ export class UI {
   }
 
   drawFrame(frame) {
-    this._cctx.drawImage(frame, 0, 0, this._curWidth, this._curHeight);
+    let rp = this._rendProps;
+    if (!rp) return;
+
+    this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
   }
 
   showControls(anim) {
@@ -138,7 +149,8 @@ export class UI {
   }
 
   clear() {
-    this._cctx.clearRect(0, 0, this._curWidth, this._curHeight);
+    if (!this._rendProps) return;
+    this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
   }
 
   toggleMode(mode) {
@@ -154,6 +166,11 @@ export class UI {
     } else {
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
+      if (!this._isPlayerFullscreen() && this._rendProps) {
+        // keep the media element size same as the canvas during switch
+        this._mediaElement.style.width = `${this._rendProps.width}px`;
+        this._mediaElement.style.height = `${this._rendProps.height}px`;
+      }
       this._liveSign.style.display = "none";
     }
 
@@ -167,6 +184,7 @@ export class UI {
   }
 
   setDetached() {
+    this._layoutMgr.pause();
     this._hideCaptions();
   }
 
@@ -213,7 +231,6 @@ export class UI {
   _addMediaElement() {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
-    this._applySize(this._mediaElement, this._curWidth, this._curHeight);
     this._canvas.after(this._mediaElement);
   }
 
@@ -322,19 +339,19 @@ export class UI {
   }
 
   _addDisplayEventHandlers() {
-    this._onResize = this._handleResize.bind(this);
-    this._onOrientChange = this._handleOrientChange.bind(this);
-    document.addEventListener("fullscreenchange", this._onResize);
-    document.addEventListener("webkitfullscreenchange", this._onResize);
-    window.addEventListener("resize", this._onResize);
-    window.addEventListener("orientationchange", this._onOrientChange);
+    this._onViewportUpd = this._handleViewportUpdate.bind(this);
+    document.addEventListener("fullscreenchange", this._onViewportUpd);
+    document.addEventListener("webkitfullscreenchange", this._onViewportUpd);
+    window.addEventListener("orientationchange", this._onViewportUpd);
+    this._onLayoutUpdate = this._handleLayoutUpdate.bind(this);
+    this._eventBus.on("aux:layout-update", this._onLayoutUpdate);
   }
 
   _removeDisplayEventHandlers() {
-    document.removeEventListener("fullscreenchange", this._onResize);
-    document.removeEventListener("webkitfullscreenchange", this._onResize);
-    window.removeEventListener("resize", this._onResize);
-    window.removeEventListener("orientationchange", this._onOrientChange);
+    document.removeEventListener("fullscreenchange", this._onViewportUpd);
+    document.removeEventListener("webkitfullscreenchange", this._onViewportUpd);
+    window.removeEventListener("orientationchange", this._onViewportUpd);
+    this._eventBus.off("aux:layout-update", this._onLayoutUpdate);
   }
 
   _removeSeekBar() {
@@ -461,81 +478,151 @@ export class UI {
     });
   }
 
+  async _toggleFullscreen(e) {
+    let fReq;
+    if (!this._isPlayerFullscreen()) {
+      let fsOpts = { navigationUI: "hide" };
+      if (this._container.requestFullscreen) {
+        fReq = this._container.requestFullscreen(fsOpts);
+      } else if (this._container.webkitRequestFullscreen) {
+        fReq = this._container.webkitRequestFullscreen(fsOpts);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        fReq = document.exitFullscreen();
+      } else if (document.cancelFullScreen) {
+        fReq = document.cancelFullScreen();
+      } else if (document.webkitCancelFullScreen) {
+        fReq = document.webkitCancelFullScreen();
+      }
+    }
+
+    if (fReq) {
+      await fReq.catch((err) => {
+        this._logger.error("Failed to toggle fullscreen mode:", err);
+      });
+    } else {
+      this._logger.warn("No fullscreen API is available");
+    }
+    if (e) e.stopPropagation();
+  }
+
   _isPlayerFullscreen() {
     let fElem = document.fullscreenElement || document.webkitFullscreenElement;
     return fElem === this._container;
   }
 
-  _handleResize() {
-    if (this._resizeQueued) return;
+  _createResizeObserver() {
+    this._resizeObserver = new ResizeObserver((entries) => {
+      requestAnimationFrame(() => {
+        this._updateLayout(entries[0].contentRect);
+      });
+    });
+    this._resizeObserver.observe(this._container);
+  }
 
-    this._resizeQueued = true;
+  _handleLayoutUpdate(data) {
+    if (!data.width || !data.height) return;
+
+    this._layoutMgr.setFrameSize(data.width, data.height);
+    if (!this._container) return;
+    this._updateLayout(this._container.getBoundingClientRect());
+  }
+
+  _handleViewportUpdate() {
+    if (this._viewportUpdatePending) return;
+
+    this._viewportUpdatePending = true;
+    // double RAF for fullscreen and orientation change events
     requestAnimationFrame(() => {
-      this._resizeQueued = false;
-      this._resizeAndRedraw();
-      this._updateThumbnails();
+      requestAnimationFrame(() => {
+        this._viewportUpdatePending = false;
+        if (!this._container) return;
+        this._updateLayout(this._container.getBoundingClientRect());
+      });
     });
   }
 
-  _resizeAndRedraw() {
-    if (this._isPlayerFullscreen()) {
-      const screenAspect = window.innerWidth / window.innerHeight;
+  _updateLayout(rect) {
+    if (this._layoutUpdatePending) return;
 
-      let newWidth, newHeight;
-      if (screenAspect > this._ar) {
-        newHeight = window.innerHeight;
-        newWidth = Math.round(newHeight * this._ar);
-      } else {
-        newWidth = window.innerWidth;
-        newHeight = Math.round(newWidth / this._ar);
-      }
-
-      this._updateOutputSize(newWidth, newHeight);
-    } else {
-      this._updateOutputSize(this._baseWidth, this._baseHeight);
-    }
+    this._layoutUpdatePending = true;
+    requestAnimationFrame(() => {
+      this._layoutUpdatePending = false;
+      this._resizeAndRedraw(rect);
+      if (this._thumbnailPreview) this._thumbnailPreview.update();
+    });
   }
 
-  _updateOutputSize(w, h) {
+  _resizeAndRedraw(rect) {
+    let cssProps = this._layoutMgr.fullLayout(
+      rect.width,
+      rect.height,
+      this._mode,
+      this._isPlayerFullscreen(),
+    );
+    if (!cssProps) return;
+
+    this._container.style.width = cssProps.container.width;
+    this._container.style.height = cssProps.container.height;
+    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
+    output.style.width = cssProps.output.width;
+    output.style.height = cssProps.output.height;
+    output.style["object-fit"] = cssProps.output["object-fit"];
+    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+
     if (this._mode === MODE.LIVE) {
-      this._updateCanvasSize(w, h);
+      this._prevRendProps = this._rendProps;
+      this._rendProps = this._layoutMgr.computeRenderProps(
+        rect.width,
+        rect.height,
+      );
+      this._updateCanvasSize();
     }
-    this._outputs.forEach((elem) => {
-      this._applySize(elem, w, h);
-    });
-    this._curWidth = w;
-    this._curHeight = h;
   }
 
-  _updateCanvasSize(w, h) {
-    // DPR can change when dragging window between monitors, browser zoom, external display attach/detach
+  _updateCanvasSize() {
+    // DPR can change when dragging window between monitors,
+    // browser zoom, external display attach/detach
     this._dpr = window.devicePixelRatio || 1;
-
-    let devW = w * this._dpr;
-    let devH = h * this._dpr;
-    if (this._canvas.width === devW && this._canvas.height === devH) return;
-
-    this._bCanvas.width = devW;
-    this._bCanvas.height = devH;
-    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    this._bctx.drawImage(this._canvas, 0, 0);
-
-    this._canvas.width = devW;
-    this._canvas.height = devH;
-    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    this._cctx.drawImage(this._bCanvas, 0, 0, w, h);
-  }
-
-  _updateThumbnails() {
-    if (this._thumbnailPreview) {
-      this._thumbnailPreview.update();
+    let dprWidth = this._rendProps.width * this._dpr;
+    let dprHeight = this._rendProps.height * this._dpr;
+    if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
+      return;
     }
-  }
 
-  _handleOrientChange(e) {
-    // orientationchange can fire before actual size update
-    // TODO: rework this using more granular approach involving aspect ratio
-    setTimeout(this._onResize, 250);
+    this._bCanvas.width = dprWidth;
+    this._bCanvas.height = dprHeight;
+    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+
+    const prp = this._prevRendProps || this._rendProps;
+    const rp = this._rendProps;
+    this._bctx.drawImage(
+      this._canvas,
+      prp.dx,
+      prp.dy,
+      prp.dWidth,
+      prp.dHeight,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+    );
+
+    this._canvas.width = dprWidth;
+    this._canvas.height = dprHeight;
+    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._cctx.drawImage(
+      this._bCanvas,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+      rp.dx,
+      rp.dy,
+      rp.dWidth,
+      rp.dHeight,
+    );
   }
 
   _handleClick(e) {
@@ -613,35 +700,6 @@ export class UI {
     this._hideTimer = undefined;
   }
 
-  async _toggleFullscreen(e) {
-    let fReq;
-    if (!this._isPlayerFullscreen()) {
-      let fsOpts = { navigationUI: "hide" };
-      if (this._container.requestFullscreen) {
-        fReq = this._container.requestFullscreen(fsOpts);
-      } else if (this._container.webkitRequestFullscreen) {
-        fReq = this._container.webkitRequestFullscreen(fsOpts);
-      }
-    } else {
-      if (document.exitFullscreen) {
-        fReq = document.exitFullscreen();
-      } else if (document.cancelFullScreen) {
-        fReq = document.cancelFullScreen();
-      } else if (document.webkitCancelFullScreen) {
-        fReq = document.webkitCancelFullScreen();
-      }
-    }
-
-    if (fReq) {
-      await fReq.catch((err) => {
-        this._logger.error("Failed to toggle fullscreen mode:", err);
-      });
-    } else {
-      this._logger.warn("No fullscreen API is available");
-    }
-    if (e) e.stopPropagation();
-  }
-
   _onPlaybackStarting() {
     this.drawPause();
   }
@@ -649,6 +707,7 @@ export class UI {
   _onPlaybackStarted(data) {
     this.drawPause();
     this._unsetBackground();
+    this._layoutMgr.resume();
     if (data.mode === MODE.LIVE) {
       if (this._captionCtrl) {
         this._captionCtrl.resume();
@@ -669,6 +728,7 @@ export class UI {
       this._setBackground();
       this._hideCaptions();
     }
+    this._layoutMgr.pause();
     this.drawPlay();
   }
 
@@ -703,11 +763,7 @@ export class UI {
       cursor: "pointer",
       zIndex: 10,
       margin: "auto",
+      position: "relative",
     });
-  }
-
-  _applySize(elem, w, h) {
-    elem.style.width = `${w}px`;
-    elem.style.height = `${h}px`;
   }
 }

@@ -1,5 +1,6 @@
 import { BitReader } from "@/shared/bit-reader";
 import { NalReader } from "@/nal/reader";
+import { getSarFromAspectRatioIdc } from "./helpers";
 
 export class H264SpsParser {
   constructor() {
@@ -60,21 +61,24 @@ export class H264SpsParser {
 
     this._bitr.readUE(); // max_num_ref_frames
     this._bitr.readBits(1); // gaps_in_frame_num_value_allowed_flag
-    this._bitr.readUE(); // pic_width_in_mbs_minus1
-    this._bitr.readUE(); // pic_height_in_map_units_minus1
+    this.picWidthInMbsMinus1 = this._bitr.readUE(); // pic_width_in_mbs_minus1
+    this.picHeightInMapUnitsMinus1 = this._bitr.readUE(); // pic_height_in_map_units_minus1
 
-    const frameMbsOnlyFlag = this._bitr.readBits(1); // frame_mbs_only_flag
-    if (!frameMbsOnlyFlag) {
+    this.frameMbsOnlyFlag = this._bitr.readBits(1); // frame_mbs_only_flag
+    if (!this.frameMbsOnlyFlag) {
       this._bitr.readBits(1); // mb_adaptive_frame_field_flag
     }
     this._bitr.readBits(1); // direct_8x8_inference_flag
 
     const frameCroppingFlag = this._bitr.readBits(1);
     if (frameCroppingFlag) {
-      this._bitr.readUE(); // frame_crop_left_offset
-      this._bitr.readUE(); // frame_crop_right_offset
-      this._bitr.readUE(); // frame_crop_top_offset
-      this._bitr.readUE(); // frame_crop_bottom_offset
+      this.frameCropLeftOffset = this._bitr.readUE(); // frame_crop_left_offset
+      this.frameCropRightOffset = this._bitr.readUE(); // frame_crop_right_offset
+      this.frameCropTopOffset = this._bitr.readUE(); // frame_crop_top_offset
+      this.frameCropBottomOffset = this._bitr.readUE(); // frame_crop_bottom_offset
+    } else {
+      this.frameCropLeftOffset = this.frameCropRightOffset = 0;
+      this.frameCropTopOffset = this.frameCropBottomOffset = 0;
     }
 
     const vuiParametersPresentFlag = this._bitr.readBits(1);
@@ -100,14 +104,17 @@ export class H264SpsParser {
   _readVUIParameters() {
     const aspectRatioInfoPresentFlag = this._bitr.readBits(1);
     if (aspectRatioInfoPresentFlag) {
-      // TODO: handle SAR/DAR parameters for correcting the player aspect ratio
-      // Width = ((pic_width_in_mbs_minus1 +1)*16) - frame_crop_right_offset*2 - frame_crop_left_offset*2;
-      // Height = ((2 - frame_mbs_only_flag)* (pic_height_in_map_units_minus1 +1) * 16) - (frame_crop_top_offset * 2) - (frame_crop_bottom_offset * 2);
+      // let width = ((this.picWidthInMbsMinus1 + 1) * 16) - this.frameCropRightOffset * 2 - this.frameCropLeftOffset * 2;
+      // let height = ((2 - this.frameMbsOnlyFlag) * (this.picHeightInMapUnitsMinus1 + 1) * 16) - (this.frameCropTopOffset * 2) - (this.frameCropBottomOffset * 2);
       const aspectRatioIdc = this._bitr.readBits(8);
-      if (aspectRatioIdc === 255) {
+      let sar = getSarFromAspectRatioIdc(aspectRatioIdc, () => {
         let sarW = this._bitr.readBits(16); // sar_width
         let sarH = this._bitr.readBits(16); // sar_height
-      }
+        return { w: sarW, h: sarH };
+      });
+      this._sps.sar = sar;
+    } else {
+      this._sps.sar = getSarFromAspectRatioIdc(1); // default to square pixels
     }
 
     // overscan_info_present_flag
@@ -143,7 +150,6 @@ export class H264SpsParser {
           this._sps.timeScale / (2 * this._sps.numUnitsInTick),
         );
       }
-
       this._bitr.readBits(1); // fixed_frame_rate_flag
     }
 

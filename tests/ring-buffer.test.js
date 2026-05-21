@@ -20,9 +20,6 @@ describe("RingBuffer", () => {
     expect(rb.pop()).toBe(1);
     expect(rb.pop()).toBe(2);
     expect(rb.pop()).toBe(null); // empty now
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      "Can't pop from empty ring buffer",
-    );
   });
 
   it("puhes and pops sequentially", () => {

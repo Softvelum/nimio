@@ -307,10 +307,10 @@ class PlaybackContext {
 
     if (!this.hasLive()) return;
     let curVConf = this._curConf.video;
-    if (!curVConf) return;
-    if (curVConf.idx !== undefined && this._lvl2stream[idx] !== undefined) {
-      curVConf.idx = this._lvl2stream[idx];
+    if (curVConf?.idx === undefined || this._lvl2stream[idx] === undefined) {
+      return;
     }
+    curVConf.idx = this._lvl2stream[idx];
   }
 
   getRenditionLevelIdx(rend, idx) {

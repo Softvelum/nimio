@@ -30,7 +30,10 @@ function createAudioDecoder() {
 function processDecodedFrame(audioFrame) {
   let rawTimestamp = timestampBuffer.pop();
   let decTimestamp = audioFrame.timestamp;
-  if (decTimestamp === rawTimestamp && lastTimestampUs !== null) {
+  if (
+    (decTimestamp === rawTimestamp || rawTimestamp === null) &&
+    lastTimestampUs !== null
+  ) {
     decTimestamp = lastTimestampUs + lastFrameDurationUs;
   }
   lastTimestampUs = decTimestamp;

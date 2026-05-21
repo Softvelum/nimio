@@ -48,14 +48,18 @@ class NalProcessor {
       this._stashed = [];
     } else if (this._ordered.length > 64) {
       this._logger.warn(`Drop ${this._ordered.length} frames due to disorder`);
-      this._ordered.length = 0;
-      this._stashed.length = 0;
-      this._frameSeqEndTime = 0;
+      this.discardPendingFrames();
     }
 
     this._addToOrdered(data);
     this._stashed.push(data);
     return processed;
+  }
+
+  discardPendingFrames() {
+    this._ordered.length = 0;
+    this._stashed.length = 0;
+    this._frameSeqEndTime = 0;
   }
 
   reset() {
