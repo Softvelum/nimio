@@ -39,7 +39,7 @@
           container: "video",
           autoplay: true,
           width: "100%",
-          height: 268,
+          height: 720,
           latency: 1000,
           latencyTolerance: 2000,
           startOffset: 2000,
@@ -73,6 +73,7 @@
           timecodes: true,
 
           // aspectRatio: "3:1",
+          screenshots: {rate: 1.0}
         });
 
         window.nimio.on("nimio:play", () => {
@@ -84,6 +85,9 @@
         // window.nimio.on("nimio:sei-timecode", (frameTs, clockTs, stringTs, mode) => {
         //   console.log("Nimio sei timecode arrived", frameTs, clockTs, stringTs, mode);
         // });
+         window.nimio.on("nimio:screenshot", (img, ts) => {
+           console.log(`Screenshot ready ${ts}`);
+         });        
       }
 
       document

@@ -31,7 +31,6 @@ class MediaGrabber {
   }
 
   _onScreenshotReady (img, pts) {
-    this._logger.debug(`onScreenshotReady ${pts}`)
     if (this._onScreenshotReadyCallback) {
       this._onScreenshotReadyCallback(img, Math.round(pts * 1000));
     }

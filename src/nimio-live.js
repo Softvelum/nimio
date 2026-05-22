@@ -880,6 +880,9 @@ export class NimioLive {
     this._grabber = MediaGrabber.getInstance(this._instName)
     const rate = params?.rate ?? -1;
     this._grabber.setRate(rate);
+    this._grabber.onScreenshotReady((img, ts) => {
+      this._eventBus.emit("nimio:screenshot", img, ts);
+    });
 }
 
 }
