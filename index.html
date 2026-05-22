@@ -27,6 +27,9 @@
       <div id="video" style="width: calc(100% - 80px)"></div>
       <div id="vu-meter" style="width: 80px; height: 268px"></div>
     </div>
+    <div style="padding: 10px;">
+    <canvas width="1280" height="720" id="screenshot_view"></canvas>
+    </div>
     <script type="module">
       import Nimio from "/src/nimio.js";
 
@@ -85,8 +88,15 @@
         // window.nimio.on("nimio:sei-timecode", (frameTs, clockTs, stringTs, mode) => {
         //   console.log("Nimio sei timecode arrived", frameTs, clockTs, stringTs, mode);
         // });
-         window.nimio.on("nimio:screenshot", (img, ts) => {
+         window.nimio.on("nimio:screenshot", (imageData, ts) => {
            console.log(`Screenshot ready ${ts}`);
+           let canvas = document.getElementById("screenshot_view");
+           canvas.width = imageData.width;
+           canvas.height = imageData.height;
+
+           // 2. Put the ImageData onto the canvas
+           const ctx = canvas.getContext('2d');
+           ctx.putImageData(imageData, 0, 0);           
          });        
       }
 
