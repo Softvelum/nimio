@@ -1,4 +1,5 @@
 import { LoggersFactory } from "@/shared/logger";
+import { multiInstanceService } from "@/shared/service";
 
 class MediaGrabber {
   constructor (instanceId) {
@@ -30,6 +31,7 @@ class MediaGrabber {
   }
 
   _onScreenshotReady (img, pts) {
+    this._logger.debug(`onScreenshotReady ${pts}`)
     if (this._onScreenshotReadyCallback) {
       this._onScreenshotReadyCallback(img, Math.round(pts * 1000));
     }
@@ -57,11 +59,11 @@ class MediaGrabber {
 
     this._handleBitmap = undefined;
     if (this._worker) {
-      this._worker.onmessage = undefined;
+      this._worker.oишnmessage = undefined;
       this._worker = undefined;
-    } else {
-      this._canvas = undefined;
-      this._canvasCtx = undefined;
+    // } else {
+    //   this._canvas = undefined;
+    //   this._canvasCtx = undefined;
     }
   }
 
@@ -69,16 +71,16 @@ class MediaGrabber {
     if (this._handleBitmap) return;
 
     let mg = this;
-    this._worker = new Worker();
-    this._worker.onmessage = function (event) {
-      mg._onScreenshotReady(event.data.data, event.data.pts);
-    };
-    this._handleBitmap = this._handleBitmapWithWorker;
+    // this._worker = new Worker();
+    // this._worker.onmessage = function (event) {
+    //   mg._onScreenshotReady(event.data.data, event.data.pts);
+    // };
+    this._handleBitmap = this._onScreenshotReady;
 
   }
 
   handleFrame (pts, fn) {
-    if ((this._rate === 0) || (metadata.presentedFrames <= 1)) {
+    if (this._rate === 0 ) {
       return;
     }
 
@@ -101,9 +103,8 @@ class MediaGrabber {
     }
 
     if (doReq) {
-      let mg = this,
-          pts = metadata.mediaTime;
-      let bitmat = fn();
+      let mg = this
+      let bitmap = fn();
       if (bitmap && mg._handleBitmap) {
         mg._handleBitmap(bitmap, pts);
       }
@@ -143,7 +144,7 @@ class MediaGrabber {
   //   }
   // }
 
-
-
-
 }
+
+MediaGrabber = multiInstanceService(MediaGrabber);
+export { MediaGrabber };

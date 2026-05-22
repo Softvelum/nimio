@@ -106,8 +106,8 @@ export class NimioLive {
       }, 1000);
     }
 
-    if (this.config.screenshots) {
-      this._createMediaGrabber(this.config.screenshots);
+    if (this._config.screenshots) {
+      this._createMediaGrabber(this._config.screenshots);
     }
   }
 
@@ -876,10 +876,10 @@ export class NimioLive {
     this._latencyCtrl.setParams(params);
   }
 
-_createMediaGrabber(params) {
-  this._grabber = MediaGrabber()
-  const rate = params?.rate ?? -1;
-  this._grabber.setRate(rate);
+  _createMediaGrabber(params) {
+    this._grabber = MediaGrabber.getInstance(this._instName)
+    const rate = params?.rate ?? -1;
+    this._grabber.setRate(rate);
 }
 
 }

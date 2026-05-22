@@ -32,6 +32,7 @@ const DEFAULTS = {
   captions: null,
   timecodes: false,
   aspectRatio: null,
+  screenshots: null
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
