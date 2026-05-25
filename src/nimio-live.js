@@ -430,9 +430,7 @@ export class NimioLive {
     }
     this._ui.drawFrame(frame);
     if (this._grabber) {
-      this._grabber.handleLiveFrame(frame.timestamp, () => {
-        return this._ui.getImageData();
-      })
+      this._grabber.handleLiveFrame(frame)
     }
     frame.close();
   }

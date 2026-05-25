@@ -3,8 +3,8 @@ let offscreenCtx = null;
 
 onmessage = (event) => {
   const bmp = event.data.bmp;
-  const w = bmp.width
-  const h = bmp.height
+  const w = bmp.displayWidth ?? bmp.width
+  const h = bmp.displayHeight ?? bmp.height
   if (offscreenCanvas === null) {
     offscreenCanvas = new OffscreenCanvas(w, h);
     offscreenCtx = offscreenCanvas.getContext('2d', {willReadFrequently: true});
