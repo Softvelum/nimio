@@ -12,7 +12,7 @@
       style="width: 408px; height: 30px; font-size: 16px"
       class="nimio-input"
       placeholder="ws:// or wss:// URL of the stream"
-      value="wss://demo-nimble.softvelum.com/live/bbb"
+      value="wss://drm-test-cf.softvelum.com/live/black_symphony"
     />
     <button
       id="initNimioButton"
@@ -76,7 +76,7 @@
           timecodes: true,
 
           // aspectRatio: "3:1",
-          screenshots: {rate: 1.0}
+          screenshots: {rate: 0.5}
         });
 
         window.nimio.on("nimio:play", () => {
@@ -89,11 +89,15 @@
         //   console.log("Nimio sei timecode arrived", frameTs, clockTs, stringTs, mode);
         // });
          window.nimio.on("nimio:screenshot", (imageData, ts) => {
-           console.log(`Screenshot ready ${ts}`);
+          let w = imageData.width
+          let h = imageData.height 
+          console.log(`Screenshot ready ${ts} ${w} * ${h}`);
+           let dpr = window.devicePixelRatio || 1;
            let canvas = document.getElementById("screenshot_view");
            canvas.width = imageData.width;
            canvas.height = imageData.height;
-
+           canvas.style.transform = `scale(${1/dpr})`;
+           canvas.style.transformOrigin = "0 0"; // Scales from the top left
            // 2. Put the ImageData onto the canvas
            const ctx = canvas.getContext('2d');
            ctx.putImageData(imageData, 0, 0);           

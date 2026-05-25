@@ -13,7 +13,6 @@ class MediaGrabber {
   }
 
   setMediaElement (me) {
-    this._logger.debug(`grabber setMediaElement ${me}`)
     this._mediaElement = me;
   }
 
@@ -35,8 +34,6 @@ class MediaGrabber {
   }
 
   _onScreenshotReady (img, pts) {
-    this._logger.debug(`onScreenshotReady ${pts}`)
-
     if (this._onScreenshotReadyCallback) {
       this._onScreenshotReadyCallback(img, Math.round(pts * 1000));
     }
@@ -46,7 +43,6 @@ class MediaGrabber {
     if (mode !== null) {
       this.vod = (mode == MODE.VOD);
     }
-    this._logger.debug(`grabber start ${mode}`)
     if (!this._enabled) {
       this._enabled = true;
       this._init();
@@ -58,14 +54,12 @@ class MediaGrabber {
             mg._onScreenshotReady(event.data.data, event.data.pts);
           };        
         }
-        this._logger.debug("grabber requestNextFrame")
         this._requestNextFrame();
       }
     }
   }
 
   stop () {
-    this._logger.debug("grabber stop")
     if (this._enabled) {
       this._enabled = false;
       this._strt = undefined;
@@ -121,39 +115,24 @@ class MediaGrabber {
     if (!this.isNeedFrame()) return;
     let bitmap = fn();
     if (bitmap && this._handleBitmap) {
-      this._logger.debug(`handleLiveFrame ${pts}`)
-
       this._handleBitmap(bitmap, pts);
-    } else {
-      this._logger.debug(`handleLiveFrame: NO BITMAP ${pts}`)
     }
   }
 
   handleVodFrame(metadata) {
     if (metadata.presentedFrames <= 1 || !this.isNeedFrame()) {
-      //this._logger.debug("grabber handleVodFrame: skip")
       return;
     }
-      this._logger.debug("grabber handleVodFrame: proceed")
     let mg = this;
     let pts = metadata.mediaTime;
     createImageBitmap(this._mediaElement).then(function (bitmap) {
-          mg._logger.debug("grabber got bitmap")
-
         if (bitmap && mg._handleBitmap) {
           mg._handleBitmap(bitmap, pts);
-        } else {
-            mg._logger.debug("grabber: no bitmap")
-
         }
       });
   }
 
   _handleBitmapWithWorker (bmp, pts) {
-    if (this._worker) {
-      this._logger.debug("grabber post bitmap message")
-    }
-
     this._worker.postMessage({
       bmp: bmp,
       pts: pts

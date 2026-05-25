@@ -62,13 +62,8 @@ export class NimioVod {
           this._seiProcessor = SeiProcessor.getInstance(this._instName);
         }
 
-          this._logger.debug("VOD: before grabber")
         if (this._config.screenshots) {
-          this._logger.debug("VOD: grabber 1")
           this._createMediaGrabberVod(this._config.screenshots);
-          this._logger.debug("VOD: grabber 2")
-        } else {
-          this._logger.debug("VOD: no grabber")
         }
 
         this._onProgress = throttler(
@@ -954,7 +949,6 @@ export class NimioVod {
   }
 
   _createMediaGrabberVod(params) {
-    this._logger.debug("_createMediaGrabber VOD")
     this._grabber = MediaGrabber.getInstance(this._instName)
     const rate = params?.rate ?? -1;
     this._grabber.setRate(rate);

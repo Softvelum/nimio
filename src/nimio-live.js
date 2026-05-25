@@ -877,8 +877,6 @@ export class NimioLive {
   }
 
   _createMediaGrabber(params) {
-    this._logger.debug("_createMediaGrabber LIVE")
-
     this._grabber = MediaGrabber.getInstance(this._instName)
     const rate = params?.rate ?? -1
     this._grabber.setRate(rate)
