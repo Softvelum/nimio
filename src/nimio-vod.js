@@ -14,6 +14,7 @@ import { EventBus } from "./event-bus";
 import { NalProcessor } from "./nal/processor";
 import { SeiProcessor } from "./sei/processor";
 import { SPSHolder } from "./sps/holder";
+import { MediaGrabber } from "./grabber"
 
 const VOD_STATE = {
   NULL: 0,
@@ -59,6 +60,15 @@ export class NimioVod {
           this._spsHolder = SPSHolder.getInstance(this._instName);
           this._nalProcessor = NalProcessor.getInstance(this._instName);
           this._seiProcessor = SeiProcessor.getInstance(this._instName);
+        }
+
+          this._logger.debug("VOD: before grabber")
+        if (this._config.screenshots) {
+          this._logger.debug("VOD: grabber 1")
+          this._createMediaGrabberVod(this._config.screenshots);
+          this._logger.debug("VOD: grabber 2")
+        } else {
+          this._logger.debug("VOD: no grabber")
         }
 
         this._onProgress = throttler(
@@ -114,6 +124,7 @@ export class NimioVod {
           this._playbackService.init(mediaElement);
           this._addUIEventHandlers();
           this._state = VOD_STATE.SYNC;
+          this._grabber?.setMediaElement(mediaElement);
         }
 
         this._url = this._config.url;
@@ -165,6 +176,8 @@ export class NimioVod {
     }
     this._pHandler.destroy();
     this._pHandler = undefined;
+    this._grabber?.destroy();
+    this._grabber = null;
 
     if (this._state >= VOD_STATE.SYNC) {
       this._vuMeterSvc.stop();
@@ -196,6 +209,7 @@ export class NimioVod {
 
     this._playbackService.handlePlay();
     this._eventBus.emit("nimio:play", { mode: MODE.VOD });
+    this._grabber?.start(MODE.VOD);
   }
 
   pause() {
@@ -210,6 +224,8 @@ export class NimioVod {
 
     this._pHandler.stopLoad();
     this._state = VOD_STATE.STOP;
+    this._grabber?.stop();
+
     if (this._ui) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.VOD });
       this._setDetachedState(callback);
@@ -360,6 +376,8 @@ export class NimioVod {
     this._pHandler.pauseBuffering();
     this._pHandler.attachMedia(this._ui.mediaElement);
     this._addProgressEventHandlers();
+    this._grabber?.setMediaElement(this._ui.mediaElement);
+    this._grabber?.start(MODE.VOD);
 
     if (position !== undefined) {
       this._logger.debug("after attach should go to " + position);
@@ -394,11 +412,11 @@ export class NimioVod {
     this._audioCtrl.reset();
     this._vuMeterSvc.stop();
     if (this._state !== VOD_STATE.STOP) this._state = VOD_STATE.SYNC;
-
+    this._grabber?.stop();
     this._playbackStarted = false;
     this._switchInProgress = false;
     this._playbackErrCnt = 0;
-
+    
     this._detachUI();
   }
 
@@ -912,6 +930,8 @@ export class NimioVod {
     this._playbackService.startPlayback();
     this._playbackService.setCurrentTime(currentTime);
     this._addProgressEventHandlers();
+    this._grabber?.setMediaElement(mediaElement);
+
   }
 
   _addUIEventHandlers() {
@@ -931,5 +951,15 @@ export class NimioVod {
   _removeProgressEventHandlers() {
     this._ui.mediaElement.removeEventListener("progress", this._onProgress);
     this._ui.mediaElement.removeEventListener("timeupdate", this._onProgress);
+  }
+
+  _createMediaGrabberVod(params) {
+    this._logger.debug("_createMediaGrabber VOD")
+    this._grabber = MediaGrabber.getInstance(this._instName)
+    const rate = params?.rate ?? -1;
+    this._grabber.setRate(rate);
+    this._grabber.onScreenshotReady((img, ts) => {
+      this._eventBus.emit("nimio:screenshot", img, ts);
+    });
   }
 }

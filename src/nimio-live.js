@@ -426,11 +426,11 @@ export class NimioLive {
     if (!this._playbackStarted) {
       this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
-      this._grabber?.start();
+      this._grabber?.start(MODE.LIVE);
     }
     this._ui.drawFrame(frame);
     if (this._grabber) {
-      this._grabber.handleFrame(frame.timestamp, () => {
+      this._grabber.handleLiveFrame(frame.timestamp, () => {
         return this._ui.getImageData();
       })
     }
@@ -877,11 +877,13 @@ export class NimioLive {
   }
 
   _createMediaGrabber(params) {
+    this._logger.debug("_createMediaGrabber LIVE")
+
     this._grabber = MediaGrabber.getInstance(this._instName)
-    const rate = params?.rate ?? -1;
-    this._grabber.setRate(rate);
+    const rate = params?.rate ?? -1
+    this._grabber.setRate(rate)
     this._grabber.onScreenshotReady((img, ts) => {
-      this._eventBus.emit("nimio:screenshot", img, ts);
+      this._eventBus.emit("nimio:screenshot", img, ts)
     });
 }
 

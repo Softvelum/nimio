@@ -137,7 +137,7 @@ export class UI {
     if (!rp) {
       return null;
     }
-    return this._cctx.getImageData(0, 0, rp.width, rp.height);
+    return this._cctx.getImageData(0, 0, rp.dWidth * this._dpr, rp.dHeight * this._dpr);
   }
 
   showControls(anim) {

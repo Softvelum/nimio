@@ -244,6 +244,7 @@ function initVodSettings(settings) {
   vod.timecodes = settings.timecodes;
   vod.volumeId = settings.volumeId;
   vod.muted = settings.muted;
+  vod.screenshots = settings.screenshots;
 }
 
 function defaultVodUrl(settings) {
