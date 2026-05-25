@@ -21,8 +21,8 @@ export function parseFlacConfig(data) {
     return value;
   };
 
-  const minBlockSize = readUint16();
-  const maxBlockSize = readUint16();
+  let minBlockSize = readUint16();
+  let maxBlockSize = readUint16();
 
   if (minBlockSize !== maxBlockSize) {
     console.log(
