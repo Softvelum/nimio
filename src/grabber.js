@@ -101,7 +101,12 @@ class MediaGrabber {
 
   handleLiveFrame(frame) {
     if (!this._isNeedFrame()) return;
-    this._handleBitmap(frame, frame.timestamp);
+    this._handleBitmap(
+      frame,
+      frame.timestamp,
+      frame.displayWidth,
+      frame.displayHeight,
+    );
   }
 
   _handleVodFrame(metadata) {
@@ -112,16 +117,18 @@ class MediaGrabber {
     let pts = metadata.mediaTime;
     createImageBitmap(this._mediaElement).then(function (bitmap) {
       if (bitmap && mg._handleBitmap) {
-        mg._handleBitmap(bitmap, pts);
+        mg._handleBitmap(bitmap, pts, bitmap.width, bitmap.height);
       }
     });
   }
 
-  _handleBitmapWithWorker(bmp, pts) {
+  _handleBitmapWithWorker(bmp, pts, width, height) {
     this._worker.postMessage(
       {
         bmp: bmp,
         pts: pts,
+        width: width,
+        height: height,
       },
       [bmp],
     );
