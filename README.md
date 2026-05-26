@@ -168,9 +168,10 @@ nimio = new Nimio({
   },
   timecodes: true, // enables handling of SEI picture timing (H264) and SEI time code (H265) messages
   aspectRatio: "16:9", // defines aspect ratio which video is forcefully adjusted to
-  screenshots: { // (optional) automatic screenshot capture. Can be set to {} or true to enable screenshots without specific settings.
-    rate: 1.0 // (optional) screenshot capture rate per second. 
-              // If not defined, number of screenshots per second is equal to the video frame rate. 
+  screenshots: {
+    // (optional) automatic screenshot capture. Can be set to {} or true to enable screenshots without specific settings.
+    rate: 1.0, // (optional) screenshot capture rate per second.
+    // If not defined, number of screenshots per second is equal to the video frame rate.
   },
 });
 
@@ -524,7 +525,8 @@ enabled: Boolean;
 
 - `nimio:screenshot`
   Emitted each time new screenshot is rendered.
-**Parameters:**
+  **Parameters:**
+
 ```javascript
   imageData: ImageData, //screenshot image
   timestamp: Number //presentation timestamp of corresponding frame in milliseconds tied to the video element's currentTime
