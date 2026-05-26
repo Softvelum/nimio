@@ -28,7 +28,7 @@ import { SyncModeClock } from "./sync-mode/clock";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
 import { AudioController } from "./audio/controller";
-import { MediaGrabber } from "./grabber"
+import { MediaGrabber } from "./grabber";
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -430,7 +430,7 @@ export class NimioLive {
     }
     this._ui.drawFrame(frame);
     if (this._grabber) {
-      this._grabber.handleLiveFrame(frame)
+      this._grabber.handleLiveFrame(frame);
     }
     frame.close();
   }
@@ -615,7 +615,7 @@ export class NimioLive {
       }
     });
     if (this._nalProcessor) this._nalProcessor.reset();
-    
+
     this._grabber?.stop();
 
     this._state.setPlaybackStartTsUs(0);
@@ -875,16 +875,14 @@ export class NimioLive {
   }
 
   _createMediaGrabber(params) {
-    this._grabber = MediaGrabber.getInstance(this._instName)
-    const rate = params?.rate ?? -1
-    this._grabber.setRate(rate)
+    this._grabber = MediaGrabber.getInstance(this._instName);
+    const rate = params?.rate ?? -1;
+    this._grabber.setRate(rate);
     this._grabber.onScreenshotReady((img, ts) => {
-      this._eventBus.emit("nimio:screenshot", img, ts)
+      this._eventBus.emit("nimio:screenshot", img, ts);
     });
+  }
 }
-
-}
-
 
 Object.assign(NimioLive.prototype, NimioTransport);
 Object.assign(NimioLive.prototype, NimioRenditions);

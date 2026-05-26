@@ -3,16 +3,16 @@ import { multiInstanceService } from "@/shared/service";
 import { MODE } from "./shared/values";
 
 class MediaGrabber {
-  constructor (instanceId) {
-    this._logger = LoggersFactory.create(instanceId, 'MediaGrabber');
-    this.vod = false;
+  constructor(instanceId) {
+    this._logger = LoggersFactory.create(instanceId, "MediaGrabber");
+    this._vod = false;
   }
 
-  setMediaElement (me) {
+  setMediaElement(me) {
     this._mediaElement = me;
   }
 
-  setRate (rate) {
+  setRate(rate) {
     if (rate < 0) {
       this._rate = -1;
       return;
@@ -25,31 +25,31 @@ class MediaGrabber {
     }
   }
 
-  onScreenshotReady (cb) {
+  onScreenshotReady(cb) {
     this._onScreenshotReadyCallback = cb;
   }
 
-  _onScreenshotReady (img, pts) {
+  _onScreenshotReady(img, pts) {
     if (this._onScreenshotReadyCallback) {
       this._onScreenshotReadyCallback(img, Math.round(pts * 1000));
     }
   }
 
-  start (mode) {
+  start(mode) {
     if (mode !== null) {
-      this.vod = (mode == MODE.VOD);
+      this._vod = mode == MODE.VOD;
     }
     if (this._enabled) {
       return;
     }
     this._enabled = true;
     this._init();
-    if (this.vod) {
+    if (this._vod) {
       this._requestNextFrame();
     }
   }
 
-  stop () {
+  stop() {
     if (this._enabled) {
       this._enabled = false;
       this._strt = undefined;
@@ -57,7 +57,7 @@ class MediaGrabber {
     }
   }
 
-  _deinit () {
+  _deinit() {
     if (!this._handleBitmap) return;
 
     this._handleBitmap = undefined;
@@ -67,39 +67,39 @@ class MediaGrabber {
     }
   }
 
-  _init () {
+  _init() {
     if (this._handleBitmap) return;
 
     let mg = this;
     this._worker = new Worker(new URL("grabber-worker.js", import.meta.url));
     this._worker.onmessage = function (event) {
       mg._onScreenshotReady(event.data.data, event.data.pts);
-    };        
+    };
     this._handleBitmap = this._handleBitmapWithWorker;
   }
 
   _isNeedFrame() {
     if (this._rate < 0) {
-      return true
+      return true;
     }
-    let cur = performance.now()
+    let cur = performance.now();
     if (undefined === this._strt) {
-      this._strt = cur
-      return true
-    } 
-    let diff = cur - this._strt
+      this._strt = cur;
+      return true;
+    }
+    let diff = cur - this._strt;
     if (diff > this._maxi) {
-      this._strt = cur - this._ival
-      return true
+      this._strt = cur - this._ival;
+      return true;
     }
     if (diff >= this._ival) {
-      this._strt += this._ival
-      return true
+      this._strt += this._ival;
+      return true;
     }
-    return false
+    return false;
   }
 
-  handleLiveFrame (frame) {
+  handleLiveFrame(frame) {
     if (!this._isNeedFrame()) return;
     this._handleBitmap(frame, frame.timestamp);
   }
@@ -111,28 +111,31 @@ class MediaGrabber {
     let mg = this;
     let pts = metadata.mediaTime;
     createImageBitmap(this._mediaElement).then(function (bitmap) {
-        if (bitmap && mg._handleBitmap) {
-          mg._handleBitmap(bitmap, pts);
-        }
-      });
+      if (bitmap && mg._handleBitmap) {
+        mg._handleBitmap(bitmap, pts);
+      }
+    });
   }
 
-  _handleBitmapWithWorker (bmp, pts) {
-    this._worker.postMessage({
-      bmp: bmp,
-      pts: pts
-    }, [ bmp ]);
+  _handleBitmapWithWorker(bmp, pts) {
+    this._worker.postMessage(
+      {
+        bmp: bmp,
+        pts: pts,
+      },
+      [bmp],
+    );
   }
 
-  _requestNextFrame () {
+  _requestNextFrame() {
     if (!(this._enabled && this._mediaElement)) {
-      return
+      return;
     }
 
     let mg = this;
     this._mediaElement.requestVideoFrameCallback((now, metadata) => {
       mg._handleVodFrame(metadata);
-      if (mg.vod) {
+      if (mg._vod) {
         mg._requestNextFrame();
       }
     });

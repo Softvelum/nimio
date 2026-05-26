@@ -27,8 +27,8 @@
       <div id="video" style="width: calc(100% - 80px)"></div>
       <div id="vu-meter" style="width: 80px; height: 268px"></div>
     </div>
-    <div style="padding: 10px;">
-    <canvas width="1280" height="720" id="screenshot_view"></canvas>
+    <div style="padding: 10px">
+      <canvas width="1280" height="720" id="screenshot_view"></canvas>
     </div>
     <script type="module">
       import Nimio from "/src/nimio.js";
@@ -76,7 +76,7 @@
           timecodes: true,
 
           // aspectRatio: "3:1",
-          screenshots: {rate: 1.0}
+          screenshots: { rate: 1.0 },
         });
 
         window.nimio.on("nimio:play", () => {
@@ -88,16 +88,16 @@
         // window.nimio.on("nimio:sei-timecode", (frameTs, clockTs, stringTs, mode) => {
         //   console.log("Nimio sei timecode arrived", frameTs, clockTs, stringTs, mode);
         // });
-         window.nimio.on("nimio:screenshot", (imageData, ts) => {
-          let w = imageData.width
-          let h = imageData.height 
+        window.nimio.on("nimio:screenshot", (imageData, ts) => {
+          let w = imageData.width;
+          let h = imageData.height;
           console.log(`Screenshot ready ${ts} ${w} * ${h}`);
-           let canvas = document.getElementById("screenshot_view");
-           canvas.width = imageData.width;
-           canvas.height = imageData.height;
-           const ctx = canvas.getContext('2d');
-           ctx.putImageData(imageData, 0, 0);           
-         });        
+          let canvas = document.getElementById("screenshot_view");
+          canvas.width = imageData.width;
+          canvas.height = imageData.height;
+          const ctx = canvas.getContext("2d");
+          ctx.putImageData(imageData, 0, 0);
+        });
       }
 
       document

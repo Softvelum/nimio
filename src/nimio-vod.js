@@ -14,7 +14,7 @@ import { EventBus } from "./event-bus";
 import { NalProcessor } from "./nal/processor";
 import { SeiProcessor } from "./sei/processor";
 import { SPSHolder } from "./sps/holder";
-import { MediaGrabber } from "./grabber"
+import { MediaGrabber } from "./grabber";
 
 const VOD_STATE = {
   NULL: 0,
@@ -411,7 +411,7 @@ export class NimioVod {
     this._playbackStarted = false;
     this._switchInProgress = false;
     this._playbackErrCnt = 0;
-    
+
     this._detachUI();
   }
 
@@ -926,7 +926,6 @@ export class NimioVod {
     this._playbackService.setCurrentTime(currentTime);
     this._addProgressEventHandlers();
     this._grabber?.setMediaElement(mediaElement);
-
   }
 
   _addUIEventHandlers() {
@@ -949,7 +948,7 @@ export class NimioVod {
   }
 
   _createMediaGrabberVod(params) {
-    this._grabber = MediaGrabber.getInstance(this._instName)
+    this._grabber = MediaGrabber.getInstance(this._instName);
     const rate = params?.rate ?? -1;
     this._grabber.setRate(rate);
     this._grabber.onScreenshotReady((img, ts) => {

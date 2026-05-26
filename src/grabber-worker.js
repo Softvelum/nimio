@@ -3,11 +3,13 @@ let offscreenCtx = null;
 
 onmessage = (event) => {
   const bmp = event.data.bmp;
-  const w = bmp.displayWidth ?? bmp.width
-  const h = bmp.displayHeight ?? bmp.height
+  const w = bmp.displayWidth ?? bmp.width;
+  const h = bmp.displayHeight ?? bmp.height;
   if (offscreenCanvas === null) {
     offscreenCanvas = new OffscreenCanvas(w, h);
-    offscreenCtx = offscreenCanvas.getContext('2d', {willReadFrequently: true});
+    offscreenCtx = offscreenCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
   } else {
     offscreenCanvas.width = w;
     offscreenCanvas.height = h;
@@ -16,7 +18,7 @@ onmessage = (event) => {
   offscreenCtx.drawImage(bmp, 0, 0);
   postMessage({
     data: offscreenCtx.getImageData(0, 0, w, h),
-    pts: event.data.pts
+    pts: event.data.pts,
   });
 
   bmp.close();
