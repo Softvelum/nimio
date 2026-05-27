@@ -68,6 +68,7 @@ class MediaGrabber {
     this._handleBitmap = undefined;
     if (this._worker) {
       this._worker.onmessage = undefined;
+      this._worker.terminate();
       this._worker = undefined;
     }
   }
@@ -101,7 +102,7 @@ class MediaGrabber {
       return true;
     }
     if (diff >= this._ival) {
-      this._strt += this._ival;
+      this._strt = cur;
       return true;
     }
     return false;
@@ -123,16 +124,20 @@ class MediaGrabber {
     }
     let mg = this;
     const pts = metadata.mediaTime;
-    createImageBitmap(this._mediaElement).then((bitmap) => {
-      if (bitmap) {
-        if (mg._handleBitmap) {
-          mg._handleBitmap(bitmap, pts, bitmap.width, bitmap.height);
-        } else {
-          // Seems grabber was stopped during request
-          bitmap.close();
+    createImageBitmap(this._mediaElement)
+      .then((bitmap) => {
+        if (bitmap) {
+          if (mg._handleBitmap) {
+            mg._handleBitmap(bitmap, pts, bitmap.width, bitmap.height);
+          } else {
+            // Seems grabber was stopped during request
+            bitmap.close();
+          }
         }
-      }
-    });
+      })
+      .catch((error) => {
+        mg._logger.warn("Failed to capture bitmap", error);
+      });
   }
 
   _handleBitmapWithWorker(bmp, pts, width, height) {
