@@ -925,7 +925,7 @@ export class NimioVod {
     this._playbackService.startPlayback();
     this._playbackService.setCurrentTime(currentTime);
     this._addProgressEventHandlers();
-    this._grabber?.setMediaElement(mediaElement);
+    this._grabber?.setMediaElement(this._ui.mediaElement);
   }
 
   _addUIEventHandlers() {
