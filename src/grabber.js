@@ -37,7 +37,7 @@ class MediaGrabber {
 
   start(mode) {
     if (mode !== null) {
-      this._vod = mode == MODE.VOD;
+      this._vod = MODE.VOD === mode;
     }
     if (this._enabled) {
       return;
@@ -53,11 +53,16 @@ class MediaGrabber {
     if (this._enabled) {
       this._enabled = false;
       this._strt = undefined;
+      if (this._frameCallbackId !== undefined) {
+        this._mediaElement?.cancelVideoFrameCallback(this._frameCallbackId);
+        this._frameCallbackId = undefined;
+      }
       this._deinit();
     }
   }
 
   _deinit() {
+    this._vod = false;
     if (!this._handleBitmap) return;
 
     this._handleBitmap = undefined;
@@ -82,7 +87,10 @@ class MediaGrabber {
     if (this._rate < 0) {
       return true;
     }
-    let cur = performance.now();
+    if (this._rate === 0 || !this._enabled) {
+      return false;
+    }
+    const cur = performance.now();
     if (undefined === this._strt) {
       this._strt = cur;
       return true;
@@ -114,10 +122,15 @@ class MediaGrabber {
       return;
     }
     let mg = this;
-    let pts = metadata.mediaTime;
-    createImageBitmap(this._mediaElement).then(function (bitmap) {
-      if (bitmap && mg._handleBitmap) {
-        mg._handleBitmap(bitmap, pts, bitmap.width, bitmap.height);
+    const pts = metadata.mediaTime;
+    createImageBitmap(this._mediaElement).then((bitmap) => {
+      if (bitmap) {
+        if (mg._handleBitmap) {
+          mg._handleBitmap(bitmap, pts, bitmap.width, bitmap.height);
+        } else {
+          // Seems grabber was stopped during request
+          bitmap.close();
+        }
       }
     });
   }
@@ -140,12 +153,15 @@ class MediaGrabber {
     }
 
     let mg = this;
-    this._mediaElement.requestVideoFrameCallback((now, metadata) => {
-      mg._handleVodFrame(metadata);
-      if (mg._vod) {
-        mg._requestNextFrame();
-      }
-    });
+    this._frameCallbackId = this._mediaElement.requestVideoFrameCallback(
+      (now, metadata) => {
+        mg._frameCallbackId = undefined;
+        mg._handleVodFrame(metadata);
+        if (mg._vod) {
+          mg._requestNextFrame();
+        }
+      },
+    );
   }
 }
 

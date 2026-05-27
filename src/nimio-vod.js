@@ -171,7 +171,7 @@ export class NimioVod {
     }
     this._pHandler.destroy();
     this._pHandler = undefined;
-    this._grabber?.destroy();
+    this._grabber?.stop();
     this._grabber = null;
 
     if (this._state >= VOD_STATE.SYNC) {

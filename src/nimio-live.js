@@ -168,6 +168,7 @@ export class NimioLive {
       this._abrController.stop({ hard: true });
     }
     this._resetPlayback();
+    this._grabber?.stop();
 
     if (closeConnection) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
