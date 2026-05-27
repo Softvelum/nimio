@@ -17,11 +17,13 @@ onmessage = (event) => {
   // Can be either VideoFrame (for live) or ImageBitmap (for VOD) -
   // drawImage accepts both
   const bmp = event.data.bmp;
-  offscreenCtx.drawImage(bmp, 0, 0);
-  postMessage({
-    data: offscreenCtx.getImageData(0, 0, w, h),
-    pts: event.data.pts,
-  });
-
-  bmp.close();
+  try {
+    offscreenCtx.drawImage(bmp, 0, 0);
+    postMessage({
+      data: offscreenCtx.getImageData(0, 0, w, h),
+      pts: event.data.pts,
+    });
+  } finally {
+    bmp.close();
+  }
 };
