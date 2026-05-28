@@ -537,8 +537,9 @@ export class UI {
     if (!data.width || !data.height) return;
 
     this._layoutMgr.setFrameSize(data.width, data.height);
-    if (!this._container) return;
-    this._updateLayout(this._container.getBoundingClientRect());
+    let container = this._pipContainer ?? this._container;
+    if (!container) return;
+    this._updateLayout(container.getBoundingClientRect());
   }
 
   _handleViewportUpdate() {
@@ -549,8 +550,9 @@ export class UI {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this._viewportUpdatePending = false;
-        if (!this._container) return;
-        this._updateLayout(this._container.getBoundingClientRect());
+        let container = this._pipContainer ?? this._container;
+        if (!container) return;
+        this._updateLayout(container.getBoundingClientRect());
       });
     });
   }
@@ -780,17 +782,18 @@ export class UI {
   }
 
   async _togglePictureInPicture(ev) {
-    if (window.documentPictureInPicture.window) {
+    let activePip = window.documentPictureInPicture.window
+    if (activePip) {
+      activePip.close();
       return;
     }
     let rp = this._rendProps;
     if (!rp) return;
 
     const pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: rp.height * 16.0 / 9.0,
-      height: rp.height,
+      width: rp.dWidth,
+      height: rp.dHeight,
     });
-    this._pipWindow = pipWindow;
 
     // Move the player to the Picture-in-Picture window.
     let videoPlayer = null;
@@ -806,28 +809,18 @@ export class UI {
     this._pipContainer = rootDiv;
     pipWindow.document.body.append(rootDiv);
     let playerContainer = this._container;
+    this._pipWindow = pipWindow;
     pipWindow.addEventListener("pagehide", (event) => {
       //inPipMessage.style.display = "none";
-      this._pipWindow = undefined;
+      this._pipContainer = undefined;
       playerContainer.append(videoPlayer);
-
     });
 
     if (MODE.LIVE === this._mode) { 
-      this._onPipWindowResize(rootDiv);
-      let me = this;
-      rootDiv.addEventListener("resize", (window) => {
-        me._onPipWindowResize(window);
-      }
-      );
+      const rect = window.getBoundingClientRect();
+      this._updateLayout(rect);      
     }
     // TODO: Display a message to say it has been moved
   }
-
-  _onPipWindowResize(window) {
-    const rect = window.getBoundingClientRect(); //new DOMRect(0, 0, window.innerWidth, window.innerHeight);
-    this._updateLayout(rect);
-  }
-
 
 }
