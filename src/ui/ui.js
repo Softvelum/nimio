@@ -792,11 +792,19 @@ export class UI {
     });
 
     // Move the player to the Picture-in-Picture window.
+    let videoPlayer = null;
     if (MODE.LIVE === this._mode) {
-      pipWindow.document.body.append(this._canvas);
+      videoPlayer = this._canvas;
     } else {
-      pipWindow.document.body.append(this._mediaElement);
+      videoPlayer = this._mediaElement;
     }
+
+    pipWindow.document.body.append(videoPlayer);
+    let playerContainer = this._container;
+    pipWindow.addEventListener("pagehide", (event) => {
+      //inPipMessage.style.display = "none";
+      playerContainer.append(videoPlayer);
+    });    
 
     // TODO: Display a message to say it has been moved
   }
