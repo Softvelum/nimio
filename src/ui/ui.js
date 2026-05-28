@@ -557,26 +557,26 @@ export class UI {
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-
+    const pipMode = this._pipContainer !== undefined;
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
-      this._resizeAndRedraw(rect);
+      this._resizeAndRedraw(rect, pipMode);
       if (this._thumbnailPreview) this._thumbnailPreview.update();
     });
   }
 
-  _resizeAndRedraw(rect) {
+  _resizeAndRedraw(rect, pipMode) {
     let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
       this._mode,
-      this._isPlayerFullscreen(),
+      pipMode || this._isPlayerFullscreen(),
     );
     if (!cssProps) return;
-
-    this._container.style.width = cssProps.container.width;
-    this._container.style.height = cssProps.container.height;
+    let container = pipMode ? this._pipContainer : this._container;
+    container.style.width = cssProps.container.width;
+    container.style.height = cssProps.container.height;
     let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
@@ -787,9 +787,10 @@ export class UI {
     if (!rp) return;
 
     const pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: rp.width,
+      width: rp.height * 16.0 / 9.0,
       height: rp.height,
     });
+    this._pipWindow = pipWindow;
 
     // Move the player to the Picture-in-Picture window.
     let videoPlayer = null;
@@ -799,13 +800,34 @@ export class UI {
       videoPlayer = this._mediaElement;
     }
 
-    pipWindow.document.body.append(videoPlayer);
+    let rootDiv = document.createElement("div");
+    rootDiv.className = "pip-container";
+    rootDiv.appendChild(videoPlayer); 
+    this._pipContainer = rootDiv;
+    pipWindow.document.body.append(rootDiv);
     let playerContainer = this._container;
     pipWindow.addEventListener("pagehide", (event) => {
       //inPipMessage.style.display = "none";
+      this._pipWindow = undefined;
       playerContainer.append(videoPlayer);
-    });    
 
+    });
+
+    if (MODE.LIVE === this._mode) { 
+      this._onPipWindowResize(rootDiv);
+      let me = this;
+      rootDiv.addEventListener("resize", (window) => {
+        me._onPipWindowResize(window);
+      }
+      );
+    }
     // TODO: Display a message to say it has been moved
   }
+
+  _onPipWindowResize(window) {
+    const rect = window.getBoundingClientRect(); //new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    this._updateLayout(rect);
+  }
+
+
 }
