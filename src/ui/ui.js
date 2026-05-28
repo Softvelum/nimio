@@ -253,6 +253,8 @@ export class UI {
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
     this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
     this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
+    this._buttonPictureInPicture = this._controlsBar.querySelector(".btn-pip");
+
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
       this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
@@ -274,6 +276,7 @@ export class UI {
       this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }
     this._addControlsEventHandlers();
+    this._setupPip();
 
     this._onFullscreenClick = this._toggleFullscreen.bind(this);
     this._buttonFullscreen = this._controlsBar.querySelector(".btn-fullscreen");
@@ -386,6 +389,15 @@ export class UI {
     this._container.addEventListener("mousemove", this._onMouseMove);
     this._onMouseOut = (e) => this._handleMouseOut(e);
     this._container.addEventListener("mouseout", this._onMouseOut);
+  }
+
+  _setupPip() {
+    this._togglePip = this._togglePictureInPicture.bind(this);
+    if ("documentPictureInPicture" in window) {
+      this._buttonPictureInPicture.addEventListener("click", this._togglePip);
+    } else {
+      this._buttonPictureInPicture.style.display = "none";
+    }   
   }
 
   _onRenditionsReceived(renditions) {
@@ -765,5 +777,27 @@ export class UI {
       margin: "auto",
       position: "relative",
     });
+  }
+
+  async _togglePictureInPicture(ev) {
+    if (window.documentPictureInPicture.window) {
+      return;
+    }
+    let rp = this._rendProps;
+    if (!rp) return;
+
+    const pipWindow = await window.documentPictureInPicture.requestWindow({
+      width: rp.width,
+      height: rp.height,
+    });
+
+    // Move the player to the Picture-in-Picture window.
+    if (MODE.LIVE === this._mode) {
+      pipWindow.document.body.append(this._canvas);
+    } else {
+      pipWindow.document.body.append(this._mediaElement);
+    }
+
+    // TODO: Display a message to say it has been moved
   }
 }
