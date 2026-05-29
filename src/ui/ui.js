@@ -392,12 +392,12 @@ export class UI {
   }
 
   _setupPip() {
-    this._togglePip = this._togglePictureInPicture.bind(this);
     if ("documentPictureInPicture" in window) {
-      this._buttonPictureInPicture.addEventListener("click", this._togglePip);
+      this._togglePip = this._toggleDocumentPip.bind(this);
     } else {
-      this._buttonPictureInPicture.style.display = "none";
-    }   
+      this._togglePip = this._toggieVideoPip.bind(this);
+    }
+    this._buttonPictureInPicture.addEventListener("click", this._togglePip);
   }
 
   _onRenditionsReceived(renditions) {
@@ -781,8 +781,8 @@ export class UI {
     });
   }
 
-  async _togglePictureInPicture(ev) {
-    let activePip = window.documentPictureInPicture.window
+  async _toggleDocumentPip(ev) {
+    let activePip = window.documentPictureInPicture.window;
     if (activePip) {
       activePip.close();
       return;
@@ -805,7 +805,7 @@ export class UI {
 
     let rootDiv = document.createElement("div");
     rootDiv.className = "pip-container";
-    rootDiv.appendChild(videoPlayer); 
+    rootDiv.appendChild(videoPlayer);
     this._pipContainer = rootDiv;
     pipWindow.document.body.append(rootDiv);
     let playerContainer = this._container;
@@ -816,11 +816,30 @@ export class UI {
       playerContainer.append(videoPlayer);
     });
 
-    if (MODE.LIVE === this._mode) { 
+    if (MODE.LIVE === this._mode) {
       const rect = window.getBoundingClientRect();
-      this._updateLayout(rect);      
+      this._updateLayout(rect);
     }
     // TODO: Display a message to say it has been moved
+  }
+
+  async _toggieVideoPip(ev) {
+    if (MODE.VOD === this._mode) {
+      window.addEventListener('enterpictureinpicture', this._handleEnterPip.bind(this), false);
+      window.addEventListener('leavepictureinpicture', this._handleLeavePip.bind(this), false);
+      await this._mediaElement.requestPictureInPicture();
+      return;
+    } else {
+      // TODO: capture frames from canvas and feed to video element
+    }
+  }
+
+  _handleEnterPip (event) {
+    this._pipWindow = event.pictureInPictureWindow;
+  }
+
+  _handleLeavePip () {
+    this._pipWindow = undefined;
   }
 
 }
