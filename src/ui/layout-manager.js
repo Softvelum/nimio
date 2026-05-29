@@ -37,7 +37,7 @@ export class UILayoutManager {
     let width = Math.round(this._frameHeight * this._ar.val);
     return {
       width: width,
-      height: this._frameHeight
+      height: this._frameHeight,
     };
   }
 

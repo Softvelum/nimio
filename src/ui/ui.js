@@ -164,6 +164,11 @@ export class UI {
         this._captionList.refresh();
       }
     } else {
+      if (this._captureStream) {
+        this._mediaElement.pause();
+        this._mediaElement.srcObject = undefined;
+        this._captureStream = undefined;
+      }
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       if (!this._isPlayerFullscreen() && this._rendProps) {
@@ -395,7 +400,7 @@ export class UI {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
     } else {
-      this._pipMediaElement = true;
+      this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
@@ -536,11 +541,10 @@ export class UI {
 
   _handleLayoutUpdate(data) {
     if (!data.width || !data.height) return;
-    this._logger.warn(`_handleLayoutUpdate ${data.width} x ${data.height}`);
     this._layoutMgr.setFrameSize(data.width, data.height);
     let rect;
     if (this._pipWindow) {
-      rect = DOMRect(0, 0, data.width, data.height)
+      rect = DOMRect(0, 0, data.width, data.height);
     } else {
       let container = this._pipContainer ?? this._container;
       if (!container) return;
@@ -566,7 +570,8 @@ export class UI {
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-    const pipMode = this._pipContainer !== undefined || this._pipWindow !== undefined;
+    const pipMode =
+      this._pipContainer !== undefined || this._pipWindow !== undefined;
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
@@ -736,13 +741,14 @@ export class UI {
         this._captionCtrl.resume();
         this._captionList.refresh();
       }
-      if (this._pipMediaElement) {
+      if (this._pipCaptureStreamMode === true) {
+        //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
         let stream = this._canvas.captureStream();
+        this._captureStream = stream;
         let video = this._mediaElement;
         video.srcObject = stream;
         video.play();
       }
-
     }
   }
 
@@ -757,6 +763,11 @@ export class UI {
     if (data.mode === MODE.LIVE) {
       this._setBackground();
       this._hideCaptions();
+      if (this._captureStream) {
+        this._mediaElement.pause();
+        this._mediaElement.srcObject = null;
+        this._captureStream = undefined;
+      }
     }
     this._layoutMgr.pause();
     this.drawPlay();
@@ -849,34 +860,43 @@ export class UI {
       video.style.display = "block";
 
       let size = this._layoutMgr.getAspectFrameSize();
-      this._rendProps = this._layoutMgr.computeRenderProps(size.width, size.height);
+      this._rendProps = this._layoutMgr.computeRenderProps(
+        size.width,
+        size.height,
+      );
       this._updateCanvasSize();
     }
     await this._handleCanvasVideoLoaded();
   }
 
   async _handleCanvasVideoLoaded() {
-    window.addEventListener('enterpictureinpicture', this._handleEnterPip.bind(this), false);
-    window.addEventListener('leavepictureinpicture', this._handleLeavePip.bind(this), false);
+    window.addEventListener(
+      "enterpictureinpicture",
+      this._handleEnterPip.bind(this),
+      false,
+    );
+    window.addEventListener(
+      "leavepictureinpicture",
+      this._handleLeavePip.bind(this),
+      false,
+    );
     await this._mediaElement.requestPictureInPicture();
   }
 
-  _handleEnterPip (event) {
-    let pipWindow = event.pictureInPictureWindow; 
+  _handleEnterPip(event) {
+    let pipWindow = event.pictureInPictureWindow;
     this._pipWindow = pipWindow;
-
+    //TODO: disable Live/VOD switching while PIP is active
     if (MODE.LIVE === this._mode) {
       this._mediaElement.style.visibility = "visible";
-    }    
+    }
   }
 
-  _handleLeavePip () {
+  _handleLeavePip() {
     this._pipWindow = undefined;
     if (MODE.LIVE === this._mode) {
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
     }
-
   }
-
 }
