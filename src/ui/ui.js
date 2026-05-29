@@ -395,6 +395,7 @@ export class UI {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
     } else {
+      this._pipMediaElement = true;
       this._togglePip = this._toggieVideoPip.bind(this);
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
@@ -559,7 +560,7 @@ export class UI {
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-    const pipMode = this._pipContainer !== undefined;
+    const pipMode = this._pipContainer !== undefined; //|| this._pipWindow !== undefined
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
@@ -576,9 +577,11 @@ export class UI {
       pipMode || this._isPlayerFullscreen(),
     );
     if (!cssProps) return;
-    let container = pipMode ? this._pipContainer : this._container;
-    container.style.width = cssProps.container.width;
-    container.style.height = cssProps.container.height;
+    if (this._pipWindow === undefined) {
+      let container = pipMode ? this._pipContainer : this._container;
+      container.style.width = cssProps.container.width;
+      container.style.height = cssProps.container.height;
+    }
     let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
@@ -727,6 +730,13 @@ export class UI {
         this._captionCtrl.resume();
         this._captionList.refresh();
       }
+      if (this._pipMediaElement) {
+        let stream = this._canvas.captureStream();
+        let video = this._mediaElement;
+        video.srcObject = stream;
+        video.play();
+      }
+
     }
   }
 
@@ -824,22 +834,42 @@ export class UI {
   }
 
   async _toggieVideoPip(ev) {
-    if (MODE.VOD === this._mode) {
-      window.addEventListener('enterpictureinpicture', this._handleEnterPip.bind(this), false);
-      window.addEventListener('leavepictureinpicture', this._handleLeavePip.bind(this), false);
-      await this._mediaElement.requestPictureInPicture();
-      return;
-    } else {
-      // TODO: capture frames from canvas and feed to video element
+    if (MODE.LIVE === this._mode) {
+      let canvas = this._canvas;
+      let video = this._mediaElement;
+      canvas.style.display = "none";
+      // Video should be presented as block, but hidden till PIP started
+      video.style.visibility = "hidden";
+      video.style.display = "block";
+      //TODO: calculate requred size; take care of ABR resolution change
+      this._rendProps = this._layoutMgr.computeRenderProps(960,540);
+      this._updateCanvasSize();
     }
+    await this._handleCanvasVideoLoaded();
+  }
+
+  async _handleCanvasVideoLoaded() {
+    window.addEventListener('enterpictureinpicture', this._handleEnterPip.bind(this), false);
+    window.addEventListener('leavepictureinpicture', this._handleLeavePip.bind(this), false);
+    await this._mediaElement.requestPictureInPicture();
   }
 
   _handleEnterPip (event) {
-    this._pipWindow = event.pictureInPictureWindow;
+    let pipWindow = event.pictureInPictureWindow; 
+    this._pipWindow = pipWindow;
+
+    if (MODE.LIVE === this._mode) {
+      this._mediaElement.style.visibility = "visible";
+    }    
   }
 
   _handleLeavePip () {
     this._pipWindow = undefined;
+    if (MODE.LIVE === this._mode) {
+      this._mediaElement.style.display = "none";
+      this._canvas.style.display = "block";
+    }
+
   }
 
 }
