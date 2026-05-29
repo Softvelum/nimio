@@ -399,9 +399,11 @@ export class UI {
   _setupPip() {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
-    } else {
+    } else if ('pictureInPictureEnabled' in document){
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
+    } else {
+      this._buttonPictureInPicture.style.display = "none";
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
   }
