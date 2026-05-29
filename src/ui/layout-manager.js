@@ -33,6 +33,14 @@ export class UILayoutManager {
     }
   }
 
+  getAspectFrameSize() {
+    let width = Math.round(this._frameHeight * this._ar.val);
+    return {
+      width: width,
+      height: this._frameHeight
+    };
+  }
+
   containerLayout(isFullscreen) {
     return {
       width: isFullscreen ? "100vw" : this._cssWidth,

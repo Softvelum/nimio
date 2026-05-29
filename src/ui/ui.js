@@ -536,11 +536,17 @@ export class UI {
 
   _handleLayoutUpdate(data) {
     if (!data.width || !data.height) return;
-
+    this._logger.warn(`_handleLayoutUpdate ${data.width} x ${data.height}`);
     this._layoutMgr.setFrameSize(data.width, data.height);
-    let container = this._pipContainer ?? this._container;
-    if (!container) return;
-    this._updateLayout(container.getBoundingClientRect());
+    let rect;
+    if (this._pipWindow) {
+      rect = DOMRect(0, 0, data.width, data.height)
+    } else {
+      let container = this._pipContainer ?? this._container;
+      if (!container) return;
+      rect = container.getBoundingClientRect();
+    }
+    this._updateLayout(rect);
   }
 
   _handleViewportUpdate() {
@@ -560,7 +566,7 @@ export class UI {
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-    const pipMode = this._pipContainer !== undefined; //|| this._pipWindow !== undefined
+    const pipMode = this._pipContainer !== undefined || this._pipWindow !== undefined;
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
@@ -841,8 +847,9 @@ export class UI {
       // Video should be presented as block, but hidden till PIP started
       video.style.visibility = "hidden";
       video.style.display = "block";
-      //TODO: calculate requred size; take care of ABR resolution change
-      this._rendProps = this._layoutMgr.computeRenderProps(960,540);
+
+      let size = this._layoutMgr.getAspectFrameSize();
+      this._rendProps = this._layoutMgr.computeRenderProps(size.width, size.height);
       this._updateCanvasSize();
     }
     await this._handleCanvasVideoLoaded();
