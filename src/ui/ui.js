@@ -743,7 +743,7 @@ export class UI {
   _onPlaybackStarted(data) {
     if (data.mode != this._mode) {
       this._logger.warn("onPlaybackStarted", data.mode, this._mode)
-      return
+      //return
     }
     this.drawPause();
     this._unsetBackground();
@@ -761,6 +761,10 @@ export class UI {
     if ((this._pipCaptureStreamMode !== true || this._captureStream !== undefined)) {
       return;
     }
+    if (this._pipWindow) {
+      document.exitPictureInPicture();
+    }       
+
     //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
     let stream = this._canvas.captureStream();
     this._captureStream = stream;
@@ -770,17 +774,18 @@ export class UI {
   }
 
   _destroyCaptureStream() {
-    if (this._captureStream === undefined) {
+    if (this._captureStream === undefined || this._mediaElement.srcObject === undefined) {
       return;
     }
-    //this._mediaElement.pause();
+    this._mediaElement.pause();
     this._mediaElement.srcObject = undefined;
     this._captureStream = undefined;
+    if (this._pipWindow) {
+      document.exitPictureInPicture();
+    }       
   }
 
   _onPlaybackPaused(data) {
-    this._logger.warn("onPlaybackPaused", data.mode)
-
     if (data.mode === MODE.LIVE) {
       if (this._captionCtrl) this._captionCtrl.pause();
     }
@@ -788,7 +793,6 @@ export class UI {
   }
 
   _onPlaybackEnded(data) {
-    this._logger.warn("onPlaybackEnded", data.mode)
     if (data.mode === MODE.LIVE) {
       this._setBackground();
       this._hideCaptions();
@@ -841,7 +845,6 @@ export class UI {
     }
     let rp = this._rendProps;
     if (!rp) return;
-
     const pipWindow = await window.documentPictureInPicture.requestWindow({
       width: rp.dWidth,
       height: rp.dHeight,
@@ -869,7 +872,7 @@ export class UI {
     });
 
     if (MODE.LIVE === this._mode) {
-      const rect = window.getBoundingClientRect();
+      const rect = pipWindow.document.body.getBoundingClientRect();
       this._updateLayout(rect);
     }
     // TODO: Display a message to say it has been moved
@@ -877,9 +880,8 @@ export class UI {
 
   async _toggieVideoPip(ev) {
     if (this._pipWindow) {
-      this._logger.warn("Close PIP")
+      this._logger.warn("Close PiP")
       document.exitPictureInPicture();
-      //this._handleLeavePip();
       return;
     }    
     if (MODE.LIVE === this._mode) {
