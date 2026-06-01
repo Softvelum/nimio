@@ -155,6 +155,7 @@ export class UI {
 
   toggleMode(mode) {
     if (mode === this._mode) return;
+    this._logger.warn("toggleMode", mode)
 
     if (mode === MODE.LIVE) {
       this._mediaElement.style.display = "none";
@@ -163,12 +164,9 @@ export class UI {
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
+      this._createCaptureStream();
     } else {
-      if (this._captureStream) {
-        this._mediaElement.pause();
-        this._mediaElement.srcObject = undefined;
-        this._captureStream = undefined;
-      }
+      this._destroyCaptureStream();
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       if (!this._isPlayerFullscreen() && this._rendProps) {
@@ -399,11 +397,12 @@ export class UI {
   _setupPip() {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
-    } else if ('pictureInPictureEnabled' in document){
+    } else if ("pictureInPictureEnabled" in document) {
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
     } else {
       this._buttonPictureInPicture.style.display = "none";
+      return;
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
   }
@@ -546,7 +545,7 @@ export class UI {
     this._layoutMgr.setFrameSize(data.width, data.height);
     let rect;
     if (this._pipWindow) {
-      rect = DOMRect(0, 0, data.width, data.height);
+      rect = new DOMRect(0, 0, data.width, data.height);
     } else {
       let container = this._pipContainer ?? this._container;
       if (!container) return;
@@ -614,6 +613,13 @@ export class UI {
   _updateCanvasSize() {
     // DPR can change when dragging window between monitors,
     // browser zoom, external display attach/detach
+    if (!this._rendProps) {
+      this._logger.warn("updateCanvasSize: no render props")
+      //Need to retry?
+      return;
+    }
+    this._logger.warn("updateCanvasSize")
+
     this._dpr = window.devicePixelRatio || 1;
     let dprWidth = this._rendProps.width * this._dpr;
     let dprHeight = this._rendProps.height * this._dpr;
@@ -735,6 +741,10 @@ export class UI {
   }
 
   _onPlaybackStarted(data) {
+    if (data.mode != this._mode) {
+      this._logger.warn("onPlaybackStarted", data.mode, this._mode)
+      return
+    }
     this.drawPause();
     this._unsetBackground();
     this._layoutMgr.resume();
@@ -743,18 +753,34 @@ export class UI {
         this._captionCtrl.resume();
         this._captionList.refresh();
       }
-      if (this._pipCaptureStreamMode === true) {
-        //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
-        let stream = this._canvas.captureStream();
-        this._captureStream = stream;
-        let video = this._mediaElement;
-        video.srcObject = stream;
-        video.play();
-      }
+      this._createCaptureStream();
     }
   }
 
+  _createCaptureStream() {
+    if ((this._pipCaptureStreamMode !== true || this._captureStream !== undefined)) {
+      return;
+    }
+    //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
+    let stream = this._canvas.captureStream();
+    this._captureStream = stream;
+    let video = this._mediaElement;
+    video.srcObject = stream;
+    video.play();
+  }
+
+  _destroyCaptureStream() {
+    if (this._captureStream === undefined) {
+      return;
+    }
+    //this._mediaElement.pause();
+    this._mediaElement.srcObject = undefined;
+    this._captureStream = undefined;
+  }
+
   _onPlaybackPaused(data) {
+    this._logger.warn("onPlaybackPaused", data.mode)
+
     if (data.mode === MODE.LIVE) {
       if (this._captionCtrl) this._captionCtrl.pause();
     }
@@ -762,14 +788,11 @@ export class UI {
   }
 
   _onPlaybackEnded(data) {
+    this._logger.warn("onPlaybackEnded", data.mode)
     if (data.mode === MODE.LIVE) {
       this._setBackground();
       this._hideCaptions();
-      if (this._captureStream) {
-        this._mediaElement.pause();
-        this._mediaElement.srcObject = null;
-        this._captureStream = undefined;
-      }
+      this._destroyCaptureStream();
     }
     this._layoutMgr.pause();
     this.drawPlay();
@@ -853,6 +876,12 @@ export class UI {
   }
 
   async _toggieVideoPip(ev) {
+    if (this._pipWindow) {
+      this._logger.warn("Close PIP")
+      document.exitPictureInPicture();
+      //this._handleLeavePip();
+      return;
+    }    
     if (MODE.LIVE === this._mode) {
       let canvas = this._canvas;
       let video = this._mediaElement;
@@ -895,6 +924,7 @@ export class UI {
   }
 
   _handleLeavePip() {
+    this._logger.warn("handleLeavePip")
     this._pipWindow = undefined;
     if (MODE.LIVE === this._mode) {
       this._mediaElement.style.display = "none";
