@@ -411,7 +411,7 @@ export class UI {
       this._togglePip = this._toggieVideoPip.bind(this);
     } else {
       this._buttonPictureInPicture.style.display = "none";
-      this._logger.warn("Picture-in-picture API is unavailable");      
+      this._logger.warn("Picture-in-picture API is unavailable");
       return;
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
@@ -592,6 +592,7 @@ export class UI {
   }
 
   _resizeAndRedraw(rect, pipMode) {
+    this._logger.warn("resizeAndRedraw", rect.width, rect.height);
     let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
@@ -629,29 +630,30 @@ export class UI {
       return;
     }
 
-    this._dpr = window.devicePixelRatio || 1;
-    let dprWidth = this._rendProps.width * this._dpr;
-    let dprHeight = this._rendProps.height * this._dpr;
+    const dpr = window.devicePixelRatio || 1;
+    this._dpr = dpr;
+    let dprWidth = this._rendProps.width * dpr;
+    let dprHeight = this._rendProps.height * dpr;
     if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
       return;
     }
 
     this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;
-    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    //this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
     const prp = this._prevRendProps || this._rendProps;
     const rp = this._rendProps;
     this._bctx.drawImage(
       this._canvas,
-      prp.dx,
-      prp.dy,
-      prp.dWidth,
-      prp.dHeight,
-      rp.dx,
-      rp.dy,
-      rp.dWidth,
-      rp.dHeight,
+      prp.dx * dpr,
+      prp.dy * dpr,
+      prp.dWidth * dpr,
+      prp.dHeight * dpr,
+      0,
+      0,
+      rp.dWidth * dpr,
+      rp.dHeight * dpr,
     );
 
     this._canvas.width = dprWidth;
@@ -659,10 +661,10 @@ export class UI {
     this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
     this._cctx.drawImage(
       this._bCanvas,
-      rp.dx,
-      rp.dy,
-      rp.dWidth,
-      rp.dHeight,
+      0,
+      0,
+      rp.dWidth * dpr,
+      rp.dHeight * dpr,
       rp.dx,
       rp.dy,
       rp.dWidth,
