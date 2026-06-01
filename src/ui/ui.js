@@ -155,14 +155,13 @@ export class UI {
 
   toggleMode(mode) {
     if (mode === this._mode) return;
-    this._logger.warn("toggleMode", mode)
 
     if (mode === MODE.LIVE) {
       if (this._pipContainer !== undefined) {
         this._container.append(this._mediaElement);
         this._pipContainer.append(this._canvas);
-        this._pipPlayer = this._canvas;        
-      } 
+        this._pipPlayer = this._canvas;
+      }
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
@@ -176,10 +175,10 @@ export class UI {
         this._pipPlayer = this._mediaElement;
         this._container.append(this._canvas);
         this._pipContainer.append(this._mediaElement);
-      } 
+      }
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
-     if (!this._isPlayerFullscreen() && this._rendProps) {
+      if (!this._isPlayerFullscreen() && this._rendProps) {
         // keep the media element size same as the canvas during switch
         this._mediaElement.style.width = `${this._rendProps.width}px`;
         this._mediaElement.style.height = `${this._rendProps.height}px`;
@@ -412,6 +411,7 @@ export class UI {
       this._togglePip = this._toggieVideoPip.bind(this);
     } else {
       this._buttonPictureInPicture.style.display = "none";
+      this._logger.warn("Picture-in-picture API is unavailable");      
       return;
     }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
@@ -624,11 +624,10 @@ export class UI {
     // DPR can change when dragging window between monitors,
     // browser zoom, external display attach/detach
     if (!this._rendProps) {
-      this._logger.warn("updateCanvasSize: no render props")
+      this._logger.warn("updateCanvasSize: no render props");
       //Need to retry?
       return;
     }
-    this._logger.warn("updateCanvasSize")
 
     this._dpr = window.devicePixelRatio || 1;
     let dprWidth = this._rendProps.width * this._dpr;
@@ -752,7 +751,7 @@ export class UI {
 
   _onPlaybackStarted(data) {
     if (data.mode != this._mode) {
-      this._logger.warn("onPlaybackStarted", data.mode, this._mode)
+      this._logger.warn("onPlaybackStarted", data.mode, this._mode);
       //return
     }
     this.drawPause();
@@ -768,12 +767,15 @@ export class UI {
   }
 
   _createCaptureStream() {
-    if ((this._pipCaptureStreamMode !== true || this._captureStream !== undefined)) {
+    if (
+      this._pipCaptureStreamMode !== true ||
+      this._captureStream !== undefined
+    ) {
       return;
     }
     if (this._pipWindow) {
       document.exitPictureInPicture();
-    }       
+    }
 
     //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
     let stream = this._canvas.captureStream();
@@ -784,7 +786,10 @@ export class UI {
   }
 
   _destroyCaptureStream() {
-    if (this._captureStream === undefined || this._mediaElement.srcObject === undefined) {
+    if (
+      this._captureStream === undefined ||
+      this._mediaElement.srcObject === undefined
+    ) {
       return;
     }
     this._mediaElement.pause();
@@ -792,7 +797,7 @@ export class UI {
     this._captureStream = undefined;
     if (this._pipWindow) {
       document.exitPictureInPicture();
-    }       
+    }
   }
 
   _onPlaybackPaused(data) {
@@ -897,16 +902,14 @@ export class UI {
     });
     this._pipResizeObserver.observe(this._pipContainer);
 
-
     // TODO: Display a message to say it has been moved
   }
 
   async _toggieVideoPip(ev) {
     if (this._pipWindow) {
-      this._logger.warn("Close PiP")
       document.exitPictureInPicture();
       return;
-    }    
+    }
     if (MODE.LIVE === this._mode) {
       let canvas = this._canvas;
       let video = this._mediaElement;
@@ -949,7 +952,6 @@ export class UI {
   }
 
   _handleLeavePip() {
-    this._logger.warn("handleLeavePip")
     this._pipWindow = undefined;
     if (MODE.LIVE === this._mode) {
       this._mediaElement.style.display = "none";
