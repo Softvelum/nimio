@@ -553,13 +553,12 @@ export class UI {
   _handleLayoutUpdate(data) {
     if (!data.width || !data.height) return;
     this._layoutMgr.setFrameSize(data.width, data.height);
-    let rect;
+    let container = this._pipContainer ?? this._container;
+    if (!container) return;
+    let rect = container.getBoundingClientRect();
     if (this._pipWindow) {
-      rect = new DOMRect(0, 0, data.width, data.height);
-    } else {
-      let container = this._pipContainer ?? this._container;
-      if (!container) return;
-      rect = container.getBoundingClientRect();
+      const pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
+      rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
     }
     this._updateLayout(rect);
   }
@@ -581,8 +580,7 @@ export class UI {
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-    const pipMode =
-      this._pipContainer !== undefined || this._pipWindow !== undefined;
+    const pipMode = this._pipContainer !== undefined;
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
@@ -600,11 +598,11 @@ export class UI {
       pipMode || this._isPlayerFullscreen(),
     );
     if (!cssProps) return;
-    if (this._pipWindow === undefined) {
-      let container = pipMode ? this._pipContainer : this._container;
-      container.style.width = cssProps.container.width;
-      container.style.height = cssProps.container.height;
-    }
+    //if (this._pipWindow === undefined) {
+    let container = pipMode ? this._pipContainer : this._container;
+    container.style.width = cssProps.container.width;
+    container.style.height = cssProps.container.height;
+    //}
     let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
@@ -894,8 +892,6 @@ export class UI {
       this._handleViewportUpdate();
     });
 
-    // const rect = rootDiv.getBoundingClientRect();
-    // this._updateLayout(rect);
     this._pipResizeObserver = new ResizeObserver((entries) => {
       requestAnimationFrame(() => {
         //this._logger.debug("PIP resized")
@@ -919,26 +915,36 @@ export class UI {
       // Video should be presented as block, but hidden till PIP started
       video.style.visibility = "hidden";
       video.style.display = "block";
+      if (this._dpr != 1.0) {
+        video.style.transform = `scale(${1 / this._dpr})`;
+        video.style.transformOrigin = "0 0"; // Scales from the top left
+        const dx = this._rendProps?.dx ?? 0;
+        video.style.marginLeft = `${dx}px`;
+      }
 
-      let size = this._layoutMgr.getAspectFrameSize();
+      let rect = this._container.getBoundingClientRect();
+      let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
       this._rendProps = this._layoutMgr.computeRenderProps(
-        size.width,
-        size.height,
+        pipSize.width,
+        pipSize.height,
       );
+
       this._updateCanvasSize();
     }
     await this._handleCanvasVideoLoaded();
   }
 
   async _handleCanvasVideoLoaded() {
+    this._enterPipEvent = this._handleEnterPip.bind(this);
+    this._leavePipEvent = this._handleLeavePip.bind(this);
     window.addEventListener(
       "enterpictureinpicture",
-      this._handleEnterPip.bind(this),
+      this._enterPipEvent,
       false,
     );
     window.addEventListener(
       "leavepictureinpicture",
-      this._handleLeavePip.bind(this),
+      this._leavePipEvent,
       false,
     );
     await this._mediaElement.requestPictureInPicture();
@@ -947,7 +953,6 @@ export class UI {
   _handleEnterPip(event) {
     let pipWindow = event.pictureInPictureWindow;
     this._pipWindow = pipWindow;
-    //TODO: disable Live/VOD switching while PIP is active
     if (MODE.LIVE === this._mode) {
       this._mediaElement.style.visibility = "visible";
     }
@@ -955,9 +960,27 @@ export class UI {
 
   _handleLeavePip() {
     this._pipWindow = undefined;
+    window.removeEventListener(
+      "enterpictureinpicture",
+      this._enterPipEvent,
+      false,
+    );
+    window.removeEventListener(
+      "leavepictureinpicture",
+      this._leavePipEvent,
+      false,
+    );
     if (MODE.LIVE === this._mode) {
-      this._mediaElement.style.display = "none";
+      let video = this._mediaElement;
+      video.style.display = "none";
       this._canvas.style.display = "block";
+      video.style.removeProperty("transform");
+      video.style.removeProperty("transformOrigin");
+      video.style.removeProperty("marginLeft");
+      //Somehow capture stream does not work again, recreate on PiP exit
+      this._destroyCaptureStream();
+      this._createCaptureStream();
     }
+    this._handleViewportUpdate();
   }
 }

@@ -33,11 +33,12 @@ export class UILayoutManager {
     }
   }
 
-  getAspectFrameSize() {
-    let width = Math.round(this._frameHeight * this._ar.val);
+  getAspectFrameSize(heightVal) {
+    const height = heightVal ?? this._frameHeight;
+    let width = Math.round(height * this._ar.val);
     return {
       width: width,
-      height: this._frameHeight,
+      height: height,
     };
   }
 
