@@ -158,6 +158,11 @@ export class UI {
     this._logger.warn("toggleMode", mode)
 
     if (mode === MODE.LIVE) {
+      if (this._pipContainer !== undefined) {
+        this._container.append(this._mediaElement);
+        this._pipContainer.append(this._canvas);
+        this._pipPlayer = this._canvas;        
+      } 
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
@@ -167,9 +172,14 @@ export class UI {
       this._createCaptureStream();
     } else {
       this._destroyCaptureStream();
+      if (this._pipContainer !== undefined) {
+        this._pipPlayer = this._mediaElement;
+        this._container.append(this._canvas);
+        this._pipContainer.append(this._mediaElement);
+      } 
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
-      if (!this._isPlayerFullscreen() && this._rendProps) {
+     if (!this._isPlayerFullscreen() && this._rendProps) {
         // keep the media element size same as the canvas during switch
         this._mediaElement.style.width = `${this._rendProps.width}px`;
         this._mediaElement.style.height = `${this._rendProps.height}px`;
@@ -864,6 +874,7 @@ export class UI {
     rootDiv.className = "pip-container";
     rootDiv.appendChild(videoPlayer);
     this._pipContainer = rootDiv;
+    this._pipPlayer = videoPlayer;
     pipWindow.document.body.append(rootDiv);
     let playerContainer = this._container;
     this._pipWindowFrame = pipWindow;
@@ -871,7 +882,8 @@ export class UI {
       this._pipResizeObserver?.unobserve(this._pipContainer);
       this._pipContainer = undefined;
       this._pipResizeObserver = undefined;
-      playerContainer.append(videoPlayer);
+      playerContainer.append(this._pipPlayer);
+      this._pipPlayer = undefined;
       this._handleViewportUpdate();
     });
 
