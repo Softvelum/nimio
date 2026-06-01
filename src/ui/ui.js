@@ -845,6 +845,8 @@ export class UI {
     }
     let rp = this._rendProps;
     if (!rp) return;
+
+    //let size = this._layoutMgr.getAspectFrameSize();
     const pipWindow = await window.documentPictureInPicture.requestWindow({
       width: rp.dWidth,
       height: rp.dHeight,
@@ -864,17 +866,26 @@ export class UI {
     this._pipContainer = rootDiv;
     pipWindow.document.body.append(rootDiv);
     let playerContainer = this._container;
-    this._pipWindow = pipWindow;
+    this._pipWindowFrame = pipWindow;
     pipWindow.addEventListener("pagehide", (event) => {
-      //inPipMessage.style.display = "none";
+      this._pipResizeObserver?.unobserve(this._pipContainer);
       this._pipContainer = undefined;
+      this._pipResizeObserver = undefined;
       playerContainer.append(videoPlayer);
+      this._handleViewportUpdate();
     });
 
-    if (MODE.LIVE === this._mode) {
-      const rect = pipWindow.document.body.getBoundingClientRect();
-      this._updateLayout(rect);
-    }
+    // const rect = rootDiv.getBoundingClientRect();
+    // this._updateLayout(rect);
+    this._pipResizeObserver = new ResizeObserver((entries) => {
+      requestAnimationFrame(() => {
+        //this._logger.debug("PIP resized")
+        this._updateLayout(entries[0].contentRect);
+      });
+    });
+    this._pipResizeObserver.observe(this._pipContainer);
+
+
     // TODO: Display a message to say it has been moved
   }
 
