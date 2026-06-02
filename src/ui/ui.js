@@ -164,7 +164,9 @@ export class UI {
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
+      this._createCaptureStream();
     } else {
+      this._destroyCaptureStream();
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       if (!this._isPlayerFullscreen() && this._rendProps) {
@@ -564,7 +566,6 @@ export class UI {
   }
 
   _resizeAndRedraw(rect, pipMode) {
-    this._logger.warn("resizeAndRedraw", rect.width, rect.height);
     let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
@@ -580,7 +581,12 @@ export class UI {
     output.style.height = cssProps.output.height;
     output.style["object-fit"] = cssProps.output["object-fit"];
     output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-
+    let hiddenOutput =
+      this._mode === MODE.LIVE ? this.mediaElement : this.canvas;
+    hiddenOutput.style.removeProperty("width");
+    hiddenOutput.style.removeProperty("height");
+    hiddenOutput.style.removeProperty("object-fit");
+    hiddenOutput.style.removeProperty("aspect-ratio");
     if (this._mode === MODE.LIVE) {
       this._prevRendProps = this._rendProps;
       this._rendProps = this._layoutMgr.computeRenderProps(
@@ -718,10 +724,6 @@ export class UI {
   }
 
   _onPlaybackStarted(data) {
-    if (data.mode != this._mode) {
-      this._logger.warn("onPlaybackStarted", data.mode, this._mode);
-      //return
-    }
     this.drawPause();
     this._unsetBackground();
     this._layoutMgr.resume();

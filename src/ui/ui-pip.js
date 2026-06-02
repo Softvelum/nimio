@@ -71,14 +71,20 @@ export const UiPip = {
   },
 
   _toggleModePip(mode) {
+    if (this._pipWindow) {
+      // Capture stream mode (pictureInPictureEnabled)
+      // Just exit PiP since switching mediaElement source breaks PiP video
+      document.exitPictureInPicture();
+      return;
+    }
     if (this._pipContainer === undefined) return;
+
+    // For documentPictureInPicture mode - swap mediaElement and canvas between main and PiP window
     if (mode === MODE.LIVE) {
       this._container.append(this._mediaElement);
       this._pipContainer.append(this._canvas);
       this._pipPlayer = this._canvas;
-      this._createCaptureStream();
     } else {
-      this._destroyCaptureStream();
       this._pipPlayer = this._mediaElement;
       this._container.append(this._canvas);
       this._pipContainer.append(this._mediaElement);
@@ -103,16 +109,11 @@ export const UiPip = {
         const dx = this._rendProps?.dx ?? 0;
         video.style.marginLeft = `${dx}px`;
       }
-
-      let rect = this._container.getBoundingClientRect();
-      let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
-      this._rendProps = this._layoutMgr.computeRenderProps(
-        pipSize.width,
-        pipSize.height,
-      );
-
-      this._updateCanvasSize();
     }
+    let rect = this._container.getBoundingClientRect();
+    let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
+    rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
+    this._updateLayout(rect);
     await this._handleCanvasVideoLoaded();
   },
 
@@ -152,16 +153,17 @@ export const UiPip = {
       this._leavePipEvent,
       false,
     );
+    let video = this._mediaElement;
+    video.style.removeProperty("transform");
+    video.style.removeProperty("transformOrigin");
+    video.style.removeProperty("marginLeft");
     if (MODE.LIVE === this._mode) {
-      let video = this._mediaElement;
       video.style.display = "none";
       this._canvas.style.display = "block";
-      video.style.removeProperty("transform");
-      video.style.removeProperty("transformOrigin");
-      video.style.removeProperty("marginLeft");
-      //Somehow capture stream does not work again, recreate on PiP exit
-      this._destroyCaptureStream();
-      this._createCaptureStream();
+      // Somehow capture stream does not work if we would try to open PiP again,
+      // pause/resume fixes it
+      video.pause();
+      video.play();
     }
     this._handleViewportUpdate();
   },
@@ -173,10 +175,6 @@ export const UiPip = {
     ) {
       return;
     }
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
-    }
-
     //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
     let stream = this._canvas.captureStream();
     this._captureStream = stream;
@@ -195,8 +193,5 @@ export const UiPip = {
     this._mediaElement.pause();
     this._mediaElement.srcObject = undefined;
     this._captureStream = undefined;
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
-    }
   },
 };
