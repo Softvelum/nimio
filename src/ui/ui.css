@@ -82,3 +82,12 @@
   line-height: 18px;
   z-index: 11;
 }
+
+.nimio-container .pip-message {
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: small;
+  color: white;
+}

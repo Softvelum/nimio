@@ -10,6 +10,7 @@ import { UIThumbnailPreview } from "./thumbnail-preview";
 import { UICaptionController } from "./caption-controller";
 import { UICaptionList } from "./caption-list";
 import { UILayoutManager } from "./layout-manager";
+import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -155,27 +156,15 @@ export class UI {
 
   toggleMode(mode) {
     if (mode === this._mode) return;
-
+    this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
-      if (this._pipContainer !== undefined) {
-        this._container.append(this._mediaElement);
-        this._pipContainer.append(this._canvas);
-        this._pipPlayer = this._canvas;
-      }
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
       this._liveSign.style.display = "inline-grid";
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
-      this._createCaptureStream();
     } else {
-      this._destroyCaptureStream();
-      if (this._pipContainer !== undefined) {
-        this._pipPlayer = this._mediaElement;
-        this._container.append(this._canvas);
-        this._pipContainer.append(this._mediaElement);
-      }
       this._canvas.style.display = "none";
       this._mediaElement.style.display = "block";
       if (!this._isPlayerFullscreen() && this._rendProps) {
@@ -185,7 +174,6 @@ export class UI {
       }
       this._liveSign.style.display = "none";
     }
-
     this._mode = mode;
   }
 
@@ -403,20 +391,6 @@ export class UI {
     this._container.addEventListener("mouseout", this._onMouseOut);
   }
 
-  _setupPip() {
-    if ("documentPictureInPicture" in window) {
-      this._togglePip = this._toggleDocumentPip.bind(this);
-    } else if ("pictureInPictureEnabled" in document) {
-      this._pipCaptureStreamMode = true;
-      this._togglePip = this._toggieVideoPip.bind(this);
-    } else {
-      this._buttonPictureInPicture.style.display = "none";
-      this._logger.warn("Picture-in-picture API is unavailable");
-      return;
-    }
-    this._buttonPictureInPicture.addEventListener("click", this._togglePip);
-  }
-
   _onRenditionsReceived(renditions) {
     if (!Array.isArray(renditions)) {
       this._logger.error("_onRenditionsReceived: not an array");
@@ -598,11 +572,9 @@ export class UI {
       pipMode || this._isPlayerFullscreen(),
     );
     if (!cssProps) return;
-    //if (this._pipWindow === undefined) {
     let container = pipMode ? this._pipContainer : this._container;
     container.style.width = cssProps.container.width;
     container.style.height = cssProps.container.height;
-    //}
     let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
@@ -622,11 +594,7 @@ export class UI {
   _updateCanvasSize() {
     // DPR can change when dragging window between monitors,
     // browser zoom, external display attach/detach
-    if (!this._rendProps) {
-      this._logger.warn("updateCanvasSize: no render props");
-      //Need to retry?
-      return;
-    }
+    if (!this._rendProps) return;
 
     const dpr = window.devicePixelRatio || 1;
     this._dpr = dpr;
@@ -766,40 +734,6 @@ export class UI {
     }
   }
 
-  _createCaptureStream() {
-    if (
-      this._pipCaptureStreamMode !== true ||
-      this._captureStream !== undefined
-    ) {
-      return;
-    }
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
-    }
-
-    //Create MediaStream from canvas to support PiP if DocumentPictureInPicture is unsupported
-    let stream = this._canvas.captureStream();
-    this._captureStream = stream;
-    let video = this._mediaElement;
-    video.srcObject = stream;
-    video.play();
-  }
-
-  _destroyCaptureStream() {
-    if (
-      this._captureStream === undefined ||
-      this._mediaElement.srcObject === undefined
-    ) {
-      return;
-    }
-    this._mediaElement.pause();
-    this._mediaElement.srcObject = undefined;
-    this._captureStream = undefined;
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
-    }
-  }
-
   _onPlaybackPaused(data) {
     if (data.mode === MODE.LIVE) {
       if (this._captionCtrl) this._captionCtrl.pause();
@@ -851,136 +785,6 @@ export class UI {
       position: "relative",
     });
   }
-
-  async _toggleDocumentPip(ev) {
-    let activePip = window.documentPictureInPicture.window;
-    if (activePip) {
-      activePip.close();
-      return;
-    }
-    let rp = this._rendProps;
-    if (!rp) return;
-
-    //let size = this._layoutMgr.getAspectFrameSize();
-    const pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: rp.dWidth,
-      height: rp.dHeight,
-    });
-
-    // Move the player to the Picture-in-Picture window.
-    let videoPlayer = null;
-    if (MODE.LIVE === this._mode) {
-      videoPlayer = this._canvas;
-    } else {
-      videoPlayer = this._mediaElement;
-    }
-
-    let rootDiv = document.createElement("div");
-    rootDiv.className = "pip-container";
-    rootDiv.appendChild(videoPlayer);
-    this._pipContainer = rootDiv;
-    this._pipPlayer = videoPlayer;
-    pipWindow.document.body.append(rootDiv);
-    let playerContainer = this._container;
-    this._pipWindowFrame = pipWindow;
-    pipWindow.addEventListener("pagehide", (event) => {
-      this._pipResizeObserver?.unobserve(this._pipContainer);
-      this._pipContainer = undefined;
-      this._pipResizeObserver = undefined;
-      playerContainer.append(this._pipPlayer);
-      this._pipPlayer = undefined;
-      this._handleViewportUpdate();
-    });
-
-    this._pipResizeObserver = new ResizeObserver((entries) => {
-      requestAnimationFrame(() => {
-        //this._logger.debug("PIP resized")
-        this._updateLayout(entries[0].contentRect);
-      });
-    });
-    this._pipResizeObserver.observe(this._pipContainer);
-
-    // TODO: Display a message to say it has been moved
-  }
-
-  async _toggieVideoPip(ev) {
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
-      return;
-    }
-    if (MODE.LIVE === this._mode) {
-      let canvas = this._canvas;
-      let video = this._mediaElement;
-      canvas.style.display = "none";
-      // Video should be presented as block, but hidden till PIP started
-      video.style.visibility = "hidden";
-      video.style.display = "block";
-      if (this._dpr != 1.0) {
-        video.style.transform = `scale(${1 / this._dpr})`;
-        video.style.transformOrigin = "0 0"; // Scales from the top left
-        const dx = this._rendProps?.dx ?? 0;
-        video.style.marginLeft = `${dx}px`;
-      }
-
-      let rect = this._container.getBoundingClientRect();
-      let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
-      this._rendProps = this._layoutMgr.computeRenderProps(
-        pipSize.width,
-        pipSize.height,
-      );
-
-      this._updateCanvasSize();
-    }
-    await this._handleCanvasVideoLoaded();
-  }
-
-  async _handleCanvasVideoLoaded() {
-    this._enterPipEvent = this._handleEnterPip.bind(this);
-    this._leavePipEvent = this._handleLeavePip.bind(this);
-    window.addEventListener(
-      "enterpictureinpicture",
-      this._enterPipEvent,
-      false,
-    );
-    window.addEventListener(
-      "leavepictureinpicture",
-      this._leavePipEvent,
-      false,
-    );
-    await this._mediaElement.requestPictureInPicture();
-  }
-
-  _handleEnterPip(event) {
-    let pipWindow = event.pictureInPictureWindow;
-    this._pipWindow = pipWindow;
-    if (MODE.LIVE === this._mode) {
-      this._mediaElement.style.visibility = "visible";
-    }
-  }
-
-  _handleLeavePip() {
-    this._pipWindow = undefined;
-    window.removeEventListener(
-      "enterpictureinpicture",
-      this._enterPipEvent,
-      false,
-    );
-    window.removeEventListener(
-      "leavepictureinpicture",
-      this._leavePipEvent,
-      false,
-    );
-    if (MODE.LIVE === this._mode) {
-      let video = this._mediaElement;
-      video.style.display = "none";
-      this._canvas.style.display = "block";
-      video.style.removeProperty("transform");
-      video.style.removeProperty("transformOrigin");
-      video.style.removeProperty("marginLeft");
-      //Somehow capture stream does not work again, recreate on PiP exit
-      this._destroyCaptureStream();
-      this._createCaptureStream();
-    }
-    this._handleViewportUpdate();
-  }
 }
+
+Object.assign(UI.prototype, UiPip);
