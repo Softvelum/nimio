@@ -159,9 +159,9 @@ export class UI {
     const updatePlayer = this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
       if (updatePlayer) {
-      this._mediaElement.style.display = "none";
-      this._canvas.style.display = "block";
-    }     
+        this._mediaElement.style.display = "none";
+        this._canvas.style.display = "block";
+      }
       this._liveSign.style.display = "inline-grid";
       if (this._captionCtrl) {
         this._captionList.refresh();
@@ -575,25 +575,26 @@ export class UI {
       rect.height,
       this._mode,
       pipMode || this._isPlayerFullscreen(),
+      this._mediaElementMode
     );
     if (!cssProps) return;
     let container = pipMode ? this._pipContainer : this._container;
     container.style.width = cssProps.container.width;
     container.style.height = cssProps.container.height;
-    if (this._resizePip(rect)) {
-      let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
-      output.style.width = cssProps.output.width;
-      output.style.height = cssProps.output.height;
-      output.style["object-fit"] = cssProps.output["object-fit"];
-      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-      let hiddenOutput =
-        this._mode === MODE.LIVE ? this.mediaElement : this.canvas;
-      hiddenOutput.style.removeProperty("width");
-      hiddenOutput.style.removeProperty("height");
+    const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode
+    let output = canvasOutput ? this._canvas : this._mediaElement;
+    output.style.width = cssProps.output.width;
+    output.style.height = cssProps.output.height;
+    output.style["object-fit"] = cssProps.output["object-fit"];
+    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+    let hiddenOutput = canvasOutput ? this.mediaElement : this.canvas;
+    hiddenOutput.style.removeProperty("width");
+    hiddenOutput.style.removeProperty("height");
+    if (!this._mediaElementMode) {
       hiddenOutput.style.removeProperty("object-fit");
       hiddenOutput.style.removeProperty("aspect-ratio");
     }
-    if (this._mode === MODE.LIVE) {
+    if (this._mode === MODE.LIVE || this._mediaElementMode) {
       this._prevRendProps = this._rendProps;
       this._rendProps = this._layoutMgr.computeRenderProps(
         rect.width,
@@ -615,8 +616,6 @@ export class UI {
     if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
       return;
     }
-    this._logger.warn("updateCanvasSize", dprWidth, dprHeight)
-
     this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;
     //this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
@@ -731,6 +730,7 @@ export class UI {
   }
 
   _onPlaybackStarted(data) {
+    this._logger.warn("onPlaybackStarted", data.mode)
     this.drawPause();
     this._unsetBackground();
     this._layoutMgr.resume();

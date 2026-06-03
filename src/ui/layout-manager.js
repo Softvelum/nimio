@@ -49,7 +49,7 @@ export class UILayoutManager {
     };
   }
 
-  fullLayout(cWidth, cHeight, mode, isFullscreen) {
+  fullLayout(cWidth, cHeight, mode, isFullscreen, isMediaElementMode) {
     if (!this._ar || this._paused) return null;
 
     let res = { container: this.containerLayout(isFullscreen) };
@@ -58,23 +58,23 @@ export class UILayoutManager {
       "object-fit": this._forcedAr ? "fill" : "contain",
       "aspect-ratio": this._ar.str,
     };
-    if (mode === MODE.LIVE) {
+    if (mode === MODE.LIVE && !isMediaElementMode) {
       if (res.container.width !== "auto") {
         res.output.width = "100%";
       }
       if (res.container.height !== "auto") {
         res.output.height = "100%";
       }
-    } else if (mode === MODE.VOD) {
+    } else if (mode === MODE.VOD || isMediaElementMode) {
       let cAspect = cWidth / cHeight;
       let wDiff = (cAspect - this._ar.val) * cHeight;
       if (wDiff > -1) {
         // width difference doesn't exceed 1 pixel
         res.output.height = "100%";
-        res.output.width = "auto";
+        res.output.width = isMediaElementMode ? `${cWidth}px` : "auto"; 
       } else {
         res.output.width = "100%";
-        res.output.height = "auto";
+        res.output.height = isMediaElementMode ? `${cHeight}px` : "auto";
       }
     }
 
