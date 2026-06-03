@@ -7,6 +7,18 @@ export const UiPip = {
     } else if ("pictureInPictureEnabled" in document) {
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
+      this._enterPipEvent = this._handleEnterPip.bind(this);
+      this._leavePipEvent = this._handleLeavePip.bind(this);
+      window.addEventListener(
+        "enterpictureinpicture",
+        this._enterPipEvent,
+        false,
+      );
+      window.addEventListener(
+        "leavepictureinpicture",
+        this._leavePipEvent,
+        false,
+      );      
     } else {
       this._buttonPictureInPicture.style.display = "none";
       this._logger.warn("Picture-in-picture API is unavailable");
@@ -123,22 +135,6 @@ export const UiPip = {
     let rect = this._container.getBoundingClientRect();
     rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
-    await this._handleCanvasVideoLoaded();
-  },
-
-  async _handleCanvasVideoLoaded() {
-    this._enterPipEvent = this._handleEnterPip.bind(this);
-    this._leavePipEvent = this._handleLeavePip.bind(this);
-    window.addEventListener(
-      "enterpictureinpicture",
-      this._enterPipEvent,
-      false,
-    );
-    window.addEventListener(
-      "leavepictureinpicture",
-      this._leavePipEvent,
-      false,
-    );
     await this._mediaElement.requestPictureInPicture();
   },
 
@@ -154,16 +150,6 @@ export const UiPip = {
     this._pipWindow = undefined;
     this._mediaElementMode = false;
 
-    window.removeEventListener(
-      "enterpictureinpicture",
-      this._enterPipEvent,
-      false,
-    );
-    window.removeEventListener(
-      "leavepictureinpicture",
-      this._leavePipEvent,
-      false,
-    );
     let video = this._mediaElement;
     if (MODE.LIVE === this._mode) {
       video.style.display = "none";
@@ -172,8 +158,8 @@ export const UiPip = {
       // pause/resume fixes it
       video.pause();
       video.play();
+      this._handleViewportUpdate();
     }
-    this._handleViewportUpdate();
   },
 
   _createCaptureStream() {
