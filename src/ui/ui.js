@@ -727,7 +727,6 @@ export class UI {
   }
 
   _onPlaybackStarted(data) {
-    this._logger.warn("onPlaybackStarted", data.mode);
     this.drawPause();
     this._unsetBackground();
     this._layoutMgr.resume();

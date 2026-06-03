@@ -4,26 +4,28 @@ export const UiPip = {
   _setupPip() {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
+      this._enterPipEvent = this._handleEnterNativePip.bind(this);
+      this._leavePipEvent = this._handleLeaveNativePip.bind(this);
     } else if ("pictureInPictureEnabled" in document) {
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
       this._enterPipEvent = this._handleEnterPip.bind(this);
       this._leavePipEvent = this._handleLeavePip.bind(this);
-      window.addEventListener(
-        "enterpictureinpicture",
-        this._enterPipEvent,
-        false,
-      );
-      window.addEventListener(
-        "leavepictureinpicture",
-        this._leavePipEvent,
-        false,
-      );      
     } else {
       this._buttonPictureInPicture.style.display = "none";
       this._logger.warn("Picture-in-picture API is unavailable");
       return;
     }
+    window.addEventListener(
+      "enterpictureinpicture",
+      this._enterPipEvent,
+      false,
+    );
+    window.addEventListener(
+      "leavepictureinpicture",
+      this._leavePipEvent,
+      false,
+    );
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
     let pipMessage = document.createElement("div");
     pipMessage.className = "pip-message";
@@ -37,6 +39,12 @@ export const UiPip = {
     let activePip = window.documentPictureInPicture.window;
     if (activePip) {
       activePip.close();
+      return;
+    }
+    if (this._nativePip) {
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture();
+      }
       return;
     }
     let rp = this._rendProps;
@@ -86,8 +94,12 @@ export const UiPip = {
     if (this._pipWindow) {
       return false;
     }
+    if (this._nativePip) {
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture();
+      }
+    }
     if (this._pipContainer === undefined) return true;
-
     // For documentPictureInPicture mode - swap mediaElement and canvas between main and PiP window
     if (mode === MODE.LIVE) {
       this._container.append(this._mediaElement);
@@ -159,12 +171,20 @@ export const UiPip = {
       this._onCaptureStreamResume = this._onResumeCaptureStream.bind(this);
       // Restore player picture when capture stream resumed (or after timeout, if it somehow failed to resume)
       // If we would restore it immediately, subsequent PIP window may have black stripes
-      video.addEventListener("play", this._onCaptureStreamResume)
+      video.addEventListener("play", this._onCaptureStreamResume);
       this._resumeCaptureTimeout = setTimeout(this._onCaptureStreamResume, 250);
       video.play();
     } else {
       this._handleViewportUpdate();
     }
+  },
+
+  _handleEnterNativePip(event) {
+    this._nativePip = true;
+  },
+
+  _handleLeaveNativePip() {
+    this._nativePip = false;
   },
 
   _onResumeCaptureStream() {
