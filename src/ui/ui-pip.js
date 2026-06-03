@@ -152,14 +152,29 @@ export const UiPip = {
 
     let video = this._mediaElement;
     if (MODE.LIVE === this._mode) {
-      video.style.display = "none";
-      this._canvas.style.display = "block";
       // Somehow capture stream does not work if we would try to open PiP again,
       // pause/resume fixes it
+      video.style.visibility = "hidden";
       video.pause();
+      this._onCaptureStreamResume = this._onResumeCaptureStream.bind(this);
+      // Restore player picture when capture stream resumed (or after timeout, if it somehow failed to resume)
+      // If we would restore it immediately, subsequent PIP window may have black stripes
+      video.addEventListener("play", this._onCaptureStreamResume)
+      this._resumeCaptureTimeout = setTimeout(this._onCaptureStreamResume, 250);
       video.play();
+    } else {
       this._handleViewportUpdate();
     }
+  },
+
+  _onResumeCaptureStream() {
+    clearTimeout(this._resumeCaptureTimeout);
+    let video = this._mediaElement;
+    video.removeEventListener("play", this._onCaptureStreamResume);
+    video.style.display = "none";
+    this._canvas.style.display = "block";
+    this._onCaptureStreamResume = undefined;
+    this._resumeCaptureTimeout = undefined;
   },
 
   _createCaptureStream() {
