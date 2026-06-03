@@ -580,17 +580,19 @@ export class UI {
     let container = pipMode ? this._pipContainer : this._container;
     container.style.width = cssProps.container.width;
     container.style.height = cssProps.container.height;
-    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
-    output.style.width = cssProps.output.width;
-    output.style.height = cssProps.output.height;
-    output.style["object-fit"] = cssProps.output["object-fit"];
-    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-    let hiddenOutput =
-      this._mode === MODE.LIVE ? this.mediaElement : this.canvas;
-    hiddenOutput.style.removeProperty("width");
-    hiddenOutput.style.removeProperty("height");
-    hiddenOutput.style.removeProperty("object-fit");
-    hiddenOutput.style.removeProperty("aspect-ratio");
+    if (this._resizePip(rect)) {
+      let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
+      output.style.width = cssProps.output.width;
+      output.style.height = cssProps.output.height;
+      output.style["object-fit"] = cssProps.output["object-fit"];
+      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+      let hiddenOutput =
+        this._mode === MODE.LIVE ? this.mediaElement : this.canvas;
+      hiddenOutput.style.removeProperty("width");
+      hiddenOutput.style.removeProperty("height");
+      hiddenOutput.style.removeProperty("object-fit");
+      hiddenOutput.style.removeProperty("aspect-ratio");
+    }
     if (this._mode === MODE.LIVE) {
       this._prevRendProps = this._rendProps;
       this._rendProps = this._layoutMgr.computeRenderProps(
@@ -613,6 +615,7 @@ export class UI {
     if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
       return;
     }
+    this._logger.warn("updateCanvasSize", dprWidth, dprHeight)
 
     this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;

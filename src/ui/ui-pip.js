@@ -74,7 +74,7 @@ export const UiPip = {
     if (this._pipWindow) {
       return false;
     }
-    if (this._pipContainer === undefined) return;
+    if (this._pipContainer === undefined) return true;
 
     // For documentPictureInPicture mode - swap mediaElement and canvas between main and PiP window
     if (mode === MODE.LIVE) {
@@ -89,6 +89,16 @@ export const UiPip = {
     return true;
   },
 
+  _resizePip(rect) {
+    if (this._mediaElementMode !== true) {
+      return true;
+    }
+    let video = this._mediaElement;
+    video.style.width = `${rect.width}px`;
+    video.style.height = `${rect.height}px`;
+    return false;
+  },
+
   async _toggieVideoPip(ev) {
     if (this._pipWindow) {
       document.exitPictureInPicture();
@@ -101,13 +111,8 @@ export const UiPip = {
       // Video should be presented as block, but hidden till PIP started
       video.style.visibility = "hidden";
       video.style.display = "block";
-      if (this._dpr != 1.0) {
-        video.style.transform = `scale(${1 / this._dpr})`;
-        video.style.transformOrigin = "0 0"; // Scales from the top left
-        const dx = this._rendProps?.dx ?? 0;
-        video.style.marginLeft = `${dx}px`;
-      }
     }
+    this._mediaElementMode = true;
     let rect = this._container.getBoundingClientRect();
     let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
     rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
@@ -141,6 +146,8 @@ export const UiPip = {
 
   _handleLeavePip() {
     this._pipWindow = undefined;
+    this._mediaElementMode = false;
+
     window.removeEventListener(
       "enterpictureinpicture",
       this._enterPipEvent,
@@ -152,9 +159,6 @@ export const UiPip = {
       false,
     );
     let video = this._mediaElement;
-    video.style.removeProperty("transform");
-    video.style.removeProperty("transformOrigin");
-    video.style.removeProperty("marginLeft");
     if (MODE.LIVE === this._mode) {
       video.style.display = "none";
       this._canvas.style.display = "block";
