@@ -156,10 +156,12 @@ export class UI {
 
   toggleMode(mode) {
     if (mode === this._mode) return;
-    this._toggleModePip(mode);
+    const updatePlayer = this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
+      if (updatePlayer) {
       this._mediaElement.style.display = "none";
       this._canvas.style.display = "block";
+    }     
       this._liveSign.style.display = "inline-grid";
       if (this._captionCtrl) {
         this._captionList.refresh();
@@ -167,8 +169,10 @@ export class UI {
       this._createCaptureStream();
     } else {
       this._destroyCaptureStream();
-      this._canvas.style.display = "none";
-      this._mediaElement.style.display = "block";
+      if (updatePlayer) {
+        this._canvas.style.display = "none";
+        this._mediaElement.style.display = "block";
+      }
       if (!this._isPlayerFullscreen() && this._rendProps) {
         // keep the media element size same as the canvas during switch
         this._mediaElement.style.width = `${this._rendProps.width}px`;

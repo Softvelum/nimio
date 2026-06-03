@@ -72,10 +72,7 @@ export const UiPip = {
 
   _toggleModePip(mode) {
     if (this._pipWindow) {
-      // Capture stream mode (pictureInPictureEnabled)
-      // Just exit PiP since switching mediaElement source breaks PiP video
-      document.exitPictureInPicture();
-      return;
+      return false;
     }
     if (this._pipContainer === undefined) return;
 
@@ -89,6 +86,7 @@ export const UiPip = {
       this._container.append(this._canvas);
       this._pipContainer.append(this._mediaElement);
     }
+    return true;
   },
 
   async _toggieVideoPip(ev) {
