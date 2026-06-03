@@ -33,9 +33,16 @@ export class UILayoutManager {
     }
   }
 
-  getAspectFrameSize(heightVal) {
-    const height = heightVal ?? this._frameHeight;
-    let width = Math.round(height * this._ar.val);
+  getAspectFrameSize(widthVal, heightVal) {
+    const cAspect = widthVal / heightVal;
+    const wDiff = (cAspect - this._ar.val) * heightVal;
+    let width = widthVal;
+    let height = heightVal;
+    if (wDiff > -1) {
+      width = Math.round(heightVal * this._ar.val);
+    } else {
+      height = Math.round(widthVal / this._ar.val);
+    }
     return {
       width: width,
       height: height,
@@ -71,7 +78,7 @@ export class UILayoutManager {
       if (wDiff > -1) {
         // width difference doesn't exceed 1 pixel
         res.output.height = "100%";
-        res.output.width = isMediaElementMode ? `${cWidth}px` : "auto"; 
+        res.output.width = isMediaElementMode ? `${cWidth}px` : "auto";
       } else {
         res.output.width = "100%";
         res.output.height = isMediaElementMode ? `${cHeight}px` : "auto";

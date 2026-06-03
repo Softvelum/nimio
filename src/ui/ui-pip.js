@@ -89,6 +89,13 @@ export const UiPip = {
     return true;
   },
 
+  _getFrameSizePip(rect) {
+    if (this._mediaElementMode !== true) return rect;
+    const pipSize = this._layoutMgr.getAspectFrameSize(rect.width, rect.height);
+    rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
+    return rect;
+  },
+
   _resizePip(rect) {
     if (this._mediaElementMode !== true) {
       return true;
@@ -114,8 +121,7 @@ export const UiPip = {
     }
     this._mediaElementMode = true;
     let rect = this._container.getBoundingClientRect();
-    let pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
-    rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
+    rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
     await this._handleCanvasVideoLoaded();
   },

@@ -536,10 +536,7 @@ export class UI {
     let container = this._pipContainer ?? this._container;
     if (!container) return;
     let rect = container.getBoundingClientRect();
-    if (this._pipWindow) {
-      const pipSize = this._layoutMgr.getAspectFrameSize(rect.height);
-      rect = new DOMRect(0, 0, pipSize.width, pipSize.height);
-    }
+    rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
   }
 
@@ -575,13 +572,13 @@ export class UI {
       rect.height,
       this._mode,
       pipMode || this._isPlayerFullscreen(),
-      this._mediaElementMode
+      this._mediaElementMode,
     );
     if (!cssProps) return;
     let container = pipMode ? this._pipContainer : this._container;
     container.style.width = cssProps.container.width;
     container.style.height = cssProps.container.height;
-    const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode
+    const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
     let output = canvasOutput ? this._canvas : this._mediaElement;
     output.style.width = cssProps.output.width;
     output.style.height = cssProps.output.height;
@@ -730,7 +727,7 @@ export class UI {
   }
 
   _onPlaybackStarted(data) {
-    this._logger.warn("onPlaybackStarted", data.mode)
+    this._logger.warn("onPlaybackStarted", data.mode);
     this.drawPause();
     this._unsetBackground();
     this._layoutMgr.resume();
