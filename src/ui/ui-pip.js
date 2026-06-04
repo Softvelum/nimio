@@ -110,23 +110,19 @@ export const UiPip = {
     }
   },
 
-  _closeVideoPip(callback) {
+  async _closeVideoPip() {
     let video = this._mediaElement;
-    const onComplete = () => {
-      this._clearMediaElementEvents();
-      callback();
-    };
-    if (document.pictureInPictureElement === video) {
-      document
-        .exitPictureInPicture()
-        .then(() => onComplete())
-        .catch((err) => {
-          this._logger.warn("Failed to exit Picture-in-Picture mode", err);
-          onComplete();
-        });
-    } else {
-      onComplete();
+    if (
+      document.pictureInPictureElement === video &&
+      document.exitPictureInPicture
+    ) {
+      try {
+        await document.exitPictureInPicture();
+      } catch (err) {
+        this._logger.warn("Failed to exit Picture-in-Picture mode", err);
+      }
     }
+    this._clearMediaElementEvents();
   },
 
   async _toggleDocumentPip() {

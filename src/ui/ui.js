@@ -184,13 +184,12 @@ export class UI {
     this._mode = mode;
   }
 
-  replaceMediaElement() {
-    this._closeVideoPip(() => {
-      this._removeMediaElement();
-      this._addMediaElement();
-      this._addPipEventListeners();
-      this._mediaElement.style.display = "block";
-    });
+  async replaceMediaElement() {
+    await this._closeVideoPip();
+    this._removeMediaElement();
+    this._addMediaElement();
+    this._addPipEventListeners();
+    this._mediaElement.style.display = "block";
   }
 
   setDetached() {
