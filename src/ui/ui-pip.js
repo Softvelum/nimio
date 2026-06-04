@@ -230,7 +230,8 @@ export const UiPip = {
 
   _addPipContainerMediaElement() {
     if (this._pipContainer && this._mediaElement) {
-      this._pipContainer.append(this._mediaElement);    
+      this._pipContainer.append(this._mediaElement);
+      this._pipPlayer = this._mediaElement;
       return true;
     }
     return false;
