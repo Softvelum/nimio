@@ -495,6 +495,9 @@ export class UI {
   async _toggleFullscreen(e) {
     let fReq;
     if (!this._isPlayerFullscreen()) {
+      if (this._isPipActive()) {
+        return;
+      }
       let fsOpts = { navigationUI: "hide" };
       if (this._container.requestFullscreen) {
         fReq = this._container.requestFullscreen(fsOpts);

@@ -137,6 +137,9 @@ export const UiPip = {
       }
       return;
     }
+    if (this._isPlayerFullscreen()) {
+      return;
+    }
     let rp = this._rendProps;
     if (!rp) return;
 
@@ -154,6 +157,7 @@ export const UiPip = {
     }
 
     let rootDiv = document.createElement("div");
+    pipWindow.document.body.style.margin = "0";
     rootDiv.className = "pip-container";
     rootDiv.appendChild(videoPlayer);
     this._pipContainer = rootDiv;
@@ -221,6 +225,10 @@ export const UiPip = {
     return true;
   },
 
+  _isPipActive() {
+    return this._pipWindow || this._pipWindowFrame || this._nativePip;
+  },
+
   _getFrameSizePip(rect) {
     if (this._mediaElementMode !== true) return rect;
     const pipSize = this._layoutMgr.getAspectFrameSize(rect.width, rect.height);
@@ -250,6 +258,9 @@ export const UiPip = {
   async _toggieVideoPip(ev) {
     if (this._pipWindow) {
       document.exitPictureInPicture();
+      return;
+    }
+    if (this._isPlayerFullscreen()) {
       return;
     }
     if (MODE.LIVE === this._mode) {
