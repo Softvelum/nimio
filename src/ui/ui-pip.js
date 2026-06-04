@@ -1,12 +1,18 @@
 import { MODE } from "@/shared/values";
 
 export const UiPip = {
+  _PipNeedsMediaElement() {
+    if ("documentPictureInPicture" in window) return false;
+    if ("pictureInPictureEnabled" in document) return true;
+    return false;
+  },
+
   _setupPip() {
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
       this._enterPipEvent = this._handleEnterNativePip.bind(this);
       this._leavePipEvent = this._handleLeaveNativePip.bind(this);
-    } else if ("pictureInPictureEnabled" in document) {
+    } else if (document.pictureInPictureEnabled) {
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
       this._enterPipEvent = this._handleEnterPip.bind(this);
@@ -16,16 +22,19 @@ export const UiPip = {
       this._logger.warn("Picture-in-picture API is unavailable");
       return;
     }
-    window.addEventListener(
-      "enterpictureinpicture",
-      this._enterPipEvent,
-      false,
-    );
-    window.addEventListener(
-      "leavepictureinpicture",
-      this._leavePipEvent,
-      false,
-    );
+    let video = this._mediaElement;
+    if (video) {
+      video.addEventListener(
+        "enterpictureinpicture",
+        this._enterPipEvent,
+        false,
+      );
+      video.addEventListener(
+        "leavepictureinpicture",
+        this._leavePipEvent,
+        false,
+      );
+    }
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
     let pipMessage = document.createElement("div");
     pipMessage.className = "pip-message";
@@ -33,6 +42,70 @@ export const UiPip = {
     pipMessage.style.display = "none";
     this._container.appendChild(pipMessage);
     this._pipMessage = pipMessage;
+  },
+
+  _cleanupPip() {
+    let video = this._mediaElement;
+    if (video) {
+      video.removeEventListener(
+        "enterpictureinpicture",
+        this._enterPipEvent,
+        false,
+      );
+      video.removeEventListener(
+        "leavepictureinpicture",
+        this._leavePipEvent,
+        false,
+      );
+      if (this._onCaptureStreamResume) {
+        video.removeEventListener("play", this._onCaptureStreamResume);
+      }
+    }
+
+    if (this._buttonPictureInPicture && this._togglePip) {
+      this._buttonPictureInPicture.removeEventListener(
+        "click",
+        this._togglePip,
+      );
+    }
+
+    if (this._resumeCaptureTimeout) {
+      clearTimeout(this._resumeCaptureTimeout);
+      this._resumeCaptureTimeout = undefined;
+    }
+    this._onCaptureStreamResume = undefined;
+
+    if (
+      document.pictureInPictureElement === video &&
+      document.exitPictureInPicture
+    ) {
+      document.exitPictureInPicture().catch((err) => {
+        this._logger.warn("Failed to exit Picture-in-Picture mode", err);
+      });
+    }
+
+    let pipWindowFrame = this._pipWindowFrame;
+    if (pipWindowFrame) {
+      this._restoreDocumentPip();
+      try {
+        pipWindowFrame.close();
+      } catch (err) {
+        this._logger.warn("Failed to close Picture-in-Picture window", err);
+      }
+    } else {
+      this._pipResizeObserver?.disconnect();
+      this._pipResizeObserver = undefined;
+    }
+
+    this._destroyCaptureStream();
+    this._pipMessage?.remove();
+    this._pipMessage = undefined;
+    this._pipWindow = undefined;
+    this._nativePip = false;
+    this._mediaElementMode = false;
+    this._togglePip = undefined;
+    this._enterPipEvent = undefined;
+    this._leavePipEvent = undefined;
   },
 
   async _toggleDocumentPip() {
@@ -69,17 +142,12 @@ export const UiPip = {
     this._pipContainer = rootDiv;
     this._pipPlayer = videoPlayer;
     pipWindow.document.body.append(rootDiv);
-    let playerContainer = this._container;
     this._pipWindowFrame = pipWindow;
-    pipWindow.addEventListener("pagehide", (event) => {
-      this._pipResizeObserver?.unobserve(this._pipContainer);
-      this._pipContainer = undefined;
-      this._pipResizeObserver = undefined;
-      playerContainer.append(this._pipPlayer);
-      this._pipPlayer = undefined;
-      this._pipMessage.style.display = "none";
+    this._onDocumentPipPageHide = () => {
+      this._restoreDocumentPip();
       this._handleViewportUpdate();
-    });
+    };
+    pipWindow.addEventListener("pagehide", this._onDocumentPipPageHide);
 
     this._pipResizeObserver = new ResizeObserver((entries) => {
       requestAnimationFrame(() => {
@@ -88,6 +156,29 @@ export const UiPip = {
     });
     this._pipResizeObserver.observe(this._pipContainer);
     this._pipMessage.style.display = "flex";
+  },
+
+  _restoreDocumentPip() {
+    this._pipResizeObserver?.disconnect();
+    this._pipResizeObserver = undefined;
+
+    if (this._pipWindowFrame && this._onDocumentPipPageHide) {
+      this._pipWindowFrame.removeEventListener(
+        "pagehide",
+        this._onDocumentPipPageHide,
+      );
+    }
+    this._onDocumentPipPageHide = undefined;
+
+    if (this._pipPlayer && this._container) {
+      this._container.append(this._pipPlayer);
+    }
+    this._pipContainer = undefined;
+    this._pipPlayer = undefined;
+    this._pipWindowFrame = undefined;
+    if (this._pipMessage) {
+      this._pipMessage.style.display = "none";
+    }
   },
 
   _toggleModePip(mode) {

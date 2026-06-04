@@ -49,7 +49,7 @@ export class UI {
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
-    if (opts.vod) this._createMediaElement();
+    if (opts.vod || this._PipNeedsMediaElement()) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
     this._logger.debug(`Device DPR = ${this._dpr}`);
@@ -100,6 +100,7 @@ export class UI {
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
+    this._cleanupPip();
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
