@@ -264,7 +264,10 @@ export const UiPip = {
     let rect = this._container.getBoundingClientRect();
     rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
-    await this._mediaElement.requestPictureInPicture();
+    await this._mediaElement.requestPictureInPicture().catch((err) => {
+      this._logger.error("Failed to enter PiP mode", err);
+      this._handleLeavePip();
+    });
   },
 
   _handleEnterPip(event) {
