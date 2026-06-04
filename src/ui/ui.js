@@ -240,7 +240,9 @@ export class UI {
   _addMediaElement() {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
-    this._canvas.after(this._mediaElement);
+    if (!this._addPipContainerMediaElement()) {
+      this._canvas.after(this._mediaElement);
+    }
   }
 
   _removeMediaElement() {

@@ -228,6 +228,14 @@ export const UiPip = {
     return rect;
   },
 
+  _addPipContainerMediaElement() {
+    if (this._pipContainer && this._mediaElement) {
+      this._pipContainer.append(this._mediaElement);    
+      return true;
+    }
+    return false;
+  },
+
   _resizePip(rect) {
     if (this._mediaElementMode !== true) {
       return true;

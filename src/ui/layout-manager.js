@@ -34,14 +34,17 @@ export class UILayoutManager {
   }
 
   getAspectFrameSize(widthVal, heightVal) {
-    const cAspect = widthVal / heightVal;
-    const wDiff = (cAspect - this._ar.val) * heightVal;
     let width = widthVal;
     let height = heightVal;
-    if (wDiff > -1) {
-      width = Math.round(heightVal * this._ar.val);
-    } else {
-      height = Math.round(widthVal / this._ar.val);
+
+    if (!!this._ar) {
+      const cAspect = widthVal / heightVal;
+      const wDiff = (cAspect - this._ar.val) * heightVal;
+      if (wDiff > -1) {
+        width = Math.round(heightVal * this._ar.val);
+      } else {
+        height = Math.round(widthVal / this._ar.val);
+      }
     }
     return {
       width: width,
