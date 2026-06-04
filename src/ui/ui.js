@@ -185,9 +185,12 @@ export class UI {
   }
 
   replaceMediaElement() {
-    this._removeMediaElement();
-    this._addMediaElement();
-    this._mediaElement.style.display = "block";
+    this._closeVideoPip(() => {
+      this._removeMediaElement();
+      this._addMediaElement();
+      this._addPipEventListeners();
+      this._mediaElement.style.display = "block";
+    });
   }
 
   setDetached() {

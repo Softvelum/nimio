@@ -2,16 +2,28 @@ import { MODE } from "@/shared/values";
 
 export const UiPip = {
   _PipNeedsMediaElement() {
+    if (this._opts.audioOnly) return false;
     if ("documentPictureInPicture" in window) return false;
     if ("pictureInPictureEnabled" in document) return true;
     return false;
   },
 
   _setupPip() {
+    if (this._opts.audioOnly) {
+      this._buttonPictureInPicture.style.display = "none";
+      return;
+    }
     if ("documentPictureInPicture" in window) {
       this._togglePip = this._toggleDocumentPip.bind(this);
       this._enterPipEvent = this._handleEnterNativePip.bind(this);
       this._leavePipEvent = this._handleLeaveNativePip.bind(this);
+      let pipMessage = document.createElement("div");
+      pipMessage.className = "pip-message";
+      pipMessage.textContent =
+        "Video player is in the Picture-in-Picture window";
+      pipMessage.style.display = "none";
+      this._container.appendChild(pipMessage);
+      this._pipMessage = pipMessage;
     } else if (document.pictureInPictureEnabled) {
       this._pipCaptureStreamMode = true;
       this._togglePip = this._toggieVideoPip.bind(this);
@@ -22,6 +34,11 @@ export const UiPip = {
       this._logger.warn("Picture-in-picture API is unavailable");
       return;
     }
+    _addPipEventListeners();
+    this._buttonPictureInPicture.addEventListener("click", this._togglePip);
+  },
+
+  _addPipEventListeners() {
     let video = this._mediaElement;
     if (video) {
       video.addEventListener(
@@ -35,32 +52,10 @@ export const UiPip = {
         false,
       );
     }
-    this._buttonPictureInPicture.addEventListener("click", this._togglePip);
-    let pipMessage = document.createElement("div");
-    pipMessage.className = "pip-message";
-    pipMessage.textContent = "Video player is in the Picture-in-Picture window";
-    pipMessage.style.display = "none";
-    this._container.appendChild(pipMessage);
-    this._pipMessage = pipMessage;
   },
 
   _cleanupPip() {
-    let video = this._mediaElement;
-    if (video) {
-      video.removeEventListener(
-        "enterpictureinpicture",
-        this._enterPipEvent,
-        false,
-      );
-      video.removeEventListener(
-        "leavepictureinpicture",
-        this._leavePipEvent,
-        false,
-      );
-      if (this._onCaptureStreamResume) {
-        video.removeEventListener("play", this._onCaptureStreamResume);
-      }
-    }
+    _clearMediaElementEvents();
 
     if (this._buttonPictureInPicture && this._togglePip) {
       this._buttonPictureInPicture.removeEventListener(
@@ -68,22 +63,6 @@ export const UiPip = {
         this._togglePip,
       );
     }
-
-    if (this._resumeCaptureTimeout) {
-      clearTimeout(this._resumeCaptureTimeout);
-      this._resumeCaptureTimeout = undefined;
-    }
-    this._onCaptureStreamResume = undefined;
-
-    if (
-      document.pictureInPictureElement === video &&
-      document.exitPictureInPicture
-    ) {
-      document.exitPictureInPicture().catch((err) => {
-        this._logger.warn("Failed to exit Picture-in-Picture mode", err);
-      });
-    }
-
     let pipWindowFrame = this._pipWindowFrame;
     if (pipWindowFrame) {
       this._restoreDocumentPip();
@@ -106,6 +85,47 @@ export const UiPip = {
     this._togglePip = undefined;
     this._enterPipEvent = undefined;
     this._leavePipEvent = undefined;
+  },
+
+  _clearMediaElementEvents() {
+    let video = this._mediaElement;
+    if (!video) return;
+    video.removeEventListener(
+      "enterpictureinpicture",
+      this._enterPipEvent,
+      false,
+    );
+    video.removeEventListener(
+      "leavepictureinpicture",
+      this._leavePipEvent,
+      false,
+    );
+    if (this._onCaptureStreamResume) {
+      video.removeEventListener("play", this._onCaptureStreamResume);
+      this._onCaptureStreamResume = undefined;
+    }
+    if (this._resumeCaptureTimeout) {
+      clearTimeout(this._resumeCaptureTimeout);
+      this._resumeCaptureTimeout = undefined;
+    }
+  },
+
+  _closeVideoPip(callback) {
+    let video = this._mediaElement;
+    const onComplete = () => {
+      _clearMediaElementEvents();
+      callback();
+    };
+    if (document.pictureInPictureElement === video) {
+      document.exitPictureInPicture
+        .then(() => onComplete())
+        .catch((err) => {
+          this._logger.warn("Failed to exit Picture-in-Picture mode", err);
+          onComplete();
+        });
+    } else {
+      onComplete();
+    }
   },
 
   async _toggleDocumentPip() {
