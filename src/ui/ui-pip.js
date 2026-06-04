@@ -34,7 +34,7 @@ export const UiPip = {
       this._logger.warn("Picture-in-picture API is unavailable");
       return;
     }
-    _addPipEventListeners();
+    this._addPipEventListeners();
     this._buttonPictureInPicture.addEventListener("click", this._togglePip);
   },
 
@@ -55,7 +55,7 @@ export const UiPip = {
   },
 
   _cleanupPip() {
-    _clearMediaElementEvents();
+    this._clearMediaElementEvents();
 
     if (this._buttonPictureInPicture && this._togglePip) {
       this._buttonPictureInPicture.removeEventListener(
@@ -113,11 +113,12 @@ export const UiPip = {
   _closeVideoPip(callback) {
     let video = this._mediaElement;
     const onComplete = () => {
-      _clearMediaElementEvents();
+      this._clearMediaElementEvents();
       callback();
     };
     if (document.pictureInPictureElement === video) {
-      document.exitPictureInPicture
+      document
+        .exitPictureInPicture()
         .then(() => onComplete())
         .catch((err) => {
           this._logger.warn("Failed to exit Picture-in-Picture mode", err);
