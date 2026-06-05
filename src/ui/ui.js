@@ -582,29 +582,26 @@ export class UI {
       pipMode || this._isPlayerFullscreen(),
       this._mediaElementMode,
     );
-    if (!cssProps) return;
-    let container = pipMode ? this._pipContainer : this._container;
-    container.style.width = cssProps.container.width;
-    container.style.height = cssProps.container.height;
-    const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
-    let output = canvasOutput ? this._canvas : this._mediaElement;
-    output.style.width = cssProps.output.width;
-    output.style.height = cssProps.output.height;
-    output.style["object-fit"] = cssProps.output["object-fit"];
-    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-    let hiddenOutput = canvasOutput ? this.mediaElement : this.canvas;
-    hiddenOutput.style.removeProperty("width");
-    hiddenOutput.style.removeProperty("height");
-    if (!this._mediaElementMode) {
-      hiddenOutput.style.removeProperty("object-fit");
-      hiddenOutput.style.removeProperty("aspect-ratio");
+    if (cssProps) {
+      let container = pipMode ? this._pipContainer : this._container;
+      container.style.width = cssProps.container.width;
+      container.style.height = cssProps.container.height;
+      const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
+      let output = canvasOutput ? this._canvas : this._mediaElement;
+      output.style.width = cssProps.output.width;
+      output.style.height = cssProps.output.height;
+      output.style["object-fit"] = cssProps.output["object-fit"];
+      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+    }
+    const oldProps = this._rendProps;
+    const props = this._layoutMgr.computeRenderProps(rect.width, rect.height);
+    if (props != null) {
+      this._rendProps = props;
     }
     if (this._mode === MODE.LIVE || this._mediaElementMode) {
-      this._prevRendProps = this._rendProps;
-      this._rendProps = this._layoutMgr.computeRenderProps(
-        rect.width,
-        rect.height,
-      );
+      if (props != null) {
+        this._prevRendProps = oldProps;
+      }
       this._updateCanvasSize();
     }
   }
@@ -797,6 +794,7 @@ export class UI {
       margin: "auto",
       position: "relative",
       "background-color": "#000",
+      "align-content": "center",
     });
   }
 }
