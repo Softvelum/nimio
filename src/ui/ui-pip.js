@@ -4,7 +4,7 @@ export const UiPip = {
   _pipNeedsMediaElement() {
     if (this._opts.audioOnly) return false;
     if ("documentPictureInPicture" in window) return false;
-    if ("pictureInPictureEnabled" in document) return true;
+    if (document.pictureInPictureEnabled) return true;
     return false;
   },
 
@@ -155,9 +155,12 @@ export const UiPip = {
       })
       .catch((err) => {
         this._logger.error("Failed to enter PiP mode", err);
-        return;
+        return null;
       });
 
+    if (!pipWindow) {
+      return;
+    }
     // Move the player to the Picture-in-Picture window.
     let videoPlayer =
       MODE.LIVE === this._mode ? this._canvas : this._mediaElement;
