@@ -549,7 +549,7 @@ export class UI {
   }
 
   _handleViewportUpdate() {
-    if (this._viewportUpdatePending) return;
+    if (this._viewportUpdatePending || this._onCaptureStreamResume) return;
 
     this._viewportUpdatePending = true;
     // double RAF for fullscreen and orientation change events

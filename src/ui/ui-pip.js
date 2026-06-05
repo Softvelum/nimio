@@ -271,6 +271,7 @@ export const UiPip = {
     if (this._isPlayerFullscreen()) {
       return;
     }
+    this._mediaElementMode = true;
     if (MODE.LIVE === this._mode) {
       let canvas = this._canvas;
       let video = this._mediaElement;
@@ -279,7 +280,6 @@ export const UiPip = {
       video.style.visibility = "hidden";
       video.style.display = "block";
     }
-    this._mediaElementMode = true;
     let rect = this._container.getBoundingClientRect();
     rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
@@ -333,9 +333,12 @@ export const UiPip = {
     let video = this._mediaElement;
     video.removeEventListener("play", this._onCaptureStreamResume);
     video.style.display = "none";
+    video.style.visibility = "visible";
     this._canvas.style.display = "block";
     this._onCaptureStreamResume = undefined;
     this._resumeCaptureTimeout = undefined;
+    this._handleViewportUpdate();
+
   },
 
   _createCaptureStream() {
