@@ -33,7 +33,8 @@ export class UI {
     Object.assign(this._container.style, {
       display: "block",
       position: "relative",
-      "background-color": "#000",
+      backgroundColor: "#000",
+      alignContent: "center",
     });
 
     this._dpr = window.devicePixelRatio || 1;
@@ -793,8 +794,6 @@ export class UI {
       zIndex: 10,
       margin: "auto",
       position: "relative",
-      "background-color": "#000",
-      "align-content": "center",
     });
   }
 }
