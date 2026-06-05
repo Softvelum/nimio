@@ -621,7 +621,6 @@ export class UI {
     }
     this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;
-    //this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
     const prp = this._prevRendProps || this._rendProps;
     const rp = this._rendProps;
@@ -639,7 +638,7 @@ export class UI {
 
     this._canvas.width = dprWidth;
     this._canvas.height = dprHeight;
-    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._cctx.drawImage(
       this._bCanvas,
       0,

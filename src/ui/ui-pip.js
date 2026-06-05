@@ -338,7 +338,6 @@ export const UiPip = {
     this._onCaptureStreamResume = undefined;
     this._resumeCaptureTimeout = undefined;
     this._handleViewportUpdate();
-
   },
 
   _createCaptureStream() {
