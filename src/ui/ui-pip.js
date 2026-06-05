@@ -1,7 +1,7 @@
 import { MODE } from "@/shared/values";
 
 export const UiPip = {
-  _PipNeedsMediaElement() {
+  _pipNeedsMediaElement() {
     if (this._opts.audioOnly) return false;
     if ("documentPictureInPicture" in window) return false;
     if ("pictureInPictureEnabled" in document) return true;
@@ -132,8 +132,13 @@ export const UiPip = {
       return;
     }
     if (this._nativePip) {
+      //User had open PIP window by context menu, just close it
       if (document.pictureInPictureElement) {
-        document.exitPictureInPicture();
+        try {
+          await document.exitPictureInPicture();
+        } catch (err) {
+          this._logger.warn("Failed to exit Picture-in-Picture mode", err);
+        }
       }
       return;
     }
@@ -143,21 +148,24 @@ export const UiPip = {
     let rp = this._rendProps;
     if (!rp) return;
 
-    const pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: rp.dWidth,
-      height: rp.dHeight,
-    });
+    const pipWindow = await window.documentPictureInPicture
+      .requestWindow({
+        width: rp.dWidth,
+        height: rp.dHeight,
+      })
+      .catch((err) => {
+        this._logger.error("Failed to enter PiP mode", err);
+        return;
+      });
 
     // Move the player to the Picture-in-Picture window.
-    let videoPlayer = null;
-    if (MODE.LIVE === this._mode) {
-      videoPlayer = this._canvas;
-    } else {
-      videoPlayer = this._mediaElement;
-    }
+    let videoPlayer =
+      MODE.LIVE === this._mode ? this._canvas : this._mediaElement;
 
     let rootDiv = document.createElement("div");
     pipWindow.document.body.style.margin = "0";
+    pipWindow.document.body.style.overflow = "hidden";
+    pipWindow.document.body.style.background = "#000";
     rootDiv.className = "pip-container";
     rootDiv.appendChild(videoPlayer);
     this._pipContainer = rootDiv;
@@ -310,6 +318,8 @@ export const UiPip = {
     }
   },
 
+  // Handing of special case when we have DocumentPictureInPicture but user
+  // opened PIP from context menu (don't do anything, just take notice)
   _handleEnterNativePip(event) {
     this._nativePip = true;
   },
@@ -344,14 +354,17 @@ export const UiPip = {
   },
 
   _destroyCaptureStream() {
-    if (
-      this._captureStream === undefined ||
-      this._mediaElement.srcObject === undefined
-    ) {
-      return;
+    const stream = this._captureStream;
+    if (!stream) return;
+
+    const video = this._mediaElement;
+    if (video?.srcObject === stream) {
+      video.pause();
+      video.srcObject = null;
     }
-    this._mediaElement.pause();
-    this._mediaElement.srcObject = undefined;
+    for (const track of stream.getTracks()) {
+      track.stop();
+    }
     this._captureStream = undefined;
   },
 };

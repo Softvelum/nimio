@@ -49,7 +49,7 @@ export class UI {
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
-    if (opts.vod || this._PipNeedsMediaElement()) this._createMediaElement();
+    if (opts.vod || this._pipNeedsMediaElement()) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
     this._logger.debug(`Device DPR = ${this._dpr}`);
@@ -796,6 +796,7 @@ export class UI {
       zIndex: 10,
       margin: "auto",
       position: "relative",
+      "background-color": "#000",
     });
   }
 }
