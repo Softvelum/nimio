@@ -126,9 +126,14 @@ export const UiPip = {
   },
 
   async _toggleDocumentPip() {
+    if (this._isPlayerFullscreen()) {
+      return;
+    }
+    this._buttonPictureInPicture.disabled = true;
     let activePip = window.documentPictureInPicture.window;
     if (activePip) {
       activePip.close();
+      this._buttonPictureInPicture.disabled = false;
       return;
     }
     if (this._nativePip) {
@@ -140,14 +145,11 @@ export const UiPip = {
           this._logger.warn("Failed to exit Picture-in-Picture mode", err);
         }
       }
-      return;
-    }
-    if (this._isPlayerFullscreen()) {
+      this._buttonPictureInPicture.disabled = false;
       return;
     }
     let rp = this._rendProps;
     if (!rp) return;
-
     const pipWindow = await window.documentPictureInPicture
       .requestWindow({
         width: rp.dWidth,
@@ -159,6 +161,7 @@ export const UiPip = {
       });
 
     if (!pipWindow) {
+      this._buttonPictureInPicture.disabled = false;
       return;
     }
     // Move the player to the Picture-in-Picture window.
@@ -188,6 +191,7 @@ export const UiPip = {
     });
     this._pipResizeObserver.observe(this._pipContainer);
     this._pipMessage.style.display = "flex";
+    this._buttonPictureInPicture.disabled = false;
   },
 
   _restoreDocumentPip() {
@@ -267,11 +271,13 @@ export const UiPip = {
   },
 
   async _toggieVideoPip(ev) {
-    if (this._pipWindow) {
-      document.exitPictureInPicture();
+    if (this._isPlayerFullscreen()) {
       return;
     }
-    if (this._isPlayerFullscreen()) {
+    this._buttonPictureInPicture.disabled = true;
+    if (this._pipWindow) {
+      document.exitPictureInPicture();
+      this._buttonPictureInPicture.disabled = false;
       return;
     }
     this._mediaElementMode = true;
@@ -290,6 +296,7 @@ export const UiPip = {
       this._logger.error("Failed to enter PiP mode", err);
       this._handleLeavePip();
     });
+    this._buttonPictureInPicture.disabled = false;
   },
 
   _handleEnterPip(event) {
