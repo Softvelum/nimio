@@ -3,6 +3,7 @@ import viteConfig from "./vite.config";
 
 export default mergeConfig(viteConfig, {
   test: {
+    include: ["tests/**/*.test.js"],
     silent: "passed-only",
     globals: true,
     environment: "jsdom",
