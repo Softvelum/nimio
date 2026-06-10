@@ -10,6 +10,7 @@ import { UIThumbnailPreview } from "./thumbnail-preview";
 import { UICaptionController } from "./caption-controller";
 import { UICaptionList } from "./caption-list";
 import { UILayoutManager } from "./layout-manager";
+import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
 
 export class UI {
@@ -32,7 +33,8 @@ export class UI {
     Object.assign(this._container.style, {
       display: "block",
       position: "relative",
-      "background-color": "#000",
+      backgroundColor: "#000",
+      alignContent: "center",
     });
 
     this._dpr = window.devicePixelRatio || 1;
@@ -48,7 +50,7 @@ export class UI {
     this._mode = MODE.LIVE;
     this._outputs = [];
     this._createCanvas();
-    if (opts.vod) this._createMediaElement();
+    if (opts.vod || this._pipNeedsMediaElement()) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
     this._logger.debug(`Device DPR = ${this._dpr}`);
@@ -99,6 +101,7 @@ export class UI {
     this._removePlaybackEventHandlers();
     this._removeControlsEventHandlers();
     this._removeDisplayEventHandlers();
+    this._cleanupPip();
     this._container.removeEventListener("mousemove", this._onMouseMove);
     this._container.removeEventListener("mouseout", this._onMouseOut);
     this._container.removeEventListener("click", this._onClick);
@@ -155,17 +158,23 @@ export class UI {
 
   toggleMode(mode) {
     if (mode === this._mode) return;
-
+    const updatePlayer = this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
-      this._mediaElement.style.display = "none";
-      this._canvas.style.display = "block";
+      if (updatePlayer) {
+        this._mediaElement.style.display = "none";
+        this._canvas.style.display = "block";
+      }
       this._liveSign.style.display = "inline-grid";
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
+      this._createCaptureStream();
     } else {
-      this._canvas.style.display = "none";
-      this._mediaElement.style.display = "block";
+      this._destroyCaptureStream();
+      if (updatePlayer) {
+        this._canvas.style.display = "none";
+        this._mediaElement.style.display = "block";
+      }
       if (!this._isPlayerFullscreen() && this._rendProps) {
         // keep the media element size same as the canvas during switch
         this._mediaElement.style.width = `${this._rendProps.width}px`;
@@ -173,13 +182,14 @@ export class UI {
       }
       this._liveSign.style.display = "none";
     }
-
     this._mode = mode;
   }
 
-  replaceMediaElement() {
+  async replaceMediaElement() {
+    await this._closeVideoPip();
     this._removeMediaElement();
     this._addMediaElement();
+    this._addPipEventListeners();
     this._mediaElement.style.display = "block";
   }
 
@@ -231,7 +241,9 @@ export class UI {
   _addMediaElement() {
     this._createMediaElement();
     this._applyBasicStyle(this._mediaElement);
-    this._canvas.after(this._mediaElement);
+    if (!this._addPipContainerMediaElement()) {
+      this._canvas.after(this._mediaElement);
+    }
   }
 
   _removeMediaElement() {
@@ -253,6 +265,8 @@ export class UI {
     this._buttonSettings = this._controlsBar.querySelector(".btn-settings");
     this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
     this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
+    this._buttonPictureInPicture = this._controlsBar.querySelector(".btn-pip");
+
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
       this._playPrgSvc = PlaybackProgressService.getInstance(this._instName);
@@ -274,6 +288,7 @@ export class UI {
       this._liveSign = this._controlsBar.querySelector(".live-wrap");
     }
     this._addControlsEventHandlers();
+    this._setupPip();
 
     this._onFullscreenClick = this._toggleFullscreen.bind(this);
     this._buttonFullscreen = this._controlsBar.querySelector(".btn-fullscreen");
@@ -481,6 +496,9 @@ export class UI {
   async _toggleFullscreen(e) {
     let fReq;
     if (!this._isPlayerFullscreen()) {
+      if (this._isPipActive()) {
+        return;
+      }
       let fsOpts = { navigationUI: "hide" };
       if (this._container.requestFullscreen) {
         fReq = this._container.requestFullscreen(fsOpts);
@@ -523,60 +541,68 @@ export class UI {
 
   _handleLayoutUpdate(data) {
     if (!data.width || !data.height) return;
-
     this._layoutMgr.setFrameSize(data.width, data.height);
-    if (!this._container) return;
-    this._updateLayout(this._container.getBoundingClientRect());
+    let container = this._pipContainer ?? this._container;
+    if (!container) return;
+    let rect = container.getBoundingClientRect();
+    rect = this._getFrameSizePip(rect);
+    this._updateLayout(rect);
   }
 
   _handleViewportUpdate() {
-    if (this._viewportUpdatePending) return;
+    if (this._viewportUpdatePending || this._onCaptureStreamResume) return;
 
     this._viewportUpdatePending = true;
     // double RAF for fullscreen and orientation change events
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this._viewportUpdatePending = false;
-        if (!this._container) return;
-        this._updateLayout(this._container.getBoundingClientRect());
+        let container = this._pipContainer ?? this._container;
+        if (!container) return;
+        this._updateLayout(container.getBoundingClientRect());
       });
     });
   }
 
   _updateLayout(rect) {
     if (this._layoutUpdatePending) return;
-
+    const pipMode = this._pipContainer !== undefined;
     this._layoutUpdatePending = true;
     requestAnimationFrame(() => {
       this._layoutUpdatePending = false;
-      this._resizeAndRedraw(rect);
+      this._resizeAndRedraw(rect, pipMode);
       if (this._thumbnailPreview) this._thumbnailPreview.update();
     });
   }
 
-  _resizeAndRedraw(rect) {
+  _resizeAndRedraw(rect, pipMode) {
     let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
       this._mode,
-      this._isPlayerFullscreen(),
+      pipMode || this._isPlayerFullscreen(),
+      this._mediaElementMode,
     );
-    if (!cssProps) return;
-
-    this._container.style.width = cssProps.container.width;
-    this._container.style.height = cssProps.container.height;
-    let output = this._mode === MODE.LIVE ? this._canvas : this._mediaElement;
-    output.style.width = cssProps.output.width;
-    output.style.height = cssProps.output.height;
-    output.style["object-fit"] = cssProps.output["object-fit"];
-    output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
-
-    if (this._mode === MODE.LIVE) {
-      this._prevRendProps = this._rendProps;
-      this._rendProps = this._layoutMgr.computeRenderProps(
-        rect.width,
-        rect.height,
-      );
+    if (cssProps) {
+      let container = pipMode ? this._pipContainer : this._container;
+      container.style.width = cssProps.container.width;
+      container.style.height = cssProps.container.height;
+      const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
+      let output = canvasOutput ? this._canvas : this._mediaElement;
+      output.style.width = cssProps.output.width;
+      output.style.height = cssProps.output.height;
+      output.style["object-fit"] = cssProps.output["object-fit"];
+      output.style["aspect-ratio"] = cssProps.output["aspect-ratio"];
+    }
+    const oldProps = this._rendProps;
+    const props = this._layoutMgr.computeRenderProps(rect.width, rect.height);
+    if (props != null) {
+      this._rendProps = props;
+    }
+    if (this._mode === MODE.LIVE || this._mediaElementMode) {
+      if (props != null) {
+        this._prevRendProps = oldProps;
+      }
       this._updateCanvasSize();
     }
   }
@@ -584,40 +610,41 @@ export class UI {
   _updateCanvasSize() {
     // DPR can change when dragging window between monitors,
     // browser zoom, external display attach/detach
-    this._dpr = window.devicePixelRatio || 1;
-    let dprWidth = this._rendProps.width * this._dpr;
-    let dprHeight = this._rendProps.height * this._dpr;
+    if (!this._rendProps) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    this._dpr = dpr;
+    let dprWidth = this._rendProps.width * dpr;
+    let dprHeight = this._rendProps.height * dpr;
     if (this._canvas.width === dprWidth && this._canvas.height === dprHeight) {
       return;
     }
-
     this._bCanvas.width = dprWidth;
     this._bCanvas.height = dprHeight;
-    this._bctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
     const prp = this._prevRendProps || this._rendProps;
     const rp = this._rendProps;
     this._bctx.drawImage(
       this._canvas,
-      prp.dx,
-      prp.dy,
-      prp.dWidth,
-      prp.dHeight,
-      rp.dx,
-      rp.dy,
-      rp.dWidth,
-      rp.dHeight,
+      prp.dx * dpr,
+      prp.dy * dpr,
+      prp.dWidth * dpr,
+      prp.dHeight * dpr,
+      0,
+      0,
+      rp.dWidth * dpr,
+      rp.dHeight * dpr,
     );
 
     this._canvas.width = dprWidth;
     this._canvas.height = dprHeight;
-    this._cctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._cctx.drawImage(
       this._bCanvas,
-      rp.dx,
-      rp.dy,
-      rp.dWidth,
-      rp.dHeight,
+      0,
+      0,
+      rp.dWidth * dpr,
+      rp.dHeight * dpr,
       rp.dx,
       rp.dy,
       rp.dWidth,
@@ -713,6 +740,7 @@ export class UI {
         this._captionCtrl.resume();
         this._captionList.refresh();
       }
+      this._createCaptureStream();
     }
   }
 
@@ -727,6 +755,7 @@ export class UI {
     if (data.mode === MODE.LIVE) {
       this._setBackground();
       this._hideCaptions();
+      this._destroyCaptureStream();
     }
     this._layoutMgr.pause();
     this.drawPlay();
@@ -767,3 +796,5 @@ export class UI {
     });
   }
 }
+
+Object.assign(UI.prototype, UiPip);

@@ -755,7 +755,7 @@ export class NimioVod {
     }
   };
 
-  _onBufferCodecs = (event, data) => {
+  _onBufferCodecs = async (event, data) => {
     if (!data || !data.audio) return;
 
     let channels = 2;
@@ -778,7 +778,7 @@ export class NimioVod {
       if (!this._audioCtrl.canConnectNode(this._mediaSource)) {
         this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
         if (this._mediaSource) {
-          this._reconnectMediaElement();
+          await this._reconnectMediaElement();
         }
         this._mediaSource = ctx.createMediaElementSource(this._ui.mediaElement);
       }
@@ -914,12 +914,12 @@ export class NimioVod {
     return result;
   }
 
-  _reconnectMediaElement() {
+  async _reconnectMediaElement() {
     let currentTime = this._playbackService.getCurrentTime();
     this._playbackService.resetPosition();
     this._pHandler.detachMedia();
     this._removeProgressEventHandlers();
-    this._ui.replaceMediaElement();
+    await this._ui.replaceMediaElement();
     this._pHandler.attachMedia(this._ui.mediaElement);
     this._playbackService.init(this._ui.mediaElement);
     this._playbackService.startPlayback();
