@@ -8,6 +8,11 @@ class AudioContextProvider {
   }
 
   init(sampleRate) {
+    // iOS mutes Web Audio in silent mode unless the session is declared as media playback
+    if ("audioSession" in navigator) {
+      navigator.audioSession.type = "playback";
+    }
+
     if (this._audioCtx?.sampleRate !== sampleRate) {
       this._audioCtx = undefined;
     }
