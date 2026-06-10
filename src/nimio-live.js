@@ -28,6 +28,7 @@ import { SyncModeClock } from "./sync-mode/clock";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
 import { AudioController } from "./audio/controller";
+import { MediaGrabber } from "./grabber";
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -104,6 +105,10 @@ export class NimioLive {
         if (this._ui) this._ui.hideControls(true);
       }, 1000);
     }
+
+    if (this._config.screenshots) {
+      this._createMediaGrabber(this._config.screenshots);
+    }
   }
 
   play() {
@@ -163,6 +168,7 @@ export class NimioLive {
       this._abrController.stop({ hard: true });
     }
     this._resetPlayback();
+    this._grabber?.stop();
 
     if (closeConnection) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
@@ -421,8 +427,12 @@ export class NimioLive {
     if (!this._playbackStarted) {
       this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
+      this._grabber?.start(MODE.LIVE);
     }
     this._ui.drawFrame(frame);
+    if (this._grabber) {
+      this._grabber.handleLiveFrame(frame);
+    }
     frame.close();
   }
 
@@ -606,6 +616,8 @@ export class NimioLive {
       }
     });
     if (this._nalProcessor) this._nalProcessor.reset();
+
+    this._grabber?.stop();
 
     this._state.setPlaybackStartTsUs(0);
     this._state.setVideoLatestTsUs(0);
@@ -861,6 +873,15 @@ export class NimioLive {
       });
     }
     this._latencyCtrl.setParams(params);
+  }
+
+  _createMediaGrabber(params) {
+    this._grabber = MediaGrabber.getInstance(this._instName);
+    const rate = params?.rate ?? -1;
+    this._grabber.setRate(rate);
+    this._grabber.onScreenshotReady((img, ts) => {
+      this._eventBus.emit("nimio:screenshot", img, ts);
+    });
   }
 }
 

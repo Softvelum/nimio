@@ -168,6 +168,11 @@ nimio = new Nimio({
   },
   timecodes: true, // enables handling of SEI picture timing (H264) and SEI time code (H265) messages
   aspectRatio: "16:9", // defines aspect ratio which video is forcefully adjusted to
+  screenshots: {
+    // (optional) automatic screenshot capture. Can be set to {} or true to enable screenshots without specific settings.
+    rate: 1.0, // (optional) screenshot capture rate per second.
+    // If not defined, number of screenshots per second is equal to the video frame rate.
+  },
 });
 
 nimio.play();
@@ -518,13 +523,21 @@ enabled: Boolean;
   mode: String, // "live" - the timecode is retrieved from a Live stream, "vod" - the timecode is retrieved from a VOD stream;
 ```
 
+- `nimio:screenshot`
+  Emitted each time new screenshot is rendered.
+  **Parameters:**
+
+```javascript
+  imageData: ImageData, //screenshot image
+  timestamp: Number //presentation timestamp of corresponding frame in milliseconds tied to the video element's currentTime
+```
+
 ## Roadmap
 
 The following features are planned for upcoming releases:
 
 - Picture-in-Picture (PiP)
 - WebTransport protocol
-- Screenshot capture
 - Extended Player API
 - OffscreenCanvas rendering
 - Resume from pause in DVR mode (no auto-jump to live)

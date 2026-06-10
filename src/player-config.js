@@ -32,6 +32,7 @@ const DEFAULTS = {
   captions: null,
   timecodes: false,
   aspectRatio: null,
+  screenshots: null,
 };
 
 const REQUIRED_KEYS = ["streamUrl", "container"];
@@ -243,6 +244,7 @@ function initVodSettings(settings) {
   vod.timecodes = settings.timecodes;
   vod.volumeId = settings.volumeId;
   vod.muted = settings.muted;
+  vod.screenshots = settings.screenshots;
 }
 
 function defaultVodUrl(settings) {
