@@ -87,6 +87,17 @@ export class RingBuffer {
     }
   }
 
+  findIndex(fn) {
+    let index = this._head;
+    for (let i = 0; i < this._length; i++) {
+      if (fn(this._buf[index++])) {
+        return i;
+      }
+      if (index >= this._cap) index -= this._cap;
+    }
+    return -1;
+  }
+
   toArray() {
     const result = [];
     this.forEach(function (item) {

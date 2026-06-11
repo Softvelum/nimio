@@ -32,6 +32,14 @@ export class FrameBuffer {
     }
   }
 
+  gotFrame(currentTime) {
+    if (this._frames.isEmpty()) return false;
+    if (this._hasOutOfOrder) return true;
+    // find a frame nearest to currentTime
+    let lastIdx = this._findNearest(currentTime);
+    return lastIdx >= 0;
+  }
+
   popFrameForTime(currentTime) {
     if (this._frames.isEmpty()) {
       // this._logger.warn(`empty at ts: ${currentTime.toFixed(3)}`);
@@ -43,14 +51,7 @@ export class FrameBuffer {
     }
 
     // find a frame nearest to currentTime
-    let lastIdx = -1;
-    for (let i = 0; i < this._frames.length; i++) {
-      let frame = this._frames.get(i);
-      if (frame && frame.timestamp > currentTime) {
-        break;
-      }
-      lastIdx = i;
-    }
+    let lastIdx = this._findNearest(currentTime);
 
     // nothing to show, too early
     if (lastIdx < 0) {
@@ -67,6 +68,18 @@ export class FrameBuffer {
 
     // return the last frame earlier than currentTime
     return frame;
+  }
+
+  _findNearest(currentTime) {
+    let lastIdx = this._frames.findIndex((frame) => frame && frame.timestamp > currentTime)
+    // for (let i = 0; i < this._frames.length; i++) {
+    //   let frame = this._frames.get(i);
+    //   if (frame && frame.timestamp > currentTime) {
+    //     break;
+    //   }
+    //   lastIdx = i;
+    // }
+    return lastIdx;
   }
 
   absorb(frameBuffer) {
