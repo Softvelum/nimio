@@ -141,6 +141,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "1";
+    this._controlsBar.querySelector(".live-dot").classList.add("animated")
   }
 
   hideControls(anim) {
@@ -149,6 +150,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "0";
+    this._controlsBar.querySelector(".live-dot").classList.remove("animated")
   }
 
   clear() {
