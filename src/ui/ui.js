@@ -141,7 +141,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "1";
-    this._controlsBar.querySelector(".live-dot").classList.add("animated")
+    this._controlsBar.querySelector(".live-dot").classList.add("animated");
   }
 
   hideControls(anim) {
@@ -150,7 +150,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "0";
-    this._controlsBar.querySelector(".live-dot").classList.remove("animated")
+    this._controlsBar.querySelector(".live-dot").classList.remove("animated");
   }
 
   clear() {
@@ -225,8 +225,8 @@ export class UI {
   _createCanvas() {
     this._canvas = document.createElement("canvas");
     this._bCanvas = new OffscreenCanvas(0, 0);
-    this._cctx = this._canvas.getContext("2d");
-    this._bctx = this._bCanvas.getContext("2d");
+    this._cctx = this._canvas.getContext("2d", { alpha: false });
+    this._bctx = this._bCanvas.getContext("2d", { alpha: false });
 
     this._outputs.push(this._canvas);
   }
