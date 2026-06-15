@@ -74,7 +74,6 @@ export class NimioLive {
 
     this._resetPlaybackTimestamps();
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
-    this._checkRender = this._checkVideoFrame.bind(this);
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -126,11 +125,7 @@ export class NimioLive {
     this._eventBus.emit("nimio:play", { mode: MODE.LIVE });
 
     this._playbackStarted = false;
-    if (!this._idleCallbackId) {
-      this._idleCallbackId = requestIdleCallback(this._checkRender);
-      this._logger.debug("requestIdleCallback");
-    }
-    //requestAnimationFrame(this._renderVideoFrame);
+    requestAnimationFrame(this._renderVideoFrame);
 
     if (initialPlay) {
       this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
@@ -219,16 +214,14 @@ export class NimioLive {
       this._startAbrController();
     }
     this._playbackStarted = false;
-    if (!this._idleCallbackId) {
-      this._idleCallbackId = requestIdleCallback(this._checkRender);
-    }
+    requestAnimationFrame(this._renderVideoFrame);
 
     this._transport.connected && this._context.state?.value !== STATE.PAUSED
       ? this._sldpManager.requestCurrentStreams()
       : this._sldpManager.start(
-          this._config.streamUrl,
-          this._config.startOffset,
-        );
+        this._config.streamUrl,
+        this._config.startOffset,
+      );
     if (this._debugView) this._debugView.start();
     return true;
   }
@@ -247,10 +240,6 @@ export class NimioLive {
       this._debugView.clear();
     }
     this._detachUI();
-    if (this._idleCallbackId) {
-      cancelIdleCallback(this._idleCallbackId);
-      this._idleCallbackId = undefined;
-    }
 
     if (callback) callback();
 
@@ -411,80 +400,28 @@ export class NimioLive {
     data.play ? this.play() : this.pause();
   }
 
-  _checkVideoFrame() {
-    this._idleCallbackId = undefined;
-    if (this._checkVideoFrameInternal()) {
-      this._logger.debug("requestIdleCallback");
-      this._idleCallbackId = requestIdleCallback(this._checkRender);
-    }
-  }
+  _renderVideoFrame() {
+    if (this._noVideo || !this._state.isPlaying()) return true;
 
-  _checkVideoFrameInternal() {
-    if (this._noVideo || !this._state.isPlaying()) {
-      return false;
-    }
+    requestAnimationFrame(this._renderVideoFrame);
     if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
       return true;
     }
+
+    let curPlayedTsUs;
+    if (this._audioCtxProvider.isSuspended()) {
+      curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
+    } else {
+      curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
+    }
     this._updateBufferLevelMetrics();
 
-    const curPlayedTsUs = this._getCurPlayedTs();
-    // if (this._latencyCtrl.isPending()) {
-    //   return true;
-    // }
-    const render = this._videoBuffer.gotFrame(curPlayedTsUs);
-    if (render) {
-      this._curPlayedTsUs = curPlayedTsUs;
-      requestAnimationFrame(this._renderVideoFrame);
-      return false;
-    }
-    return true;
-  }
-
-  _getCurPlayedTs() {
-    if (this._audioCtxProvider.isSuspended()) {
-      return this._latencyCtrl.incCurrentVideoTime(this._speed);
-    } else {
-      return this._latencyCtrl.checkStateAndLoadCurrentTsUs();
-    }
-  }
-
-  _renderVideoFrame() {
-    let curPlayedTsUs = this._curPlayedTsUs;  //  this._getCurPlayedTs()
-    const newTime = this._getCurPlayedTs();
-    const delta = newTime - curPlayedTsUs;
-    if (delta > 0) {
-      this._logger.debug("Render latency", delta);
-    }
-    const rendered = this._renderVideoFrameInternal(curPlayedTsUs);
-    if (rendered) { //Recalculate current time?
-      curPlayedTsUs = this._getCurPlayedTs();
-      if (this._videoBuffer.gotFrame(curPlayedTsUs)) {
-        // We have another frame to render
-        this._curPlayedTsUs  = curPlayedTsUs;
-        this._logger.debug("Request another frame");
-        requestAnimationFrame(this._renderVideoFrame);
-        return;
-      } else {
-        this._logger.debug("No another frame");
-      }
-    }
-    if (!this._idleCallbackId) {
-
-      this._logger.debug("requestIdleCallback");
-      this._idleCallbackId = requestIdleCallback(this._checkRender)
-    }
-  }
-
-  _renderVideoFrameInternal(curPlayedTsUs) {
-    if (curPlayedTsUs === undefined || this._latencyCtrl.isPending()) {
-      return false;
-    }
+    if (this._latencyCtrl.isPending()) return true;
 
     const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
     if (!frame) {
-      this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-      return false;
+      // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+      return true;
     }
 
     if (!this._playbackStarted) {
@@ -492,14 +429,12 @@ export class NimioLive {
       this._playbackStarted = true;
       this._grabber?.start(MODE.LIVE);
     }
-    this._logger.debug("drawFrame", frame.timestamp)
     this._ui.drawFrame(frame);
     if (this._grabber) {
       this._grabber.handleLiveFrame(frame);
     }
     frame.close();
-    return true;
-  } 
+  }
 
   // TODO: move this function with renderVideoFrame to a separate component
   _setSpeed(speed, availableMs) {
