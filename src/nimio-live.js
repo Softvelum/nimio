@@ -46,7 +46,10 @@ export class NimioLive {
     }, 0);
     this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     this._sabShared = isSharedBuffer(this._sab);
-    this._state = new StateManager(this._sab, { shared: this._sabShared });
+    this._state = new StateManager(this._sab, {
+      shared: this._sabShared,
+      reducePost: !this._config.metricsOverlay,
+    });
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
@@ -736,6 +739,7 @@ export class NimioLive {
       latency: this._config.latency,
       latencyTolerance: this._config.latencyTolerance,
       latencyAdjustMethod: this._config.latencyAdjustMethod,
+      metricsOverlay: this._config.metricsOverlay,
       idle: idle || false,
       videoEnabled: !this._noVideo,
       logLevel: this._config.logLevel,
@@ -856,6 +860,7 @@ export class NimioLive {
         latency: this._config.latency,
         tolerance: this._config.latencyTolerance,
         adjustMethod: this._config.latencyAdjustMethod,
+        metricsOverlay: this._config.metricsOverlay,
         video: !this._noVideo,
         audio: !this._noAudio,
         syncBuffer: this._config.syncBuffer,
