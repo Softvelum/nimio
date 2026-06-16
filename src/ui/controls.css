@@ -226,15 +226,24 @@
     system-ui;
   letter-spacing: 0.4px;
   color: #ff6b6b;
+
   .live-dot {
+    position: relative;
     width: 10px;
     height: 10px;
     border-radius: 50%;
     background: #ff6b6b;
-    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
   }
-  .animated {
+
+  .live-dot.animated::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(255, 107, 107, 0.7);
+
     animation: pulse 2s infinite;
+    pointer-events: none;
   }
 }
 
