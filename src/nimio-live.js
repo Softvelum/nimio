@@ -222,9 +222,9 @@ export class NimioLive {
     this._transport.connected && this._context.state?.value !== STATE.PAUSED
       ? this._sldpManager.requestCurrentStreams()
       : this._sldpManager.start(
-        this._config.streamUrl,
-        this._config.startOffset,
-      );
+          this._config.streamUrl,
+          this._config.startOffset,
+        );
     if (this._debugView) this._debugView.start();
     return true;
   }
