@@ -141,7 +141,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "1";
-    this._controlsBar.querySelector(".live-dot").classList.add("animated");
+    this._liveDot.classList.add("animated");
   }
 
   hideControls(anim) {
@@ -150,7 +150,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "0";
-    this._controlsBar.querySelector(".live-dot").classList.remove("animated");
+    this._liveDot.classList.remove("animated");
   }
 
   clear() {
@@ -268,6 +268,7 @@ export class UI {
     this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
     this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
     this._buttonPictureInPicture = this._controlsBar.querySelector(".btn-pip");
+    this._liveDot = this._controlsBar.querySelector(".live-dot");
 
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);

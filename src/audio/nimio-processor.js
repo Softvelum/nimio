@@ -22,7 +22,7 @@ class AudioNimioProcessor extends AudioWorkletProcessor {
 
     this._stateManager = new StateManager(options.processorOptions.stateSab, {
       shared: options.processorOptions.stateSabShared,
-      reducePost: !options.processorOptions.metricsOverlay,
+      reducePost: options.processorOptions.reduceMetricsPostMessages,
       port: options.processorOptions.stateSabShared ? null : this.port,
       sendInit: false,
     });
