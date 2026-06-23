@@ -49,15 +49,17 @@ export class UI {
     this._autoAbr = this._opts.abrEnabled;
     this._mode = MODE.LIVE;
     this._outputs = [];
-    this._createCanvas();
+    this._createCanvas(!!this._opts.offscreenCanvas);
     if (opts.vod || this._pipNeedsMediaElement()) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
-    this._cctx.save();
-    this._cctx.scale(this._dpr, this._dpr);
-    this._cctx.restore();
+    if (this._cctx) {
+      this._cctx.save();
+      this._cctx.scale(this._dpr, this._dpr);
+      this._cctx.restore();
+    }
 
     this._outputs.forEach((elem) => this._container.appendChild(elem));
 
@@ -92,9 +94,18 @@ export class UI {
       this._splashScreenUrl = `url("${this._opts.splashScreen}")`;
     }
     this._setBackground();
+    if (this._opts.offscreenCanvas) {
+      let url = new URL("offscreen-renderer-worker.js", import.meta.url);
+      this._offscreenRenderer = new Worker(url);
+      let offscreenCanvas = this._canvas.transferControlToOffscreen();
+      this._offscreenRenderer.postMessage({type: "init", canvas: offscreenCanvas }, [offscreenCanvas]);
+    }
   }
 
   destroy() {
+    if (this._offscreenRenderer) {
+      this._offscreenRenderer.postMessage({ type: "release" });      
+    }
     this._clearHideControlsTimer();
     this._removeSeekBar();
     this._removeCaptions();
@@ -135,6 +146,15 @@ export class UI {
     this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
   }
 
+  drawOffscreen(frame) {
+    let message = {
+      type: "videoframe",
+      frame: frame
+    }
+    this._offscreenRenderer.postMessage(message, [frame]);
+  }
+
+
   showControls(anim) {
     this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._btnPlayPause.style.opacity = "0.7";
@@ -153,7 +173,11 @@ export class UI {
 
   clear() {
     if (!this._rendProps) return;
-    this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
+    if (this._offscreenRenderer) {
+      this._offscreenRenderer.postMessage({ type: "clear" });
+    } else {
+      this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
+    }
   }
 
   toggleMode(mode) {
@@ -220,10 +244,12 @@ export class UI {
     return [box.width, box.height];
   }
 
-  _createCanvas() {
+  _createCanvas(forOffscreen) {
     this._canvas = document.createElement("canvas");
     this._bCanvas = new OffscreenCanvas(0, 0);
-    this._cctx = this._canvas.getContext("2d");
+    if (!forOffscreen) {
+      this._cctx = this._canvas.getContext("2d");
+    }
     this._bctx = this._bCanvas.getContext("2d");
 
     this._outputs.push(this._canvas);
@@ -598,6 +624,10 @@ export class UI {
     const props = this._layoutMgr.computeRenderProps(rect.width, rect.height);
     if (props != null) {
       this._rendProps = props;
+    }
+    if (this._offscreenRenderer) {
+      this._offscreenRenderer.postMessage({ type: "resize", rendProps: this._rendProps});
+      return;
     }
     if (this._mode === MODE.LIVE || this._mediaElementMode) {
       if (props != null) {

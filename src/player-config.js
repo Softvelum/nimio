@@ -25,6 +25,7 @@ const DEFAULTS = {
   fullscreen: false,
   dropZeroDurationFrames: false,
   hardwareAcceleration: false,
+  offscreenCanvas: false,
   reconnects: 10,
   splashScreen: null,
   syncBuffer: null,
