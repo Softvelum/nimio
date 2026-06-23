@@ -4,6 +4,9 @@ let canvasWidth = 0;
 let canvasHeight = 0;
 let rendProps = {};
 let dpr = 1.0;
+let bCanvas = null;
+let bctx = null;
+let prevRendProps = null;
 
 self.onmessage = (e) => {
   let type = e.data.type;
@@ -28,11 +31,13 @@ let setup = (data) => {
   if (offscreenCanvas === null) {
     offscreenCanvas = data.canvas;
     offscreenCtx = offscreenCanvas.getContext("2d", { alpha: false });
+    bCanvas = new OffscreenCanvas(0, 0);
+    bctx = bCanvas.getContext("2d");
   }
-  if (data.dpr != 0 && data.dpr != 1) {
-    // offscreenCtx.save();
-    // offscreenCtx.scale(data.dpr, data.dpr);
-    // offscreenCtx.restore();
+  if (data.dpr != 0) {
+    offscreenCtx.save();
+    offscreenCtx.scale(data.dpr, data.dpr);
+    offscreenCtx.restore();
     dpr = data.dpr;
   } else {
     dpr = 1.0;
@@ -45,13 +50,47 @@ let setup = (data) => {
 let resize = (data) => {
   rendProps = data.rendProps;
   if (!rendProps) return;
-  let dprWidth = rendProps.width * dpr;
-  let dprHeight = rendProps.height * dpr;
+
+  const dprWidth = rendProps.width * dpr;
+  const dprHeight = rendProps.height * dpr;
   if (offscreenCanvas.width === dprWidth && offscreenCanvas.height === dprHeight) {
     return;
   }
+
+  bCanvas.width = dprWidth;
+  bCanvas.height = dprHeight;
+  //offscreenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const prp = prevRendProps || rendProps;
+  const rp = rendProps;
+  prevRendProps = rp;
+  bctx.drawImage(
+    offscreenCanvas,
+    prp.dx * dpr,
+    prp.dy * dpr,
+    prp.dWidth * dpr,
+    prp.dHeight * dpr,
+    0,
+    0,
+    rp.dWidth * dpr,
+    rp.dHeight * dpr,
+  );
+
   offscreenCanvas.width = dprWidth;
-  offscreenCanvas.height = dprHeight;  
+  offscreenCanvas.height = dprHeight;
+
+  //offscreenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  offscreenCtx.drawImage(
+    bCanvas,
+    0,
+    0,
+    rp.dWidth * dpr,
+    rp.dHeight * dpr,
+    rp.dx * dpr,
+    rp.dy * dpr,
+    rp.dWidth * dpr,
+    rp.dHeight * dpr,
+  );
 };
 
 let clear = () => {
