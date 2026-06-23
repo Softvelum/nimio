@@ -98,13 +98,16 @@ export class UI {
       let url = new URL("offscreen-renderer-worker.js", import.meta.url);
       this._offscreenRenderer = new Worker(url);
       let offscreenCanvas = this._canvas.transferControlToOffscreen();
-      this._offscreenRenderer.postMessage({type: "init", canvas: offscreenCanvas }, [offscreenCanvas]);
+      this._offscreenRenderer.postMessage(
+        { type: "init", canvas: offscreenCanvas, dpr: this._dpr },
+        [offscreenCanvas],
+      );
     }
   }
 
   destroy() {
     if (this._offscreenRenderer) {
-      this._offscreenRenderer.postMessage({ type: "release" });      
+      this._offscreenRenderer.postMessage({ type: "release" });
     }
     this._clearHideControlsTimer();
     this._removeSeekBar();
@@ -149,11 +152,10 @@ export class UI {
   drawOffscreen(frame) {
     let message = {
       type: "videoframe",
-      frame: frame
-    }
+      frame: frame,
+    };
     this._offscreenRenderer.postMessage(message, [frame]);
   }
-
 
   showControls(anim) {
     this._btnPlayPause.style.transition = anim ? "opacity 0.2s ease" : "none";
@@ -626,7 +628,10 @@ export class UI {
       this._rendProps = props;
     }
     if (this._offscreenRenderer) {
-      this._offscreenRenderer.postMessage({ type: "resize", rendProps: this._rendProps});
+      this._offscreenRenderer.postMessage({
+        type: "resize",
+        rendProps: this._rendProps,
+      });
       return;
     }
     if (this._mode === MODE.LIVE || this._mediaElementMode) {
