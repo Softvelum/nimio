@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { StateManager } from "@/state-manager";
 import { STATE, IDX } from "@/shared/values";
 import { createSharedBuffer } from "@/shared/shared-buffer";
@@ -11,11 +11,14 @@ let isShared;
 
 beforeEach(() => {
   flags.fill(0);
-  manager = new StateManager(buffer);
-  isShared = manager.isShared();
 });
 
 describe("StateManager", () => {
+  beforeEach(() => {
+    manager = new StateManager(buffer);
+    isShared = manager.isShared();
+  });
+
   it("set and get state correctly", () => {
     manager.start();
     expect(manager.isPlaying()).toBe(true);
@@ -228,3 +231,110 @@ describe("StateManager", () => {
     Atomics.load = origLoad;
   });
 });
+
+describe("StateManager on PortMessage", () => {
+  let onPortMessage;
+  let messageChannel;
+  let counterManager;
+  let postMessageSpy;
+
+  beforeEach(() => {
+    onPortMessage = vi.fn();
+    messageChannel = new MessageChannel();
+    manager = new StateManager(buffer, {shared: false, port: messageChannel.port1});
+    counterManager = new StateManager(buffer, { shared: false, port: messageChannel.port2 });
+    postMessageSpy = vi.spyOn(messageChannel.port1, 'postMessage')
+    postMessageSpy.mockClear();
+
+  });
+
+  it("handle state", () => {
+    manager.start();
+    expect(postMessageSpy).toBeCalled();
+    expect(manager.isPlaying()).toBe(true);
+    expect(counterManager.isPlaying()).toBe(true);
+
+    counterManager.pause();
+    expect(postMessageSpy).toBeCalled();
+    expect(manager.isPaused()).toBe(true);
+    expect(counterManager.isPaused()).toBe(true);
+
+    manager.stop();
+    expect(postMessageSpy).toBeCalled();
+    expect(manager.isStopped()).toBe(true);
+    expect(counterManager.isStopped()).toBe(true);
+
+    counterManager.value = STATE.PLAYING;
+    expect(postMessageSpy).toBeCalled();
+    expect(manager.value).toBe(STATE.PLAYING);
+    expect(counterManager.value).toBe(STATE.PLAYING);
+  });
+
+  it("handle silence microseconds counter", () => {
+    expect(manager.getSilenceUs()).toBe(0);
+    
+    manager.incSilenceUs(500);
+    expect(manager.getSilenceUs()).toBe(500);
+    expect(counterManager.getSilenceUs()).toBe(500);
+    
+    counterManager.incSilenceUs(300);
+    expect(manager.getSilenceUs()).toBe(800);
+    expect(counterManager.getSilenceUs()).toBe(800);
+  });
+
+  it("handle timestamp value", () => {
+    expect(manager.getCurrentTsSmp()).toBe(0);
+    expect(counterManager.getCurrentTsSmp()).toBe(0);
+    postMessageSpy.mockClear();
+    manager.incCurrentTsSmp(1000);
+    expect(postMessageSpy).toBeCalled();
+    counterManager.incCurrentTsSmp(300);
+    expect(manager.getCurrentTsSmp()).toBe(1300);
+    expect(counterManager.getCurrentTsSmp()).toBe(1300);
+
+    manager.resetCurrentTsSmp();
+    expect(manager.getCurrentTsSmp()).toBe(0);
+    expect(counterManager.getCurrentTsSmp()).toBe(0);
+    expect(postMessageSpy).toBeCalled();
+  });
+
+  it("handle available audio/video and decoder queue/latency", () => {
+    manager.setAvailableAudioMs(123);
+    expect(manager.getAvailableAudioMs()).toBe(123);
+    expect(counterManager.getAvailableAudioMs()).toBe(123);
+
+    counterManager.setAvailableVideoMs(456);
+    expect(manager.getAvailableVideoMs()).toBe(456);
+    expect(counterManager.getAvailableVideoMs()).toBe(456);
+
+    counterManager.setVideoDecoderQueue(5);
+    expect(manager.getVideoDecoderQueue()).toBe(5);
+    expect(counterManager.getVideoDecoderQueue()).toBe(5);
+    
+    manager.setVideoDecoderLatency(7);
+    expect(manager.getVideoDecoderLatency()).toBe(7);
+    expect(counterManager.getVideoDecoderLatency()).toBe(7);
+
+    manager.setAudioDecoderQueue(9);
+    expect(manager.getAudioDecoderQueue()).toBe(9);
+    expect(counterManager.getAudioDecoderQueue()).toBe(9);
+  })
+
+  it("handle minBuffer and speed", () => {
+    counterManager.setMinBufferMs("short", 300);
+    counterManager.setMinBufferMs("long", 700);
+    expect(manager.getMinBufferMs("short")).toBe(300)
+    expect(manager.getMinBufferMs("long")).toBe(700)
+    expect(counterManager.getMinBufferMs("short")).toBe(300)
+    expect(counterManager.getMinBufferMs("long")).toBe(700)
+
+    manager.setCurrentSpeed(1.5)
+    expect(manager.getCurrentSpeed()).toBe(15000)
+    expect(counterManager.getCurrentSpeed()).toBe(15000)
+    counterManager.setCurrentSpeed(0.8)
+    expect(manager.getCurrentSpeed()).toBe(8000)
+    expect(counterManager.getCurrentSpeed()).toBe(8000)
+  });  
+
+});
+
