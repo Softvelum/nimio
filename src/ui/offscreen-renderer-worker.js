@@ -2,7 +2,7 @@ let offscreenCanvas = null;
 let offscreenCtx = null;
 let canvasWidth = 0;
 let canvasHeight = 0;
-let rendProps = {};
+let rendProps = null;
 let dpr = 1.0;
 let bCanvas = null;
 let bctx = null;
@@ -101,9 +101,8 @@ let clear = () => {
 
 let draw = (data) => {
   let frame = data.frame;
-  if (frame === undefined) return;
   let rp = rendProps;
-  if (!rp) return;
+  if (frame === undefined || !rp) return;
 
   if (offscreenCanvas) {
     offscreenCtx.drawImage(frame, rp.dx * dpr, rp.dy * dpr, rp.dWidth * dpr, rp.dHeight * dpr);
@@ -114,4 +113,5 @@ let draw = (data) => {
 let release = (data) => {
   offscreenCanvas = undefined;
   offscreenCtx = undefined;
+  rp = null;
 };
