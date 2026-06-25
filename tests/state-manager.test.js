@@ -7,7 +7,7 @@ const bufferLength = 20;
 let manager;
 let isShared;
 
-const delay = (ms) => new Promise((res) => setTimeout(res, ms))
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 describe("StateManager", () => {
   const buffer = createSharedBuffer(bufferLength * 4);
@@ -247,12 +247,19 @@ describe("StateManager on PortMessage", () => {
     flags.fill(0);
     onPortMessage = vi.fn();
     messageChannel = new MessageChannel();
-    manager = new StateManager(buffer, { shared: false, port: messageChannel.port1, sendInit: false});
-    counterManager = new StateManager(buffer2, { shared: false, port: messageChannel.port2, sendInit: false });
-    postMessageSpy = vi.spyOn(messageChannel.port1, 'postMessage')
-    postMessageSpy2 = vi.spyOn(messageChannel.port2, 'postMessage')
+    manager = new StateManager(buffer, {
+      shared: false,
+      port: messageChannel.port1,
+      sendInit: false,
+    });
+    counterManager = new StateManager(buffer2, {
+      shared: false,
+      port: messageChannel.port2,
+      sendInit: false,
+    });
+    postMessageSpy = vi.spyOn(messageChannel.port1, "postMessage");
+    postMessageSpy2 = vi.spyOn(messageChannel.port2, "postMessage");
     postMessageSpy.mockClear();
-
   });
 
   it("handle state", async () => {
@@ -283,12 +290,12 @@ describe("StateManager on PortMessage", () => {
 
   it("handle silence microseconds counter", async () => {
     expect(manager.getSilenceUs()).toBe(0);
-    
+
     manager.incSilenceUs(500);
     await delay(50);
     expect(manager.getSilenceUs()).toBe(500);
     expect(counterManager.getSilenceUs()).toBe(500);
-    
+
     counterManager.incSilenceUs(300);
     await delay(50);
     expect(manager.getSilenceUs()).toBe(800);
@@ -331,7 +338,7 @@ describe("StateManager on PortMessage", () => {
     expect(manager.getVideoDecoderQueue()).toBe(5);
     expect(counterManager.getVideoDecoderQueue()).toBe(5);
     expect(postMessageSpy).toBeCalled();
-    
+
     manager.setVideoDecoderLatency(7);
     await delay(50);
     expect(manager.getVideoDecoderLatency()).toBe(7);
@@ -343,34 +350,33 @@ describe("StateManager on PortMessage", () => {
     expect(manager.getAudioDecoderQueue()).toBe(9);
     expect(counterManager.getAudioDecoderQueue()).toBe(9);
     expect(postMessageSpy).toBeCalled();
-  })
+  });
 
   it("handle minBuffer and speed", async () => {
     counterManager.setMinBufferMs("short", 300);
     counterManager.setMinBufferMs("long", 700);
     await delay(50);
-    expect(manager.getMinBufferMs("short")).toBe(300)
-    expect(manager.getMinBufferMs("long")).toBe(700)
-    expect(counterManager.getMinBufferMs("short")).toBe(300)
-    expect(counterManager.getMinBufferMs("long")).toBe(700)
+    expect(manager.getMinBufferMs("short")).toBe(300);
+    expect(manager.getMinBufferMs("long")).toBe(700);
+    expect(counterManager.getMinBufferMs("short")).toBe(300);
+    expect(counterManager.getMinBufferMs("long")).toBe(700);
 
-    manager.setCurrentSpeed(1.5)
+    manager.setCurrentSpeed(1.5);
     await delay(50);
-    expect(manager.getCurrentSpeed()).toBe(15000)
-    expect(counterManager.getCurrentSpeed()).toBe(15000)
-    counterManager.setCurrentSpeed(0.8)
+    expect(manager.getCurrentSpeed()).toBe(15000);
+    expect(counterManager.getCurrentSpeed()).toBe(15000);
+    counterManager.setCurrentSpeed(0.8);
     await delay(50);
-    expect(manager.getCurrentSpeed()).toBe(8000)
-    expect(counterManager.getCurrentSpeed()).toBe(8000)
-  });  
-
+    expect(manager.getCurrentSpeed()).toBe(8000);
+    expect(counterManager.getCurrentSpeed()).toBe(8000);
+  });
 });
 
 describe("StateManager on PortMessage (reducePost)", () => {
   const buffer = new ArrayBuffer(bufferLength * 4);
   const flags = new Uint32Array(buffer);
   const buffer2 = new ArrayBuffer(bufferLength * 4);
-  
+
   let onPortMessage;
   let messageChannel;
   let counterManager;
@@ -379,9 +385,19 @@ describe("StateManager on PortMessage (reducePost)", () => {
   beforeEach(() => {
     onPortMessage = vi.fn();
     messageChannel = new MessageChannel();
-    manager = new StateManager(buffer, { shared: false, port: messageChannel.port1, reducePost: true,  sendInit: false });
-    counterManager = new StateManager(buffer2, { shared: false, port: messageChannel.port2, reducePost: true, sendInit: false });
-    postMessageSpy = vi.spyOn(messageChannel.port1, 'postMessage')
+    manager = new StateManager(buffer, {
+      shared: false,
+      port: messageChannel.port1,
+      reducePost: true,
+      sendInit: false,
+    });
+    counterManager = new StateManager(buffer2, {
+      shared: false,
+      port: messageChannel.port2,
+      reducePost: true,
+      sendInit: false,
+    });
+    postMessageSpy = vi.spyOn(messageChannel.port1, "postMessage");
     postMessageSpy.mockClear();
   });
 
@@ -473,25 +489,24 @@ describe("StateManager on PortMessage (reducePost)", () => {
     expect(manager.getAudioDecoderQueue()).toBe(9);
     expect(counterManager.getAudioDecoderQueue()).not.toBe(9);
     expect(postMessageSpy).not.toBeCalled();
-  })
+  });
 
   it("handle minBuffer and speed not passed", async () => {
     counterManager.setMinBufferMs("short", 300);
     counterManager.setMinBufferMs("long", 700);
     await delay(50);
-    expect(manager.getMinBufferMs("short")).not.toBe(300)
-    expect(manager.getMinBufferMs("long")).not.toBe(700)
-    expect(counterManager.getMinBufferMs("short")).toBe(300)
-    expect(counterManager.getMinBufferMs("long")).toBe(700)
+    expect(manager.getMinBufferMs("short")).not.toBe(300);
+    expect(manager.getMinBufferMs("long")).not.toBe(700);
+    expect(counterManager.getMinBufferMs("short")).toBe(300);
+    expect(counterManager.getMinBufferMs("long")).toBe(700);
 
-    manager.setCurrentSpeed(1.5)
+    manager.setCurrentSpeed(1.5);
     await delay(50);
-    expect(manager.getCurrentSpeed()).toBe(15000)
-    expect(counterManager.getCurrentSpeed()).not.toBe(15000)
-    counterManager.setCurrentSpeed(0.8)
+    expect(manager.getCurrentSpeed()).toBe(15000);
+    expect(counterManager.getCurrentSpeed()).not.toBe(15000);
+    counterManager.setCurrentSpeed(0.8);
     await delay(50);
-    expect(manager.getCurrentSpeed()).not.toBe(8000)
-    expect(counterManager.getCurrentSpeed()).toBe(8000)
+    expect(manager.getCurrentSpeed()).not.toBe(8000);
+    expect(counterManager.getCurrentSpeed()).toBe(8000);
   });
-
 });
