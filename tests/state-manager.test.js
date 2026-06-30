@@ -267,6 +267,7 @@ describe("StateManager on PortMessage", () => {
     messageChannel.port1.addEventListener("message", port1Listener);
     messageChannel.port2.addEventListener("message", port2Listener);
     postMessageSpy.mockClear();
+    postMessageSpy2.mockClear();
   });
 
   describe("(All values)", () => {
@@ -294,18 +295,21 @@ describe("StateManager on PortMessage", () => {
       expect(postMessageSpy2).toBeCalled();
       expect(manager.isPaused()).toBe(true);
       expect(counterManager.isPaused()).toBe(true);
+      postMessageSpy2.mockClear();
 
       manager.stop();
       await waitForCounterManager();
       expect(postMessageSpy).toBeCalled();
       expect(manager.isStopped()).toBe(true);
       expect(counterManager.isStopped()).toBe(true);
+      postMessageSpy.mockClear();
 
       counterManager.value = STATE.PLAYING;
       await waitForManager();
-      expect(postMessageSpy).toBeCalled();
+      expect(postMessageSpy2).toBeCalled();
       expect(manager.value).toBe(STATE.PLAYING);
       expect(counterManager.value).toBe(STATE.PLAYING);
+      postMessageSpy2.mockClear();
     });
 
     it("handle silence microseconds counter", async () => {
@@ -313,13 +317,17 @@ describe("StateManager on PortMessage", () => {
 
       manager.incSilenceUs(500);
       await waitForCounterManager();
+      expect(postMessageSpy).toBeCalled();
       expect(manager.getSilenceUs()).toBe(500);
       expect(counterManager.getSilenceUs()).toBe(500);
+      postMessageSpy.mockClear();
 
       counterManager.incSilenceUs(300);
       await waitForManager();
+      expect(postMessageSpy2).toBeCalled();
       expect(manager.getSilenceUs()).toBe(800);
       expect(counterManager.getSilenceUs()).toBe(800);
+      postMessageSpy2.mockClear();
     });
 
     it("handle timestamp value", async () => {
@@ -332,6 +340,7 @@ describe("StateManager on PortMessage", () => {
       expect(manager.getCurrentTsSmp()).toBe(1300);
       expect(counterManager.getCurrentTsSmp()).toBe(1300);
 
+      postMessageSpy.mockClear();
       manager.resetCurrentTsSmp();
       await waitForCounterManager();
       expect(manager.getCurrentTsSmp()).toBe(0);
@@ -345,30 +354,35 @@ describe("StateManager on PortMessage", () => {
       expect(manager.getAvailableAudioMs()).toBe(123);
       expect(counterManager.getAvailableAudioMs()).toBe(123);
       expect(postMessageSpy).toBeCalled();
+      postMessageSpy.mockClear();
 
       counterManager.setAvailableVideoMs(456);
       await waitForManager();
       expect(manager.getAvailableVideoMs()).toBe(456);
       expect(counterManager.getAvailableVideoMs()).toBe(456);
-      expect(postMessageSpy).toBeCalled();
+      expect(postMessageSpy2).toBeCalled();
+      postMessageSpy2.mockClear();
 
       counterManager.setVideoDecoderQueue(5);
       await waitForManager();
       expect(manager.getVideoDecoderQueue()).toBe(5);
       expect(counterManager.getVideoDecoderQueue()).toBe(5);
-      expect(postMessageSpy).toBeCalled();
+      expect(postMessageSpy2).toBeCalled();
+      postMessageSpy2.mockClear();
 
       manager.setVideoDecoderLatency(7);
       await waitForCounterManager();
       expect(manager.getVideoDecoderLatency()).toBe(7);
       expect(counterManager.getVideoDecoderLatency()).toBe(7);
       expect(postMessageSpy).toBeCalled();
+      postMessageSpy.mockClear();
 
       manager.setAudioDecoderQueue(9);
       await waitForCounterManager();
       expect(manager.getAudioDecoderQueue()).toBe(9);
       expect(counterManager.getAudioDecoderQueue()).toBe(9);
       expect(postMessageSpy).toBeCalled();
+      postMessageSpy.mockClear();
     });
 
     it("handle minBuffer and speed", async () => {
@@ -423,6 +437,7 @@ describe("StateManager on PortMessage", () => {
       expect(manager.isStopped()).toBe(true);
       expect(postMessageSpy).toBeCalled();
       expect(counterManager.isStopped()).toBe(true);
+      postMessageSpy.mockClear();
 
       counterManager.value = STATE.PLAYING;
       await waitForManager();
@@ -453,6 +468,10 @@ describe("StateManager on PortMessage", () => {
       await waitForManager();
       expect(manager.getCurrentTsSmp()).toBe(1300);
       expect(counterManager.getCurrentTsSmp()).toBe(1300);
+      expect(postMessageSpy).toBeCalled();
+      expect(postMessageSpy2).toBeCalled();
+       postMessageSpy.mockClear();
+       postMessageSpy2.mockClear();
 
       manager.resetCurrentTsSmp();
       expect(manager.getCurrentTsSmp()).toBe(0);
@@ -475,13 +494,13 @@ describe("StateManager on PortMessage", () => {
       await delay(50);
       expect(manager.getAvailableVideoMs()).not.toBe(456);
       expect(counterManager.getAvailableVideoMs()).toBe(456);
-      expect(postMessageSpy).not.toBeCalled();
+      expect(postMessageSpy2).not.toBeCalled();
 
       counterManager.setVideoDecoderQueue(5);
       await delay(50);
       expect(manager.getVideoDecoderQueue()).not.toBe(5);
       expect(counterManager.getVideoDecoderQueue()).toBe(5);
-      expect(postMessageSpy).not.toBeCalled();
+      expect(postMessageSpy2).not.toBeCalled();
 
       manager.setVideoDecoderLatency(7);
       await delay(50);
@@ -505,15 +524,19 @@ describe("StateManager on PortMessage", () => {
       expect(manager.getMinBufferMs("long")).not.toBe(700);
       expect(counterManager.getMinBufferMs("short")).toBe(300);
       expect(counterManager.getMinBufferMs("long")).toBe(700);
+      expect(postMessageSpy).not.toBeCalled();
+      expect(postMessageSpy2).not.toBeCalled();
 
       manager.setCurrentSpeed(1.5);
       await delay(50);
       expect(manager.getCurrentSpeed()).toBe(15000);
       expect(counterManager.getCurrentSpeed()).not.toBe(15000);
+      expect(postMessageSpy).not.toBeCalled();
       counterManager.setCurrentSpeed(0.8);
       await delay(50);
       expect(manager.getCurrentSpeed()).not.toBe(8000);
       expect(counterManager.getCurrentSpeed()).toBe(8000);
+      expect(postMessageSpy2).not.toBeCalled();
     });
   });
 });

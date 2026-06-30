@@ -225,7 +225,7 @@ export class UI {
   _createCanvas() {
     this._canvas = document.createElement("canvas");
     this._bCanvas = new OffscreenCanvas(0, 0);
-    this._cctx = this._canvas.getContext("2d", { alpha: false });
+    this._cctx = this._canvas.getContext("2d");
     this._bctx = this._bCanvas.getContext("2d", { alpha: false });
 
     this._outputs.push(this._canvas);
