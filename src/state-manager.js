@@ -19,8 +19,22 @@ export class StateManager {
     if (options.port) {
       this.attachPort(options.port);
     }
+    if (!this._shared && options.reducePost) {
+      this._quietSet = new Set([
+        IDX.AVAILABLE_AUDIO,
+        IDX.AVAILABLE_VIDEO,
+        IDX.VIDEO_DECODER_QUEUE,
+        IDX.VIDEO_DECODER_LATENCY,
+        IDX.AUDIO_DECODER_QUEUE,
+        IDX.MIN_BUFFER_SHORT,
+        IDX.MIN_BUFFER_LONG,
+        IDX.MIN_BUFFER_EMA,
+        IDX.CURRENT_SPEED,
+      ]);
+    } else {
+      this._quietSet = new Set();
+    }
   }
-
   get value() {
     return this._load32(IDX.STATE);
   }
@@ -311,6 +325,7 @@ export class StateManager {
 
   _notify(op, idx, value) {
     if (this._shared || !this._port || this._suppressNotify) return;
+    if (this._quietSet?.has(idx)) return;
     this._port.postMessage({
       type: "state:update",
       op,

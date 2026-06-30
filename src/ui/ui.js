@@ -141,6 +141,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "1";
+    this._liveDot.classList.add("animated");
   }
 
   hideControls(anim) {
@@ -149,6 +150,7 @@ export class UI {
 
     this._controlsBar.style.transition = anim ? "opacity 0.2s ease" : "none";
     this._controlsBar.style.opacity = "0";
+    this._liveDot.classList.remove("animated");
   }
 
   clear() {
@@ -224,7 +226,7 @@ export class UI {
     this._canvas = document.createElement("canvas");
     this._bCanvas = new OffscreenCanvas(0, 0);
     this._cctx = this._canvas.getContext("2d");
-    this._bctx = this._bCanvas.getContext("2d");
+    this._bctx = this._bCanvas.getContext("2d", { alpha: false });
 
     this._outputs.push(this._canvas);
   }
@@ -266,6 +268,7 @@ export class UI {
     this._abrMenuPopover = this._controlsBar.querySelector(".abr-menu");
     this._abrMenuSection = this._abrMenuPopover.querySelector(".menu-section");
     this._buttonPictureInPicture = this._controlsBar.querySelector(".btn-pip");
+    this._liveDot = this._controlsBar.querySelector(".live-dot");
 
     if (opts.vod) {
       this._seekBar = new UISeekBar(this._instName, this._controlsBar);
