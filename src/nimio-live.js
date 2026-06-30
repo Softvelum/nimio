@@ -45,8 +45,14 @@ export class NimioLive {
       return total;
     }, 0);
     this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
-    this._sabShared = isSharedBuffer(this._sab);
+    const isShared = isSharedBuffer(this._sab);
+    this._sabShared = isShared;
     this._state = new StateManager(this._sab, { shared: this._sabShared });
+    if (!isShared) {
+      let liveContextChannel = MessageChannel()
+      this._liveContextChannel = liveContextChannel;
+      this._state.attachPort(liveContextChannel.port1);
+    }
     this._state.stop();
 
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
@@ -99,6 +105,10 @@ export class NimioLive {
     this._liveContext.onResponse = this.handleLiveContext.bind(this);
     this._liveContext.getFrame = this.popFrameForTime.bind(this);
     this._liveContext.isSuspended = this.isSuspended.bind(this)
+    this._liveContext.isAutoAbr = this._isAutoAbr.bind(this);
+    if (this._liveContextChannel) {
+      this._liveContext.attachPort(this._liveContextChannel.port2);
+    }
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -116,11 +126,9 @@ export class NimioLive {
 
   popFrameForTime(ts) {
     let frame = this._videoBuffer.popFrameForTime(ts);
-    if (!frame) {
-      this._logger.debug(`No frame for ${ts}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-    } else {
-      this._logger.debug("Got frame")
-    }
+    // if (!frame) {
+    //   this._logger.debug(`No frame for ${ts}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+    // }
     return frame;
   }
 
@@ -130,17 +138,11 @@ export class NimioLive {
 
 
   handleLiveContext(cmd, params) {
-    // switch (cmd) {
-    //   case "play":
-    //     this.onPlay(params);
-    //     break;
-    //   case "pause":
-    //     this.onPause();
-    //     break;
-    //   case "stop":
-    //     this.onStopped(params);
-    //     break;
-    // }
+     switch (cmd) {
+       case "buffer-level":
+        this._reportBufferLevel(params);
+        break;
+     }
   }
 
   play() {
@@ -150,7 +152,6 @@ export class NimioLive {
     this._cancelPauseTimeout();
 
     this._state.start();
-    //this._latencyCtrl.start();
     this._liveContext.play();
     if (this._isAutoAbr()) {
       this._startAbrController();
@@ -165,19 +166,12 @@ export class NimioLive {
     } else if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
     }    
-    //this._liveContext.play();
-  }
-
-
-  onPlay(options) {
-
   }
 
   pause() {
     if (this._state.isPaused()) return;
 
     this._state.pause();
-    // this._latencyCtrl.pause();
     this._liveContext.pause();
     this._reconnect.stop();
     if (this._isAutoAbr()) this._abrController.stop();
@@ -211,28 +205,6 @@ export class NimioLive {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
     }    
     this._liveContext.stop();
-  }
-
-  onStopped(options) {
-    const isStopped = !!options.wasStopped;
-    const closeConnection = !options.keepConnection;
-    if (!isStopped || (closeConnection && this._transport.connected)) {
-      this._sldpManager.stop({ closeConnection });
-    }
-    if (isStopped) return;
-
-    this._reconnect.reset();
-    if (this._debugView) this._debugView.stop();
-
-    if (this._isAutoAbr()) {
-      this._abrController.stop({ hard: true });
-    }
-    this._resetPlayback();
-    this._grabber?.stop();
-
-    if (closeConnection) {
-      this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
-    }
   }
 
   attach(ui, params) {
@@ -655,7 +627,6 @@ export class NimioLive {
     }
     this._liveContext.resetPlayback();
     if (this._syncModeParams) this._syncModeParams = {};
-    //this._advertizerEval.reset();
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
