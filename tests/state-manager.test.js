@@ -470,8 +470,8 @@ describe("StateManager on PortMessage", () => {
       expect(counterManager.getCurrentTsSmp()).toBe(1300);
       expect(postMessageSpy).toBeCalled();
       expect(postMessageSpy2).toBeCalled();
-       postMessageSpy.mockClear();
-       postMessageSpy2.mockClear();
+      postMessageSpy.mockClear();
+      postMessageSpy2.mockClear();
 
       manager.resetCurrentTsSmp();
       expect(manager.getCurrentTsSmp()).toBe(0);
