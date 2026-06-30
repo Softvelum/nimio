@@ -12,6 +12,6 @@
     "nimio-player": "file:.local-package/nimio-player-local.tgz"
   },
   "devDependencies": {
-    "vite": "^7.3.1"
+    "vite": "^7.3.6"
   }
 }
