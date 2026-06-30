@@ -64,25 +64,25 @@ export default defineConfig({
     https: httpsConfig,
   },
   plugins: [
-    // {
-    //   // COOP/COEP required for SharedArrayBuffer
-    //   name: "vite-plugin-coop-coep",
-    //   // `npm run dev`
-    //   configureServer(server) {
-    //     server.middlewares.use((req, res, next) => {
-    //       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-    //       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-    //       next();
-    //     });
-    //   },
-    //   // `npm run preview`
-    //   configurePreviewServer(server) {
-    //     server.middlewares.use((req, res, next) => {
-    //       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-    //       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-    //       next();
-    //     });
-    //   },
-    // },
+    {
+      // COOP/COEP required for SharedArrayBuffer
+      name: "vite-plugin-coop-coep",
+      // `npm run dev`
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          next();
+        });
+      },
+      // `npm run preview`
+      configurePreviewServer(server) {
+        server.middlewares.use((req, res, next) => {
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          next();
+        });
+      },
+    },
   ],
 });

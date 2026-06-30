@@ -29,6 +29,7 @@ import { AdvertizerEvaluator } from "./advertizer/evaluator";
 import { VUMeterService } from "./vumeter/service";
 import { AudioController } from "./audio/controller";
 import { MediaGrabber } from "./grabber";
+import { NimioLiveContext } from "./nimio-live-context";
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -39,7 +40,6 @@ export class NimioLive {
     this._logger = LoggersFactory.create(this._instName, "Nimio Live");
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
     this._eventBus = EventBus.getInstance(this._instName);
-
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
       return total;
@@ -73,7 +73,7 @@ export class NimioLive {
     });
 
     this._resetPlaybackTimestamps();
-    this._renderVideoFrame = this._renderVideoFrame.bind(this);
+    //this._renderVideoFrame = this._renderVideoFrame.bind(this);
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -92,11 +92,13 @@ export class NimioLive {
       this._createAbrController();
     }
 
-    this._advertizerEval = new AdvertizerEvaluator(this._instName);
-    this._createLatencyController();
     if (this._config.syncBuffer > 0) {
       this._createSyncModeParams();
     }
+    this._liveContext = new NimioLiveContext(instanceName, ui, config, this._sab);
+    this._liveContext.onResponse = this.handleLiveContext.bind(this);
+    this._liveContext.getFrame = this.popFrameForTime.bind(this);
+    this._liveContext.isSuspended = this.isSuspended.bind(this)
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -112,6 +114,35 @@ export class NimioLive {
     this._offscreenCanvas = !!this._config.offscreenCanvas;
   }
 
+  popFrameForTime(ts) {
+    let frame = this._videoBuffer.popFrameForTime(ts);
+    if (!frame) {
+      this._logger.debug(`No frame for ${ts}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+    } else {
+      this._logger.debug("Got frame")
+    }
+    return frame;
+  }
+
+  isSuspended() {
+    return this._audioCtxProvider.isSuspended()
+  }
+
+
+  handleLiveContext(cmd, params) {
+    // switch (cmd) {
+    //   case "play":
+    //     this.onPlay(params);
+    //     break;
+    //   case "pause":
+    //     this.onPause();
+    //     break;
+    //   case "stop":
+    //     this.onStopped(params);
+    //     break;
+    // }
+  }
+
   play() {
     if (this._state.isPlaying()) return;
 
@@ -119,14 +150,12 @@ export class NimioLive {
     this._cancelPauseTimeout();
 
     this._state.start();
-    this._latencyCtrl.start();
+    //this._latencyCtrl.start();
+    this._liveContext.play();
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
     this._eventBus.emit("nimio:play", { mode: MODE.LIVE });
-
-    this._playbackStarted = false;
-    requestAnimationFrame(this._renderVideoFrame);
 
     if (initialPlay) {
       this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
@@ -135,14 +164,21 @@ export class NimioLive {
       }
     } else if (this._audioCtxProvider.isSuspended()) {
       this._audioCtxProvider.get().resume();
-    }
+    }    
+    //this._liveContext.play();
+  }
+
+
+  onPlay(options) {
+
   }
 
   pause() {
     if (this._state.isPaused()) return;
 
     this._state.pause();
-    this._latencyCtrl.pause();
+    // this._latencyCtrl.pause();
+    this._liveContext.pause();
     this._reconnect.stop();
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
@@ -159,9 +195,32 @@ export class NimioLive {
     if (!isStopped || (closeConnection && this._transport.connected)) {
       this._sldpManager.stop({ closeConnection });
     }
+    if (!sStopped) {
+      this._state.stop();
+    }
+
+    this._reconnect.reset();
+    if (this._debugView) this._debugView.stop();
+
+    if (this._isAutoAbr()) {
+       this._abrController.stop({ hard: true });
+    }
+    this._resetPlayback();
+    this._grabber?.stop();
+    if (closeConnection) {
+      this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+    }    
+    this._liveContext.stop();
+  }
+
+  onStopped(options) {
+    const isStopped = !!options.wasStopped;
+    const closeConnection = !options.keepConnection;
+    if (!isStopped || (closeConnection && this._transport.connected)) {
+      this._sldpManager.stop({ closeConnection });
+    }
     if (isStopped) return;
 
-    this._state.stop();
     this._reconnect.reset();
     if (this._debugView) this._debugView.stop();
 
@@ -208,14 +267,11 @@ export class NimioLive {
 
       return true;
     }
-
-    this._state.start();
-    this._latencyCtrl.start();
+    this._liveContext.onAttach();
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
-    this._playbackStarted = false;
-    requestAnimationFrame(this._renderVideoFrame);
+    //requestAnimationFrame(this._renderVideoFrame);
 
     this._transport.connected && this._context.state?.value !== STATE.PAUSED
       ? this._sldpManager.requestCurrentStreams()
@@ -336,7 +392,7 @@ export class NimioLive {
       }
     }
     if (latencyParams.count > 0) {
-      this._updateLatencyParams(latencyParams);
+      this._liveContext.updateLatencyParams(latencyParams);
       if (latencyParams.latency > 0 && this._abrController) {
         // TODO: update abr controller buffering with the new latency value
         if (
@@ -401,53 +457,46 @@ export class NimioLive {
     data.play ? this.play() : this.pause();
   }
 
-  _renderVideoFrame() {
-    if (this._noVideo || !this._state.isPlaying()) return true;
+  // _renderVideoFrame() {
+  //   if (this._noVideo || !this._state.isPlaying()) return true;
 
-    requestAnimationFrame(this._renderVideoFrame);
-    if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
-      return true;
-    }
+  //   requestAnimationFrame(this._renderVideoFrame);
+  //   if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
+  //     return true;
+  //   }
 
-    let curPlayedTsUs;
-    if (this._audioCtxProvider.isSuspended()) {
-      curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
-    } else {
-      curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
-    }
-    this._updateBufferLevelMetrics();
+  //   let curPlayedTsUs;
+  //   if (this._audioCtxProvider.isSuspended()) {
+  //     curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
+  //   } else {
+  //     curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
+  //   }
+  //   this._updateBufferLevelMetrics();
 
-    if (this._latencyCtrl.isPending()) return true;
+  //   if (this._latencyCtrl.isPending()) return true;
 
-    const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
-    if (!frame) {
-      // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-      return true;
-    }
+  //   const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
+  //   if (!frame) {
+  //     // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+  //     return true;
+  //   }
 
-    if (!this._playbackStarted) {
-      this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
-      this._playbackStarted = true;
-      this._grabber?.start(MODE.LIVE);
-    }
-    if (this._offscreenCanvas) {
-      this._ui.drawOffscreen(frame);
-      return;
-    }
+  //   if (!this._playbackStarted) {
+  //     this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
+  //     this._playbackStarted = true;
+  //     this._grabber?.start(MODE.LIVE);
+  //   }
+  //   if (this._offscreenCanvas) {
+  //     this._ui.drawOffscreen(frame);
+  //     return;
+  //   }
 
-    this._ui.drawFrame(frame);
-    if (this._grabber) {
-      this._grabber.handleLiveFrame(frame);
-    }
-    frame.close();
-  }
-
-  // TODO: move this function with renderVideoFrame to a separate component
-  _setSpeed(speed, availableMs) {
-    if (this._speed === speed) return;
-    this._speed = speed;
-    this._logger.debug(`speed ${speed}`, availableMs);
-  }
+  //   this._ui.drawFrame(frame);
+  //   if (this._grabber) {
+  //     this._grabber.handleLiveFrame(frame);
+  //   }
+  //   frame.close();
+  // }
 
   _createMainDecoderFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
@@ -582,7 +631,8 @@ export class NimioLive {
     this._logger.warn(
       `set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`,
     );
-    this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
+    //this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
+    this._liveContext.setPlaybackStartTsUs(this._playbackStartTsUs);
   }
 
   _cancelPauseTimeout() {
@@ -595,7 +645,6 @@ export class NimioLive {
     this._ui.clear();
     this._videoBuffer.reset();
     this._noVideo = this._config.audioOnly;
-    this._playbackStarted = false;
 
     this._stopAudio();
     this._vuMeterSvc.stop();
@@ -604,9 +653,9 @@ export class NimioLive {
       this._audioBuffer.reset();
       this._audioBuffer = null;
     }
-    this._latencyCtrl.reset();
+    this._liveContext.resetPlayback();
     if (this._syncModeParams) this._syncModeParams = {};
-    this._advertizerEval.reset();
+    //this._advertizerEval.reset();
 
     if (this._nextRenditionData) {
       if (this._nextRenditionData.decoderFlow) {
@@ -625,10 +674,7 @@ export class NimioLive {
 
     this._grabber?.stop();
 
-    this._state.setPlaybackStartTsUs(0);
-    this._state.setVideoLatestTsUs(0);
-    this._state.setAudioLatestTsUs(0);
-    this._state.resetCurrentTsSmp();
+    this._liveContext.resetTimestamps();
     this._resetPlaybackTimestamps();
 
     this._cancelPauseTimeout();
@@ -772,9 +818,7 @@ export class NimioLive {
 
     this._audioNode.port.start();
     this._workletLogReceiver.add(this._audioNode);
-    if (!this._state.isShared()) {
-      this._state.attachPort(this._audioNode.port);
-    }
+    this._liveContext.attachPort(this._audioNode.port);
     if (this._audioBuffer && !this._audioBuffer.isShareable) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
@@ -786,7 +830,7 @@ export class NimioLive {
       await smc.sync();
       this._applySyncModeParams();
     }
-    this._sendPendingAdvertizerActions();
+    this._liveContext.sendPendingAdvertizerActions();
 
     if (this._vuMeterSvc.isInitialized() && !this._vuMeterSvc.isStarted()) {
       this._vuMeterSvc.start();
@@ -852,24 +896,6 @@ export class NimioLive {
     }
   }
 
-  _createLatencyController() {
-    this._latencyCtrl = new LatencyController(
-      this._config.instanceName,
-      this._state,
-      this._audioConfig,
-      this._advertizerEval,
-      {
-        latency: this._config.latency,
-        tolerance: this._config.latencyTolerance,
-        adjustMethod: this._config.latencyAdjustMethod,
-        video: !this._noVideo,
-        audio: !this._noAudio,
-        syncBuffer: this._config.syncBuffer,
-      },
-    );
-    this._speed = 1;
-    this._latencyCtrl.speedFn = this._setSpeed.bind(this);
-  }
 
   _updateLatencyParams(params) {
     if (this._audioNode) {
