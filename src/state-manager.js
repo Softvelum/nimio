@@ -1,5 +1,6 @@
 import { STATE, IDX } from "./shared/values";
 import { isSharedBuffer } from "./shared/shared-buffer";
+import { LoggersFactory } from "@/shared/logger";
 
 const U32POWER = 0x0100000000;
 
@@ -14,10 +15,15 @@ export class StateManager {
       options.shared ?? (typeof Atomics !== "undefined" && isSharedBuffer(sab));
     this._suppressNotify = false;
     this._port = null;
+    this.displayName = options.name ?? "Untitled";
+    this._logger = LoggersFactory.create("nimio", "State" + this.displayName);
     this._onPortMessage = this._handlePortMessage.bind(this);
     this._sendInit = options.sendInit ?? true;
     if (options.port) {
       this.attachPort(options.port);
+    }
+    if (options.auxPort) {
+      this.port2 = auxPort;
     }
   }
 
@@ -62,14 +68,18 @@ export class StateManager {
   }
 
   getCurrentTsSmp() {
-    return this._atomicLoad64(IDX.CURRENT_TS);
+    const smpCnt = this._atomicLoad64(IDX.CURRENT_TS);
+    //this._logger.debug(`${this.displayName} getCurrentTsSmp ${smpCnt}`)
+    return smpCnt;
   }
 
   setCurrentTsSmp(smpCnt) {
+    //this._logger.debug(`${this.displayName} setCurrentTsSmp ${smpCnt}`)
     this._atomicStore64(IDX.CURRENT_TS, smpCnt);
   }
 
   incCurrentTsSmp(smpCnt) {
+    //this._logger.debug(`${this.displayName} incCurrentTsSmp ${smpCnt}`)
     return this._atomicAdd64(IDX.CURRENT_TS, smpCnt);
   }
 
@@ -94,10 +104,13 @@ export class StateManager {
   }
 
   getPlaybackStartTsUs() {
-    return this._atomicLoad64(IDX.PLAYBACK_START_TS);
+    const tsUs = this._atomicLoad64(IDX.PLAYBACK_START_TS);
+    this._logger.debug(`${this.displayName} PlaybackStartTsUs == ${tsUs}`)
+    return tsUs;
   }
 
   setPlaybackStartTsUs(tsUs) {
+    this._logger.debug(`${this.displayName} PlaybackStartTsUs := ${tsUs}`)
     this._atomicStore64(IDX.PLAYBACK_START_TS, tsUs);
   }
 
@@ -271,11 +284,17 @@ export class StateManager {
     }
   }
 
-  attachPort(port) {
+  attachPort(port, port2) {
     if (!port) return;
     if (this._port) {
       this._detachPort();
     }
+    if (port2) {
+      this._port2 = port2;
+    } else {
+      this._port2 = undefined;
+    }
+    this._logger.debug(`${this.displayName} attachPort`)
     this._port = port;
     this._port.addEventListener("message", this._onPortMessage);
     if (this._sendInit) {
@@ -310,19 +329,37 @@ export class StateManager {
   }
 
   _notify(op, idx, value) {
-    if (this._shared || !this._port || this._suppressNotify) return;
-    this._port.postMessage({
+    const skipSend = (this._shared || !this._port || this._suppressNotify)
+    if (idx == 9 || idx == 10) { //PLAYBACK_START_TS 
+      if (skipSend) {
+        this._logger.debug(`State ${this.displayName} send ${op} PLAYBACK_START_TS SKIP ${!!this._shared} ${!!this._port} ${this._suppressNotify}`)
+      } else {
+        this._logger.debug(`State ${this.displayName} send ${op} PLAYBACK_START_TS ${value}.`)
+      }
+    }
+    if (skipSend) return;
+    const msg = {
       type: "state:update",
       op,
       idx,
       value,
-    });
+    };
+    this._port.postMessage(msg);
+    if (this._port2) {
+      this._port2.postMessage(msg);
+    }
+
   }
 
   _handlePortMessage(ev) {
     const msg = ev.data;
     if (!msg || msg.type !== "state:update") return;
-
+   if (msg.idx == 9 || msg.idx == 10) { //PLAYBACK_START_TS 
+      const smpCnt = this._atomicLoad64(IDX.PLAYBACK_START_TS);      
+      this._logger.debug(`State ${this.displayName} received ${msg.op} PLAYBACK_START_TS ${msg.value} to ${smpCnt}`)
+   } else {
+     this._logger.debug(`State ${this.displayName} received ${msg.op}`)
+   } 
     this._suppressNotify = true;
     if (msg.op === "init" && Array.isArray(msg.value)) {
       this._flags.set(msg.value);
@@ -340,6 +377,8 @@ export class StateManager {
 
   _detachPort() {
     if (!this._port) return;
+    this._logger.debug(`${this.displayName} detachPort`)
+
     this._port.removeEventListener("message", this._onPortMessage);
     this._port = null;
   }

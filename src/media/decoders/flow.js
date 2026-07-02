@@ -289,6 +289,7 @@ export class DecoderFlow {
     }
 
     if (this._startTsUs === 0) {
+      this._logger.debug("onStartTsNotSet", this._type);
       if (this._onStartTsNotSet) {
         let res = await this._onStartTsNotSet(frame);
         if (!res) {
