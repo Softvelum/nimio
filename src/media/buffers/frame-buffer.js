@@ -69,6 +69,15 @@ export class FrameBuffer {
     return frame;
   }
 
+  popFirstFrame() {
+    if (this._frames.isEmpty()) {
+      return null;
+    }    
+    const frame = this._frames.pop();
+    this._updateFirstFrameTs();
+    return frame;
+  }
+
   absorb(frameBuffer) {
     frameBuffer.forEach((frame) => {
       if (frame.timestamp > this._lastFrameTs) {

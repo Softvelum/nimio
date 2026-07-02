@@ -313,6 +313,10 @@ export class DecoderFlow {
     if (this._buffer.isPreallocated) {
       frame.close();
     }
+    this._eventBus.emit("transp:frame-decoded", {
+      type: this._type,
+    });
+   
   }
 
   _addDecoderListener() {

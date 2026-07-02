@@ -12,7 +12,7 @@ import { Reconnector } from "./reconnector";
 import { AdvertizerEvaluator } from "./advertizer/evaluator";
 
 export class NimioLiveContext {
-  constructor(instanceName, ui, config, sab) {
+  constructor(instanceName, config, sab) {
     this._instName = instanceName;
     this._config = config;
     this._ui = ui;
@@ -39,7 +39,7 @@ export class NimioLiveContext {
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
     this.onResponse = () => {};
-    this.isAutoAbr = () => false;
+    this.onDrawFrame = () => {};
     this._advertizerEval = new AdvertizerEvaluator(this._instName);
     this._createLatencyController();
     this._eventBus.on("transp:track-action", this.onTrackAction.bind(this));
@@ -106,14 +106,15 @@ export class NimioLiveContext {
     this._logger.debug(`speed ${speed}`, availableMs);
   }
 
-  setPlaybackStartTsUs(ts) {
-    this._logger.debug("LiveContext: setPlaybackStartTsUs", ts);
-    this._playbackStartTsUs = ts;
-    this._state.setPlaybackStartTsUs(ts);
-  }
+  // setPlaybackStartTsUs(ts) {
+  //   this._logger.debug("LiveContext: setPlaybackStartTsUs", ts);
+  //   this._playbackStartTsUs = ts;
+  //   this._state.setPlaybackStartTsUs(ts);
+  // }
 
   resetTimestamps() {
     this._logger.debug("LiveContext: resetPlaybackStartTsUs");
+    this._playbackStartTsUs = 0;
     this._state.setPlaybackStartTsUs(0);
     this._state.setVideoLatestTsUs(0);
     this._state.setAudioLatestTsUs(0);
@@ -124,6 +125,7 @@ export class NimioLiveContext {
     this._latencyCtrl.reset();
     this._playbackStarted = false;
     this._advertizerEval.reset();
+    resetTimestamps();
   }
 
   attachPort(port, auxPort) {
@@ -132,7 +134,6 @@ export class NimioLiveContext {
       this._state.attachPort(port, auxPort);
     }
   }
-
 
   onAttach() {
     this._state.start();
@@ -148,6 +149,10 @@ export class NimioLiveContext {
     if (this._noVideo || !this._state.isPlaying()) return;
 
     requestAnimationFrame(this._renderVideoFrame);
+    if (0 === this._playbackStartTsUs) {
+      this._playbackStartTsUs = this._state.getPlaybackStartTsUs();
+    }
+
     if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
       return true;
     }
@@ -176,11 +181,7 @@ export class NimioLiveContext {
       this._playbackStarted = true;
       this._grabber?.start(MODE.LIVE);
     }
-    // if (this._offscreenCanvas) {
-    //   this._ui.drawOffscreen(frame);
-    //   return;
-    // }
-    this._ui.drawFrame(frame);
+    this.onDrawFrame(frame);
     if (this._grabber) {
       this._grabber.handleLiveFrame(frame);
     }

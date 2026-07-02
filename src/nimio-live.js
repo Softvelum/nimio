@@ -30,6 +30,7 @@ import { VUMeterService } from "./vumeter/service";
 import { AudioController } from "./audio/controller";
 import { MediaGrabber } from "./grabber";
 import { NimioLiveContext } from "./nimio-live-context";
+import { NimioOffscreenWrapper } from "./nimio-offscreen-wrapper";
 
 export class NimioLive {
   constructor(instanceName, ui, config) {
@@ -48,12 +49,12 @@ export class NimioLive {
     const isShared = isSharedBuffer(this._sab);
     this._sabShared = isShared;
     this._state = new StateManager(this._sab, { shared: this._sabShared, name: "Live" });
-    if (!isShared) {
-      this._liveContextChannel = new MessageChannel()
-      this._state = new StateManager(this._sab, { shared: this._sabShared, port: this._liveContextChannel.port1,  name: "Live" });
-    } else {
-      this._state = new StateManager(this._sab, { shared: true, name: "Live" });
-    }
+    // if (!isShared) {
+    //   this._liveContextChannel = new MessageChannel()
+    //   this._state = new StateManager(this._sab, { shared: this._sabShared, port: this._liveContextChannel.port1,  name: "Live" });
+    // } else {
+    //   this._state = new StateManager(this._sab, { shared: true, name: "Live" });
+    //}
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
     this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
     this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
@@ -99,17 +100,14 @@ export class NimioLive {
     if (this._config.syncBuffer > 0) {
       this._createSyncModeParams();
     }
-    this._liveContext = new NimioLiveContext(instanceName, ui, config, this._sab);
-    this._liveContext.onResponse = this.handleLiveContext.bind(this);
-    this._liveContext.getFrame = this.popFrameForTime.bind(this);
-    this._liveContext.isSuspended = this.isSuspended.bind(this)
-    this._liveContext.isAutoAbr = this._isAutoAbr.bind(this);
-    if (this._liveContextChannel != undefined) {
-      this._liveContext.attachPort(this._liveContextChannel.port2);
-      // this._liveContextChannel.port1.start();
-      // this._liveContextChannel.port2.start();      
+
+    const offscreen = !!this._config.offscreenCanvas;
+    this._offscreenCanvas = offscreen;
+    if (offscreen) {
+      setupLiveContext(isShared)
+    } else {
+      setupOffscreenLiveContext(isShared);
     }
-    this._state.stop();
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -122,8 +120,58 @@ export class NimioLive {
     if (this._config.screenshots) {
       this._createMediaGrabber(this._config.screenshots);
     }
-    this._offscreenCanvas = !!this._config.offscreenCanvas;
   }
+
+  setupLiveContext(isShared) {
+    let ui = this.ui;
+    this._liveContext = new NimioLiveContext(instanceName, ui, config, isShared);
+    this._liveContext.onResponse = this.handleLiveContext.bind(this);
+    this._liveContext.getFrame = this.popFrameForTime.bind(this);
+    this._liveContext.isSuspended = this.isSuspended.bind(this)
+    this._liveContext.onDrawFrame = (frame) => ui.drawFrame(frame);
+    this._state.stop();
+  }
+
+  setupOffscreenLiveContext(isShared) {
+    let url = new URL("nimio-offscreen-renderer.js", import.meta.url);
+    let worker = new Worker(url);
+    this._offscreenRenderer = worker;    
+    //let offscreenCanvas = this._canvas.transferControlToOffscreen();
+    this._liveContext = new NimioOffscreenWrapper(this._offscreenRenderer);
+    const msg = {
+      type: "init",
+      options: {
+        instanceName: this._instName,
+        config: this._config,
+        sab: this._sab
+      }
+    }
+    worker.postMessage(msg);
+    this._ui.setOffscreenWorker(worker);
+    this._eventBus.on("transp:frame-decoded", (ev) => {
+      if (ev.type == "video") {
+        for (let i = 0; i < 3; i++) {
+          const frame = this._videoBuffer.popFirstFrame();
+          if (frame == null) break;
+          const msg = {
+            type: "videoFrame",
+            frame: frame
+          }
+          worker.postMessage(msg, [frame]);
+        }
+      }
+    })
+
+
+    this._offscreenRenderer.onmessage = (ev) => {
+      
+      //TODO
+      this.handleLiveContext()
+    }
+
+  }
+
+  
 
   popFrameForTime(ts) {
     let frame = this._videoBuffer.popFrameForTime(ts);
@@ -564,8 +612,8 @@ export class NimioLive {
     this._logger.warn(
       `set playback start ts us: ${this._playbackStartTsUs}, mode: ${mode}, video: ${this._firstVideoFrameTsUs}, audio: ${this._firstAudioFrameTsUs}`,
     );
-    //this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
-    this._liveContext.setPlaybackStartTsUs(this._playbackStartTsUs);
+    this._state.setPlaybackStartTsUs(this._playbackStartTsUs);
+    //this._liveContext.setPlaybackStartTsUs(this._playbackStartTsUs);
   }
 
   _cancelPauseTimeout() {
@@ -606,7 +654,7 @@ export class NimioLive {
 
     this._grabber?.stop();
 
-    this._liveContext.resetTimestamps();
+    //this._liveContext.resetTimestamps();
     this._resetPlaybackTimestamps();
 
     this._cancelPauseTimeout();
