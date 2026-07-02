@@ -131,11 +131,11 @@ export class LatencyController {
   }
 
   checkStateAndLoadCurrentTsUs() {
-    const ts = this.getCurrentTsUs();
+    this.getCurrentTsUs();
     this._calculateAvailable();
     this._checkPending();
 
-    return ts; //this._curTsUs;
+    return this._curTsUs;
   }
 
   getCurrentTsUs() {

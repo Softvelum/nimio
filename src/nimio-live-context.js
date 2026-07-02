@@ -29,7 +29,12 @@ export class NimioLiveContext {
     }, 0);
     this._sab = sab;
     this._sabShared = isSharedBuffer(sab);
-    this._state = new StateManager(sab, { shared: this._sabShared });
+    if (!this._sabShared) {
+      const arrayCopy = new ArrayBuffer(sab.byteLength)
+      this._sab = arrayCopy;
+    }
+    this._state = new StateManager(this._sab, {
+      shared: this._sabShared, sendInit: false, name: "LiveContext" });
     this._state.stop();
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
     this._renderVideoFrame = this._renderVideoFrame.bind(this);
@@ -64,7 +69,7 @@ export class NimioLiveContext {
   }
 
   updateLatencyParams(params) {
-    if (this.port) {
+    if (this._messagePort) {
       this._messagePort.postMessage({
         type: "latency-params",
         data: params,
@@ -86,6 +91,15 @@ export class NimioLiveContext {
   stop(opts = {}) {
   }
 
+  setNoVideo(yes) {
+    this._latencyCtrl.videoEnabled = !yes;
+  }
+
+  setNoAudio(yes) {
+    this._latencyCtrl.audioEnabled = !yes;
+
+  }
+
   setSpeed(speed, availableMs) {
     if (this._speed === speed) return;
     this._speed = speed;
@@ -93,11 +107,13 @@ export class NimioLiveContext {
   }
 
   setPlaybackStartTsUs(ts) {
+    this._logger.debug("LiveContext: setPlaybackStartTsUs", ts);
     this._playbackStartTsUs = ts;
     this._state.setPlaybackStartTsUs(ts);
   }
 
   resetTimestamps() {
+    this._logger.debug("LiveContext: resetPlaybackStartTsUs");
     this._state.setPlaybackStartTsUs(0);
     this._state.setVideoLatestTsUs(0);
     this._state.setAudioLatestTsUs(0);
@@ -110,10 +126,10 @@ export class NimioLiveContext {
     this._advertizerEval.reset();
   }
 
-  attachPort(port) {
-    this._messagePort = port;
+  attachPort(port, auxPort) {
+    this._messagePort = auxPort ?? port;
     if (!this._state.isShared()) {
-      this._state.attachPort(port);
+      this._state.attachPort(port, auxPort);
     }
   }
 
@@ -153,6 +169,8 @@ export class NimioLiveContext {
       return;
     }
 
+    this._logger.debug("drawFrame", frame.timestamp);
+
     if (!this._playbackStarted) {
       this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
@@ -174,7 +192,8 @@ export class NimioLiveContext {
   }
 
   _updateBufferLevelMetrics() {
-    this.notifyParent("updateBufferLevel", null);
+    const level = this._latencyCtrl.availableMs("video")
+    this.notifyParent("updateBufferLevel", {videoBuferLevel: level});
   }
 
   sendPendingAdvertizerActions() {

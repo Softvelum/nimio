@@ -47,14 +47,13 @@ export class NimioLive {
     this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     const isShared = isSharedBuffer(this._sab);
     this._sabShared = isShared;
-    this._state = new StateManager(this._sab, { shared: this._sabShared });
+    this._state = new StateManager(this._sab, { shared: this._sabShared, name: "Live" });
     if (!isShared) {
-      let liveContextChannel = MessageChannel()
-      this._liveContextChannel = liveContextChannel;
-      this._state.attachPort(liveContextChannel.port1);
+      this._liveContextChannel = new MessageChannel()
+      this._state = new StateManager(this._sab, { shared: this._sabShared, port: this._liveContextChannel.port1,  name: "Live" });
+    } else {
+      this._state = new StateManager(this._sab, { shared: true, name: "Live" });
     }
-    this._state.stop();
-
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
     this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
     this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
@@ -79,7 +78,6 @@ export class NimioLive {
     });
 
     this._resetPlaybackTimestamps();
-    //this._renderVideoFrame = this._renderVideoFrame.bind(this);
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -106,9 +104,12 @@ export class NimioLive {
     this._liveContext.getFrame = this.popFrameForTime.bind(this);
     this._liveContext.isSuspended = this.isSuspended.bind(this)
     this._liveContext.isAutoAbr = this._isAutoAbr.bind(this);
-    if (this._liveContextChannel) {
+    if (this._liveContextChannel != undefined) {
       this._liveContext.attachPort(this._liveContextChannel.port2);
+      // this._liveContextChannel.port1.start();
+      // this._liveContextChannel.port2.start();      
     }
+    this._state.stop();
 
     this._playCb = this.play.bind(this);
     if (this._config.autoplay) {
@@ -126,9 +127,9 @@ export class NimioLive {
 
   popFrameForTime(ts) {
     let frame = this._videoBuffer.popFrameForTime(ts);
-    // if (!frame) {
-    //   this._logger.debug(`No frame for ${ts}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-    // }
+    if (!frame) {
+      this._logger.debug(`No frame for ${ts}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
+    }
     return frame;
   }
 
@@ -139,8 +140,8 @@ export class NimioLive {
 
   handleLiveContext(cmd, params) {
      switch (cmd) {
-       case "buffer-level":
-        this._reportBufferLevel(params);
+       case "updateBufferLevel":
+         this._updateBufferLevelMetrics(params);
         break;
      }
   }
@@ -177,7 +178,8 @@ export class NimioLive {
     if (this._isAutoAbr()) this._abrController.stop();
     this._pauseTimeoutId = setTimeout(() => {
       this._logger.debug("Auto stop");
-      this.stop(); // TODO: check possibility to reuse socket
+      this.stop({ keepConnection: true });
+      this._sldpManager.keepAliveConnection();
     }, this._config.pauseTimeout);
 
     this._eventBus.emit("nimio:pause", { mode: MODE.LIVE });
@@ -189,7 +191,7 @@ export class NimioLive {
     if (!isStopped || (closeConnection && this._transport.connected)) {
       this._sldpManager.stop({ closeConnection });
     }
-    if (!sStopped) {
+    if (!isStopped) {
       this._state.stop();
     }
 
@@ -428,47 +430,6 @@ export class NimioLive {
     if (data.mode !== MODE.LIVE) return;
     data.play ? this.play() : this.pause();
   }
-
-  // _renderVideoFrame() {
-  //   if (this._noVideo || !this._state.isPlaying()) return true;
-
-  //   requestAnimationFrame(this._renderVideoFrame);
-  //   if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
-  //     return true;
-  //   }
-
-  //   let curPlayedTsUs;
-  //   if (this._audioCtxProvider.isSuspended()) {
-  //     curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
-  //   } else {
-  //     curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
-  //   }
-  //   this._updateBufferLevelMetrics();
-
-  //   if (this._latencyCtrl.isPending()) return true;
-
-  //   const frame = this._videoBuffer.popFrameForTime(curPlayedTsUs);
-  //   if (!frame) {
-  //     // this._logger.debug(`No frame for ${curPlayedTsUs}, 1 frame=${this._videoBuffer.firstFrameTs}, last frame=${this._videoBuffer.lastFrameTs}, buffer length=${this._videoBuffer.length}`);
-  //     return true;
-  //   }
-
-  //   if (!this._playbackStarted) {
-  //     this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
-  //     this._playbackStarted = true;
-  //     this._grabber?.start(MODE.LIVE);
-  //   }
-  //   if (this._offscreenCanvas) {
-  //     this._ui.drawOffscreen(frame);
-  //     return;
-  //   }
-
-  //   this._ui.drawFrame(frame);
-  //   if (this._grabber) {
-  //     this._grabber.handleLiveFrame(frame);
-  //   }
-  //   frame.close();
-  // }
 
   _createMainDecoderFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
@@ -787,13 +748,14 @@ export class NimioLive {
       },
     );
 
-    this._audioNode.port.start();
     this._workletLogReceiver.add(this._audioNode);
-    this._liveContext.attachPort(this._audioNode.port);
     if (this._audioBuffer && !this._audioBuffer.isShareable) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
+    this._state.attachPort(this._liveContextChannel.port1, this._audioNode.port);
+    this._liveContext.attachPort(this._liveContextChannel.port2, this._audioNode.port);
 
+    this._audioNode.port.start();
     this._audioCtrl.connectSource(this._audioNode, channels);
 
     if (this._config.syncBuffer > 0) {
@@ -811,13 +773,14 @@ export class NimioLive {
   _setNoVideo(yes) {
     if (yes === undefined) yes = true;
     this._noVideo = yes;
-    this._latencyCtrl.videoEnabled = !yes;
+    this._liveContext.setNoVideo(yes);
   }
 
   _setNoAudio(yes) {
     if (yes === undefined) yes = true;
     this._noAudio = yes;
-    this._latencyCtrl.audioEnabled = !yes;
+    this._liveContext.setNoVideo(yes);
+
     if (this._audioWorkletReady && this._audioNode) {
       this._audioNode.port.postMessage({
         type: "audio-status",
@@ -849,11 +812,11 @@ export class NimioLive {
     this._setNoAudio(false);
   }
 
-  _updateBufferLevelMetrics() {
+  _updateBufferLevelMetrics(params) {
     if (this._isAutoAbr()) {
       let curTimeMs = performance.now();
-      if (this._lastBufUpdMs > 0 && curTimeMs - this._lastBufUpdMs >= 100) {
-        this._reportBufferLevel(this._latencyCtrl.availableMs("video"));
+      if (this._lastBufUpdMs > 0 && curTimeMs - this._lastBufUpdMs >= 100 && params.videoBuferLevel) {
+        this._reportBufferLevel(params.videoBuferLevel);
         this._lastBufUpdMs = curTimeMs;
       }
     }
@@ -865,17 +828,6 @@ export class NimioLive {
     if (ms < this._lowBufferMs) {
       this._metricsManager.reportLowBuffer(trackId);
     }
-  }
-
-
-  _updateLatencyParams(params) {
-    if (this._audioNode) {
-      this._audioNode.port.postMessage({
-        type: "latency-params",
-        data: params,
-      });
-    }
-    this._latencyCtrl.setParams(params);
   }
 
   _createMediaGrabber(params) {
