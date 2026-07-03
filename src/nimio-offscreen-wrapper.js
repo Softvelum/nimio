@@ -5,11 +5,32 @@ export class NimioOffscreenWrapper {
     this._worker = worker;
   }
 
+  attachPort(port) {
+    this._worker.postMessage({
+      type: "attachPort",
+      port: port
+    },
+  [port]);
+  }
+
   updateAudioConfig(config) {
     this._worker.postMessage({
       type: "updateAudioConfig",
       config: config
     });
+  }
+
+  onTrackAction(action) {
+    this._worker.postMessage({
+      type: "trackAction",
+      action: action
+    });
+  }
+
+  sendPendingAdvertizerActions() {
+    this._worker.postMessage({
+      type: "sendPending"
+    });      
   }
 
   updateLatencyParams(params) {
@@ -40,6 +61,22 @@ export class NimioOffscreenWrapper {
     this._worker.postMessage({
       type: "stop"
     });    
+  }
+
+  setNoVideo(val) {
+    this._worker.postMessage({
+      type: "noVideo",
+      value: val
+    });    
+
+  }
+
+  setNoAudio(val) {
+    this._worker.postMessage({
+      type: "noAudio",
+      value: val
+    });
+
   }
 
   resetPlayback() {

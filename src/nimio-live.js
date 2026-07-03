@@ -45,16 +45,15 @@ export class NimioLive {
       total += Array.isArray(val) ? val.length : 1;
       return total;
     }, 0);
+    const offscreen = !!this._config.offscreenCanvas;
+    this._offscreenCanvas = offscreen;
     this._sab = createSharedBuffer(Uint32Array.BYTES_PER_ELEMENT * idxCount);
     const isShared = isSharedBuffer(this._sab);
     this._sabShared = isShared;
     this._state = new StateManager(this._sab, { shared: this._sabShared, name: "Live" });
-    // if (!isShared) {
-    //   this._liveContextChannel = new MessageChannel()
-    //   this._state = new StateManager(this._sab, { shared: this._sabShared, port: this._liveContextChannel.port1,  name: "Live" });
-    // } else {
-    //   this._state = new StateManager(this._sab, { shared: true, name: "Live" });
-    //}
+    if (offscreen && !isShared) {
+      this._liveContextChannel = new MessageChannel()
+    }
     this._bufferSec = Math.ceil((this._config.fullBufferMs + 200) / 1000);
     this._videoBuffer = new FrameBuffer(this._instName, "Video", 1000);
     this._tempBuffer = new FrameBuffer(this._instName, "Temp", 1000);
@@ -101,12 +100,10 @@ export class NimioLive {
       this._createSyncModeParams();
     }
 
-    const offscreen = !!this._config.offscreenCanvas;
-    this._offscreenCanvas = offscreen;
     if (offscreen) {
-      setupLiveContext(isShared)
+      this.setupOffscreenLiveContext(isShared);
     } else {
-      setupOffscreenLiveContext(isShared);
+      this.setupLiveContext(isShared);
     }
 
     this._playCb = this.play.bind(this);
@@ -124,7 +121,7 @@ export class NimioLive {
 
   setupLiveContext(isShared) {
     let ui = this.ui;
-    this._liveContext = new NimioLiveContext(instanceName, ui, config, isShared);
+    this._liveContext = new NimioLiveContext(this._instName, config, isShared);
     this._liveContext.onResponse = this.handleLiveContext.bind(this);
     this._liveContext.getFrame = this.popFrameForTime.bind(this);
     this._liveContext.isSuspended = this.isSuspended.bind(this)
@@ -134,15 +131,15 @@ export class NimioLive {
 
   setupOffscreenLiveContext(isShared) {
     let url = new URL("nimio-offscreen-renderer.js", import.meta.url);
-    let worker = new Worker(url);
-    this._offscreenRenderer = worker;    
-    //let offscreenCanvas = this._canvas.transferControlToOffscreen();
+    let worker = new Worker(url, { type: 'module' });
+    this._offscreenRenderer = worker;
     this._liveContext = new NimioOffscreenWrapper(this._offscreenRenderer);
+    const filteredConfig = JSON.parse(JSON.stringify(this._config));
     const msg = {
       type: "init",
       options: {
         instanceName: this._instName,
-        config: this._config,
+        config: filteredConfig,
         sab: this._sab
       }
     }
@@ -783,6 +780,9 @@ export class NimioLive {
       if (this._config.syncBuffer > 0) {
         procOptions.syncBuffer = this._config.syncBuffer;
       }
+      // if (this._liveContextChannel) {
+      //   procOptions.auxPort = this._liveContextChannel.port1;
+      // }
     }
 
     this._audioNode = new AudioWorkletNode(
@@ -800,8 +800,8 @@ export class NimioLive {
     if (this._audioBuffer && !this._audioBuffer.isShareable) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
-    this._state.attachPort(this._liveContextChannel.port1, this._audioNode.port);
-    this._liveContext.attachPort(this._liveContextChannel.port2, this._audioNode.port);
+    this._state.attachPort(this._audioNode.port, this._liveContextChannel.port1);
+    this._liveContext.attachPort(this._liveContextChannel.port2);
 
     this._audioNode.port.start();
     this._audioCtrl.connectSource(this._audioNode, channels);
@@ -827,7 +827,7 @@ export class NimioLive {
   _setNoAudio(yes) {
     if (yes === undefined) yes = true;
     this._noAudio = yes;
-    this._liveContext.setNoVideo(yes);
+    this._liveContext.setNoAudio(yes);
 
     if (this._audioWorkletReady && this._audioNode) {
       this._audioNode.port.postMessage({

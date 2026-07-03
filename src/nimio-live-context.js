@@ -15,7 +15,7 @@ export class NimioLiveContext {
   constructor(instanceName, config, sab) {
     this._instName = instanceName;
     this._config = config;
-    this._ui = ui;
+    //this._ui = ui;
 
     this._logger = LoggersFactory.create(this._instName, "Nimio Live");
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);

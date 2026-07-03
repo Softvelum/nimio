@@ -20,13 +20,21 @@ self.onmessage = (e) => {
     case "init":
       init(e.data.options);
       break;
+    case "attachPort":
+      liveContext.attachPort(e.data.port);
+      break;
     case "updateAudioConfig":
       liveContext.updateAudioConfig(e.data.config);
       break;
     case "updateLatency":
       liveContext.updateLatencyParams(e.data.params);
       break;
-
+    case "sendPending":
+      liveContext.sendPendingAdvertizerActions();
+      break;
+    case "trackAction":
+      liveContext.onTrackAction(e.data.action);
+      break;
     case "play":
       liveContext.play();
       break;
@@ -59,8 +67,8 @@ self.onmessage = (e) => {
 };
 
 let init = (options) => {
-  liveContext = NimioLiveContext(options.instanceName, options.config, options.sab);
-   videoBuffer = new FrameBuffer(this._instName, "VideoOffscreen", 1000);
+  liveContext = new NimioLiveContext(options.instanceName, options.config, options.sab);
+  videoBuffer = new FrameBuffer(options.instanceName, "VideoOffscreen", 1000);
 
   liveContext.onResponse = (msg) => {
     postMessage(msg);

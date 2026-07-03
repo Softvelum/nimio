@@ -20,10 +20,7 @@ export class StateManager {
     this._onPortMessage = this._handlePortMessage.bind(this);
     this._sendInit = options.sendInit ?? true;
     if (options.port) {
-      this.attachPort(options.port);
-    }
-    if (options.auxPort) {
-      this.port2 = auxPort;
+      this.attachPort(options.port, options.auxPort) ;
     }
   }
 
@@ -69,17 +66,17 @@ export class StateManager {
 
   getCurrentTsSmp() {
     const smpCnt = this._atomicLoad64(IDX.CURRENT_TS);
-    //this._logger.debug(`${this.displayName} getCurrentTsSmp ${smpCnt}`)
+    this._logger.debug(`${this.displayName} getCurrentTsSmp ${smpCnt}`)
     return smpCnt;
   }
 
   setCurrentTsSmp(smpCnt) {
-    //this._logger.debug(`${this.displayName} setCurrentTsSmp ${smpCnt}`)
+    this._logger.debug(`${this.displayName} setCurrentTsSmp ${smpCnt}`)
     this._atomicStore64(IDX.CURRENT_TS, smpCnt);
   }
 
   incCurrentTsSmp(smpCnt) {
-    //this._logger.debug(`${this.displayName} incCurrentTsSmp ${smpCnt}`)
+    this._logger.debug(`${this.displayName} incCurrentTsSmp ${smpCnt}`)
     return this._atomicAdd64(IDX.CURRENT_TS, smpCnt);
   }
 
@@ -297,6 +294,9 @@ export class StateManager {
     this._logger.debug(`${this.displayName} attachPort`)
     this._port = port;
     this._port.addEventListener("message", this._onPortMessage);
+    if (port2) {
+      port2.addEventListener("message", this._onPortMessage);
+    }
     if (this._sendInit) {
       this._notify("init", 0, Array.from(this._flags));
     }
@@ -357,8 +357,8 @@ export class StateManager {
    if (msg.idx == 9 || msg.idx == 10) { //PLAYBACK_START_TS 
       const smpCnt = this._atomicLoad64(IDX.PLAYBACK_START_TS);      
       this._logger.debug(`State ${this.displayName} received ${msg.op} PLAYBACK_START_TS ${msg.value} to ${smpCnt}`)
-   } else {
-     this._logger.debug(`State ${this.displayName} received ${msg.op}`)
+  //  } else {
+  //    this._logger.debug(`State ${this.displayName} received ${msg.op}`)
    } 
     this._suppressNotify = true;
     if (msg.op === "init" && Array.isArray(msg.value)) {
@@ -381,5 +381,10 @@ export class StateManager {
 
     this._port.removeEventListener("message", this._onPortMessage);
     this._port = null;
+
+    if (this.port2) {
+      this._port2.removeEventListener("message", this._onPortMessage);
+      this._port2 = null;
+    }
   }
 }
