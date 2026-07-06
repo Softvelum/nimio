@@ -20,7 +20,7 @@ export class StateManager {
     this._onPortMessage = this._handlePortMessage.bind(this);
     this._sendInit = options.sendInit ?? true;
     if (options.port) {
-      this.attachPort(options.port, options.auxPort) ;
+      this.attachPort(options.port) ;
     }
     console.log("Create StateManager", this.displayName);
   }
@@ -286,23 +286,14 @@ export class StateManager {
     }
   }
 
-  attachPort(port, port2) {
-    console.log(`Statemanager ${this.displayName} attachPort ${port}`)    
+  attachPort(port) {
     if (!port) return;
     if (this._port) {
       this._detachPort();
     }
-    if (port2) {
-      this._port2 = port2;
-    } else {
-      this._port2 = undefined;
-    }
     this._logger.debug(`${this.displayName} attachPort`)
     this._port = port;
     this._port.addEventListener("message", this._onPortMessage);
-    if (port2) {
-      port2.addEventListener("message", this._onPortMessage);
-    }
     if (this._sendInit) {
       this._notify("init", 0, Array.from(this._flags));
     }
@@ -334,7 +325,7 @@ export class StateManager {
     }
   }
 
-  _notify(op, idx, value) {
+  _notify(op, idx, value, skipWorker) {
     const skipSend = (this._shared || !this._port || this._suppressNotify)
     if (idx == 9 || idx == 10) { //PLAYBACK_START_TS 
       if (skipSend) {
@@ -343,15 +334,15 @@ export class StateManager {
         this._logger.debug(`State ${this.displayName} send ${op} PLAYBACK_START_TS ${value}.`)
       }
     }
-    if (skipSend) return;
     const msg = {
       type: "state:update",
       op,
       idx,
       value,
     };
+    if (this.onWorkerClient && !skipWorker) this.onWorkerClient(msg);
+    if (skipSend) return;
     this._port.postMessage(msg);
-    if (this.onWorkerClient) this.onWorkerClient(msg);
 
   }
 
@@ -394,10 +385,5 @@ export class StateManager {
 
     this._port.removeEventListener("message", this._onPortMessage);
     this._port = null;
-
-    if (this._port2) {
-      this._port2.removeEventListener("message", this._onPortMessage);
-      this._port2 = null;
-    }
   }
 }

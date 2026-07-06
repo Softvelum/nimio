@@ -80,6 +80,9 @@ let init = (options) => {
     return videoBuffer.popFrameForTime(ts);
   }
   liveContext.onDrawFrame = (frame) => draw(frame);
+  liveContext.setStateSender( (msg) => {
+    postMessage({type: "state", message: msg})
+  });
 }
 
 let setup = (data) => {

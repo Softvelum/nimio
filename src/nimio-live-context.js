@@ -128,10 +128,10 @@ export class NimioLiveContext {
     this.resetTimestamps();
   }
 
-  attachPort(port, auxPort) {
-    this._messagePort = auxPort ?? port;
+  attachPort(port) {
+    this._messagePort = port;
     if (!this._state.isShared()) {
-      this._state.attachPort(port, auxPort);
+      this._state.attachPort(port);
     }
   }
 
@@ -230,5 +230,9 @@ export class NimioLiveContext {
   stuffState(msg) {
     msg.type = "state:update";
     this._state._handlePortMessage({data: msg});
+  }
+
+  setStateSender(callback) {
+    this._state.onWorkerClient = callback;
   }
 }

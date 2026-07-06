@@ -145,10 +145,6 @@ export class NimioLive {
     }
     worker.postMessage(msg);
     this._ui.setOffscreenWorker(worker);
-    if (this._liveContextChannel) {
-      this._state.attachPort(this._liveContextChannel.port1);
-      this._liveContext.attachPort(this._liveContextChannel.port2);
-    }
     this._state.onWorkerClient = (msg) => {
       worker.postMessage({
         type: "state",
@@ -174,7 +170,7 @@ export class NimioLive {
     this._offscreenRenderer.onmessage = (ev) => {
       
       //TODO
-      this.handleLiveContext()
+      this.handleLiveContext(ev.data.type, ev.data.message)
     }
 
   }
@@ -199,6 +195,11 @@ export class NimioLive {
        case "updateBufferLevel":
          this._updateBufferLevelMetrics(params);
         break;
+        case "state":
+         params.type = "state:update";
+         this._state._handlePortMessage({ data: params });
+         this._state._notify(params.op, params.idx, params.value, true);
+         break;
      }
   }
 
@@ -791,9 +792,6 @@ export class NimioLive {
       if (this._config.syncBuffer > 0) {
         procOptions.syncBuffer = this._config.syncBuffer;
       }
-      // if (this._liveContextChannel) {
-      //   procOptions.auxPort = this._liveContextChannel.port1;
-      // }
     }
 
     this._audioNode = new AudioWorkletNode(
@@ -811,8 +809,8 @@ export class NimioLive {
     if (this._audioBuffer && !this._audioBuffer.isShareable) {
       this._audioBuffer.setPort(this._audioNode.port);
     }
-    this._state.attachPort(this._audioNode.port, this._liveContextChannel.port1);
-    //this._liveContext.attachPort(this._liveContextChannel.port2);
+    this._state.attachPort(this._audioNode.port);
+    this._liveContext.attachPort(this._liveContextChannel.port2);
 
     this._audioNode.port.start();
     this._audioCtrl.connectSource(this._audioNode, channels);
