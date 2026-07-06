@@ -134,7 +134,7 @@ export class NimioLive {
     let worker = new Worker(url, { type: 'module' });
     this._offscreenRenderer = worker;
     this._liveContext = new NimioOffscreenWrapper(this._offscreenRenderer);
-    const filteredConfig = JSON.parse(JSON.stringify(this._config));
+    const filteredConfig = JSON.stringify(this._config);
     const msg = {
       type: "init",
       options: {
@@ -145,6 +145,17 @@ export class NimioLive {
     }
     worker.postMessage(msg);
     this._ui.setOffscreenWorker(worker);
+    if (this._liveContextChannel) {
+      this._state.attachPort(this._liveContextChannel.port1);
+      this._liveContext.attachPort(this._liveContextChannel.port2);
+    }
+    this._state.onWorkerClient = (msg) => {
+      worker.postMessage({
+        type: "state",
+        message: msg
+      });
+    }
+
     this._eventBus.on("transp:frame-decoded", (ev) => {
       if (ev.type == "video") {
         for (let i = 0; i < 3; i++) {
@@ -801,7 +812,7 @@ export class NimioLive {
       this._audioBuffer.setPort(this._audioNode.port);
     }
     this._state.attachPort(this._audioNode.port, this._liveContextChannel.port1);
-    this._liveContext.attachPort(this._liveContextChannel.port2);
+    //this._liveContext.attachPort(this._liveContextChannel.port2);
 
     this._audioNode.port.start();
     this._audioCtrl.connectSource(this._audioNode, channels);

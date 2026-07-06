@@ -125,7 +125,7 @@ export class NimioLiveContext {
     this._latencyCtrl.reset();
     this._playbackStarted = false;
     this._advertizerEval.reset();
-    resetTimestamps();
+    this.resetTimestamps();
   }
 
   attachPort(port, auxPort) {
@@ -146,7 +146,8 @@ export class NimioLiveContext {
   }
 
   _renderVideoFrame() {
-    if (this._noVideo || !this._state.isPlaying()) return;
+    this._logger.debug(`renderVideoFrame ${this._noVideo} ${this._state.isPlaying()}`);
+    //as[p're gjklofi0cm-,weas[ghrtyˆ∆ø¨≤kif (this._noVideo || !this._state.isPlaying()) return;
 
     requestAnimationFrame(this._renderVideoFrame);
     if (0 === this._playbackStartTsUs) {
@@ -158,16 +159,17 @@ export class NimioLiveContext {
     }
 
     let curPlayedTsUs;
-     if (this.isSuspended()) {
-       curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
-     } else {
+     //
+     // if (this.isSuspended()) {
+     //  curPlayedTsUs = this._latencyCtrl.incCurrentVideoTime(this._speed);
+     //} else {
       curPlayedTsUs = this._latencyCtrl.checkStateAndLoadCurrentTsUs();
-    }
+    //}
     this._updateBufferLevelMetrics();
 
-    if (this._latencyCtrl.isPending()) {
-      return;
-    }
+    // if (this._latencyCtrl.isPending()) {
+    //   return;
+    // }
 
     const frame = this.popVideoFrame(curPlayedTsUs);
     if (!frame) {
@@ -223,5 +225,10 @@ export class NimioLiveContext {
     }
 
     this._messagePort.postMessage({ type: "transp-track-action", data });
+  }
+
+  stuffState(msg) {
+    msg.type = "state:update";
+    this._state._handlePortMessage({data: msg});
   }
 }

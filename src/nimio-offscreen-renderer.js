@@ -23,6 +23,9 @@ self.onmessage = (e) => {
     case "attachPort":
       liveContext.attachPort(e.data.port);
       break;
+    case "state": 
+      liveContext.stuffState(e.data.message);
+      break;
     case "updateAudioConfig":
       liveContext.updateAudioConfig(e.data.config);
       break;
@@ -58,8 +61,9 @@ self.onmessage = (e) => {
       break;
     case "clear":
       clear(e.data);
-    case "videoframe":
-      draw(e.data);
+      break;
+    case "videoFrame":
+      pushFrame(e.data.frame);
       break;
     case "release":
       release();
@@ -67,15 +71,15 @@ self.onmessage = (e) => {
 };
 
 let init = (options) => {
-  liveContext = new NimioLiveContext(options.instanceName, options.config, options.sab);
+  let config = JSON.parse(options.config);
+  liveContext = new NimioLiveContext(options.instanceName, config, options.sab);
   videoBuffer = new FrameBuffer(options.instanceName, "VideoOffscreen", 1000);
 
-  liveContext.onResponse = (msg) => {
-    postMessage(msg);
-  }
+  liveContext.onResponse = (msg) => postMessage(msg);
   liveContext.getFrame = (ts) => {
     return videoBuffer.popFrameForTime(ts);
   }
+  liveContext.onDrawFrame = (frame) => draw(frame);
 }
 
 let setup = (data) => {
@@ -152,6 +156,10 @@ let clear = () => {
   }
 };
 
+let pushFrame = (frame) => {
+  videoBuffer.pushFrame(frame);
+}
+
 let draw = (data) => {
   let frame = data.frame;
   let rp = rendProps;
@@ -172,5 +180,5 @@ let draw = (data) => {
 let release = (data) => {
   offscreenCanvas = undefined;
   offscreenCtx = undefined;
-  rp = null;
+  rendProps = null;
 };

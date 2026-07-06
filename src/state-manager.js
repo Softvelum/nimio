@@ -22,6 +22,7 @@ export class StateManager {
     if (options.port) {
       this.attachPort(options.port, options.auxPort) ;
     }
+    console.log("Create StateManager", this.displayName);
   }
 
   get value() {
@@ -33,18 +34,22 @@ export class StateManager {
   }
 
   isStopped() {
+    this._logger.debug(`${this.displayName} state = ${this.value}`)
     return this.value === STATE.STOPPED;
   }
 
   isPlaying() {
+    this._logger.debug(`${this.displayName} state = ${this.value}`)
     return this.value === STATE.PLAYING;
   }
 
   isPaused() {
+    this._logger.debug(`${this.displayName} state = ${this.value}`)
     return this.value === STATE.PAUSED;
   }
 
   start() {
+    this._logger.debug(`${this.displayName} state := PLAYING (${STATE.PLAYING})`)
     this.value = STATE.PLAYING;
   }
 
@@ -282,6 +287,7 @@ export class StateManager {
   }
 
   attachPort(port, port2) {
+    console.log(`Statemanager ${this.displayName} attachPort ${port}`)    
     if (!port) return;
     if (this._port) {
       this._detachPort();
@@ -345,9 +351,7 @@ export class StateManager {
       value,
     };
     this._port.postMessage(msg);
-    if (this._port2) {
-      this._port2.postMessage(msg);
-    }
+    if (this.onWorkerClient) this.onWorkerClient(msg);
 
   }
 
@@ -373,6 +377,15 @@ export class StateManager {
       this._atomicAdd64([msg.idx, msg.idx + 1], msg.value);
     }
     this._suppressNotify = false;
+    if (this.onWorkerClient) {
+      const resendMsg = {
+        type: "state:update",
+        op: msg.op,
+        idx: msg.idx,
+        value: msg.value,
+      };
+      this.onWorkerClient(resendMsg);
+    }
   }
 
   _detachPort() {
@@ -382,7 +395,7 @@ export class StateManager {
     this._port.removeEventListener("message", this._onPortMessage);
     this._port = null;
 
-    if (this.port2) {
+    if (this._port2) {
       this._port2.removeEventListener("message", this._onPortMessage);
       this._port2 = null;
     }
