@@ -94,15 +94,15 @@ export class UI {
       this._splashScreenUrl = `url("${this._opts.splashScreen}")`;
     }
     this._setBackground();
-    // if (this._opts.offscreenCanvas) {
-    //   let url = new URL("offscreen-renderer-worker.js", import.meta.url);
-    //   this._offscreenRenderer = new Worker(url);
-    //   let offscreenCanvas = this._canvas.transferControlToOffscreen();
-    //   this._offscreenRenderer.postMessage(
-    //     { type: "setup", canvas: offscreenCanvas, dpr: this._dpr },
-    //     [offscreenCanvas],
-    //   );
-    // }
+    if (this._opts.offscreenCanvas) {
+      let url = new URL("offscreen-renderer-worker.js", import.meta.url);
+      this._offscreenRenderer = new Worker(url);
+      let offscreenCanvas = this._canvas.transferControlToOffscreen();
+      this._offscreenRenderer.postMessage(
+        { type: "init", canvas: offscreenCanvas, dpr: this._dpr },
+        [offscreenCanvas],
+      );
+    }
   }
 
   destroy() {
@@ -124,15 +124,6 @@ export class UI {
       this._container.removeChild(this._container.firstChild);
     }
     this._parent.removeChild(this._container);
-  }
-
-  setOffscreenWorker(worker) {
-    this._offscreenRenderer = worker;
-    let offscreenCanvas = this._canvas.transferControlToOffscreen();
-    this._offscreenRenderer.postMessage(
-      { type: "setup", canvas: offscreenCanvas, dpr: this._dpr },
-      [offscreenCanvas],
-    );
   }
 
   drawPlay() {

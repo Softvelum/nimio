@@ -53,10 +53,7 @@ let resize = (data) => {
 
   const dprWidth = rendProps.width * dpr;
   const dprHeight = rendProps.height * dpr;
-  if (
-    offscreenCanvas.width === dprWidth &&
-    offscreenCanvas.height === dprHeight
-  ) {
+  if (offscreenCanvas.width === dprWidth && offscreenCanvas.height === dprHeight) {
     return;
   }
 
@@ -108,13 +105,7 @@ let draw = (data) => {
   if (frame === undefined || !rp) return;
 
   if (offscreenCanvas) {
-    offscreenCtx.drawImage(
-      frame,
-      rp.dx * dpr,
-      rp.dy * dpr,
-      rp.dWidth * dpr,
-      rp.dHeight * dpr,
-    );
+    offscreenCtx.drawImage(frame, rp.dx * dpr, rp.dy * dpr, rp.dWidth * dpr, rp.dHeight * dpr);
   }
   frame.close();
 };

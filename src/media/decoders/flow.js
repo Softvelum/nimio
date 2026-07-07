@@ -289,7 +289,6 @@ export class DecoderFlow {
     }
 
     if (this._startTsUs === 0) {
-      this._logger.debug("onStartTsNotSet", this._type);
       if (this._onStartTsNotSet) {
         let res = await this._onStartTsNotSet(frame);
         if (!res) {
@@ -313,10 +312,6 @@ export class DecoderFlow {
     if (this._buffer.isPreallocated) {
       frame.close();
     }
-    this._eventBus.emit("transp:frame-decoded", {
-      type: this._type,
-    });
-   
   }
 
   _addDecoderListener() {

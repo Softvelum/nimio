@@ -24,14 +24,31 @@ export const NimioTransport = {
   },
 
   _onTrackAction(data) {
-    this._liveContext.onTrackAction(data);
-    // this._advertizerEval.handleAction(data);
-    // if (!this._audioNode) {
-    //   this._advertizerEval.pendingActions.push(data);
-    //   return;
-    // }
+    this._advertizerEval.handleAction(data);
+    if (!this._audioNode) {
+      this._advertizerEval.pendingActions.push(data);
+      return;
+    }
 
-    // this._audioNode.port.postMessage({ type: "transp-track-action", data });  
+    this._audioNode.port.postMessage({ type: "transp-track-action", data });
+  },
+
+  _sendPendingAdvertizerActions() {
+    if (this._advertizerEval.hasPendingActions()) {
+      const hdlr = (event) => {
+        if (event.data != "transp-discont-eval-ready") return;
+        let pa = this._advertizerEval.pendingActions;
+        for (let i = 0; i < pa.length; i++) {
+          this._audioNode.port.postMessage({
+            type: "transp-track-action",
+            data: pa[i],
+          });
+        }
+        this._advertizerEval.clearPendingActions();
+        this._audioNode.port.removeEventListener("message", hdlr);
+      };
+      this._audioNode.port.addEventListener("message", hdlr);
+    }
   },
 
   _onDisconnect(data) {
@@ -171,7 +188,6 @@ export const NimioTransport = {
 
       audioAvailable = true;
       this._audioConfig.updateFrom(newCfg);
-      this._liveContext.updateAudioConfig(newCfg)
       buffer = this._tempBuffer;
       decoderFlow = this._nextRenditionData.decoderFlow;
       this._decoderFlows["audio"].switchTo(decoderFlow);
