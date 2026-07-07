@@ -109,7 +109,7 @@ export class NimioLive {
     if (this._config.screenshots) {
       this._createMediaGrabber(this._config.screenshots);
     }
-    this._offscreenCanvas = !!this._config.offscreenCanvas;
+    //this._offscreenCanvas = !!this._config.offscreenCanvas;
   }
 
   play() {
@@ -429,10 +429,6 @@ export class NimioLive {
       this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
       this._playbackStarted = true;
       this._grabber?.start(MODE.LIVE);
-    }
-    if (this._offscreenCanvas) {
-      this._ui.drawOffscreen(frame);
-      return;
     }
 
     this._ui.drawFrame(frame);

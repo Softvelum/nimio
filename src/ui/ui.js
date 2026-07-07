@@ -143,18 +143,17 @@ export class UI {
   }
 
   drawFrame(frame) {
-    let rp = this._rendProps;
-    if (!rp) return;
-
-    this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
-  }
-
-  drawOffscreen(frame) {
-    let message = {
-      type: "videoframe",
-      frame: frame,
-    };
-    this._offscreenRenderer.postMessage(message, [frame]);
+    if (this._offscreenRenderer) {
+      let message = {
+        type: "videoframe",
+        frame: frame,
+      };
+      this._offscreenRenderer.postMessage(message, [frame]);
+    } else {
+      let rp = this._rendProps;
+      if (!rp) return;
+      this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
+    }
   }
 
   showControls(anim) {
