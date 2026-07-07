@@ -53,6 +53,9 @@ let setup = (data) => {
 let resize = (data) => {
   rendProps = data.rendProps;
   if (!rendProps) return;
+  if (data.dpr) {
+    dpr = data.dpr;
+  }
 
   const dprWidth = rendProps.width * dpr;
   const dprHeight = rendProps.height * dpr;
@@ -134,7 +137,7 @@ let takeScreenshot = (frame) => {
     grabberCtx = grabberCanvas.getContext("2d", {
       willReadFrequently: true,
     });
-  } else if (w !== offscreenCanvas.width || h !== offscreenCanvas.height) {
+  } else if (w !== grabberCanvas.width || h !== grabberCanvas.height) {
     grabberCanvas.width = w;
     grabberCanvas.height = h;
   }

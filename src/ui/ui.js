@@ -647,9 +647,11 @@ export class UI {
       this._rendProps = props;
     }
     if (this._offscreenRenderer) {
+      const dpr = window.devicePixelRatio || 1;
       this._offscreenRenderer.postMessage({
         type: "resize",
         rendProps: this._rendProps,
+        dpr: dpr
       });
       return;
     }
