@@ -46,8 +46,10 @@ https://softvelum.com/nimio/demo/ - Stable
 - Latency and sync control: target + tolerance, fast-forward/seek correction, audio gap smoothing, timestamp recovery.
 - Audio-only/video-only modes
 - Full screen playback
+- Picture-in-Picture (PiP)
 - VU meter
 - EventBus hooks for custom UI/analytics
+- OffscreenCanvas rendering
 
 ## SLDP & WebCodecs Features
 
@@ -127,6 +129,7 @@ nimio = new Nimio({
   audioOnly: false, // Audio only playback
   muted: true, // Player is muted on start
   hardwareAcceleration: false, // Request hardware decoder; falls back to software if unsupported
+  offscreenCanvas: false, // Use OffscreenCanvas for frame rendering in a worker
   adaptiveBitrate: {
     initialRendition: "480p", // Default rendition which the player will set on start
     maxRendition: "1080p", // Maximum rendition that the player will set automatically
@@ -536,10 +539,8 @@ enabled: Boolean;
 
 The following features are planned for upcoming releases:
 
-- Picture-in-Picture (PiP)
 - WebTransport protocol
 - Extended Player API
-- OffscreenCanvas rendering
 - Resume from pause in DVR mode (no auto-jump to live)
 
 ## Development
