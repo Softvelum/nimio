@@ -8,6 +8,9 @@ let bCanvas = null;
 let bctx = null;
 let prevRendProps = null;
 
+let grabberCanvas = null;
+let grabberCtx = null;
+
 self.onmessage = (e) => {
   let type = e.data.type;
   switch (type) {
@@ -107,20 +110,47 @@ let draw = (data) => {
   let rp = rendProps;
   if (frame === undefined || !rp) return;
 
-  if (offscreenCanvas) {
-    offscreenCtx.drawImage(
-      frame,
-      rp.dx * dpr,
-      rp.dy * dpr,
-      rp.dWidth * dpr,
-      rp.dHeight * dpr,
-    );
+  try {
+    if (data.needScreenshot) {
+      takeScreenshot(frame);
+    }
+    if (offscreenCanvas) {
+      offscreenCtx.drawImage(
+        frame,
+        rp.dx * dpr,
+        rp.dy * dpr,
+        rp.dWidth * dpr,
+        rp.dHeight * dpr,
+      );
+    }
+  } finally {
+    frame.close();
   }
-  frame.close();
+};
+
+let takeScreenshot = (frame) => {
+  const w = frame.displayWidth;
+  const h = frame.displayWidth;
+  if (grabberCanvas === null) {
+    grabberCanvas = new OffscreenCanvas(w, h);
+    grabberCtx = grabberCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
+  } else if (w !== offscreenCanvas.width || h !== offscreenCanvas.height) {
+    grabberCanvas.width = w;
+    grabberCanvas.height = h;
+  }
+  grabberCtx.drawImage(frame, 0, 0);
+  const imageData = grabberCtx.getImageData(0, 0, w, h);
+  postMessage({ data: imageData, pts: frame.timestamp }, [
+    imageData.data.buffer,
+  ]);
 };
 
 let release = (data) => {
   offscreenCanvas = undefined;
   offscreenCtx = undefined;
+  grabberCanvas = undefined;
+  grabberCtx = undefined;
   rp = null;
 };

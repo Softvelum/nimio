@@ -62,6 +62,7 @@ export default class Nimio {
         splashScreen: this._config.splashScreen,
         audioOnly: this._config.audioOnly,
         offscreenCanvas: this._config.offscreenCanvas,
+        screenshots: this._config.screenshots,
         vod: this._config.vod,
         captions: this._config.captions,
         ar: this._config.aspectRatio,

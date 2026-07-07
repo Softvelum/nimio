@@ -98,8 +98,21 @@ export class UI {
       let url = new URL("offscreen-renderer-worker.js", import.meta.url);
       this._offscreenRenderer = new Worker(url);
       let offscreenCanvas = this._canvas.transferControlToOffscreen();
+
+      if (opts.screenshots) {
+        let eventBus = this._eventBus;
+        this._offscreenRenderer.onmessage = function (event) {
+          eventBus.emit("nimio:screenshot", event.data.data, event.data.pts);
+        };
+      }
+
       this._offscreenRenderer.postMessage(
-        { type: "init", canvas: offscreenCanvas, dpr: this._dpr },
+        {
+          type: "init",
+          canvas: offscreenCanvas,
+          dpr: this._dpr,
+          screenshots: opts.screenshots ?? false,
+        },
         [offscreenCanvas],
       );
     }
@@ -142,11 +155,12 @@ export class UI {
     this._buttonPlayPause.querySelector(".icon-pause").style.display = "block";
   }
 
-  drawFrame(frame) {
+  drawFrame(frame, needScreenshot) {
     if (this._offscreenRenderer) {
       let message = {
         type: "videoframe",
         frame: frame,
+        needScreenshot: needScreenshot,
       };
       this._offscreenRenderer.postMessage(message, [frame]);
     } else {

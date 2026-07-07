@@ -109,7 +109,7 @@ export class NimioLive {
     if (this._config.screenshots) {
       this._createMediaGrabber(this._config.screenshots);
     }
-    //this._offscreenCanvas = !!this._config.offscreenCanvas;
+    this._offscreenCanvas = !!this._config.offscreenCanvas;
   }
 
   play() {
@@ -430,9 +430,13 @@ export class NimioLive {
       this._playbackStarted = true;
       this._grabber?.start(MODE.LIVE);
     }
-
-    this._ui.drawFrame(frame);
-    if (this._grabber) {
+    let isNeedScreenshot = false;
+    if (this._grabber && this._offscreenCanvas) {
+      //If we need screenshots with offscreen canvas - let offscreen renderer to take a picture
+      isNeedScreenshot = this._grabber.isNeedFrame();
+    }
+    this._ui.drawFrame(frame, isNeedScreenshot);
+    if (this._grabber && !this._offscreenCanvas) {
       this._grabber.handleLiveFrame(frame);
     }
     frame.close();

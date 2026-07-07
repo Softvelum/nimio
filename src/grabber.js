@@ -84,7 +84,7 @@ class MediaGrabber {
     this._handleBitmap = this._handleBitmapWithWorker;
   }
 
-  _isNeedFrame() {
+  isNeedFrame() {
     if (this._rate < 0) {
       return true;
     }
@@ -109,7 +109,7 @@ class MediaGrabber {
   }
 
   handleLiveFrame(frame) {
-    if (!this._isNeedFrame()) return;
+    if (!this.isNeedFrame()) return;
     this._handleBitmap(
       frame,
       frame.timestamp,
@@ -119,7 +119,7 @@ class MediaGrabber {
   }
 
   _handleVodFrame(metadata) {
-    if (metadata.presentedFrames <= 1 || !this._isNeedFrame()) {
+    if (metadata.presentedFrames <= 1 || !this.isNeedFrame()) {
       return;
     }
     let mg = this;
