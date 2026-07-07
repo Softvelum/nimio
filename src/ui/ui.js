@@ -102,7 +102,11 @@ export class UI {
       if (opts.screenshots) {
         let eventBus = this._eventBus;
         this._offscreenRenderer.onmessage = function (event) {
-          eventBus.emit("nimio:screenshot", event.data.data, event.data.pts);
+          eventBus.emit(
+            "nimio:screenshot",
+            event.data.data,
+            Math.round(event.data.pts * 1000),
+          );
         };
       }
 
@@ -121,6 +125,8 @@ export class UI {
   destroy() {
     if (this._offscreenRenderer) {
       this._offscreenRenderer.postMessage({ type: "release" });
+      this._offscreenRenderer.onmessage = undefined;
+      this._offscreenRenderer = undefined;
     }
     this._clearHideControlsTimer();
     this._removeSeekBar();
@@ -190,7 +196,7 @@ export class UI {
     if (!this._rendProps) return;
     if (this._offscreenRenderer) {
       this._offscreenRenderer.postMessage({ type: "clear" });
-    } else {
+    } else if (this._cctx) {
       this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
     }
   }

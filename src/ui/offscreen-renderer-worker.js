@@ -65,7 +65,6 @@ let resize = (data) => {
 
   bCanvas.width = dprWidth;
   bCanvas.height = dprHeight;
-  //offscreenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   const prp = prevRendProps || rendProps;
   const rp = rendProps;
@@ -85,7 +84,6 @@ let resize = (data) => {
   offscreenCanvas.width = dprWidth;
   offscreenCanvas.height = dprHeight;
 
-  //offscreenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   offscreenCtx.drawImage(
     bCanvas,
     0,
@@ -101,7 +99,7 @@ let resize = (data) => {
 
 let clear = () => {
   if (offscreenCanvas) {
-    offscreenCtx.clearRect(0, 0, rendProps.width, rendProps.height);
+    offscreenCtx.clearRect(0, 0, rendProps.width * dpr, rendProps.height * dpr);
   }
 };
 
@@ -130,7 +128,7 @@ let draw = (data) => {
 
 let takeScreenshot = (frame) => {
   const w = frame.displayWidth;
-  const h = frame.displayWidth;
+  const h = frame.displayHeight;
   if (grabberCanvas === null) {
     grabberCanvas = new OffscreenCanvas(w, h);
     grabberCtx = grabberCanvas.getContext("2d", {
@@ -153,4 +151,5 @@ let release = (data) => {
   grabberCanvas = undefined;
   grabberCtx = undefined;
   rp = null;
+  self.close();
 };
