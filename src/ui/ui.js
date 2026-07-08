@@ -12,6 +12,7 @@ import { UICaptionList } from "./caption-list";
 import { UILayoutManager } from "./layout-manager";
 import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
+import OffscreenRendererWorker from "./offscreen-renderer-worker.js?worker";
 
 export class UI {
   constructor(instName, parent, opts, eventBus) {
@@ -95,8 +96,7 @@ export class UI {
     }
     this._setBackground();
     if (this._opts.offscreenCanvas) {
-      let url = new URL("offscreen-renderer-worker.js", import.meta.url);
-      this._offscreenRenderer = new Worker(url);
+      this._offscreenRenderer = new OffscreenRendererWorker();
       let offscreenCanvas = this._canvas.transferControlToOffscreen();
 
       if (opts.screenshots) {
@@ -195,10 +195,9 @@ export class UI {
   }
 
   clear() {
-    if (!this._rendProps) return;
     if (this._offscreenRenderer) {
       this._offscreenRenderer.postMessage({ type: "clear" });
-    } else if (this._cctx) {
+    } else if (this._cctx && this._rendProps) {
       this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
     }
   }
@@ -654,7 +653,7 @@ export class UI {
       this._offscreenRenderer.postMessage({
         type: "resize",
         rendProps: this._rendProps,
-        dpr: dpr
+        dpr: dpr,
       });
       return;
     }

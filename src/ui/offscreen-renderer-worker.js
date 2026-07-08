@@ -101,21 +101,20 @@ let resize = (data) => {
 };
 
 let clear = () => {
-  if (offscreenCanvas) {
+  if (offscreenCanvas && rendProps) {
     offscreenCtx.clearRect(0, 0, rendProps.width * dpr, rendProps.height * dpr);
   }
 };
 
 let draw = (data) => {
   let frame = data.frame;
-  let rp = rendProps;
-  if (frame === undefined || !rp) return;
-
+  if (frame === undefined) return;
   try {
     if (data.needScreenshot) {
       takeScreenshot(frame);
     }
-    if (offscreenCanvas) {
+    if (offscreenCanvas && rendProps) {
+      let rp = rendProps;
       offscreenCtx.drawImage(
         frame,
         rp.dx * dpr,
