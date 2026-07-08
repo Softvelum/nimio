@@ -152,6 +152,6 @@ let release = (data) => {
   offscreenCtx = undefined;
   grabberCanvas = undefined;
   grabberCtx = undefined;
-  rp = null;
+  rendProps = null;
   self.close();
 };
