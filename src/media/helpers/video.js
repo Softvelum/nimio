@@ -37,7 +37,7 @@ export class VideoHelper {
     }
     const end = data.byteLength;
 
-    for (let i = 0; i < end;) {
+    for (let i = 0; i < end; ) {
       const size = this.readUint32(data, i);
       const type = this.bin2str(data.subarray(i + 4, i + 8));
       const endbox = size > 1 ? i + size : end;
