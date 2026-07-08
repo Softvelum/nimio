@@ -40,7 +40,7 @@ https://softvelum.com/nimio/demo/ - Stable
 
 ## Player highlights
 
-- Ultra-low latency SLDP 2.0 over WebSockets with WebCodecs; supports H.264/H.265/AV1/VP8/VP9 plus AAC/MP3/Opus.
+- Ultra-low latency SLDP 2.0 over WebSockets with WebCodecs; supports H.264/H.265/AV1/VP8/VP9 plus AAC/MP3/Opus/Flac.
 - Adaptive streaming
 - Integrated player UI
 - Latency and sync control: target + tolerance, fast-forward/seek correction, audio gap smoothing, timestamp recovery.
@@ -53,7 +53,7 @@ https://softvelum.com/nimio/demo/ - Stable
 
 ## SLDP & WebCodecs Features
 
-- **SLDP Protocol** (Softvelum Low Delay Protocol) - WebSocket‑based streaming with sub-100ms latency, supporting H.264, H.265/HEVC, AV1, VP8, VP9, AAC, MP3, Opus, and more.
+- **SLDP Protocol** (Softvelum Low Delay Protocol) - WebSocket‑based streaming with sub-100ms latency, supporting H.264, H.265/HEVC, AV1, VP8, VP9, AAC, MP3, Opus, Flac and more.
 - **WebCodecs Integration** - Fine‑grained control over decoding, synchronization, jitter buffering, playback speed, and debugging at each stage of the pipeline.
 - **Available on all web platforms** - desktop, Android and [recent iOS/macOS](https://softvelum.com/2025/09/nimio-safari-ios-macos-26/).
 
