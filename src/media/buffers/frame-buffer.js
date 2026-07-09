@@ -2,6 +2,8 @@ import { LoggersFactory } from "@/shared/logger";
 import { RingBuffer } from "@/shared/ring-buffer";
 
 export class FrameBuffer {
+  static FULL_BUFFER_MARGIN = 10;
+
   constructor(instName, type, maxFrames = 100) {
     // TODO: length in uSec?
     this._frames = new RingBuffer(`${instName} ${type}`, maxFrames);
@@ -10,13 +12,23 @@ export class FrameBuffer {
     this._hasOutOfOrder = false;
     this._reorderStats = { count: 0, totalMs: 0, maxMs: 0 };
     this._reorderLogEvery = 30;
+    this._isFull = false;
   }
 
+  isFull() {
+    return this._isFull;
+  }
+
+  freeSpace() {
+    return this._frames.freeSpace();    
+  }
+ 
   pushFrame(frame) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
-      // this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
+      this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
       this._disposeFrame(removed);
+      this._isFull = true;
       this._updateFirstFrameTs();
     }
 
@@ -65,6 +77,9 @@ export class FrameBuffer {
     this._updateFirstFrameTs();
     if (this._frames.isEmpty()) this._lastFrameTs = 0;
 
+    if (this._isFull && this._frames.freeSpace() < FULL_BUFFER_MARGIN) {
+      this._isFull = false;
+    }
     // return the last frame earlier than currentTime
     return frame;
   }
@@ -91,6 +106,7 @@ export class FrameBuffer {
     this._frames.reset();
     this._firstFrameTs = this._lastFrameTs = 0;
     this._hasOutOfOrder = false;
+    this._isFull = false;
   }
 
   forEach(callback) {

@@ -20,6 +20,10 @@ export class RingBuffer {
     return this._length === 0;
   }
 
+  freeSpace() {
+    return this._cap - this._length;
+  }
+
   push(item, force = false) {
     if (this.isFull()) {
       if (!force) {

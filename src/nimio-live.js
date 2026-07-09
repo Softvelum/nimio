@@ -404,7 +404,15 @@ export class NimioLive {
   }
 
   _renderVideoFrame() {
-    if (this._noVideo || !this._state.isPlaying()) return true;
+    if (this._noVideo) return true;
+    if (this._state.isPaused()) {
+      this._checkPaused();
+      requestAnimationFrame(this._renderVideoFrame);
+    }
+
+    if (!this._state.isPlaying()) {
+      return;
+    }
 
     requestAnimationFrame(this._renderVideoFrame);
     if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
@@ -633,6 +641,7 @@ export class NimioLive {
   }
 
   _resetPlaybackTimestamps() {
+    this._state.setVideoBufferFree(999999);
     this._playbackStartTsUs = 0;
     this._firstAudioFrameTsUs = this._firstVideoFrameTsUs = 0;
   }
@@ -887,6 +896,16 @@ export class NimioLive {
       this._eventBus.emit("nimio:screenshot", img, ts);
     });
   }
+
+  _checkPaused() {
+    const bufferFree = this._state.getVideoBufferFree();
+    if (bufferFree <= 5) {
+      this._logger.debug("Auto stop on video buffer fill");
+      this._cancelPauseTimeout();
+      this.stop();
+    }
+  }
+
 }
 
 Object.assign(NimioLive.prototype, NimioTransport);
