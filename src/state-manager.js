@@ -171,14 +171,6 @@ export class StateManager {
     return this._store32(IDX.CURRENT_SPEED, val * 10_000);
   }
 
-  setVideoBufferFree(f) {
-    this._store32(IDX.VIDEO_BUFFER_FREE, f);
-  }
-
-  getVideoBufferFree(f) {
-    return this._load32(IDX.VIDEO_BUFFER_FREE);
-  }
-
   _bufTypeIdx(type) {
     return type === "short"
       ? IDX.MIN_BUFFER_SHORT

@@ -41,7 +41,9 @@ export class DecoderFlowVideo extends DecoderFlow {
     }
     this._state.setVideoDecoderQueue(data.decoderQueue);
     this._state.setVideoDecoderLatency(data.decoderLatency);
-    this._state.setVideoBufferFree(this._buffer.freeSpace());
+    if (this._onDecodedBufferFull && this._buffer.isFull()) {
+      this._onDecodedBufferFull();
+    }
   }
 
   _readSpsParamsFromCodecData(data) {

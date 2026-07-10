@@ -19,7 +19,6 @@ export const IDX = {
   MIN_BUFFER_LONG: 16,
   MIN_BUFFER_EMA: 17,
   CURRENT_SPEED: 18,
-  VIDEO_BUFFER_FREE: 19
 };
 export const MODE = {
   LIVE: "live",

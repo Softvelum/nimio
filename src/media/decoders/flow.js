@@ -372,6 +372,13 @@ export class DecoderFlow {
     this._onInputCancel = callback;
   }
 
+  get onDecodedBufferFull() {
+    return this._onDecodedBufferFull;
+  }
+  set onDecodedBufferFull(callback) {
+    this._onDecodedBufferFull = callback;
+  }
+
   get firstSwitchTsUs() {
     if (this._switchContext) {
       return this._switchContext.firstTsUs || null;
