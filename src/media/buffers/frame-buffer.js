@@ -72,9 +72,7 @@ export class FrameBuffer {
     const frame = this._frames.pop();
     this._updateFirstFrameTs();
     if (this._frames.isEmpty()) this._lastFrameTs = 0;
-    if (this._isFull && this._frames.freeSpace() >= this._fullBufferMargin) {
-      this._isFull = false;
-    }
+    this._updateFullStatus();
     // return the last frame earlier than currentTime
     return frame;
   }
@@ -137,6 +135,12 @@ export class FrameBuffer {
 
   setFullMargin(val) {
     this._fullBufferMargin = val;
+  }
+
+  _updateFullStatus() {
+    if (this._isFull && this._frames.freeSpace() >= this._fullBufferMargin) {
+      this._isFull = false;
+    }
   }
 
   _updateFirstFrameTs() {
@@ -232,6 +236,7 @@ export class FrameBuffer {
     }
 
     this._hasOutOfOrder = false;
+    this._updateFullStatus();
     if (doStats) {
       const endMs =
         typeof performance !== "undefined" && performance.now

@@ -154,4 +154,25 @@ describe("FrameBuffer", () => {
     expect(free).toBe(2);
     expect(buffer.isFull()).toBe(false);
   });
+
+  it("clears isFull after enough out-of-order frames are removed", () => {
+    buffer.setFullMargin(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 3000);
+    const f3 = createMockFrame(3, 2000);
+    const f4 = createMockFrame(4, 4000);
+
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+    buffer.pushFrame(f3);
+    buffer.pushFrame(f4);
+
+    expect(buffer.isFull()).toBe(true);
+
+    const result = buffer.popFrameForTime(3000);
+
+    expect(result).toBe(f2);
+    expect(buffer.freeSpace()).toBe(2);
+    expect(buffer.isFull()).toBe(false);
+  });
 });
