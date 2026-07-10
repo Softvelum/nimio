@@ -489,6 +489,8 @@ export class NimioLive {
     this._nextRenditionData.decoderFlow.onInputCancel = () => {
       this._sldpManager.cancelStream(data.trackId);
     };
+    this._nextRenditionData.decoderFlow.onDecodedBufferFull =
+      this._onDecodedBufferFull.bind(this);
     this._nextRenditionData.decoderFlow.setConfig(data.config);
   }
 
