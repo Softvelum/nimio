@@ -48,9 +48,13 @@ describe("FrameBuffer", () => {
     const f4 = createMockFrame(4, 4000);
 
     buffer.pushFrame(f1);
+    expect(buffer.isFull()).toBe(false);
     buffer.pushFrame(f2);
+    expect(buffer.isFull()).toBe(false);
     buffer.pushFrame(f3);
+    expect(buffer.isFull()).toBe(false);
     buffer.pushFrame(f4); // should pop f1
+    expect(buffer.isFull()).toBe(true);
 
     expect(f1.close).toHaveBeenCalled();
     expect(buffer.length).toBe(3);
@@ -118,5 +122,57 @@ describe("FrameBuffer", () => {
     const out = [];
     buffer.forEach((x) => out.push(x));
     expect(out).toEqual([f1, f2, f3]);
+  });
+
+  it("returns isFull when frame was dropped", () => {
+    // At least 2 frames should be popped to clear fullness status
+    buffer.setFullMargin(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 2000);
+    const f3 = createMockFrame(3, 3000);
+    const f4 = createMockFrame(4, 4000);
+
+    buffer.pushFrame(f1);
+    expect(buffer.isFull()).toBe(false);
+    buffer.pushFrame(f2);
+    expect(buffer.isFull()).toBe(false);
+    buffer.pushFrame(f3);
+    expect(buffer.isFull()).toBe(false);
+    buffer.pushFrame(f4);
+    expect(buffer.isFull()).toBe(true);
+
+    expect(buffer.length).toBe(3);
+    let result = buffer.popFrameForTime(2000);
+    expect(result).toBe(f2);
+    let free = buffer.freeSpace();
+    expect(free).toBe(1);
+    expect(buffer.isFull()).toBe(true);
+
+    result = buffer.popFrameForTime(3000);
+    expect(result).toBe(f3);
+    free = buffer.freeSpace();
+    expect(free).toBe(2);
+    expect(buffer.isFull()).toBe(false);
+  });
+
+  it("clears isFull after enough out-of-order frames are removed", () => {
+    buffer.setFullMargin(2);
+    const f1 = createMockFrame(1, 1000);
+    const f2 = createMockFrame(2, 3000);
+    const f3 = createMockFrame(3, 2000);
+    const f4 = createMockFrame(4, 4000);
+
+    buffer.pushFrame(f1);
+    buffer.pushFrame(f2);
+    buffer.pushFrame(f3);
+    buffer.pushFrame(f4);
+
+    expect(buffer.isFull()).toBe(true);
+
+    const result = buffer.popFrameForTime(3000);
+
+    expect(result).toBe(f2);
+    expect(buffer.freeSpace()).toBe(2);
+    expect(buffer.isFull()).toBe(false);
   });
 });

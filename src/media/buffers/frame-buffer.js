@@ -1,6 +1,8 @@
 import { LoggersFactory } from "@/shared/logger";
 import { RingBuffer } from "@/shared/ring-buffer";
 
+const FULL_BUFFER_MARGIN = 10;
+
 export class FrameBuffer {
   constructor(instName, type, maxFrames = 100) {
     // TODO: length in uSec?
@@ -10,13 +12,19 @@ export class FrameBuffer {
     this._hasOutOfOrder = false;
     this._reorderStats = { count: 0, totalMs: 0, maxMs: 0 };
     this._reorderLogEvery = 30;
+    this._isFull = false;
+    this._fullBufferMargin = Math.min(
+      FULL_BUFFER_MARGIN,
+      Math.ceil(maxFrames / 10),
+    );
   }
 
   pushFrame(frame) {
     if (this._frames.isFull()) {
       const removed = this._frames.pop();
-      // this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
+      //this._logger.warn(`overflow, removed old frame ${removed.timestamp}`);
       this._disposeFrame(removed);
+      this._isFull = true;
       this._updateFirstFrameTs();
     }
 
@@ -64,7 +72,7 @@ export class FrameBuffer {
     const frame = this._frames.pop();
     this._updateFirstFrameTs();
     if (this._frames.isEmpty()) this._lastFrameTs = 0;
-
+    this._updateFullStatus();
     // return the last frame earlier than currentTime
     return frame;
   }
@@ -91,6 +99,7 @@ export class FrameBuffer {
     this._frames.reset();
     this._firstFrameTs = this._lastFrameTs = 0;
     this._hasOutOfOrder = false;
+    this._isFull = false;
   }
 
   forEach(callback) {
@@ -114,6 +123,24 @@ export class FrameBuffer {
       return 0;
     }
     return (this._lastFrameTs - this._firstFrameTs) / 1000_000;
+  }
+
+  isFull() {
+    return this._isFull;
+  }
+
+  freeSpace() {
+    return this._frames.freeSpace();
+  }
+
+  setFullMargin(val) {
+    this._fullBufferMargin = val;
+  }
+
+  _updateFullStatus() {
+    if (this._isFull && this._frames.freeSpace() >= this._fullBufferMargin) {
+      this._isFull = false;
+    }
   }
 
   _updateFirstFrameTs() {
@@ -209,6 +236,7 @@ export class FrameBuffer {
     }
 
     this._hasOutOfOrder = false;
+    this._updateFullStatus();
     if (doStats) {
       const endMs =
         typeof performance !== "undefined" && performance.now
