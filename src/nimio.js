@@ -61,6 +61,8 @@ export default class Nimio {
         fullscreen: !!this._config.fullscreen && !this._config.audioOnly,
         splashScreen: this._config.splashScreen,
         audioOnly: this._config.audioOnly,
+        offscreenCanvas: this._config.offscreenCanvas,
+        screenshots: this._config.screenshots,
         vod: this._config.vod,
         captions: this._config.captions,
         ar: this._config.aspectRatio,

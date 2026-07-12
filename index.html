@@ -52,6 +52,8 @@
           metricsOverlay: true,
           logLevel: "debug",
           // muted: true,
+          // offscreenCanvas: true,
+          // hardwareAcceleration: true,
           adaptiveBitrate: {
             initialRendition: "720p",
           },
@@ -76,7 +78,7 @@
           timecodes: true,
 
           // aspectRatio: "3:1",
-          //screenshots: { rate: 1.0 },
+          // screenshots: { rate: 1.0 },
         });
 
         window.nimio.on("nimio:play", () => {

@@ -12,6 +12,7 @@ import { UICaptionList } from "./caption-list";
 import { UILayoutManager } from "./layout-manager";
 import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
+import OffscreenRendererWorker from "./offscreen-renderer-worker.js?worker";
 
 export class UI {
   constructor(instName, parent, opts, eventBus) {
@@ -49,15 +50,17 @@ export class UI {
     this._autoAbr = this._opts.abrEnabled;
     this._mode = MODE.LIVE;
     this._outputs = [];
-    this._createCanvas();
+    this._createCanvas(!!this._opts.offscreenCanvas);
     if (opts.vod || this._pipNeedsMediaElement()) this._createMediaElement();
 
     this._outputs.forEach(this._applyBasicStyle);
     this._logger.debug(`Device DPR = ${this._dpr}`);
 
-    this._cctx.save();
-    this._cctx.scale(this._dpr, this._dpr);
-    this._cctx.restore();
+    if (this._cctx) {
+      this._cctx.save();
+      this._cctx.scale(this._dpr, this._dpr);
+      this._cctx.restore();
+    }
 
     this._outputs.forEach((elem) => this._container.appendChild(elem));
 
@@ -92,9 +95,39 @@ export class UI {
       this._splashScreenUrl = `url("${this._opts.splashScreen}")`;
     }
     this._setBackground();
+    if (this._opts.offscreenCanvas) {
+      this._offscreenRenderer = new OffscreenRendererWorker();
+      let offscreenCanvas = this._canvas.transferControlToOffscreen();
+
+      if (opts.screenshots) {
+        let eventBus = this._eventBus;
+        this._offscreenRenderer.onmessage = function (event) {
+          eventBus.emit(
+            "nimio:screenshot",
+            event.data.data,
+            Math.round(event.data.pts * 1000),
+          );
+        };
+      }
+
+      this._offscreenRenderer.postMessage(
+        {
+          type: "init",
+          canvas: offscreenCanvas,
+          dpr: this._dpr,
+          screenshots: opts.screenshots ?? false,
+        },
+        [offscreenCanvas],
+      );
+    }
   }
 
   destroy() {
+    if (this._offscreenRenderer) {
+      this._offscreenRenderer.postMessage({ type: "release" });
+      this._offscreenRenderer.onmessage = undefined;
+      this._offscreenRenderer = undefined;
+    }
     this._clearHideControlsTimer();
     this._removeSeekBar();
     this._removeCaptions();
@@ -128,11 +161,19 @@ export class UI {
     this._buttonPlayPause.querySelector(".icon-pause").style.display = "block";
   }
 
-  drawFrame(frame) {
-    let rp = this._rendProps;
-    if (!rp) return;
-
-    this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
+  drawFrame(frame, needScreenshot) {
+    if (this._offscreenRenderer) {
+      let message = {
+        type: "videoframe",
+        frame: frame,
+        needScreenshot: needScreenshot,
+      };
+      this._offscreenRenderer.postMessage(message, [frame]);
+    } else {
+      let rp = this._rendProps;
+      if (!rp) return;
+      this._cctx.drawImage(frame, rp.dx, rp.dy, rp.dWidth, rp.dHeight);
+    }
   }
 
   showControls(anim) {
@@ -154,8 +195,11 @@ export class UI {
   }
 
   clear() {
-    if (!this._rendProps) return;
-    this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
+    if (this._offscreenRenderer) {
+      this._offscreenRenderer.postMessage({ type: "clear" });
+    } else if (this._cctx && this._rendProps) {
+      this._cctx.clearRect(0, 0, this._rendProps.width, this._rendProps.height);
+    }
   }
 
   toggleMode(mode) {
@@ -222,11 +266,13 @@ export class UI {
     return [box.width, box.height];
   }
 
-  _createCanvas() {
+  _createCanvas(forOffscreen) {
     this._canvas = document.createElement("canvas");
-    this._bCanvas = new OffscreenCanvas(0, 0);
-    this._cctx = this._canvas.getContext("2d");
-    this._bctx = this._bCanvas.getContext("2d", { alpha: false });
+    if (!forOffscreen) {
+      this._bCanvas = new OffscreenCanvas(0, 0);
+      this._cctx = this._canvas.getContext("2d");
+      this._bctx = this._bCanvas.getContext("2d", { alpha: false });
+    }
 
     this._outputs.push(this._canvas);
   }
@@ -601,6 +647,15 @@ export class UI {
     const props = this._layoutMgr.computeRenderProps(rect.width, rect.height);
     if (props != null) {
       this._rendProps = props;
+    }
+    if (this._offscreenRenderer) {
+      const dpr = window.devicePixelRatio || 1;
+      this._offscreenRenderer.postMessage({
+        type: "resize",
+        rendProps: this._rendProps,
+        dpr: dpr,
+      });
+      return;
     }
     if (this._mode === MODE.LIVE || this._mediaElementMode) {
       if (props != null) {
