@@ -240,4 +240,59 @@ describe("WritableAudioBuffer", () => {
     }
     expect(wab.getWriteIdx()).toBe((initialWriteIdx + 1) % wab.bufferCapacity);
   });
+
+  describe("full buffer status", () => {
+    const FRAME_US = 20000; // 960 samples at 48000 Hz
+
+    it("starts not full and derives the margin from the overflow shift", () => {
+      expect(wab.isFull()).toBe(false);
+      expect(wab._fullBufferMargin).toBe(2 * wab._overflowShift);
+    });
+
+    it("becomes full when the writer wraps onto the reader", () => {
+      const cap = wab.bufferCapacity;
+      for (let i = 0; i < cap - 1; i++) {
+        wab.pushFrame(createMockAudioFrame({ decTimestamp: i * FRAME_US }));
+        expect(wab.isFull()).toBe(false);
+      }
+
+      wab.pushFrame(
+        createMockAudioFrame({ decTimestamp: (cap - 1) * FRAME_US }),
+      );
+      expect(wab.isFull()).toBe(true);
+    });
+
+    it("stays full while the free space is below the margin", () => {
+      wab.setReadIdx(5);
+      wab._incWriteIdx(4); // write idx catches up with the read idx
+
+      expect(wab.isFull()).toBe(true);
+      expect(wab.getReadIdx()).toBe(5 + wab._overflowShift);
+
+      // the reader is only _overflowShift frames ahead, that's less than margin
+      wab._incWriteIdx(wab.getWriteIdx());
+      expect(wab.isFull()).toBe(true);
+    });
+
+    it("clears the full status once the free space reaches the margin", () => {
+      wab.setReadIdx(5);
+      wab._incWriteIdx(4);
+      expect(wab.isFull()).toBe(true);
+
+      const wIdx = wab.getWriteIdx();
+      wab.setReadIdx(wIdx + 1 + wab._fullBufferMargin);
+      wab._incWriteIdx(wIdx);
+
+      expect(wab.isFull()).toBe(false);
+    });
+
+    it("reset clears the full status", () => {
+      wab.setReadIdx(5);
+      wab._incWriteIdx(4);
+      expect(wab.isFull()).toBe(true);
+
+      wab.reset();
+      expect(wab.isFull()).toBe(false);
+    });
+  });
 });

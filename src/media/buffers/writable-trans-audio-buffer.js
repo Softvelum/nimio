@@ -14,6 +14,7 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
 
   reset(final) {
     if (!final) {
+      this._isFull = false;
       this._stopMsgDispatcher();
       this._sendMessage({ type: "tb:reset" });
       return;
@@ -141,11 +142,17 @@ export class WritableTransAudioBuffer extends WritableAudioBuffer {
   _incWriteIdx(writeIdx) {
     let wIdx = this.setWriteIdx(writeIdx + 1);
     let rIdx = this.getReadIdx();
-    if (this._dist(wIdx, rIdx) < this._overflowShift) {
+    let free = this._dist(wIdx, rIdx);
+    // overflow prevention threshold: the reader is asked to release frames,
+    // and while paused it doesn't consume them, so the data gets dropped
+    if (free < this._overflowShift) {
       console.warn(
         `wIdx = ${wIdx}, rIdx = ${rIdx}, send req to free items from the reader`,
       );
       this._sendMessage({ type: "tb:overflow" });
+      this._isFull = true;
+    } else {
+      this._updateFullStatus(free);
     }
     return wIdx;
   }

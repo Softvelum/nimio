@@ -38,32 +38,86 @@ vi.mock("@/media/decoders/flow-audio", () => ({
 
 import { NimioLive } from "@/nimio-live.js";
 
+function createLive() {
+  const live = Object.create(NimioLive.prototype);
+  live._config = { instanceName: "Test" };
+  live._decoderFlows = { video: null, audio: null };
+  live._nextRenditionData = {};
+  live._sldpManager = { cancelStream: vi.fn() };
+  live._eventBus = { emit: vi.fn() };
+  live._onDecodedBufferFull = vi.fn();
+  return live;
+}
+
 describe("NimioLive", () => {
   beforeEach(() => {
     flowMocks.videoInstances.length = 0;
     flowMocks.audioInstances.length = 0;
   });
 
-  it("binds decoded-buffer-full callback for next video rendition flow", () => {
-    const live = Object.create(NimioLive.prototype);
-    live._config = { instanceName: "Test" };
-    live._nextRenditionData = {};
-    live._sldpManager = { cancelStream: vi.fn() };
-    live._onDecodedBufferFull = function () {
-      this._decodedBufferFullHandled = true;
-    };
+  describe.each([
+    ["video", "videoInstances", { codec: "avc1.42e01e" }, 90000],
+    ["audio", "audioInstances", { codec: "mp4a.40.2" }, 48000],
+  ])(
+    "%s decoded-buffer-full callback",
+    (type, instances, config, timescale) => {
+      const data = { trackId: 2, timescale, config };
 
-    live._createNextRenditionFlow("video", {
-      trackId: 2,
-      timescale: 90000,
-      config: { codec: "avc1.42e01e" },
+      it("is bound to the main flow with the track type", () => {
+        const live = createLive();
+
+        live._createMainDecoderFlow(type, data);
+
+        const flow = flowMocks[instances][0];
+        expect(flow.onDecodedBufferFull).toBeTypeOf("function");
+
+        flow.onDecodedBufferFull();
+        expect(live._onDecodedBufferFull).toHaveBeenCalledWith(type);
+      });
+
+      it("is bound to the next rendition flow with the track type", () => {
+        const live = createLive();
+
+        live._createNextRenditionFlow(type, data);
+
+        const flow = flowMocks[instances][0];
+        expect(flow.onDecodedBufferFull).toBeTypeOf("function");
+
+        flow.onDecodedBufferFull();
+        expect(live._onDecodedBufferFull).toHaveBeenCalledWith(type);
+      });
+    },
+  );
+
+  describe("_onDecodedBufferFull", () => {
+    function createLiveInState(paused) {
+      const live = Object.create(NimioLive.prototype);
+      live._state = { isPaused: () => paused };
+      live._logger = { warn: vi.fn() };
+      live._cancelPauseTimeout = vi.fn();
+      live.stop = vi.fn();
+      return live;
+    }
+
+    it("stops playback and cancels the pause timeout while paused", () => {
+      const live = createLiveInState(true);
+
+      live._onDecodedBufferFull("audio");
+
+      expect(live._cancelPauseTimeout).toHaveBeenCalledTimes(1);
+      expect(live.stop).toHaveBeenCalledTimes(1);
+      expect(live._logger.warn).toHaveBeenCalledWith(
+        "Auto stop on audio buffer fill",
+      );
     });
 
-    const flow = flowMocks.videoInstances[0];
-    expect(flow.onDecodedBufferFull).toBeTypeOf("function");
+    it("does nothing while playing", () => {
+      const live = createLiveInState(false);
 
-    flow.onDecodedBufferFull();
+      live._onDecodedBufferFull("video");
 
-    expect(live._decodedBufferFullHandled).toBe(true);
+      expect(live._cancelPauseTimeout).not.toHaveBeenCalled();
+      expect(live.stop).not.toHaveBeenCalled();
+    });
   });
 });

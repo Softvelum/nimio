@@ -10,12 +10,21 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     this._s32Norm = 1 / 2147483648;
     this._interIdx = 0;
     this._interTs = 0;
+    this._isFull = false;
+    // _overflowShift is limited by capacity / 5, so the margin never exceeds
+    // 40% of the capacity. Doubling it gives hysteresis for _updateFullStatus
+    this._fullBufferMargin = 2 * this._overflowShift;
   }
 
   reset() {
     this._interIdx = 0;
     this._interTs = 0;
+    this._isFull = false;
     super.reset();
+  }
+
+  isFull() {
+    return this._isFull;
   }
 
   pushFrame(audioFrame) {
@@ -303,6 +312,12 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
     }
   }
 
+  _updateFullStatus(free) {
+    if (this._isFull && free >= this._fullBufferMargin) {
+      this._isFull = false;
+    }
+  }
+
   _incWriteIdx(writeIdx) {
     let wIdx = this.setWriteIdx(writeIdx + 1);
     let rIdx = this.getReadIdx();
@@ -311,6 +326,9 @@ export class WritableAudioBuffer extends SharedAudioBuffer {
         `wIdx = ${wIdx}, rIdx = ${rIdx}, increment rIdx to ${rIdx + this._overflowShift}`,
       );
       this.setReadIdx(rIdx + this._overflowShift);
+      this._isFull = true;
+    } else {
+      this._updateFullStatus(this._dist(wIdx, rIdx));
     }
     return wIdx;
   }

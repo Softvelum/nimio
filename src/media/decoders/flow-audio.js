@@ -25,5 +25,8 @@ export class DecoderFlowAudio extends DecoderFlow {
       this._state.setAudioLatestTsUs(this._buffer.lastFrameTs);
     }
     this._state.setAudioDecoderQueue(data.decoderQueue);
+    if (this._onDecodedBufferFull && this._buffer?.isFull()) {
+      this._onDecodedBufferFull();
+    }
   }
 }
