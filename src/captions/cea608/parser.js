@@ -92,6 +92,10 @@ export class Cea608Parser {
       a,
       b,
       charsFound = false;
+    // A single data block can carry pairs of both channels (some encoders batch
+    // all of CC1 then all of CC2 into one SEI message), so collect every channel
+    // touched instead of only the one current after the last pair.
+    let touchedChNrs = new Set();
 
     for (let i = 0; i < byteList.length; i += 2) {
       a = byteList[i] & 0x7f;
@@ -139,10 +143,14 @@ export class Cea608Parser {
       } else {
         this.dataCounters.other += 2;
       }
+
+      if (this.currChNr > 0) {
+        touchedChNrs.add(this.currChNr);
+      }
     }
 
-    if (this.currChNr > 0) {
-      this.channels[this.currChNr - 1].reportActive();
+    for (let chNr of touchedChNrs) {
+      this.channels[chNr - 1].reportActive();
     }
   }
 
