@@ -59,7 +59,22 @@ export class UILayoutManager {
     };
   }
 
-  fullLayout(cWidth, cHeight, mode, isFullscreen, isMediaElementMode) {
+  canLayout() {
+    return !!this._ar && !this._paused;
+  }
+
+  heightNeedsProbe() {
+    return this._cssSizeKind(this._cssHeight) === "relative";
+  }
+
+  fullLayout(
+    cWidth,
+    cHeight,
+    mode,
+    isFullscreen,
+    isMediaElementMode,
+    heightIndependent = false,
+  ) {
     if (!this._ar || this._paused) return null;
 
     let res = { container: this.containerLayout(isFullscreen) };
@@ -76,15 +91,30 @@ export class UILayoutManager {
         res.output.height = "100%";
       }
     } else if (mode === MODE.VOD || isMediaElementMode) {
-      let cAspect = cWidth / cHeight;
-      let wDiff = (cAspect - this._ar.val) * cHeight;
-      if (wDiff > -1) {
-        // width difference doesn't exceed 1 pixel
-        res.output.height = "100%";
-        res.output.width = isMediaElementMode ? `${cWidth}px` : "auto";
+      const widthAuto = this._cssSizeKind(this._cssWidth) === "intrinsic";
+      const heightIndefinite =
+        !isFullscreen && this._isHeightIndefinite(heightIndependent);
+      if (heightIndefinite) {
+        // With an indefinite HEIGHT (auto, a content-based keyword, or a
+        // percentage against a parent with no definite height) the
+        // container is sized by the output itself, so a rect-based fit
+        // feeds back and oscillates - width constrains, aspect-ratio
+        // keeps the shape. An auto WIDTH is parent-derived on a block
+        // container, so the rect fit below stays valid for it (assumes
+        // the container remains display:block).
+        res.output.width = widthAuto ? "auto" : "100%";
+        res.output.height = "auto";
       } else {
-        res.output.width = "100%";
-        res.output.height = isMediaElementMode ? `${cHeight}px` : "auto";
+        let cAspect = cWidth / cHeight;
+        let wDiff = (cAspect - this._ar.val) * cHeight;
+        if (wDiff > -1) {
+          // width difference doesn't exceed 1 pixel
+          res.output.height = "100%";
+          res.output.width = isMediaElementMode ? `${cWidth}px` : "auto";
+        } else {
+          res.output.width = "100%";
+          res.output.height = isMediaElementMode ? `${cHeight}px` : "auto";
+        }
       }
     }
 
@@ -137,6 +167,42 @@ export class UILayoutManager {
     if (isNaN(x) || isNaN(y)) return;
 
     this._ar = { x, y, str: `${x} / ${y}`, val: x / y };
+  }
+
+  // "intrinsic" - computes to a content-based height, always indefinite
+  // (auto, fit-content and friends, and the css-wide keywords that fall
+  // back to auto for height - NOT revert/revert-layer, which roll back
+  // to user-origin or lower-layer author styles that may define a
+  // definite height);
+  // "definite" - a positively recognized plain absolute length, the
+  // only syntax trusted without measurement;
+  // "relative" - everything else is context-dependent or unknown
+  // (%, var(), env() with a possibly-auto fallback, calc(),
+  // calc-size(), inherit, revert, revert-layer, future grammar) and is
+  // resolved by the DOM probe in ui.js, which measures whether the
+  // container's height actually follows the output.
+  _cssSizeKind(value) {
+    if (!value) return "intrinsic";
+    const v = String(value).trim().toLowerCase();
+    if (/^(auto|fit-content|min-content|max-content|initial|unset)\b/.test(v)) {
+      return "intrinsic";
+    }
+    if (
+      v === "0" ||
+      /^\+?(\d+(\.\d+)?|\.\d+)(e[+-]?\d+)?(px|em|rem|ex|ch|cap|ic|lh|rlh|rex|rch|rcap|ric|vw|vh|vmin|vmax|vi|vb|svw|svh|svi|svb|svmin|svmax|lvw|lvh|lvi|lvb|lvmin|lvmax|dvw|dvh|dvi|dvb|dvmin|dvmax|cqw|cqh|cqi|cqb|cqmin|cqmax|cm|mm|q|in|pt|pc)$/.test(
+        v,
+      )
+    ) {
+      return "definite";
+    }
+    return "relative";
+  }
+
+  _isHeightIndefinite(heightIndependent) {
+    const kind = this._cssSizeKind(this._cssHeight);
+    if (kind === "intrinsic") return true;
+    if (kind === "relative") return !heightIndependent;
+    return false;
   }
 
   _toCssSize(value) {

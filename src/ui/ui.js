@@ -10,6 +10,10 @@ import { UIThumbnailPreview } from "./thumbnail-preview";
 import { UICaptionController } from "./caption-controller";
 import { UICaptionList } from "./caption-list";
 import { UILayoutManager } from "./layout-manager";
+import {
+  containerHeightIndependent,
+  whenOutputTransitionsSettled,
+} from "./height-probe";
 import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
 import OffscreenRendererWorker from "./offscreen-renderer-worker.js?worker";
@@ -625,19 +629,57 @@ export class UI {
   }
 
   _resizeAndRedraw(rect, pipMode) {
+    const isFullscreen = pipMode || this._isPlayerFullscreen();
+    const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
+    const output = canvasOutput ? this._canvas : this._mediaElement;
+    let heightIndependent = false;
+    // The probe only matters on the rect-fit branch (VOD or media
+    // element mode) and measures the main container - fullscreen and
+    // PiP are viewport-sized.
+    if (
+      !isFullscreen &&
+      !canvasOutput &&
+      output &&
+      this._layoutMgr.canLayout() &&
+      this._layoutMgr.heightNeedsProbe()
+    ) {
+      const probed = containerHeightIndependent(this._container, output);
+      if (probed !== null) {
+        this._heightIndependent = probed;
+      } else if (!this._probeRetryPending) {
+        // The probe deferred because a CSS transition is live on the
+        // output. Keep the last verdict for now, and re-run the layout
+        // once the transitions settle - a transition that never
+        // resizes the container (an opacity fade) produces no resize
+        // events, so without this the stale verdict would stick.
+        this._probeRetryPending = whenOutputTransitionsSettled(output, () => {
+          this._probeRetryPending = false;
+          if (!this._container.isConnected) return;
+          this._updateLayout(this._container.getBoundingClientRect());
+        });
+        if (!this._probeRetryPending) {
+          // Nothing to wait for after all (the transitions vanished
+          // between reads) - measure again right away.
+          const reprobed = containerHeightIndependent(this._container, output);
+          if (reprobed !== null) {
+            this._heightIndependent = reprobed;
+          }
+        }
+      }
+      heightIndependent = this._heightIndependent ?? false;
+    }
     let cssProps = this._layoutMgr.fullLayout(
       rect.width,
       rect.height,
       this._mode,
-      pipMode || this._isPlayerFullscreen(),
+      isFullscreen,
       this._mediaElementMode,
+      heightIndependent,
     );
     if (cssProps) {
       let container = pipMode ? this._pipContainer : this._container;
       container.style.width = cssProps.container.width;
       container.style.height = cssProps.container.height;
-      const canvasOutput = this._mode === MODE.LIVE && !this._mediaElementMode;
-      let output = canvasOutput ? this._canvas : this._mediaElement;
       output.style.width = cssProps.output.width;
       output.style.height = cssProps.output.height;
       output.style["object-fit"] = cssProps.output["object-fit"];

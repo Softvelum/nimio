@@ -245,6 +245,352 @@ describe("UILayoutManager", () => {
       });
     });
 
+    describe("VOD mode with an auto container dimension", () => {
+      // An auto container HEIGHT derives from the output element itself
+      // (the container is a block element), so sizing the output from the
+      // measured rect feeds back into the container size: the branch
+      // comparison flips between measurements and the layout oscillates
+      // (visible flicker). An auto WIDTH resolves to the parent's width -
+      // definite and feedback-free - so the rect stays trustworthy there.
+
+      it("keeps width as the constraint when the height is auto", () => {
+        const ui = new UILayoutManager("100%", "auto", "16:9");
+
+        // A rect matching the aspect ratio used to flip to height-fit.
+        const wide = ui.fullLayout(1000, 563, MODE.VOD, false);
+        expect(wide.output.width).toBe("100%");
+        expect(wide.output.height).toBe("auto");
+
+        // The intrinsic-size rect the flip produces must map to the very
+        // same styles - a single fixed point instead of an oscillation.
+        const tall = ui.fullLayout(1000, 720, MODE.VOD, false);
+        expect(tall.output.width).toBe("100%");
+        expect(tall.output.height).toBe("auto");
+      });
+
+      it("keeps the rect-based fit when only the width is auto", () => {
+        // Width auto is parent-derived on a block container: the measured
+        // rect is stable, and forcing height-fit here would overflow a
+        // parent narrower than the aspect-sized video.
+        const ui = new UILayoutManager("auto", 400, "16:9");
+
+        const wide = ui.fullLayout(1000, 400, MODE.VOD, false);
+        expect(wide.output.width).toBe("auto");
+        expect(wide.output.height).toBe("100%");
+
+        // A narrow parent letterboxes inside the fixed-height container.
+        const tall = ui.fullLayout(500, 400, MODE.VOD, false);
+        expect(tall.output.width).toBe("100%");
+        expect(tall.output.height).toBe("auto");
+      });
+
+      it("sizes intrinsically when both dimensions are auto", () => {
+        const ui = new UILayoutManager("auto", "auto", "16:9");
+
+        // Rect-independent: the same styles for any measured rect.
+        const wide = ui.fullLayout(1000, 563, MODE.VOD, false);
+        expect(wide.output.width).toBe("auto");
+        expect(wide.output.height).toBe("auto");
+
+        const tall = ui.fullLayout(500, 720, MODE.VOD, false);
+        expect(tall.output.width).toBe("auto");
+        expect(tall.output.height).toBe("auto");
+      });
+
+      it("applies the same constraint in media-element mode", () => {
+        const ui = new UILayoutManager("100%", "auto", "16:9");
+
+        const wide = ui.fullLayout(1000, 563, MODE.LIVE, false, true);
+        expect(wide.output.width).toBe("100%");
+        expect(wide.output.height).toBe("auto");
+      });
+    });
+
+    describe("VOD mode with an indefinite container height", () => {
+      // The flicker guard must key on definiteness, not on the literal
+      // "auto": a percentage height inside a parent with no definite
+      // height behaves as auto, so the rect-based fit feeds back and
+      // oscillates the same way. Context-dependent heights (%, var(),
+      // inherit) are resolved by the caller (a DOM probe in ui.js) and
+      // passed in as the heightIndependent flag - the last fullLayout
+      // argument below.
+
+      it("uses width as the constraint for a percentage height when the parent height is indefinite", () => {
+        const ui = new UILayoutManager("100%", "100%", "16:9");
+
+        const wide = ui.fullLayout(1000, 563, MODE.VOD, false, false, false);
+        expect(wide.output.width).toBe("100%");
+        expect(wide.output.height).toBe("auto");
+
+        // The intrinsic-size rect those styles produce must map back to
+        // the very same styles - a single fixed point, no oscillation.
+        const tall = ui.fullLayout(1000, 720, MODE.VOD, false, false, false);
+        expect(tall.output.width).toBe("100%");
+        expect(tall.output.height).toBe("auto");
+      });
+
+      it("keeps the rect-based fit for a percentage height when the parent height is definite", () => {
+        // Here the rect is trustworthy and dropping the fit would lose
+        // letterboxing (and overflow a shorter-than-aspect box).
+        const ui = new UILayoutManager("100%", "100%", "16:9");
+
+        const wide = ui.fullLayout(2000, 1000, MODE.VOD, false, false, true);
+        expect(wide.output.width).toBe("auto");
+        expect(wide.output.height).toBe("100%");
+
+        const narrow = ui.fullLayout(500, 400, MODE.VOD, false, false, true);
+        expect(narrow.output.width).toBe("100%");
+        expect(narrow.output.height).toBe("auto");
+      });
+
+      it("treats content-based height keywords as indefinite regardless of the flag", () => {
+        for (const height of ["fit-content", "min-content", "max-content"]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          const result = ui.fullLayout(1000, 563, MODE.VOD, false, false, true);
+          expect(result.output.width).toBe("100%");
+          expect(result.output.height).toBe("auto");
+        }
+      });
+
+      it("classifies functions containing a percentage by the parent's definiteness", () => {
+        for (const height of ["calc(100% - 40px)", "min(100%, 480px)"]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          const indefinite = ui.fullLayout(
+            1000,
+            563,
+            MODE.VOD,
+            false,
+            false,
+            false,
+          );
+          expect(indefinite.output.width).toBe("100%");
+          expect(indefinite.output.height).toBe("auto");
+
+          const definite = ui.fullLayout(
+            2000,
+            1000,
+            MODE.VOD,
+            false,
+            false,
+            true,
+          );
+          expect(definite.output.width).toBe("auto");
+          expect(definite.output.height).toBe("100%");
+        }
+      });
+
+      it("keeps the rect-based fit for absolute heights regardless of the flag", () => {
+        for (const height of ["480px", "50vh", "20em"]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          const result = ui.fullLayout(
+            2000,
+            1000,
+            MODE.VOD,
+            false,
+            false,
+            false,
+          );
+          expect(result.output.width).toBe("auto");
+          expect(result.output.height).toBe("100%");
+        }
+      });
+
+      it("keeps the rect-based fit in fullscreen where the container is viewport-sized", () => {
+        const ui = new UILayoutManager("100%", "100%", "16:9");
+
+        const result = ui.fullLayout(2000, 1000, MODE.VOD, true, false, false);
+        expect(result.output.width).toBe("auto");
+        expect(result.output.height).toBe("100%");
+      });
+
+      it("combines an auto width with an indefinite percentage height", () => {
+        const ui = new UILayoutManager("auto", "100%", "16:9");
+
+        const result = ui.fullLayout(1000, 563, MODE.VOD, false, false, false);
+        expect(result.output.width).toBe("auto");
+        expect(result.output.height).toBe("auto");
+      });
+
+      it("applies the same constraint in media-element mode", () => {
+        const ui = new UILayoutManager("100%", "100%", "16:9");
+
+        const result = ui.fullLayout(1000, 563, MODE.LIVE, false, true, false);
+        expect(result.output.width).toBe("100%");
+        expect(result.output.height).toBe("auto");
+      });
+
+      it("uses pixel sizes in media-element mode when the parent height is definite", () => {
+        const ui = new UILayoutManager("100%", "100%", "16:9");
+
+        const result = ui.fullLayout(2000, 1000, MODE.LIVE, false, true, true);
+        expect(result.output.width).toBe("2000px");
+        expect(result.output.height).toBe("100%");
+      });
+
+      it("uses the rect-based fit for frame-sized players once the frame size is known", () => {
+        // Empty width/height settings resolve to pixel dimensions on the
+        // first frame - definite from then on, whatever the flag says.
+        const ui = new UILayoutManager(undefined, undefined, "16:9");
+        ui.setFrameSize(1920, 1080);
+
+        const result = ui.fullLayout(2000, 1000, MODE.VOD, false, false, false);
+        expect(result.output.width).toBe("auto");
+        expect(result.output.height).toBe("100%");
+      });
+
+      it("resolves revert and revert-layer through the probe flag", () => {
+        // revert-layer from inline style can land on a definite
+        // stylesheet height, so the measured verdict decides.
+        for (const height of ["revert", "revert-layer"]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          const dependent = ui.fullLayout(
+            1000,
+            563,
+            MODE.VOD,
+            false,
+            false,
+            false,
+          );
+          expect(dependent.output.width).toBe("100%");
+          expect(dependent.output.height).toBe("auto");
+
+          const independent = ui.fullLayout(
+            2000,
+            1000,
+            MODE.VOD,
+            false,
+            false,
+            true,
+          );
+          expect(independent.output.width).toBe("auto");
+          expect(independent.output.height).toBe("100%");
+        }
+      });
+
+      it("treats css-wide keywords and keyword case variants as indefinite", () => {
+        for (const height of ["AUTO", " auto ", "initial", "unset"]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          // These compute to auto, so the flag must not matter.
+          const result = ui.fullLayout(
+            2000,
+            1000,
+            MODE.VOD,
+            false,
+            false,
+            true,
+          );
+          expect(result.output.width).toBe("100%");
+          expect(result.output.height).toBe("auto");
+        }
+      });
+
+      it("resolves inherit through the parent flag", () => {
+        const ui = new UILayoutManager("100%", "inherit", "16:9");
+
+        const indefinite = ui.fullLayout(
+          1000,
+          563,
+          MODE.VOD,
+          false,
+          false,
+          false,
+        );
+        expect(indefinite.output.width).toBe("100%");
+        expect(indefinite.output.height).toBe("auto");
+
+        const definite = ui.fullLayout(
+          2000,
+          1000,
+          MODE.VOD,
+          false,
+          false,
+          true,
+        );
+        expect(definite.output.width).toBe("auto");
+        expect(definite.output.height).toBe("100%");
+      });
+
+      it("resolves var() heights through the parent flag", () => {
+        const ui = new UILayoutManager("100%", "var(--player-height)", "16:9");
+
+        const indefinite = ui.fullLayout(
+          1000,
+          563,
+          MODE.VOD,
+          false,
+          false,
+          false,
+        );
+        expect(indefinite.output.width).toBe("100%");
+        expect(indefinite.output.height).toBe("auto");
+
+        const definite = ui.fullLayout(
+          2000,
+          1000,
+          MODE.VOD,
+          false,
+          false,
+          true,
+        );
+        expect(definite.output.width).toBe("auto");
+        expect(definite.output.height).toBe("100%");
+      });
+
+      it("resolves env() and calc-size() heights through the probe flag", () => {
+        for (const height of [
+          "env(safe-area-inset-bottom, auto)",
+          "calc-size(auto, size)",
+        ]) {
+          const ui = new UILayoutManager("100%", height, "16:9");
+
+          const dependent = ui.fullLayout(
+            1000,
+            563,
+            MODE.VOD,
+            false,
+            false,
+            false,
+          );
+          expect(dependent.output.width).toBe("100%");
+          expect(dependent.output.height).toBe("auto");
+
+          const independent = ui.fullLayout(
+            2000,
+            1000,
+            MODE.VOD,
+            false,
+            false,
+            true,
+          );
+          expect(independent.output.width).toBe("auto");
+          expect(independent.output.height).toBe("100%");
+        }
+      });
+
+      it("keeps an intrinsic width for content-based width keywords", () => {
+        // A fit-content width is sized by the output too; forcing
+        // width:100% against it would be cyclic.
+        const ui = new UILayoutManager("fit-content", "auto", "16:9");
+
+        const result = ui.fullLayout(1000, 563, MODE.VOD, false, false, false);
+        expect(result.output.width).toBe("auto");
+        expect(result.output.height).toBe("auto");
+      });
+
+      it("sizes intrinsically for frame-sized players before the first frame", () => {
+        const ui = new UILayoutManager(undefined, undefined, "16:9");
+
+        const result = ui.fullLayout(1000, 563, MODE.VOD, false, false, false);
+        expect(result.output.width).toBe("auto");
+        expect(result.output.height).toBe("auto");
+      });
+    });
+
     it("returns container dimensions in fullscreen mode", () => {
       const ui = new UILayoutManager(640, 480, "16:9");
 
@@ -265,6 +611,177 @@ describe("UILayoutManager", () => {
         "object-fit": "fill",
         "aspect-ratio": "16 / 9",
       });
+    });
+  });
+
+  describe("canLayout", () => {
+    // ui.js consults this before running the DOM probe: when fullLayout
+    // would bail anyway (no aspect ratio yet, or paused), the probe's
+    // forced layouts are wasted work.
+
+    it("is false without an aspect ratio", () => {
+      expect(new UILayoutManager(640, 480).canLayout()).toBe(false);
+    });
+
+    it("is false while paused", () => {
+      const ui = new UILayoutManager(640, 480, "16:9");
+      ui.pause();
+
+      expect(ui.canLayout()).toBe(false);
+    });
+
+    it("is true with an aspect ratio while not paused", () => {
+      const ui = new UILayoutManager(640, 480, "16:9");
+
+      expect(ui.canLayout()).toBe(true);
+
+      ui.pause();
+      ui.resume();
+      expect(ui.canLayout()).toBe(true);
+    });
+  });
+
+  describe("heightNeedsProbe", () => {
+    // ui.js runs a DOM probe (does the container height follow the
+    // output?) only for context-dependent heights - %, var(), inherit -
+    // which the layout manager can't classify on its own.
+
+    it("is false for intrinsic heights", () => {
+      expect(
+        new UILayoutManager("100%", "auto", "16:9").heightNeedsProbe(),
+      ).toBe(false);
+      expect(
+        new UILayoutManager("100%", "fit-content", "16:9").heightNeedsProbe(),
+      ).toBe(false);
+      expect(
+        new UILayoutManager("100%", undefined, "16:9").heightNeedsProbe(),
+      ).toBe(false);
+    });
+
+    it("is false for definite heights", () => {
+      for (const height of [
+        480,
+        "50vh",
+        "480px",
+        ".5em",
+        "1.5rem",
+        "+1px",
+        "1e2px",
+        "1E-2em",
+        "+.5rem",
+        "0",
+        "10svi",
+        "5dvb",
+        "3svmin",
+        "4lvmax",
+        "2rex",
+        "1.5rch",
+        "2ric",
+      ]) {
+        expect(
+          new UILayoutManager("100%", height, "16:9").heightNeedsProbe(),
+        ).toBe(false);
+      }
+    });
+
+    it("is true for malformed or negative numeric lengths", () => {
+      // Browsers reject these declarations (negative heights are
+      // invalid), leaving the height effectively auto - they must be
+      // measured, not trusted.
+      for (const height of ["1.2.3px", ".px", "....vh", "1..5em", "-1px"]) {
+        expect(
+          new UILayoutManager("100%", height, "16:9").heightNeedsProbe(),
+        ).toBe(true);
+      }
+    });
+
+    it("is false for css-wide keywords and keyword case variants", () => {
+      for (const height of ["AUTO", " auto ", "initial", "unset"]) {
+        expect(
+          new UILayoutManager("100%", height, "16:9").heightNeedsProbe(),
+        ).toBe(false);
+      }
+    });
+
+    it("is true for revert and revert-layer", () => {
+      // revert-layer from the style attribute falls back into author
+      // stylesheet rules, which may define a definite height; revert
+      // can expose user-origin styles. Both must be measured.
+      for (const height of ["revert", "revert-layer"]) {
+        expect(
+          new UILayoutManager("100%", height, "16:9").heightNeedsProbe(),
+        ).toBe(true);
+      }
+    });
+
+    it("is true for percentage heights", () => {
+      expect(
+        new UILayoutManager("100%", "100%", "16:9").heightNeedsProbe(),
+      ).toBe(true);
+      expect(
+        new UILayoutManager("100%", " 100% ", "16:9").heightNeedsProbe(),
+      ).toBe(true);
+    });
+
+    it("is true for inherit", () => {
+      // inherit copies the parent's computed height, so its definiteness
+      // is exactly what the parent probe measures.
+      expect(
+        new UILayoutManager("100%", "inherit", "16:9").heightNeedsProbe(),
+      ).toBe(true);
+    });
+
+    it("is true for var() heights", () => {
+      // A custom property can hide any value; the probe keeps the layout
+      // stable either way, so it decides.
+      expect(
+        new UILayoutManager(
+          "100%",
+          "var(--player-height)",
+          "16:9",
+        ).heightNeedsProbe(),
+      ).toBe(true);
+    });
+
+    it("is true for any syntax that is not a plain absolute length", () => {
+      // Only positively recognized absolute lengths skip the probe -
+      // env() can resolve to its fallback (possibly auto), calc-size()
+      // keeps intrinsic sizing behavior, and future syntax is unknown.
+      for (const height of [
+        "env(safe-area-inset-bottom, auto)",
+        "calc-size(auto, size)",
+        "calc(50vh - 10px)",
+        "min(10vh, 200px)",
+        "foo(12px)",
+      ]) {
+        expect(
+          new UILayoutManager("100%", height, "16:9").heightNeedsProbe(),
+        ).toBe(true);
+      }
+    });
+
+    it("is true for functions containing a percentage", () => {
+      expect(
+        new UILayoutManager(
+          "100%",
+          "calc(100% - 40px)",
+          "16:9",
+        ).heightNeedsProbe(),
+      ).toBe(true);
+      expect(
+        new UILayoutManager(
+          "100%",
+          "min(100%, 480px)",
+          "16:9",
+        ).heightNeedsProbe(),
+      ).toBe(true);
+    });
+
+    it("is false once frame sizing resolves empty dimensions to pixels", () => {
+      const ui = new UILayoutManager();
+      ui.setFrameSize(1920, 1080);
+
+      expect(ui.heightNeedsProbe()).toBe(false);
     });
   });
 

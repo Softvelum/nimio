@@ -66,10 +66,12 @@
     "prettier:write": "prettier --write .",
     "test": "vitest",
     "test:ci": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.js",
     "coverage": "npx vitest run --coverage tests",
     "prepublishOnly": "npm run test:ci && npm run build:pkg"
   },
   "devDependencies": {
+    "@vitest/browser-playwright": "^4.1.5",
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
     "prettier": "^3.8.3",
