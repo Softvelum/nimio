@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
   "scripts": {
     "dev": "webpack serve --mode development",
     "build": "webpack --mode production"
@@ -14,13 +17,8 @@
     "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.7",
     "style-loader": "^4.0.0",
-    "webpack": "^5.106.2",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.4"
-  },
-  "overrides": {
-    "sockjs": {
-      "uuid": "11.1.1"
-    }
+    "webpack": "^5.110.3",
+    "webpack-cli": "^7.2.3",
+    "webpack-dev-server": "^6.0.0"
   }
 }

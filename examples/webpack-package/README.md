@@ -1,5 +1,7 @@
 # webpack package smoke test
 
+Requires Node.js 22.15.0 or newer.
+
 This mini project consumes a locally packed npm tarball through:
 
 ```json
