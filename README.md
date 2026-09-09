@@ -128,7 +128,7 @@ nimio = new Nimio({
   videoOnly: false, // Video only playback
   audioOnly: false, // Audio only playback
   muted: true, // Player is muted on start
-  hardwareAcceleration: false, // Request hardware decoder; falls back to software if unsupported
+  hardwareAcceleration: false, // Prefer software; true prefers hardware. Final fallback lets the browser choose.
   offscreenCanvas: false, // Use OffscreenCanvas for frame rendering in a worker
   adaptiveBitrate: {
     initialRendition: "480p", // Default rendition which the player will set on start
