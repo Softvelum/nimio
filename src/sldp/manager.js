@@ -142,12 +142,18 @@ export class SLDPManager {
   async _processStatus(streams) {
     await this._context.setStreams(streams);
 
+    const streamsConfig = this._context.getStreamsConfig();
+    for (const stream of streamsConfig) {
+      if (this._hasVideo && stream.video === "not supported") {
+        this._logger.warn(
+          `Video codec not supported: ${stream.vcodec} (stream: ${stream.name})`,
+        );
+      }
+    }
+
     this._processCurrentStreams();
 
-    this._eventBus.emit(
-      "nimio:connection-established",
-      this._context.getStreamsConfig(),
-    );
+    this._eventBus.emit("nimio:connection-established", streamsConfig);
   }
 
   _processCurrentStreams() {
