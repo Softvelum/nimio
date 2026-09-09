@@ -60,6 +60,38 @@ function setupWorkerGlobals() {
   skipOutput = false;
 }
 
+function sendWorkerMessage(data) {
+  globalThis.dispatchEvent(new MessageEvent("message", { data }));
+}
+
+async function setupFallbackTest(hardwareAcceleration) {
+  skipOutput = true;
+  await import("@/media/decoders/decoder-video.js");
+  const codecData = new Uint8Array([1, 2, 3]);
+  sendWorkerMessage({
+    type: "config",
+    config: {
+      codec: "hvc1.1.6.L93.B0",
+      width: 1280,
+      height: 720,
+      hardwareAcceleration,
+    },
+  });
+  sendWorkerMessage({ type: "codecData", codecData });
+  return {
+    codec: "hvc1.1.6.L93.B0",
+    codedWidth: 1280,
+    codedHeight: 720,
+    description: codecData,
+  };
+}
+
+function checkedPreferences() {
+  return isConfigSupportedMock.mock.calls.map(
+    ([params]) => params.hardwareAcceleration,
+  );
+}
+
 describe("decoder-video", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -183,80 +215,157 @@ describe("decoder-video", () => {
     vi.runAllTimers();
   });
 
-  it("fallbacks to software decoding if hardware is not supported", async () => {
-    isConfigSupportedMock
-      .mockResolvedValueOnce({ supported: false }) // hardware not supported
-      .mockResolvedValueOnce({ supported: true }); // software supported
+  it.each([
+    [false, "prefer-software", ["prefer-software"]],
+    [false, "no-preference", ["prefer-software", "no-preference"]],
+    [true, "prefer-hardware", ["prefer-hardware"]],
+    [true, "prefer-software", ["prefer-hardware", "prefer-software"]],
+    [
+      true,
+      "no-preference",
+      ["prefer-hardware", "prefer-software", "no-preference"],
+    ],
+  ])(
+    "selects %s / %s using the full decoder configuration",
+    async (hardwareAcceleration, supportedPreference, expectedPreferences) => {
+      isConfigSupportedMock.mockImplementation(async (params) => ({
+        supported: params.hardwareAcceleration === supportedPreference,
+      }));
+      const expectedParams = await setupFallbackTest(hardwareAcceleration);
+      await vi.runAllTimersAsync();
 
-    await import("@/media/decoders/decoder-video.js");
+      expect(checkedPreferences()).toEqual(expectedPreferences);
+      for (const [params] of isConfigSupportedMock.mock.calls) {
+        expect(params).toEqual({
+          ...expectedParams,
+          hardwareAcceleration: params.hardwareAcceleration,
+        });
+      }
+      expect(configureMock).toHaveBeenCalledExactlyOnceWith({
+        ...expectedParams,
+        hardwareAcceleration: supportedPreference,
+      });
+      expect(postMessageMock).not.toHaveBeenCalled();
+    },
+  );
 
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "config",
-          config: {
-            codec: "avc1.42e01e",
-            width: 640,
-            height: 480,
-            hardwareAcceleration: true,
-          },
-        },
-      }),
+  it.each([
+    [false, "no-preference", ["prefer-software", "no-preference"]],
+    [true, "prefer-software", ["prefer-hardware", "prefer-software"]],
+    [
+      true,
+      "no-preference",
+      ["prefer-hardware", "prefer-software", "no-preference"],
+    ],
+  ])(
+    "continues after configure throws with %s / %s",
+    async (hardwareAcceleration, workingPreference, expectedPreferences) => {
+      configureMock.mockImplementation((params) => {
+        if (params.hardwareAcceleration !== workingPreference) {
+          throw new Error("Configuration failed");
+        }
+      });
+      const expectedParams = await setupFallbackTest(hardwareAcceleration);
+      await vi.runAllTimersAsync();
+
+      expect(checkedPreferences()).toEqual(expectedPreferences);
+      expect(configureMock).toHaveBeenCalledTimes(expectedPreferences.length);
+      expect(configureMock).toHaveBeenLastCalledWith({
+        ...expectedParams,
+        hardwareAcceleration: workingPreference,
+      });
+      expect(postMessageMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    "reports one error when all modes are unsupported (hardwareAcceleration=%s)",
+    async (hardwareAcceleration) => {
+      isConfigSupportedMock.mockResolvedValue({ supported: false });
+      await setupFallbackTest(hardwareAcceleration);
+      await vi.runAllTimersAsync();
+
+      expect(checkedPreferences()).toEqual(
+        hardwareAcceleration
+          ? ["prefer-hardware", "prefer-software", "no-preference"]
+          : ["prefer-software", "no-preference"],
+      );
+      expect(configureMock).not.toHaveBeenCalled();
+      expect(postMessageMock).toHaveBeenCalledExactlyOnceWith({
+        type: "decoderError",
+        kind: "video",
+      });
+    },
+  );
+
+  it("falls back if the support check rejects", async () => {
+    isConfigSupportedMock.mockRejectedValueOnce(new Error("Check failed"));
+    await setupFallbackTest(false);
+    await vi.runAllTimersAsync();
+
+    expect(checkedPreferences()).toEqual(["prefer-software", "no-preference"]);
+    expect(configureMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ hardwareAcceleration: "no-preference" }),
     );
-
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "codecData",
-          codecData: new Uint8Array([1, 2, 3]),
-        },
-      }),
-    );
-
-    await Promise.resolve();
-    expect(isConfigSupportedMock).toHaveBeenCalledTimes(2);
-    await Promise.resolve(); // wait for async configure
-    await Promise.resolve();
-    expect(configureMock).toHaveBeenCalled();
+    expect(postMessageMock).not.toHaveBeenCalled();
   });
 
-  it("reports decoderError if codec unsupported", async () => {
-    skipOutput = true;
+  it("reuses the selected fallback when recovering the decoder", async () => {
+    isConfigSupportedMock.mockImplementation(async (params) => ({
+      supported: params.hardwareAcceleration === "no-preference",
+    }));
+    await setupFallbackTest(false);
+    await vi.runAllTimersAsync();
+    isConfigSupportedMock.mockClear();
+    configureMock.mockClear();
+
+    await errorCallback(new Error("Decode failed"));
+
+    expect(resetMock).toHaveBeenCalledOnce();
+    expect(checkedPreferences()).not.toContain("prefer-software");
+    expect(configureMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ hardwareAcceleration: "no-preference" }),
+    );
+    expect(postMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("buffers chunks while the fallback support check is pending", async () => {
+    let resolveSupport;
     isConfigSupportedMock
       .mockResolvedValueOnce({ supported: false })
-      .mockResolvedValueOnce({ supported: false });
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveSupport = resolve)),
+      );
+    await setupFallbackTest(false);
+    await vi.runAllTimersAsync();
 
-    await import("@/media/decoders/decoder-video.js");
-
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "config",
-          config: {
-            codec: "bogus",
-            width: 1,
-            height: 1,
-            hardwareAcceleration: true,
-          },
-        },
-      }),
-    );
-
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "codecData",
-          codecData: new Uint8Array([1]),
-        },
-      }),
-    );
-
-    // wait for 2 isConfigSupported() and configureDecoder to run
-    for (let i = 0; i < 3; i++) await Promise.resolve();
-    expect(postMessageMock).toHaveBeenCalledWith({
-      type: "decoderError",
-      kind: "video",
+    const frameWithHeader = new Uint8Array([1, 2, 3]).buffer;
+    sendWorkerMessage({
+      type: "chunk",
+      pts: 1000,
+      chunkType: "key",
+      frameWithHeader,
+      framePos: 0,
     });
+    expect(decodeMock).not.toHaveBeenCalled();
+
+    resolveSupport({ supported: true });
+    await vi.runAllTimersAsync();
+    sendWorkerMessage({
+      type: "chunk",
+      pts: 2000,
+      chunkType: "delta",
+      frameWithHeader,
+      framePos: 0,
+    });
+
+    expect(decodeMock.mock.calls.map(([chunk]) => chunk.timestamp)).toEqual([
+      1000, 2000,
+    ]);
+    expect(configureMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ hardwareAcceleration: "no-preference" }),
+    );
+    expect(postMessageMock).not.toHaveBeenCalled();
   });
 
   it("buffers frames before decoder is ready", async () => {
@@ -346,42 +455,24 @@ describe("decoder-video", () => {
     });
   });
 
-  it("emits decoderError message if decoder fails during configure", async () => {
-    skipOutput = true;
-    configureMock.mockImplementation(function () {
-      throw new Error("Configuration failed");
-    });
+  it.each([false, true])(
+    "reports one error when every configure attempt fails (hardwareAcceleration=%s)",
+    async (hardwareAcceleration) => {
+      configureMock.mockImplementation(() => {
+        throw new Error("Configuration failed");
+      });
+      await setupFallbackTest(hardwareAcceleration);
+      await vi.runAllTimersAsync();
 
-    await import("@/media/decoders/decoder-video.js");
-
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "config",
-          config: {
-            codec: "avc1.42e01e",
-            width: 640,
-            height: 480,
-            hardwareAcceleration: true,
-          },
-        },
-      }),
-    );
-
-    globalThis.dispatchEvent(
-      new MessageEvent("message", {
-        data: {
-          type: "codecData",
-          codecData: new Uint8Array([1, 2, 3]),
-        },
-      }),
-    );
-
-    for (let i = 0; i < 3; i++) await Promise.resolve();
-    vi.runAllTimers();
-    expect(postMessageMock).toHaveBeenCalledWith({
-      type: "decoderError",
-      kind: "video",
-    });
-  });
+      const expectedPreferences = hardwareAcceleration
+        ? ["prefer-hardware", "prefer-software", "no-preference"]
+        : ["prefer-software", "no-preference"];
+      expect(checkedPreferences()).toEqual(expectedPreferences);
+      expect(configureMock).toHaveBeenCalledTimes(expectedPreferences.length);
+      expect(postMessageMock).toHaveBeenCalledExactlyOnceWith({
+        type: "decoderError",
+        kind: "video",
+      });
+    },
+  );
 });

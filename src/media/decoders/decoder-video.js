@@ -88,35 +88,41 @@ async function tryRecoverDecoderError(error) {
   waitingForKeyframe = true;
 }
 
-async function fallbackToSoftwareSupport() {
-  console.warn(
-    "Hardware acceleration not supported, falling back to software decoding",
-  );
-  params.hardwareAcceleration = "prefer-software";
-  support = await VideoDecoder.isConfigSupported(params);
-}
-
 async function configureDecoder() {
-  if (!support?.supported) {
-    return handleDecoderError(`Video codec not supported: ${params.codec}`);
-  }
+  const preferences = ["prefer-hardware", "prefer-software", "no-preference"];
+  // On recovery, start with the mode that previously configured successfully.
+  const startIndex = preferences.indexOf(params.hardwareAcceleration);
+  let errorMessage = `Video codec not supported: ${params.codec}`;
+  support = null;
 
-  console.log(
-    `configureDecoder codec=${params.codec}, accel=${params.hardwareAcceleration}`,
-  );
+  for (const hardwareAcceleration of preferences.slice(startIndex)) {
+    const candidateParams = { ...params, hardwareAcceleration };
+    try {
+      const candidateSupport =
+        await VideoDecoder.isConfigSupported(candidateParams);
+      if (!candidateSupport.supported) {
+        console.warn(
+          `Video decoder not supported: codec=${params.codec}, accel=${hardwareAcceleration}`,
+        );
+        continue;
+      }
 
-  try {
-    videoDecoder.configure(params);
-  } catch (error) {
-    support.supported = false;
-    console.warn("configureDecoder exception raised");
-    if (params.hardwareAcceleration === "prefer-hardware") {
-      // last ditch attempt
-      await fallbackToSoftwareSupport();
-      return await configureDecoder();
+      console.log(
+        `configureDecoder codec=${params.codec}, accel=${hardwareAcceleration}`,
+      );
+      videoDecoder.configure(candidateParams);
+      params = candidateParams;
+      support = candidateSupport;
+      return;
+    } catch (error) {
+      errorMessage = error.message;
+      console.warn(
+        `Video decoder configuration failed: codec=${params.codec}, accel=${hardwareAcceleration}: ${errorMessage}`,
+      );
     }
-    handleDecoderError(error.message);
   }
+
+  handleDecoderError(errorMessage);
 }
 
 function shutdownDecoder() {
@@ -162,8 +168,6 @@ self.addEventListener("message", async function (e) {
         params.description = e.data.codecData;
       }
 
-      support = await VideoDecoder.isConfigSupported(params);
-      if (!support.supported) await fallbackToSoftwareSupport();
       await configureDecoder();
       break;
     case "chunk":
