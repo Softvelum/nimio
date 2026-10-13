@@ -15,6 +15,7 @@ import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { AudioVolumeController } from "./audio/volume-controller";
+import { AudioContextProvider } from "./audio/context-provider";
 import { PlaybackThumbnailService } from "./playback/thumbnail-service";
 import { SPSHolder } from "./sps/holder";
 
@@ -112,6 +113,8 @@ export default class Nimio {
 
     this._livePlayer.destroy();
     this._livePlayer = undefined;
+    // Shared by live and VOD, so close it only after both are stopped
+    AudioContextProvider.getInstance(this._instName).close();
     this._eventBus.off("nimio:connection-established", this._onLiveConnected);
     this._eventBus.off("aux:playback-error", this._onError);
   }

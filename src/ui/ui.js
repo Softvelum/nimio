@@ -18,6 +18,8 @@ import { UiPip } from "./ui-pip";
 import { MODE } from "@/shared/values";
 import OffscreenRendererWorker from "./offscreen-renderer-worker.js?worker";
 
+const CONTROLS_STYLE_ID = "nimio-controls-css";
+
 export class UI {
   constructor(instName, parent, opts, eventBus) {
     this._state = "pause";
@@ -348,9 +350,13 @@ export class UI {
     this._buttonFullscreen.addEventListener("click", this._onFullscreenClick);
     this._canvas.addEventListener("dblclick", this._onFullscreenClick);
 
-    const style = document.createElement("style");
-    style.textContent = controlsCss;
-    document.head.appendChild(style);
+    // Identical for all instances, so it's shared and never removed
+    if (!document.getElementById(CONTROLS_STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = CONTROLS_STYLE_ID;
+      style.textContent = controlsCss;
+      document.head.appendChild(style);
+    }
   }
 
   _addControlsEventHandlers() {
