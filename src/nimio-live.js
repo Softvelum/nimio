@@ -1,6 +1,6 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
-import { IDX, MODE, STATE } from "./shared/values";
+import { IDX, MODE } from "./shared/values";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
@@ -220,7 +220,10 @@ export class NimioLive {
     this._playbackStarted = false;
     requestAnimationFrame(this._renderVideoFrame);
 
-    this._transport.connected && this._context.state?.value !== STATE.PAUSED
+    // A connected transport is the preserved server session (kept alive
+    // across the VOD detach); reuse it whatever state was recorded at detach,
+    // so returning to live never opens a second session.
+    this._transport.connected
       ? this._sldpManager.requestCurrentStreams()
       : this._sldpManager.start(
           this._config.streamUrl,

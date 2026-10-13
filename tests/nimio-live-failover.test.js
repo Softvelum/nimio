@@ -23,8 +23,12 @@ function makeTransport() {
   };
 }
 
+// A keep-alive is an empty Cancel that does not close the connection.
 const isKeepAlive = (m) =>
-  m.cmd === "stop" && Array.isArray(m.data.sns) && m.data.sns.length === 0;
+  m.cmd === "stop" &&
+  Array.isArray(m.data.sns) &&
+  m.data.sns.length === 0 &&
+  !m.data.close;
 
 describe("NimioLive failover preserves the keep-alive session", () => {
   let live;
@@ -70,5 +74,27 @@ describe("NimioLive failover preserves the keep-alive session", () => {
     // ...and the keep-alive loop must still be running.
     vi.advanceTimersByTime(10000);
     expect(transport.sent.filter(isKeepAlive).length).toBe(1);
+  });
+
+  it("a closing stop from the detached state closes the session and ends keep-alive", () => {
+    // VOD: live player detached (STOPPED), transport connected, keep-alive on.
+    manager.keepAliveConnection();
+    vi.advanceTimersByTime(10000);
+    expect(transport.sent.filter(isKeepAlive).length).toBe(1);
+    transport.sent.length = 0;
+
+    // Nimio.stop() while in VOD: the stop() guard must reach the manager even
+    // though the live state is already STOPPED, because the connection is up.
+    live.stop();
+
+    const closeMsgs = transport.sent.filter(
+      (m) => m.cmd === "stop" && m.data.close === true,
+    );
+    expect(closeMsgs).toHaveLength(1);
+    expect(closeMsgs[0].data.sns).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+
+    vi.advanceTimersByTime(60000);
+    expect(transport.sent.filter(isKeepAlive)).toHaveLength(0);
   });
 });
