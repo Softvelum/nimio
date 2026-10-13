@@ -41,6 +41,16 @@ let protocolAgent;
 
 let socket;
 let curSocketId = 0;
+
+function closeSocket() {
+  console.debug(`Close connection for socket id ${socket.id}`);
+  socket.onclose = undefined;
+  socket.onmessage = undefined;
+  socket.close();
+  socket = undefined;
+  self.postMessage({ aux: true, connected: false });
+}
+
 self.onmessage = (e) => {
   let type = e.data.type;
 
@@ -49,6 +59,8 @@ self.onmessage = (e) => {
     // if (socket && socket.readyState === CONN_STATES.OPEN) {
     //   return;
     // }
+    // Frames of the previous socket would go to the new protocol agent
+    if (socket) closeSocket();
 
     socket = new WebSocket(e.data.url, e.data.protocols);
     socket.binaryType = "arraybuffer";
@@ -98,7 +110,8 @@ self.onmessage = (e) => {
       }),
     );
   } else if (type === "stop") {
-    if (e.data.sns && e.data.sns.length >= 0) {
+    // Empty sns is a keep-alive. A connecting socket can't send yet.
+    if (e.data.sns && socket.readyState === CONN_STATES.OPEN) {
       socket.send(
         JSON.stringify({
           command: "Cancel",
@@ -106,13 +119,7 @@ self.onmessage = (e) => {
         }),
       );
     }
-    if (e.data.close) {
-      console.debug(`Close connection for socket id ${socket.id}`);
-      socket.onclose = undefined;
-      socket.close();
-      socket = undefined;
-      self.postMessage({ aux: true, connected: false });
-    }
+    if (e.data.close) closeSocket();
   } else {
     if (protocolAgent) protocolAgent.handleMessage(type, e.data);
   }
