@@ -179,6 +179,15 @@ export class NimioLive {
     }
   }
 
+  // The URL is already updated in the config
+  setStreamURL() {
+    if (this._state.isStopped()) return;
+
+    const playing = this._state.isPlaying();
+    this.stop();
+    if (playing) this.play();
+  }
+
   attach(ui, params) {
     if (this._ui) return false;
 
