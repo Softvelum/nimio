@@ -4,8 +4,20 @@ export class Reconnector {
   constructor(instName, count) {
     this._count = count;
     this._eventBus = EventBus.getInstance(instName);
-    this._eventBus.on("nimio:connection-established", () => this.reset());
+    this._onConnectionEstablished = () => this.reset();
+    this._eventBus.on(
+      "nimio:connection-established",
+      this._onConnectionEstablished,
+    );
     this.reset();
+  }
+
+  destroy() {
+    this.stop();
+    this._eventBus.off(
+      "nimio:connection-established",
+      this._onConnectionEstablished,
+    );
   }
 
   reset() {

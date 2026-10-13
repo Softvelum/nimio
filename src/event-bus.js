@@ -5,4 +5,10 @@ import { multiInstanceService } from "./shared/service";
 // add event subscription hooks
 Object.assign(EventEmitter.prototype, EventHooks);
 
-export const EventBus = multiInstanceService(EventEmitter);
+class EventBusEmitter extends EventEmitter {
+  destroy() {
+    this.removeAllListeners();
+  }
+}
+
+export const EventBus = multiInstanceService(EventBusEmitter);

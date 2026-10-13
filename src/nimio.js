@@ -15,7 +15,7 @@ import { PlaybackProgressProxy } from "./playback/progress-proxy";
 import { VUMeterService } from "./vumeter/service";
 import { LoggersFactory } from "./shared/logger";
 import { AudioVolumeController } from "./audio/volume-controller";
-import { AudioContextProvider } from "./audio/context-provider";
+import { allocateInstanceKey, releaseInstances } from "./shared/service";
 import { PlaybackThumbnailService } from "./playback/thumbnail-service";
 import { SPSHolder } from "./sps/holder";
 
@@ -36,7 +36,8 @@ export default class Nimio {
     if (options && !options.instanceName) {
       options.instanceName = "nimio_" + (Math.floor(Math.random() * 10000) + 1);
     }
-    this._instName = options.instanceName;
+    // Registry key of the per-instance services, unique per player
+    this._instName = allocateInstanceKey(options.instanceName);
     ScriptPathProvider.getInstance(this._instName).setScriptPath(scriptPath);
     this._eventBus = EventBus.getInstance(this._instName);
 
@@ -46,7 +47,7 @@ export default class Nimio {
 
     const { element: containerElem, storageKey } = resolveContainer(
       this._config.container,
-      { logger: this._logger, fallbackId: this._instName },
+      { logger: this._logger, fallbackId: options.instanceName },
     );
     this._config.container = containerElem;
     this._config.volumeId = storageKey;
@@ -113,10 +114,10 @@ export default class Nimio {
 
     this._livePlayer.destroy();
     this._livePlayer = undefined;
-    // Shared by live and VOD, so close it only after both are stopped
-    AudioContextProvider.getInstance(this._instName).close();
     this._eventBus.off("nimio:connection-established", this._onLiveConnected);
     this._eventBus.off("aux:playback-error", this._onError);
+    // Last, as live and VOD players share services (e.g. AudioContext)
+    releaseInstances(this._instName);
   }
 
   setParameters(params) {

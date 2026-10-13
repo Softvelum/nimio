@@ -38,6 +38,8 @@ export class NimioVod {
     this._loadSourcePromise = this._addScriptTag(this._config.hlsjs.source);
     this._loadSourcePromise
       .then((script) => {
+        if (this._destroyed) return;
+
         this._pHandler = new Hls({
           abrMaxWithRealBitrate: true,
           // autoStartLoad: false,
@@ -133,6 +135,8 @@ export class NimioVod {
   }
 
   destroy() {
+    // hls.js may still be loading, its promise must not init the player then
+    this._destroyed = true;
     if (this._state === VOD_STATE.NULL) return;
     if (!this._pHandler) return;
 

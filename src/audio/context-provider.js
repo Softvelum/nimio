@@ -89,6 +89,10 @@ class AudioContextProvider {
     }
   }
 
+  destroy() {
+    this.close();
+  }
+
   onContextRunning(cb) {
     if (!this._suspended) {
       cb(this._audioCtx);
