@@ -272,6 +272,8 @@ export class NimioLive {
   destroy() {
     this.stop();
     this._removeUIEventHandlers();
+    this._deinitTransport();
+    this._reconnect.destroy();
   }
 
   setParameters(params) {
@@ -455,7 +457,7 @@ export class NimioLive {
   _createMainDecoderFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
     this._decoderFlows[type] = new flowClass(
-      this._config.instanceName,
+      this._instName,
       data.trackId,
       data.timescale,
     );
@@ -488,7 +490,7 @@ export class NimioLive {
   _createNextRenditionFlow(type, data) {
     let flowClass = type === "video" ? DecoderFlowVideo : DecoderFlowAudio;
     this._nextRenditionData.decoderFlow = new flowClass(
-      this._config.instanceName,
+      this._instName,
       data.trackId,
       data.timescale,
     );
@@ -742,7 +744,7 @@ export class NimioLive {
     if (this._audioNode) return;
 
     let procOptions = {
-      instanceName: this._config.instanceName,
+      instanceName: this._instName,
       sampleRate: sampleRate,
       stateSab: this._sab,
       stateSabShared: this._sabShared,
@@ -862,7 +864,7 @@ export class NimioLive {
 
   _createLatencyController() {
     this._latencyCtrl = new LatencyController(
-      this._config.instanceName,
+      this._instName,
       this._state,
       this._audioConfig,
       this._advertizerEval,
