@@ -20,7 +20,12 @@ export const NimioTransport = {
       disconnect: this._onDisconnect.bind(this),
       error: this._onTransportError.bind(this),
     };
-    this._eventBus.on("transp:track-action", this._onTrackAction.bind(this));
+    this._onTrackAction = this._onTrackAction.bind(this);
+    this._eventBus.on("transp:track-action", this._onTrackAction);
+  },
+
+  _deinitTransport() {
+    this._eventBus.off("transp:track-action", this._onTrackAction);
   },
 
   _onTrackAction(data) {

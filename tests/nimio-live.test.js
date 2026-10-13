@@ -40,7 +40,8 @@ import { NimioLive } from "@/nimio-live.js";
 
 function createLive() {
   const live = Object.create(NimioLive.prototype);
-  live._config = { instanceName: "Test" };
+  live._instName = "Test";
+  live._config = {};
   live._decoderFlows = { video: null, audio: null };
   live._nextRenditionData = {};
   live._sldpManager = { cancelStream: vi.fn() };

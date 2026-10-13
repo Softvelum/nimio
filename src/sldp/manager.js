@@ -51,9 +51,11 @@ export class SLDPManager {
 
   stop(opts = {}) {
     const sns = this.resetRequestedStreams();
-    if (sns.length === 0) return;
+    const close = !!opts.closeConnection;
+    // While connecting no streams are requested yet, but the socket is open
+    if (sns.length === 0 && !close) return;
 
-    this._sendRequest("stop", { sns, close: !!opts.closeConnection });
+    this._sendRequest("stop", { sns, close });
   }
 
   resetRequestedStreams() {
