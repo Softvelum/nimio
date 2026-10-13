@@ -61,6 +61,10 @@ class MediaGrabber {
     }
   }
 
+  destroy() {
+    this.stop();
+  }
+
   _deinit() {
     this._vod = false;
     if (!this._handleBitmap) return;

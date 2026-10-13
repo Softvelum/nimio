@@ -245,6 +245,11 @@ These methods are available on every `Nimio` player instance.
   **Parameters:**
   buffer - (optional) buffer size in seconds that the player pertains during live playback.
 
+- `setStreamURL(url)`  
+  Switches the player to another stream without recreating it. A playing player reconnects to the new stream right away; if it's in VOD mode, it's switched to live mode first. A paused or stopped player uses the new URL on the next `play()`. Switching emits `nimio:playback-end` followed by `nimio:play`, as with `stop()` and `play()`.  
+  **Parameters:**  
+  url - either the new live stream URL string, or an object `{ live, vod }` to set the live and VOD (DVR) URLs. A field that is omitted keeps its current URL, except a VOD URL that wasn't set explicitly: it follows the new live URL.
+
 - `getCaptionTracks()`  
   Returns a map of the CEA-608 caption tracks currently available in the stream.  
   **Return value:** object, containing ID: CAP_OBJ pairs, where the ID is one of the following: "CC1", "CC2", "CC3", "CC4". The CAP_OBJ is and object with the following fields:

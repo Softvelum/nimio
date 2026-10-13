@@ -30,6 +30,10 @@ class CaptionPresenter {
     }
   }
 
+  destroy() {
+    this.stop();
+  }
+
   deinit() {
     this.stop();
     this._captions = {};

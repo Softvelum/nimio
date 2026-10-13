@@ -41,6 +41,16 @@ let protocolAgent;
 
 let socket;
 let curSocketId = 0;
+
+function closeSocket() {
+  console.debug(`Close connection for socket id ${socket.id}`);
+  socket.onclose = undefined;
+  socket.onmessage = undefined;
+  socket.close();
+  socket = undefined;
+  self.postMessage({ aux: true, connected: false });
+}
+
 self.onmessage = (e) => {
   let type = e.data.type;
 
@@ -49,6 +59,8 @@ self.onmessage = (e) => {
     // if (socket && socket.readyState === CONN_STATES.OPEN) {
     //   return;
     // }
+    // Frames of the previous socket would go to the new protocol agent
+    if (socket) closeSocket();
 
     if (socket) {
       // A start while the previous socket is still live must not orphan it:
@@ -130,13 +142,7 @@ self.onmessage = (e) => {
         }),
       );
     }
-    if (e.data.close) {
-      console.debug(`Close connection for socket id ${socket.id}`);
-      socket.onclose = undefined;
-      socket.close();
-      socket = undefined;
-      self.postMessage({ aux: true, connected: false });
-    }
+    if (e.data.close) closeSocket();
   } else {
     if (protocolAgent) protocolAgent.handleMessage(type, e.data);
   }
