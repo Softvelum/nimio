@@ -44,6 +44,9 @@ let curSocketId = 0;
 
 function closeSocket() {
   console.debug(`Close connection for socket id ${socket.id}`);
+  // open/message delivery is task-queued: a queued event of this socket may
+  // still run after it was replaced and must not act for the new one
+  socket.onopen = undefined;
   socket.onclose = undefined;
   socket.onmessage = undefined;
   socket.close();
@@ -59,19 +62,10 @@ self.onmessage = (e) => {
     // if (socket && socket.readyState === CONN_STATES.OPEN) {
     //   return;
     // }
-    // Frames of the previous socket would go to the new protocol agent
+    // A start while the previous socket is still live must not orphan it:
+    // the server would keep that session open and its frames would go to
+    // the new protocol agent.
     if (socket) closeSocket();
-
-    if (socket) {
-      // A start while the previous socket is still live must not orphan it:
-      // the server would keep that session open, and its eventual close
-      // would never be reported (its id no longer matches curSocketId).
-      console.debug(`Replace socket id ${socket.id} with a new connection`);
-      socket.onopen = socket.onmessage = socket.onclose = undefined;
-      socket.close();
-      socket = undefined;
-      self.postMessage({ aux: true, connected: false });
-    }
 
     const ws = new WebSocket(e.data.url, e.data.protocols);
     ws.binaryType = "arraybuffer";
