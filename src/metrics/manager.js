@@ -27,6 +27,11 @@ class MetricsManager {
     return m;
   }
 
+  destroy() {
+    for (const m of this._metrics.values()) m.destroy();
+    this._metrics.clear();
+  }
+
   run(id) {
     this._exec("start", id);
   }

@@ -56,7 +56,12 @@ function createEngine({ paired }) {
   live._isAutoAbr = () => false;
   live._eventBus = { emit: vi.fn() };
   live._decoderFlows = { audio: main, video: null };
-  live._nextRenditionData = { idx: 1, trackId: 5, decoderFlow: next };
+  live._nextRenditionData = {
+    type: "audio",
+    idx: 1,
+    trackId: 5,
+    decoderFlow: next,
+  };
   live._onRenditionSwitchResult = vi.fn(function (type, done) {
     return NimioLive.prototype._onRenditionSwitchResult.call(this, type, done);
   });
@@ -100,5 +105,111 @@ describe("incompatible audio config for the next rendition", () => {
     expect(live._nextRenditionData).toBeNull();
     expect(live._sldpManager.cancelStream).toHaveBeenCalledTimes(1);
     expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(5);
+  });
+});
+
+// Main-track header update that the existing audio output cannot accept.
+function createMainTrackEngine({ paired, nextFlowExists = true }) {
+  const { live, main, next } = createEngine({ paired });
+  live._audioBuffer = { reset: vi.fn() }; // an audio output already exists
+  live._context = { resetCurrentStream: vi.fn() };
+  if (!nextFlowExists) live._nextRenditionData.decoderFlow = undefined;
+  return { live, main, next };
+}
+
+const mainCodecData = { trackId: 7, data: new Uint8Array(2), family: "aac" };
+
+describe("incompatible audio config update on the main track", () => {
+  it("with a paired next rendition: fails the switch once and cancels both streams", () => {
+    const { live, main, next } = createMainTrackEngine({ paired: true });
+
+    expect(() => live._onAudioCodecDataReceived(mainCodecData)).not.toThrow();
+
+    expect(main._decoder.postMessage).toHaveBeenCalledWith({
+      type: "shutdown",
+    });
+    expect(next._decoder.postMessage).toHaveBeenCalledWith({
+      type: "shutdown",
+    });
+    expect(live._decoderFlows.audio).toBeNull();
+    expect(live._nextRenditionData).toBeNull();
+    expect(live._onRenditionSwitchResult).toHaveBeenCalledTimes(1);
+    expect(live._onRenditionSwitchResult).toHaveBeenCalledWith("audio", false);
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(7);
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(5);
+  });
+
+  it("with a pending next rendition whose setup has not arrived: fails it without throwing", () => {
+    const { live } = createMainTrackEngine({
+      paired: false,
+      nextFlowExists: false,
+    });
+
+    expect(() => live._onAudioCodecDataReceived(mainCodecData)).not.toThrow();
+
+    expect(live._nextRenditionData).toBeNull();
+    expect(live._onRenditionSwitchResult).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(5);
+  });
+
+  it("with a pending VIDEO switch: leaves it alone and tears down only the main audio stream", () => {
+    const { live } = createMainTrackEngine({ paired: false });
+    const videoNext = createFlowWithWorker();
+    videoNext._type = "video";
+    videoNext._trackId = 9;
+    live._nextRenditionData = {
+      type: "video",
+      idx: 2,
+      trackId: 9,
+      decoderFlow: videoNext,
+    };
+
+    expect(() => live._onAudioCodecDataReceived(mainCodecData)).not.toThrow();
+
+    expect(videoNext._decoder.postMessage).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toMatchObject({
+      type: "video",
+      trackId: 9,
+    });
+    expect(live._onRenditionSwitchResult).not.toHaveBeenCalled();
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(7);
+  });
+
+  it("without a pending rendition: only the main stream is torn down", () => {
+    const { live } = createMainTrackEngine({ paired: false });
+    live._nextRenditionData = null;
+
+    live._onAudioCodecDataReceived(mainCodecData);
+
+    expect(live._onRenditionSwitchResult).not.toHaveBeenCalled();
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.cancelStream).toHaveBeenCalledWith(7);
+  });
+});
+
+describe("setCurrentRendition() records the switch type", () => {
+  it("stores the type with the pending rendition data", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    live._isSwitchPossible = () => true;
+    live._context = {
+      isCurrentStream: () => false,
+      streams: [
+        null,
+        { stream: "aud2", stream_info: { acodecSupported: true, name: "a2" } },
+      ],
+    };
+    live._nextRenditionData = null;
+    live._eventBus = { emit: vi.fn() };
+    live._sldpManager = { requestStream: vi.fn(() => 9) };
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(true);
+
+    expect(live._nextRenditionData).toMatchObject({
+      type: "audio",
+      idx: 1,
+      trackId: 9,
+    });
   });
 });

@@ -57,6 +57,10 @@ class AudioGraphController {
     this._nodes.length = 0;
   }
 
+  destroy() {
+    this.dismantle();
+  }
+
   setChannelCount(channels) {
     if (this._source) {
       this._source.channelCount = channels;

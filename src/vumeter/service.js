@@ -42,11 +42,17 @@ class VUMeterService {
   }
 
   clear() {
-    this.stop(true);
-
+    if (this._inst) {
+      this._audGraphCtrl.removeNode(this._inst.node);
+      this._inst.dispose(); // a pending worklet load must create no meter
+    }
     this._settings = undefined;
     this._inst = undefined;
     this._started = false;
+  }
+
+  destroy() {
+    this.clear();
   }
 
   setAudioInfo(audioInfo) {

@@ -15,6 +15,7 @@ class AudioWorkletMeter extends BaseMeter {
   }
 
   _onWorkletModuleAdded = () => {
+    if (this._disposed) return;
     this._logger.debug("AudioWorklet module loaded", this._procUrl);
     this._meter = new AudioWorkletNode(this._context, "vu-audio-processor", {
       processorOptions: {
@@ -33,6 +34,7 @@ class AudioWorkletMeter extends BaseMeter {
   };
 
   _onWorkletModuleNotFound = (error) => {
+    if (this._disposed) return;
     if (this._procUrl === vuProcUrl) {
       this._onWorkletModuleError(error);
     } else {
@@ -44,6 +46,7 @@ class AudioWorkletMeter extends BaseMeter {
   };
 
   _onWorkletModuleError = (error) => {
+    if (this._disposed) return;
     this._logger.error(
       this._spProvider.notAvailableError("AudioWorkletProcessor", vuProcUrl),
       error,

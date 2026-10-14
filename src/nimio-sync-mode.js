@@ -1,10 +1,11 @@
 export const NimioSyncMode = {
   _createSyncModeParams() {
     this._syncModeParams = {};
-    this._eventBus.on("nimio:sync-mode-params", (data) => {
+    this._onSyncModeParams = (data) => {
       this._syncModeParams.playerTimeMs = data.playerTimeMs;
       this._syncModeParams.serverTimeMs = data.serverTimeMs;
-    });
+    };
+    this._eventBus.on("nimio:sync-mode-params", this._onSyncModeParams);
   },
 
   _initSyncModeParams(frame) {

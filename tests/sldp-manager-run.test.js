@@ -61,6 +61,21 @@ describe("SLDPManager run token and timers", () => {
     expect(transport.runCallback).not.toHaveBeenCalled();
   });
 
+  it("cancelStream() cancels that track's queued setup and leaves others armed", () => {
+    const { mgr, transport } = createManager("sldp-cancel-setup");
+    const cancelled = mgr.requestStream("video", 0);
+    const kept = mgr.requestStream("audio", 0);
+
+    mgr.cancelStream(cancelled);
+    vi.runAllTimers();
+
+    const setups = transport.runCallback.mock.calls.map(([type, setup]) => [
+      type,
+      setup.trackId,
+    ]);
+    expect(setups).toEqual([["audioSetup", kept]]);
+  });
+
   it("destroy cancels queued stream setup callbacks", () => {
     const { mgr, transport } = createManager("sldp-destroy-timers");
     mgr.requestStream("video", 0);

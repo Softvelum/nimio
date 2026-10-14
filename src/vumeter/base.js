@@ -30,6 +30,16 @@ export class BaseMeter {
     }
   }
 
+  // Final stop: a pending asynchronous setup (worklet module load) must
+  // neither create a meter nor call back into the owner.
+  dispose() {
+    this._disposed = true;
+    this.stop(true);
+    this._readyCallback = undefined;
+    this._errorCallback = undefined;
+    this._updateCallback = undefined;
+  }
+
   setup() {
     return this._setupMeter();
   }

@@ -14,7 +14,7 @@ export class SLDPManager {
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
     this._eventBus = EventBus.getInstance(instName);
     this._useSyncMode = false;
-    this._setupTimers = new Set();
+    this._setupTimers = new Map(); // sn -> queued setup callback timer
     this._runToken = 0; // bumped on every stop and on destroy
     this._startToken = -1; // the run token start() was called with
     this._sessionReady = false; // the current session's status has committed
@@ -88,10 +88,10 @@ export class SLDPManager {
     let setup = this._setupObject(type, ss.sn, stream.stream_info);
 
     const timer = setTimeout(() => {
-      this._setupTimers.delete(timer);
+      this._setupTimers.delete(ss.sn);
       this._transport.runCallback(`${type}Setup`, setup);
     }, 0);
-    this._setupTimers.add(timer);
+    this._setupTimers.set(ss.sn, timer);
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
     this._reqStreams[ss.sn] = idx;
@@ -122,6 +122,7 @@ export class SLDPManager {
     }
 
     delete this._reqStreams[sn];
+    this._cancelSetupTimer(sn); // a cancelled track must not set itself up
     this._sendRequest("stop", { sns: [sn] });
     this._transport.send("removeTimescale", [sn]);
   }
@@ -169,8 +170,15 @@ export class SLDPManager {
   }
 
   _cancelSetupTimers() {
-    for (const id of this._setupTimers) clearTimeout(id);
+    for (const id of this._setupTimers.values()) clearTimeout(id);
     this._setupTimers.clear();
+  }
+
+  _cancelSetupTimer(sn) {
+    const id = this._setupTimers.get(sn);
+    if (id === undefined) return;
+    clearTimeout(id);
+    this._setupTimers.delete(sn);
   }
 
   requestCurrentStreams() {
