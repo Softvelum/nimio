@@ -18,6 +18,7 @@ import { AudioVolumeController } from "./audio/volume-controller";
 import { allocateInstanceKey, releaseInstances } from "./shared/service";
 import { PlaybackThumbnailService } from "./playback/thumbnail-service";
 import { SPSHolder } from "./sps/holder";
+import { runCleanupSteps } from "./shared/helpers";
 
 let scriptPath;
 if (document.currentScript === null) {
@@ -43,6 +44,29 @@ export default class Nimio {
     }
     // Registry key of the per-instance services, unique per player
     this._instName = allocateInstanceKey(options.instanceName);
+    try {
+      this._init(options);
+    } catch (err) {
+      // a failed construction must leave neither DOM, engines nor the key
+      this._rollbackInit();
+      throw err;
+    }
+  }
+
+  _rollbackInit() {
+    runCleanupSteps(this._logger || console, "Nimio init rollback", [
+      ["VOD player", () => this._vodPlayer?.destroy()],
+      ["live player", () => this._livePlayer?.destroy()],
+      ["VU meter", () => this._vuMeterSvc?.clear()],
+      ["UI", () => this._ui?.destroy()],
+      ["services", () => releaseInstances(this._instName)],
+    ]);
+    this._vodPlayer = this._livePlayer = this._ui = undefined;
+    this._vuMeterSvc = undefined;
+    this._destroyed = true;
+  }
+
+  _init(options) {
     ScriptPathProvider.getInstance(this._instName).setScriptPath(scriptPath);
     this._eventBus = EventBus.getInstance(this._instName);
 
@@ -105,36 +129,63 @@ export default class Nimio {
   }
 
   destroy() {
-    if (!this._ui) return;
+    if (this._destroyed) return;
+    this._destroyed = true;
+    // a listener invoked during the teardown (e.g. nimio:playback-end from
+    // the live stop) must not be able to restart or steer the engines
+    this._actPlayer = undefined;
 
-    this._cancelModeSwitch();
-    this._ui.destroy();
+    // every component is torn down independently: one failure must not
+    // leave the others running, and the key is always released
+    const errors = runCleanupSteps(this._logger, "destroy", [
+      ["mode switch", () => this._cancelModeSwitch()],
+      ["UI", () => this._ui.destroy()],
+      ["volume handlers", () => this._removeVolumeEventHandlers()],
+      ["VU meter", () => this._vuMeterSvc.clear()],
+      ["VOD player", () => this._vodPlayer?.destroy()],
+      ["live player", () => this._livePlayer.destroy()],
+      [
+        "listeners",
+        () => {
+          this._eventBus.off(
+            "nimio:connection-established",
+            this._onLiveConnected,
+          );
+          this._eventBus.off("aux:playback-error", this._onError);
+        },
+      ],
+      // last, as live and VOD players share services (e.g. AudioContext);
+      // the event bus release also drops the application's listeners
+      ["services", () => releaseInstances(this._instName)],
+    ]);
+
     this._ui = undefined;
-    this._removeVolumeEventHandlers();
-    this._vuMeterSvc.clear();
-
-    if (this._vodPlayer) {
-      this._vodPlayer.destroy();
-      this._vodPlayer = undefined;
-    }
-
-    this._livePlayer.destroy();
+    this._vodPlayer = undefined;
     this._livePlayer = undefined;
-    this._eventBus.off("nimio:connection-established", this._onLiveConnected);
-    this._eventBus.off("aux:playback-error", this._onError);
-    // Last, as live and VOD players share services (e.g. AudioContext)
-    releaseInstances(this._instName);
+    this._actPlayer = undefined;
+    this._eventBus = undefined;
+    this._context = undefined;
+    this._vuMeterSvc = undefined;
+    this._playProgressSvc = undefined;
+    this._playProgressProxy = undefined;
+    this._thumbnailSvc = undefined;
+    this._audioVolumeCtrl = undefined;
+    this._spsHolder = undefined;
+
+    if (errors.length) throw errors[0];
   }
 
   setParameters(params) {
-    this._livePlayer.setParameters(params);
+    if (this._destroyed) return;
+    this._livePlayer?.setParameters(params);
   }
 
   play() {
-    this._actPlayer.play();
+    this._actPlayer?.play();
   }
 
   setStreamURL(url) {
+    if (this._destroyed) return;
     updateConfigStreamURL(this._config, url);
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       this._vodPlayer.stop(() => {
@@ -148,10 +199,11 @@ export default class Nimio {
   }
 
   pause() {
-    this._actPlayer.pause();
+    this._actPlayer?.pause();
   }
 
   stop() {
+    if (this._destroyed) return;
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       this._vodPlayer.stop(() => {
         this._livePlayer.attach(this._ui);
@@ -164,6 +216,7 @@ export default class Nimio {
   }
 
   seekVod(position) {
+    if (this._destroyed) return false;
     if (this._vodPlayer && this._vodPlayer.isRunning()) {
       return this._playProgressProxy.seekVod(position);
     }
@@ -172,6 +225,7 @@ export default class Nimio {
   }
 
   seekLive(buffer) {
+    if (!this._playProgressProxy) return false;
     if (buffer === undefined || buffer === null) buffer = 0;
     return this._playProgressProxy.seekLive(buffer);
   }
@@ -198,6 +252,7 @@ export default class Nimio {
   _runVodFromStart(pos) {
     if (this._vodPlayer?.isLoaded() && !this._vodPlayer.isRunning()) {
       this._vodPlayer.initialize(this._ui.mediaElement).then(() => {
+        if (this._destroyed) return;
         let curState = this._context.state.value;
         this._switchToVod(pos);
         this._context.setState(curState, true);
@@ -234,6 +289,7 @@ export default class Nimio {
    * Any failure restores the previous mode and emits nimio:playback-error.
    */
   _switchMode(target, attachParams) {
+    if (this._destroyed) return false;
     if (!this._vodPlayer || this._mode === target) return false;
     if (this._mode === MODE.PEND) {
       this._logger.warn(`Switch to ${target} ignored: a switch is in progress`);
@@ -377,6 +433,7 @@ export default class Nimio {
   }
 
   _onError = (data) => {
+    if (this._destroyed) return;
     if (data.mode === MODE.LIVE) {
       this._onLivePlaybackError(data.type, !data.stop);
     } else {
@@ -393,7 +450,7 @@ export default class Nimio {
     this._logger.debug(
       `_onPlaybackPositionChange new mode = ${mode}, value = ${val}, cur mode = ${this._mode}`,
     );
-    if (this._mode === MODE.PEND) return false;
+    if (this._destroyed || this._mode === MODE.PEND) return false;
 
     if (mode === this._mode) {
       return this._actPlayer.goto(val);

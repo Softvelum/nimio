@@ -55,6 +55,8 @@ export const UiPip = {
   },
 
   _cleanupPip() {
+    // a requestWindow() still pending must not install anything afterwards
+    this._pipRequestGen = (this._pipRequestGen || 0) + 1;
     this._clearMediaElementEvents();
 
     if (this._buttonPictureInPicture && this._togglePip) {
@@ -150,6 +152,7 @@ export const UiPip = {
     }
     let rp = this._rendProps;
     if (!rp) return;
+    const gen = (this._pipRequestGen = this._pipRequestGen || 0);
     const pipWindow = await window.documentPictureInPicture
       .requestWindow({
         width: rp.dWidth,
@@ -162,6 +165,16 @@ export const UiPip = {
 
     if (!pipWindow) {
       this._buttonPictureInPicture.disabled = false;
+      return;
+    }
+    if (gen !== this._pipRequestGen) {
+      // the UI was torn down while the request was pending: the window
+      // belongs to nobody, close it and move nothing into it
+      try {
+        pipWindow.close();
+      } catch (err) {
+        this._logger.warn("Failed to close a stale PiP window", err);
+      }
       return;
     }
     // Move the player to the Picture-in-Picture window.

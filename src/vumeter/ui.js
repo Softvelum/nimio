@@ -69,17 +69,21 @@ export class VUMeterUI {
   destroy(total) {
     if (!this._meter) return;
 
-    if (this._fullValue) {
-      for (let i = 0; i < this._fullValueItems.length; i++) {
-        this._meter.removeChild(this._fullValueItems[i]);
+    // stop the animation loop before touching the DOM: the host may already
+    // have torn the generated elements out, and a throwing removal must not
+    // leave _drawMeter() scheduling frames forever
+    const items = this._fullValue ? this._fullValueItems : [];
+    this._fullValue = false;
+    this._fullValueItems = [];
+    this._channelLevels = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].parentNode === this._meter) {
+        this._meter.removeChild(items[i]);
       }
-      this._fullValueItems = [];
-      this._channelLevels = [];
-      this._fullValue = false;
     }
 
     if (total) {
-      this._container.removeChild(this._meter);
+      this._meter.parentNode?.removeChild(this._meter);
       this._meter = undefined;
     }
   }

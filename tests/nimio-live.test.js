@@ -205,8 +205,76 @@ describe("NimioLive attach/detach completion", () => {
 });
 
 describe("NimioLive.destroy() releases the transport worker", () => {
+  it("destroys the decoder flows and stops audio even when stop() failed before reaching them", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._logger = { error: vi.fn(), debug: vi.fn() };
+    live.stop = vi.fn(() => {
+      throw new Error("VU meter container gone"); // _resetPlayback threw early
+    });
+    live._decoderFlows = { video: { destroy: vi.fn() }, audio: null };
+    live._nextRenditionData = { decoderFlow: { destroy: vi.fn() } };
+    live._stopAudio = vi.fn();
+    live._state = { stop: vi.fn() };
+    live._grabber = { stop: vi.fn() };
+    live._debugView = { stop: vi.fn() };
+    live._cancelPauseTimeout = vi.fn();
+    live._abrController = { stop: vi.fn() };
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    live._reconnect = { destroy: vi.fn() };
+    live._sldpManager = { destroy: vi.fn() };
+    live._transport = { destroy: vi.fn() };
+
+    expect(() => live.destroy()).toThrow("VU meter container gone");
+
+    expect(live._decoderFlows.video).toBeNull();
+    expect(live._nextRenditionData).toBeNull();
+    expect(live._stopAudio).toHaveBeenCalledTimes(1);
+    expect(live._grabber.stop).toHaveBeenCalledTimes(1);
+    expect(live._debugView.stop).toHaveBeenCalledTimes(1);
+    expect(live._cancelPauseTimeout).toHaveBeenCalledTimes(1);
+    expect(live._abrController.stop).toHaveBeenCalledWith({ hard: true });
+    expect(live._state.stop).toHaveBeenCalledTimes(1);
+    expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("still releases everything when stop() throws (a listener failed), then rethrows", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._state = { stop: vi.fn() };
+    live._decoderFlows = { video: null, audio: null };
+    live._nextRenditionData = null;
+    live._stopAudio = vi.fn();
+    live._cancelPauseTimeout = vi.fn();
+    live.stop = vi.fn(() => {
+      throw new Error("playback-end listener boom");
+    });
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    live._reconnect = { destroy: vi.fn() };
+    live._sldpManager = { destroy: vi.fn() };
+    live._transport = { destroy: vi.fn() };
+
+    expect(() => live.destroy()).toThrow("playback-end listener boom");
+
+    expect(live._removeUIEventHandlers).toHaveBeenCalledTimes(1);
+    expect(live._deinitTransport).toHaveBeenCalledTimes(1);
+    expect(live._reconnect.destroy).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.destroy).toHaveBeenCalledTimes(1);
+    expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+    // only the stop stage failed: the media stage ran cleanly
+    expect(live._logger.error).toHaveBeenCalledTimes(1);
+    expect(live._logger.error.mock.calls[0][0]).toBe("destroy: stop failed");
+  });
+
   it("removes the sync-mode params listener it subscribed", () => {
     const live = Object.create(NimioLive.prototype);
+    live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._decoderFlows = { video: null, audio: null };
+    live._nextRenditionData = null;
+    live._stopAudio = vi.fn();
+    live._state = { stop: vi.fn() };
+    live._pauseTimeoutId = null;
     const bus = { on: vi.fn(), off: vi.fn() };
     live._eventBus = bus;
     live._createSyncModeParams();
@@ -226,6 +294,12 @@ describe("NimioLive.destroy() releases the transport worker", () => {
 
   it("destroy without sync mode unsubscribes nothing extra", () => {
     const live = Object.create(NimioLive.prototype);
+    live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._decoderFlows = { video: null, audio: null };
+    live._nextRenditionData = null;
+    live._stopAudio = vi.fn();
+    live._state = { stop: vi.fn() };
+    live._pauseTimeoutId = null;
     const bus = { off: vi.fn() };
     live._eventBus = bus;
     live.stop = vi.fn();
@@ -241,6 +315,12 @@ describe("NimioLive.destroy() releases the transport worker", () => {
 
   it("destroys the transport after stopping and unsubscribing", () => {
     const live = Object.create(NimioLive.prototype);
+    live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._decoderFlows = { video: null, audio: null };
+    live._nextRenditionData = null;
+    live._stopAudio = vi.fn();
+    live._state = { stop: vi.fn() };
+    live._pauseTimeoutId = null;
     const order = [];
     live.stop = vi.fn(() => order.push("stop"));
     live._removeUIEventHandlers = vi.fn(() => order.push("ui"));
