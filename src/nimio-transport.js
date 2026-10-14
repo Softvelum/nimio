@@ -186,8 +186,14 @@ export const NimioTransport = {
         );
 
         this._nextRenditionData.decoderFlow.destroy();
-        this._onRenditionSwitchResult("audio", false);
-        this._sldpManager.cancelStream(data.trackId);
+        // once paired, destroying the next flow cancels its stream through
+        // onInputCancel and makes the main flow report the failed switch
+        // (which clears _nextRenditionData); before the pairing nobody else
+        // would do either, so do both here
+        if (this._nextRenditionData) {
+          this._onRenditionSwitchResult("audio", false);
+          this._sldpManager.cancelStream(data.trackId);
+        }
         return;
       }
 

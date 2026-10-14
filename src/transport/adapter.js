@@ -14,11 +14,18 @@ export class TransportAdapter {
     this._callbacks = {};
     this._worker.onmessage = (e) => this._handleMessage(e.data);
     this._connected = false;
+    this._session = 0; // numbers each "start"; the worker tags its replies
   }
 
   send(cmd, data) {
     if (!this._worker) return; // destroyed
     data.type = cmd;
+    if (cmd === "start") {
+      data.session = ++this._session;
+      // the previous socket is being replaced and the new one is not open
+      // yet; its own connected:true/false will follow with the new session
+      this._connected = false;
+    }
     this._worker.postMessage(data);
   }
 
@@ -68,6 +75,9 @@ export class TransportAdapter {
   }
 
   _handleMessage(msg) {
+    // a reply the worker posted for an earlier start, delivered after a
+    // stop and a new start, belongs to a session that no longer exists
+    if (msg.session !== undefined && msg.session !== this._session) return;
     if (msg.type && this._callbacks[msg.type]) {
       this._callbacks[msg.type](msg.data);
     } else if (msg.aux) {

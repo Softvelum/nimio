@@ -72,3 +72,31 @@ describe("DecoderFlowVideo decoded buffer full notification", () => {
     expect(onDecodedBufferFull).not.toHaveBeenCalled();
   });
 });
+
+describe("DecoderFlowVideo output after destroy", () => {
+  it("writes no state when the flow was destroyed during the start-ts await", async () => {
+    const buffer = {
+      pushFrame: vi.fn(),
+      isPreallocated: false,
+      isFull: () => false,
+      lastFrameTs: 0,
+      reset: vi.fn(),
+    };
+    const flow = createFlow(buffer);
+    flow._startTsUs = 0;
+    flow.onStartTsNotSet = async () => {
+      flow.destroy();
+      return true;
+    };
+    flow.onDecodedBufferFull = vi.fn();
+    const frame = createMockFrame(0);
+
+    await flow._handleDecoderOutput(frame, DECODER_DATA);
+
+    expect(frame.close).toHaveBeenCalledTimes(1);
+    expect(flow._state.setVideoDecoderQueue).not.toHaveBeenCalled();
+    expect(flow._state.setVideoDecoderLatency).not.toHaveBeenCalled();
+    expect(flow._state.setVideoLatestTsUs).not.toHaveBeenCalled();
+    expect(flow.onDecodedBufferFull).not.toHaveBeenCalled();
+  });
+});

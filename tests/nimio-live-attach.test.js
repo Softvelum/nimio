@@ -12,7 +12,11 @@ function createLive({ connected, savedState }) {
   live._config = { streamUrl: "wss://example.test/live", startOffset: 0 };
   live._transport = { connected };
   live._context = { state: { value: savedState } };
-  live._sldpManager = { requestCurrentStreams: vi.fn(), start: vi.fn() };
+  live._sldpManager = {
+    requestCurrentStreams: vi.fn(),
+    start: vi.fn(),
+    sessionReady: true,
+  };
   live._state = { start: vi.fn(), isStopped: () => false };
   live._latencyCtrl = { start: vi.fn() };
   live._isAutoAbr = () => false;
@@ -46,6 +50,21 @@ describe("NimioLive.attach() connection reuse", () => {
 
     expect(live._sldpManager.requestCurrentStreams).toHaveBeenCalledTimes(1);
     expect(live._sldpManager.start).not.toHaveBeenCalled();
+  });
+
+  it("handshakes again when the session's metadata never committed", () => {
+    // connected, but a detach cancelled the pending status commit: the context
+    // is empty, so reusing the socket would request nothing
+    const live = createLive({ connected: true, savedState: STATE.PLAYING });
+    live._sldpManager.sessionReady = false;
+
+    live.attach({}, { latency: 0 });
+
+    expect(live._sldpManager.start).toHaveBeenCalledWith(
+      "wss://example.test/live",
+      0,
+    );
+    expect(live._sldpManager.requestCurrentStreams).not.toHaveBeenCalled();
   });
 
   it("starts a new connection when the transport is disconnected", () => {

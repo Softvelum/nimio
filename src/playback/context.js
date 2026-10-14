@@ -9,6 +9,7 @@ class PlaybackContext {
     // LIVE
     this._curConf = [];
     this._streams = [];
+    this._streamsSeq = 0; // bumped per setStreams() call and on cancellation
     this._streamsMap = {};
     this._ordRenditions = [];
     this._ordVideoRenditions = [];
@@ -35,19 +36,28 @@ class PlaybackContext {
     this._curConf = [];
   }
 
+  // A pending setStreams() must commit nothing: the run it belongs to was
+  // stopped while codec support was being checked.
+  cancelPendingStreams() {
+    this._streamsSeq++;
+  }
+
+  // Resolves to true when the streams were committed, false when a newer
+  // setStreams() call superseded this one while codec support was checked.
+  // Shared state is only touched after the await, in one synchronous step.
   async setStreams(streams) {
-    this._streams = streams;
-    this._streamsMap = {};
+    const seq = ++this._streamsSeq;
+    const cSupport = await this._checkSupportedCodecs(streams);
+    if (seq !== this._streamsSeq) return false;
 
-    this._ordRenditions = [];
-    this._ordVideoRenditions = [];
-    this._ordAudioRenditions = [];
-
-    this._cSupport = await this._checkSupportedCodecs(streams);
+    const streamsMap = {};
+    const ordRenditions = [];
+    const ordVideoRenditions = [];
+    const ordAudioRenditions = [];
 
     let noVideoStreams = [];
     for (let i = 0; i < streams.length; i++) {
-      this._streamsMap[streams[i].stream] = i;
+      streamsMap[streams[i].stream] = i;
 
       let streamInfo = streams[i].stream_info;
       if (streamInfo.vtimescale) {
@@ -64,16 +74,16 @@ class PlaybackContext {
         streamInfo.height = parseInt(res[1]);
         streamInfo.name = res[1] + "p";
 
-        if (this._cSupport.video[streamInfo.vcodec]) {
+        if (cSupport.video[streamInfo.vcodec]) {
           streamInfo.vcodecSupported = true;
           streamInfo.bwStr = streamInfo.bandwidth;
           if (streamInfo.bandwidth) {
             streamInfo.bandwidth = parseInt(streamInfo.bandwidth);
           }
 
-          for (vIdx = 0; vIdx < this._ordVideoRenditions.length; vIdx++) {
+          for (vIdx = 0; vIdx < ordVideoRenditions.length; vIdx++) {
             let ordStreamInfo =
-              this._streams[this._ordVideoRenditions[vIdx].idx].stream_info;
+              streams[ordVideoRenditions[vIdx].idx].stream_info;
             if (
               ordStreamInfo.height > streamInfo.height ||
               (ordStreamInfo.height === streamInfo.height &&
@@ -83,7 +93,7 @@ class PlaybackContext {
             }
           }
 
-          this._ordVideoRenditions.splice(vIdx, 0, {
+          ordVideoRenditions.splice(vIdx, 0, {
             idx: i,
             bandwidth: streamInfo.bandwidth,
             width: streamInfo.width,
@@ -100,25 +110,33 @@ class PlaybackContext {
       }
 
       if (streamInfo.acodec) {
-        streamInfo.acodecSupported = this._cSupport.audio[streamInfo.acodec];
-        if (vIdx !== null && this._ordVideoRenditions[vIdx]) {
-          this._ordVideoRenditions[vIdx].hasAudio = streamInfo.acodecSupported;
+        streamInfo.acodecSupported = cSupport.audio[streamInfo.acodec];
+        if (vIdx !== null && ordVideoRenditions[vIdx]) {
+          ordVideoRenditions[vIdx].hasAudio = streamInfo.acodecSupported;
         }
       }
     }
 
-    for (let i = 0; i < this._ordVideoRenditions.length; i++) {
-      let r = { ...this._ordVideoRenditions[i] };
+    for (let i = 0; i < ordVideoRenditions.length; i++) {
+      let r = { ...ordVideoRenditions[i] };
       if (r.hasAudio) {
-        r.acodec = this._streams[r.idx].stream_info.acodec;
+        r.acodec = streams[r.idx].stream_info.acodec;
         delete r.hasAudio;
       }
-      this._ordRenditions.push(r);
+      ordRenditions.push(r);
     }
 
-    this._cpAudioRenditions(this._ordAudioRenditions, this._ordVideoRenditions);
-    this._cpAudioRenditions(this._ordAudioRenditions, noVideoStreams);
-    this._cpAudioRenditions(this._ordRenditions, noVideoStreams);
+    this._cpAudioRenditions(ordAudioRenditions, ordVideoRenditions, streams);
+    this._cpAudioRenditions(ordAudioRenditions, noVideoStreams, streams);
+    this._cpAudioRenditions(ordRenditions, noVideoStreams, streams);
+
+    this._streams = streams;
+    this._streamsMap = streamsMap;
+    this._cSupport = cSupport;
+    this._ordVideoRenditions = ordVideoRenditions;
+    this._ordAudioRenditions = ordAudioRenditions;
+    this._ordRenditions = ordRenditions;
+    return true;
   }
 
   getCurrentIdx(type) {
@@ -424,9 +442,9 @@ class PlaybackContext {
     }
   }
 
-  _cpAudioRenditions(target, source) {
+  _cpAudioRenditions(target, source, streams) {
     for (let i = 0; i < source.length; i++) {
-      let stream = this._streams[source[i].idx];
+      let stream = streams[source[i].idx];
       if (stream.stream_info.acodecSupported) {
         target.push({
           idx: source[i].idx,

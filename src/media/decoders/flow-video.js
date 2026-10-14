@@ -35,7 +35,9 @@ export class DecoderFlowVideo extends DecoderFlow {
   }
 
   async _handleDecoderOutput(frame, data) {
-    if (await this._handleDecodedFrame(frame)) {
+    const handled = await this._handleDecodedFrame(frame);
+    if (this._destroyed) return; // destroyed while the frame was handled
+    if (handled) {
       if (!this._buffer) return;
       this._state.setVideoLatestTsUs(this._buffer.lastFrameTs);
     }

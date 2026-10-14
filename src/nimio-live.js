@@ -232,8 +232,10 @@ export class NimioLive {
 
     // A connected transport is the preserved server session (kept alive
     // across the VOD detach); reuse it whatever state was recorded at detach,
-    // so returning to live never opens a second session.
-    this._transport.connected
+    // so returning to live never opens a second session. Reuse needs the
+    // session's stream metadata: a detach during the status codec check
+    // cancels that commit, and then only a new handshake can play.
+    this._transport.connected && this._sldpManager.sessionReady
       ? this._sldpManager.requestCurrentStreams()
       : this._sldpManager.start(
           this._config.streamUrl,
@@ -289,6 +291,8 @@ export class NimioLive {
     this._removeUIEventHandlers();
     this._deinitTransport();
     this._reconnect.destroy();
+    // a status reply or setup timer of the stopped run must do nothing
+    this._sldpManager.destroy();
     // last: the closing stop posted by stop() is processed by the worker
     // before the terminate request, so the server session ends cleanly
     this._transport.destroy();
