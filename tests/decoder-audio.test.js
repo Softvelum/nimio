@@ -87,6 +87,18 @@ describe("decoder-audio", () => {
     vi.useRealTimers();
   });
 
+  it("acknowledges shutdown and closes even before codec data arrived", async () => {
+    globalThis.close = vi.fn();
+    await import("@/media/decoders/decoder-audio.js");
+
+    globalThis.dispatchEvent(
+      new MessageEvent("message", { data: { type: "shutdown" } }),
+    );
+
+    expect(postMessageMock).toHaveBeenCalledWith({ type: "shutdownComplete" });
+    expect(globalThis.close).toHaveBeenCalledTimes(1);
+  });
+
   it("configures decoder and processes codecData", async () => {
     await import("@/media/decoders/decoder-audio.js");
 

@@ -103,6 +103,20 @@ describe("decoder-video", () => {
     vi.useRealTimers();
   });
 
+  it("acknowledges shutdown and closes even before codec data arrived", async () => {
+    globalThis.close = vi.fn();
+    await import("@/media/decoders/decoder-video.js");
+    sendWorkerMessage({
+      type: "config",
+      config: { codec: "avc1.42e01e", width: 640, height: 480 },
+    });
+
+    sendWorkerMessage({ type: "shutdown" });
+
+    expect(postMessageMock).toHaveBeenCalledWith({ type: "shutdownComplete" });
+    expect(globalThis.close).toHaveBeenCalledTimes(1);
+  });
+
   it("configures the decoder and processes codecData", async () => {
     await import("@/media/decoders/decoder-video.js");
 

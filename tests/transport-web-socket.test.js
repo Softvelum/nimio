@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
 
 const ws = vi.hoisted(() => {
   class FakeWebSocket {
@@ -99,5 +107,58 @@ describe("WebSocket transport worker", () => {
 
     expect(socket.sent).toEqual([{ command: "Cancel", streams: [] }]);
     expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  describe("terminate command", () => {
+    let closeScope;
+
+    beforeEach(() => {
+      closeScope = vi.spyOn(self, "close").mockImplementation(() => {});
+      self.postMessage.mockClear();
+    });
+
+    afterEach(() => {
+      closeScope.mockRestore();
+    });
+
+    it("closes an open socket silently and closes the worker scope", () => {
+      const socket = start("wss://host/app/stream");
+      socket.readyState = ws.FakeWebSocket.OPEN;
+
+      send({ type: "terminate" });
+
+      expect(socket.close).toHaveBeenCalledTimes(1);
+      expect(socket.onopen).toBeFalsy();
+      expect(socket.onclose).toBeFalsy();
+      expect(socket.onmessage).toBeFalsy();
+      expect(self.postMessage).toHaveBeenCalledWith({
+        aux: true,
+        connected: false,
+      });
+      expect(self.postMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "disconnect" }),
+      );
+      expect(closeScope).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes the worker scope when no socket exists", () => {
+      send({ type: "terminate" });
+
+      expect(closeScope).toHaveBeenCalledTimes(1);
+      expect(self.postMessage).not.toHaveBeenCalled();
+    });
+
+    it("after a closing stop, terminate only closes the scope", () => {
+      const socket = start("wss://host/app/stream");
+      send({ type: "stop", sns: [], close: true });
+      expect(socket.close).toHaveBeenCalledTimes(1);
+      self.postMessage.mockClear();
+
+      send({ type: "terminate" });
+
+      expect(socket.close).toHaveBeenCalledTimes(1); // not closed again
+      expect(self.postMessage).not.toHaveBeenCalled();
+      expect(closeScope).toHaveBeenCalledTimes(1);
+    });
   });
 });

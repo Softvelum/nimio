@@ -203,3 +203,26 @@ describe("NimioLive attach/detach completion", () => {
     expect(cb).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("NimioLive.destroy() releases the transport worker", () => {
+  it("destroys the transport after stopping and unsubscribing", () => {
+    const live = Object.create(NimioLive.prototype);
+    const order = [];
+    live.stop = vi.fn(() => order.push("stop"));
+    live._removeUIEventHandlers = vi.fn(() => order.push("ui"));
+    live._deinitTransport = vi.fn(() => order.push("deinitTransport"));
+    live._reconnect = { destroy: vi.fn(() => order.push("reconnect")) };
+    live._transport = { destroy: vi.fn(() => order.push("transport")) };
+
+    live.destroy();
+
+    expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+    expect(order).toEqual([
+      "stop",
+      "ui",
+      "deinitTransport",
+      "reconnect",
+      "transport",
+    ]);
+  });
+});

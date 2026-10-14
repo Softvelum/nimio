@@ -4,6 +4,9 @@ import { LoggersFactory } from "@/shared/logger";
 import { EventBus } from "@/event-bus";
 
 const SWITCH_THRESHOLD_US = 8_000_000;
+// Time given to the decoder worker to acknowledge "shutdown" before the
+// thread is killed from the main side (worker crashed or never replied).
+const SHUTDOWN_FALLBACK_MS = 1000;
 
 export class DecoderFlow {
   constructor(instanceName, trackId, timescale, type, url) {
@@ -109,11 +112,14 @@ export class DecoderFlow {
   }
 
   destroy() {
-    if (this._isShuttingDown || !this._decoder) return;
+    const decoder = this._decoder;
+    if (!decoder) return;
 
     this._switchPeerFlow = null;
     this._cancelInput();
-    this._shutdown();
+    this._shutdown(); // no-op when a switch already posted the shutdown
+    // whatever the worker does with the shutdown, it is terminated
+    this._scheduleForcedTermination(decoder);
     this._trackId = null;
     if (this._buffer) {
       this._buffer.reset();
@@ -324,6 +330,18 @@ export class DecoderFlow {
     if (!this._decoderListener) return;
     this._decoder.removeEventListener("message", this._decoderListener);
     this._decoderListener = null;
+  }
+
+  // Fallback for a worker that never posts shutdownComplete. Keyed on the
+  // worker identity: if the acknowledgement arrived (or a switch adopted the
+  // peer's worker) this._decoder no longer points at it and nothing happens.
+  _scheduleForcedTermination(decoder) {
+    setTimeout(() => {
+      if (this._decoder !== decoder) return;
+      this._removeDecoderListener();
+      decoder.terminate();
+      this._decoder = null;
+    }, SHUTDOWN_FALLBACK_MS);
   }
 
   _applyCodecDataFromFlow() {} // abstract base method
