@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { UI } from "@/ui/ui";
 import { MODE } from "@/shared/values";
+import { UICaptionController } from "@/ui/caption-controller";
 
 // Integration tests for the production probe wiring in
 // UI._resizeAndRedraw - unlike the convergence harness these construct
@@ -199,5 +200,119 @@ describe("UI probe integration", () => {
       FADE_MS + 2500,
     );
     expect(recovered).toBe(true);
+  });
+});
+
+describe("UI lifecycle", () => {
+  const parents = [];
+  const uis = [];
+
+  afterEach(() => {
+    for (const ui of uis) {
+      try {
+        ui.destroy();
+      } catch {
+        // already destroyed
+      }
+    }
+    uis.length = 0;
+    for (const p of parents) p.remove();
+    parents.length = 0;
+  });
+
+  function newParent() {
+    const parent = document.createElement("div");
+    parent.style.cssText = "display:block;width:400px";
+    document.body.appendChild(parent);
+    parents.push(parent);
+    return parent;
+  }
+
+  const opts = { width: "100%", height: "100%", ar: "16:9" };
+
+  it("destroy tolerates a container already removed from the DOM", () => {
+    const parent = newParent();
+    const ui = new UI("life-removed", parent, opts, stubBus);
+    uis.push(ui);
+    parent.innerHTML = ""; // the host tore the player's container out
+
+    expect(() => ui.destroy()).not.toThrow();
+  });
+
+  it("a destroyed UI tolerates the live engine's late clear() and hideControls()", () => {
+    const parent = newParent();
+    const ui = new UI("life-late-calls", parent, opts, stubBus);
+    uis.push(ui);
+
+    ui.destroy();
+
+    expect(() => {
+      ui.clear();
+      ui.hideControls(true);
+    }).not.toThrow();
+  });
+
+  it("destroy removes the caption-list handler it subscribed", () => {
+    const parent = newParent();
+    const bus = { on: vi.fn(), off: vi.fn(), emit() {} };
+    const ui = new UI(
+      "life-captions-off",
+      parent,
+      { ...opts, captions: { CC1: { default: true } } },
+      bus,
+    );
+    const handler = bus.on.mock.calls.find(
+      (c) => c[0] === "aux:caption-list-open",
+    )[1];
+
+    ui.destroy();
+
+    expect(bus.off).toHaveBeenCalledWith("aux:caption-list-open", handler);
+  });
+
+  it("a constructor failure early on leaves no DOM behind", () => {
+    const parent = newParent();
+    const spy = vi.spyOn(UI.prototype, "_setupPip").mockImplementation(() => {
+      throw new Error("blocked by CSP");
+    });
+    try {
+      expect(() => new UI("life-ctor-early", parent, opts, stubBus)).toThrow(
+        "blocked by CSP",
+      );
+
+      expect(parent.childElementCount).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("a constructor failure after captions were set up deinitializes them and leaves no DOM", () => {
+    const parent = newParent();
+    const proto = Object.getPrototypeOf(
+      UICaptionController.getInstance("life-caption-probe"),
+    );
+    const deinit = vi.spyOn(proto, "deinit");
+    const fail = vi
+      .spyOn(UI.prototype, "_setBackground")
+      .mockImplementation(() => {
+        throw new Error("blocked by CSP");
+      });
+    try {
+      expect(
+        () =>
+          new UI(
+            "life-ctor-late",
+            parent,
+            { ...opts, captions: { CC1: { default: true } } },
+            stubBus,
+          ),
+      ).toThrow("blocked by CSP");
+
+      expect(deinit).toHaveBeenCalledTimes(1);
+      expect(parent.childElementCount).toBe(0);
+    } finally {
+      fail.mockRestore();
+      deinit.mockRestore();
+    }
   });
 });

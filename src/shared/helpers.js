@@ -53,3 +53,20 @@ export function debouncer(inst, func, ms) {
 
   return wrapper;
 }
+
+// Runs each [what, fn] cleanup step in isolation. A failing step is logged
+// as "<prefix>: <what> failed" and does not prevent the others; the errors
+// are returned so the caller can rethrow the first one after cleanup has
+// completed.
+export function runCleanupSteps(logger, prefix, steps) {
+  const errors = [];
+  for (const [what, fn] of steps) {
+    try {
+      fn();
+    } catch (err) {
+      logger.error(`${prefix}: ${what} failed`, err);
+      errors.push(err);
+    }
+  }
+  return errors;
+}

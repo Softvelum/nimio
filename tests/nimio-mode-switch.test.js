@@ -198,10 +198,11 @@ describe("Nimio mode switch", () => {
     n._livePlayer.destroy = vi.fn();
     n._vodPlayer.destroy = vi.fn();
     const live = n._livePlayer;
+    const bus = n._eventBus; // destroy() clears the facade's reference
     n._switchToVod(1);
     n.destroy();
     vi.advanceTimersByTime(5000);
-    expect(n._eventBus.emit).not.toHaveBeenCalledWith(...errorEvent(MODE.VOD));
+    expect(bus.emit).not.toHaveBeenCalledWith(...errorEvent(MODE.VOD));
     expect(live.attach).not.toHaveBeenCalled();
   });
 });

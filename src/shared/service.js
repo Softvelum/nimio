@@ -43,9 +43,17 @@ export function multiInstanceService(Klass) {
 // Drops the instance from every per-instance service, calling destroy() on
 // the ones that hold resources
 export function releaseInstances(instanceId) {
+  // one service's destroy() must not keep the others registered; the first
+  // error is rethrown once every service has been released
+  let firstError;
   for (let i = 0; i < multiInstanceServices.length; i++) {
-    multiInstanceServices[i].release(instanceId);
+    try {
+      multiInstanceServices[i].release(instanceId);
+    } catch (err) {
+      if (firstError === undefined) firstError = err;
+    }
   }
+  if (firstError !== undefined) throw firstError;
 }
 
 const usedInstanceKeys = new Set();

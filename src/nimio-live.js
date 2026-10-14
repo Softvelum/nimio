@@ -1,6 +1,7 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
 import { IDX, MODE } from "./shared/values";
+import { runCleanupSteps } from "./shared/helpers";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
 import { PlaybackContext } from "./playback/context";
@@ -295,18 +296,35 @@ export class NimioLive {
   }
 
   destroy() {
-    this.stop();
-    this._removeUIEventHandlers();
-    this._deinitTransport();
-    if (this._onSyncModeParams) {
-      this._eventBus.off("nimio:sync-mode-params", this._onSyncModeParams);
-    }
-    this._reconnect.destroy();
-    // a status reply or setup timer of the stopped run must do nothing
-    this._sldpManager.destroy();
-    // last: the closing stop posted by stop() is processed by the worker
-    // before the terminate request, so the server session ends cleanly
-    this._transport.destroy();
+    // every stage runs even if an earlier one throws (an application
+    // listener invoked from the closing stop, for example); the first error
+    // is rethrown once the engine has released everything
+    const errors = runCleanupSteps(this._logger, "destroy", [
+      ["stop", () => this.stop()],
+      // stop() returns early on a stopped engine, and _resetPlayback() may
+      // have thrown before its last steps: release whatever still exists
+      ["media resources", () => this._releaseMediaResources()],
+      ["UI handlers", () => this._removeUIEventHandlers()],
+      ["transport handlers", () => this._deinitTransport()],
+      [
+        "sync-mode handler",
+        () => {
+          if (this._onSyncModeParams) {
+            this._eventBus.off(
+              "nimio:sync-mode-params",
+              this._onSyncModeParams,
+            );
+          }
+        },
+      ],
+      ["reconnector", () => this._reconnect.destroy()],
+      // a status reply or setup timer of the stopped run must do nothing
+      ["SLDP manager", () => this._sldpManager.destroy()],
+      // last: the closing stop posted by stop() is processed by the worker
+      // before the terminate request, so the server session ends cleanly
+      ["transport", () => this._transport.destroy()],
+    ]);
+    if (errors.length) throw errors[0];
   }
 
   setParameters(params) {
@@ -642,6 +660,27 @@ export class NimioLive {
     if (this._pauseTimeoutId === null) return;
     clearTimeout(this._pauseTimeoutId);
     this._pauseTimeoutId = null;
+  }
+
+  // Final release of everything _resetPlayback() would release, each part
+  // idempotent, for a destroy() whose stop stage did not get that far.
+  _releaseMediaResources() {
+    this._cancelPauseTimeout();
+    this._state.stop(); // ends the render loop even if stop() threw early
+    this._abrController?.stop({ hard: true });
+    if (this._nextRenditionData) {
+      this._nextRenditionData.decoderFlow?.destroy();
+      this._nextRenditionData = null;
+    }
+    for (const type of ["video", "audio"]) {
+      if (this._decoderFlows[type]) {
+        this._decoderFlows[type].destroy();
+        this._decoderFlows[type] = null;
+      }
+    }
+    this._stopAudio();
+    this._grabber?.stop();
+    this._debugView?.stop();
   }
 
   _resetPlayback() {

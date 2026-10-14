@@ -1,22 +1,23 @@
+// Every method is a safe no-op on a destroyed player (no active engine).
 export const NimioExtAPI = {
   startAbr() {
-    this._actPlayer.startAbr();
+    this._actPlayer?.startAbr();
   },
 
   stopAbr() {
-    this._actPlayer.stopAbr();
+    this._actPlayer?.stopAbr();
   },
 
   isAbr() {
-    return this._actPlayer.isAbr();
+    return this._actPlayer ? this._actPlayer.isAbr() : false;
   },
 
   getRenditions(type) {
-    return this._actPlayer.getRenditions(type);
+    return this._actPlayer ? this._actPlayer.getRenditions(type) : [];
   },
 
   getCurrentRendition(type) {
-    return this._actPlayer.getCurrentRendition(type);
+    return this._actPlayer ? this._actPlayer.getCurrentRendition(type) : null;
   },
 
   setVideoRendition(id) {
@@ -28,26 +29,26 @@ export const NimioExtAPI = {
   },
 
   setCurrentRendition(type, id) {
-    if (!this._context) return false;
+    if (!this._context || !this._actPlayer) return false;
     if (!this._checkRenditionType(type)) return false;
 
     return this._actPlayer.setCurrentRendition(type, id);
   },
 
   getCaptionTracks() {
-    return this._actPlayer.getCaptionTracks();
+    return this._actPlayer ? this._actPlayer.getCaptionTracks() : {};
   },
 
   getCurrentCaptionTrack() {
-    return this._actPlayer.getCurrentCaptionTrack();
+    return this._actPlayer ? this._actPlayer.getCurrentCaptionTrack() : {};
   },
 
   setCaptionTrack(name) {
-    return this._actPlayer.setCaptionTrack(name);
+    return this._actPlayer ? this._actPlayer.setCaptionTrack(name) : false;
   },
 
   getCurrentStreamBandwidth() {
-    return this._actPlayer.getCurrentStreamBandwidth();
+    return this._actPlayer ? this._actPlayer.getCurrentStreamBandwidth() : 0;
   },
 
   getStreamEncodedFramerate() {
@@ -61,6 +62,6 @@ export const NimioExtAPI = {
   },
 
   getCurrentTimestamp() {
-    return this._actPlayer.getCurrentTimestamp();
+    return this._actPlayer ? this._actPlayer.getCurrentTimestamp() : 0;
   },
 };

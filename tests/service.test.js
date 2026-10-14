@@ -51,6 +51,24 @@ describe("releaseInstances", () => {
     expect(SvcB.getInstance("x") === b).toBe(false);
     expect(SvcA.getInstance("y") === keep).toBe(true);
   });
+
+  it("a throwing destroy() does not stop the other releases and is rethrown", () => {
+    const SvcA = multiInstanceService(
+      class {
+        destroy() {
+          throw new Error("vu container gone");
+        }
+      },
+    );
+    const SvcB = multiInstanceService(class {});
+    const a = SvcA.getInstance("z");
+    const b = SvcB.getInstance("z");
+
+    expect(() => releaseInstances("z")).toThrow("vu container gone");
+
+    expect(SvcA.getInstance("z") === a).toBe(false);
+    expect(SvcB.getInstance("z") === b).toBe(false);
+  });
 });
 
 describe("allocateInstanceKey", () => {

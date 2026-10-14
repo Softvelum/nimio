@@ -46,7 +46,6 @@ export class NimioVod {
           // workerPath: this._workerPath,
           // debug: true,
         });
-        this._playerScript = script;
         this._state = VOD_STATE.INIT;
         this._playbackStarted = false;
         this._playbackErrCnt = 0;
@@ -137,6 +136,7 @@ export class NimioVod {
   destroy() {
     // hls.js may still be loading, its promise must not init the player then
     this._destroyed = true;
+    this._removePlayerScript();
     if (this._state === VOD_STATE.NULL) return;
     if (!this._pHandler) return;
 
@@ -195,12 +195,17 @@ export class NimioVod {
     this._switchInProgress = false;
     this._playbackErrCnt = 0;
     this._config = undefined;
-
-    if (this._playerScript) {
-      document.head.removeChild(this._playerScript);
-      this._playerScript = undefined;
-    }
     this._loadSourcePromise = undefined;
+  }
+
+  _removePlayerScript() {
+    const script = this._playerScript;
+    if (!script) return;
+
+    script.onload = null;
+    script.onerror = null;
+    script.parentNode?.removeChild(script);
+    this._playerScript = undefined;
   }
 
   play() {
@@ -560,7 +565,7 @@ export class NimioVod {
   }
 
   _addScriptTag(url) {
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
       if (!url) {
         return resolve();
       }
@@ -572,6 +577,8 @@ export class NimioVod {
       script.onload = () => resolve(script);
       script.onerror = () => reject(script);
 
+      // kept from insertion so destroy() can drop a pending or failed load
+      this._playerScript = script;
       document.head.appendChild(script);
     });
   }
