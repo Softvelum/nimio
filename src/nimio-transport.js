@@ -18,7 +18,7 @@ export const NimioTransport = {
       audioCodec: this._onAudioCodecDataReceived.bind(this),
       audioChunk: this._onAudioChunkReceived.bind(this),
       disconnect: this._onDisconnect.bind(this),
-      error: this._onTransportError.bind(this),
+      error: this._onInvalidStatus.bind(this),
     };
     this._onTrackAction = this._onTrackAction.bind(this);
     this._eventBus.on("transp:track-action", this._onTrackAction);
@@ -77,7 +77,7 @@ export const NimioTransport = {
     this._logger.debug("Attempt to reconnect");
   },
 
-  _onTransportError() {
+  _onInvalidStatus() {
     this.stop({ keepConnection: true });
     this._eventBus.emit("aux:playback-error", {
       type: "NO_SRC",

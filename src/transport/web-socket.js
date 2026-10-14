@@ -44,6 +44,9 @@ let curSocketId = 0;
 
 function closeSocket() {
   console.debug(`Close connection for socket id ${socket.id}`);
+  // open/message delivery is task-queued: a queued event of this socket may
+  // still run after it was replaced and must not act for the new one
+  socket.onopen = undefined;
   socket.onclose = undefined;
   socket.onmessage = undefined;
   socket.close();
@@ -59,16 +62,24 @@ self.onmessage = (e) => {
     // if (socket && socket.readyState === CONN_STATES.OPEN) {
     //   return;
     // }
-    // Frames of the previous socket would go to the new protocol agent
+    // A start while the previous socket is still live must not orphan it:
+    // the server would keep that session open and its frames would go to
+    // the new protocol agent.
     if (socket) closeSocket();
 
-    socket = new WebSocket(e.data.url, e.data.protocols);
-    socket.binaryType = "arraybuffer";
-    socket.id = ++curSocketId;
+    const ws = new WebSocket(e.data.url, e.data.protocols);
+    ws.binaryType = "arraybuffer";
+    ws.id = ++curSocketId;
+    socket = ws;
 
     protocolAgent = createProtocolAgent(e.data.protocols[0]);
     protocolAgent.syncMode = e.data.syncMode;
-    socket.onmessage = (wsEv) => {
+
+    // Handlers act only while `ws` is still the current socket: open/message
+    // delivery is task-queued, so an event of a replaced socket may run after
+    // the replacement and must not report or feed the new connection.
+    ws.onmessage = (wsEv) => {
+      if (ws !== socket) return;
       if (wsEv.data instanceof ArrayBuffer) {
         protocolAgent.processFrame(wsEv.data);
       } else {
@@ -76,12 +87,13 @@ self.onmessage = (e) => {
       }
     };
 
-    socket.onopen = () => {
-      console.debug(`Connection established for socket id = ${socket.id}`);
+    ws.onopen = () => {
+      if (ws !== socket) return;
+      console.debug(`Connection established for socket id = ${ws.id}`);
       self.postMessage({ aux: true, connected: true });
     };
 
-    socket.onclose = (wsEv) => {
+    ws.onclose = (wsEv) => {
       console.debug(`Connection was dropped for socket id ${wsEv.target.id}`);
       let codeHuman = CONN_CLOSE_CODES[wsEv.code] || "";
       console.debug(
@@ -110,12 +122,17 @@ self.onmessage = (e) => {
       }),
     );
   } else if (type === "stop") {
-    // Empty sns is a keep-alive. A connecting socket can't send yet.
-    if (e.data.sns && socket.readyState === CONN_STATES.OPEN) {
+    const sns = e.data.sns;
+    // An empty Cancel right before close is a no-op, so skip it: a closing
+    // stop may arrive while the socket is still CONNECTING, where send()
+    // throws and close() would never be reached. The readyState guard
+    // covers the same race for a non-empty Cancel.
+    const sendCancel = Array.isArray(sns) && (sns.length > 0 || !e.data.close);
+    if (sendCancel && socket.readyState === CONN_STATES.OPEN) {
       socket.send(
         JSON.stringify({
           command: "Cancel",
-          streams: e.data.sns,
+          streams: sns,
         }),
       );
     }
