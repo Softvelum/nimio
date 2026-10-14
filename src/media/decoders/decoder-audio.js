@@ -195,9 +195,11 @@ self.addEventListener("message", async function (e) {
       if (audioDecoder) {
         buffered.length = 0;
         shutdownDecoder();
-        self.postMessage({ type: "shutdownComplete" });
-        self.close();
       }
+      // always acknowledge, even before codec data created the decoder,
+      // or the main thread would never terminate this worker
+      self.postMessage({ type: "shutdownComplete" });
+      self.close();
       break;
     default:
       console.warn("DecoderAudio: unknown message type", e.data.type);

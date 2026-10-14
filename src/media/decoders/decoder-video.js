@@ -225,9 +225,11 @@ self.addEventListener("message", async function (e) {
         buffered.length = 0;
         decodeTimings.clear();
         shutdownDecoder();
-        self.postMessage({ type: "shutdownComplete" });
-        self.close();
       }
+      // always acknowledge, even before codec data created the decoder,
+      // or the main thread would never terminate this worker
+      self.postMessage({ type: "shutdownComplete" });
+      self.close();
       break;
     default:
       console.warn("DecoderVideo: unknown message type", e.data.type);

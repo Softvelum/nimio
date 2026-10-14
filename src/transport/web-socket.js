@@ -109,6 +109,14 @@ self.onmessage = (e) => {
     return;
   }
 
+  if (type === "terminate") {
+    // Posted by TransportAdapter.destroy() after the closing stop, so the
+    // socket (if any) is already closed in the normal case.
+    if (socket) closeSocket();
+    self.close();
+    return;
+  }
+
   if (!socket && ["play", "stop"].includes(type)) {
     console.warn(`Attempt to send ${type} command via closed socket`);
     return;

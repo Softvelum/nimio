@@ -289,6 +289,9 @@ export class NimioLive {
     this._removeUIEventHandlers();
     this._deinitTransport();
     this._reconnect.destroy();
+    // last: the closing stop posted by stop() is processed by the worker
+    // before the terminate request, so the server session ends cleanly
+    this._transport.destroy();
   }
 
   setParameters(params) {

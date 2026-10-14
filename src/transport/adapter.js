@@ -1,5 +1,9 @@
 import { LoggersFactory } from "@/shared/logger";
 
+// Time given to the worker to process "terminate" (which closes the socket
+// and the worker itself) before the thread is killed from the main side.
+const TERMINATE_FALLBACK_MS = 1000;
+
 export class TransportAdapter {
   constructor(instName, workerUrl) {
     this._logger = LoggersFactory.create(instName, "Transport");
@@ -13,8 +17,27 @@ export class TransportAdapter {
   }
 
   send(cmd, data) {
+    if (!this._worker) return; // destroyed
     data.type = cmd;
     this._worker.postMessage(data);
+  }
+
+  destroy() {
+    const worker = this._worker;
+    if (!worker) return;
+
+    this._worker = undefined;
+    this._callbacks = {};
+    this._connected = false;
+    worker.onmessage = null;
+    try {
+      // handled after any stop/close already queued, so the socket is
+      // closed gracefully before the worker closes itself
+      worker.postMessage({ type: "terminate" });
+    } catch (err) {
+      this._logger.debug("Transport worker terminate request failed", err);
+    }
+    setTimeout(() => worker.terminate(), TERMINATE_FALLBACK_MS);
   }
 
   get connected() {
@@ -35,10 +58,13 @@ export class TransportAdapter {
   }
 
   runCallback(type, data) {
-    if (!this._callbacks[type]) {
+    if (!this._worker) return; // destroyed
+    const callback = this._callbacks[type];
+    if (!callback) {
       this._logger.error(`No callback set for type: ${type}`);
+      return;
     }
-    return this._callbacks[type](data);
+    return callback(data);
   }
 
   _handleMessage(msg) {
