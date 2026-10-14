@@ -14,6 +14,10 @@ export class SLDPManager {
     this._logger = LoggersFactory.create(instName, "SLDP Manager");
     this._eventBus = EventBus.getInstance(instName);
     this._useSyncMode = false;
+    this._setupTimers = new Set();
+    this._runToken = 0; // bumped on every stop and on destroy
+    this._startToken = -1; // the run token start() was called with
+    this._sessionReady = false; // the current session's status has committed
   }
 
   init(transport, config) {
@@ -30,16 +34,24 @@ export class SLDPManager {
 
     this._transport = transport;
     this._transport.setCallback("status", async (status) => {
+      // a stop between start() and the status reply invalidates the run
+      if (this._startToken !== this._runToken) return;
+      const token = this._runToken;
       if (this._useSyncMode) {
-        this._handleSyncParams(status);
+        this._handleSyncParams(status); // emits; a listener may stop us
+        if (token !== this._runToken) return;
       }
-      await this._processStatus(status.info);
-      this._sendRequest("play", { streams: this._curStreams });
-      this._curStreams = [];
+      const streams = await this._processStatus(status.info);
+      // stopped during the codec check, or by a connection-established listener
+      if (!streams || token !== this._runToken) return;
+      this._sessionReady = true;
+      this._sendRequest("play", { streams });
     });
   }
 
   start(url) {
+    this._startToken = this._runToken;
+    this._sessionReady = false;
     this._context.setSourceUrl(url);
     this._sendRequest("start", {
       url: url,
@@ -57,6 +69,9 @@ export class SLDPManager {
   }
 
   resetRequestedStreams() {
+    this._runToken++;
+    this._cancelSetupTimers();
+    this._context.cancelPendingStreams();
     const sns = Object.keys(this._reqStreams);
     this._transport.send("removeTimescale", sns);
     this._reqStreams = {};
@@ -72,9 +87,11 @@ export class SLDPManager {
     let ss = this._serializeStream(type, stream, offset);
     let setup = this._setupObject(type, ss.sn, stream.stream_info);
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      this._setupTimers.delete(timer);
       this._transport.runCallback(`${type}Setup`, setup);
     }, 0);
+    this._setupTimers.add(timer);
     this._transport.send("timescale", { [ss.sn]: setup.timescale });
 
     this._reqStreams[ss.sn] = idx;
@@ -135,6 +152,27 @@ export class SLDPManager {
     }
   }
 
+  destroy() {
+    this._runToken++;
+    this._cancelSetupTimers();
+    this._context.cancelPendingStreams();
+    this._sessionReady = false;
+    this.cancelKeepAlive();
+  }
+
+  // True once the current session's status committed its stream metadata.
+  // A kept-alive socket can only be reused for requestCurrentStreams() when
+  // this holds; a detach during the codec check cancels the commit, so the
+  // context would be empty and attach() must handshake again.
+  get sessionReady() {
+    return this._sessionReady;
+  }
+
+  _cancelSetupTimers() {
+    for (const id of this._setupTimers) clearTimeout(id);
+    this._setupTimers.clear();
+  }
+
   requestCurrentStreams() {
     this._processCurrentStreams();
     this._sendRequest("play", { streams: this._curStreams });
@@ -146,8 +184,12 @@ export class SLDPManager {
     this._transport.send(command, data);
   }
 
+  // Resolves to the streams to request, or null when the run was stopped
+  // during the (asynchronous) codec check; nothing is applied in that case.
   async _processStatus(streams) {
-    await this._context.setStreams(streams);
+    const token = this._runToken;
+    const committed = await this._context.setStreams(streams);
+    if (!committed || token !== this._runToken) return null;
 
     const streamsConfig = this._context.getStreamsConfig();
     for (const stream of streamsConfig) {
@@ -159,8 +201,11 @@ export class SLDPManager {
     }
 
     this._processCurrentStreams();
+    const requested = this._curStreams;
+    this._curStreams = [];
 
     this._eventBus.emit("nimio:connection-established", streamsConfig);
+    return requested;
   }
 
   _processCurrentStreams() {

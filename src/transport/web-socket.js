@@ -49,9 +49,10 @@ function closeSocket() {
   socket.onopen = undefined;
   socket.onclose = undefined;
   socket.onmessage = undefined;
+  const session = socket.session;
   socket.close();
   socket = undefined;
-  self.postMessage({ aux: true, connected: false });
+  self.postMessage({ aux: true, connected: false, session });
 }
 
 self.onmessage = (e) => {
@@ -70,10 +71,12 @@ self.onmessage = (e) => {
     const ws = new WebSocket(e.data.url, e.data.protocols);
     ws.binaryType = "arraybuffer";
     ws.id = ++curSocketId;
+    ws.session = e.data.session; // tags this socket's lifecycle notifications
     socket = ws;
 
     protocolAgent = createProtocolAgent(e.data.protocols[0]);
     protocolAgent.syncMode = e.data.syncMode;
+    protocolAgent.session = e.data.session;
 
     // Handlers act only while `ws` is still the current socket: open/message
     // delivery is task-queued, so an event of a replaced socket may run after
@@ -90,7 +93,7 @@ self.onmessage = (e) => {
     ws.onopen = () => {
       if (ws !== socket) return;
       console.debug(`Connection established for socket id = ${ws.id}`);
-      self.postMessage({ aux: true, connected: true });
+      self.postMessage({ aux: true, connected: true, session: ws.session });
     };
 
     ws.onclose = (wsEv) => {
@@ -102,8 +105,12 @@ self.onmessage = (e) => {
 
       if (wsEv.target.id === curSocketId) {
         socket = undefined;
-        self.postMessage({ type: "disconnect", data: { code: codeHuman } });
-        self.postMessage({ aux: true, connected: false });
+        self.postMessage({
+          type: "disconnect",
+          data: { code: codeHuman },
+          session: ws.session,
+        });
+        self.postMessage({ aux: true, connected: false, session: ws.session });
       }
     };
     return;

@@ -4,6 +4,8 @@ import { LoggersFactory } from "@/shared/logger";
 import { EventBus } from "@/event-bus";
 
 const SWITCH_THRESHOLD_US = 8_000_000;
+const SWITCH_ABORT_MSG =
+  "Rendition switch aborted: the new rendition's decoder stopped";
 // Time given to the decoder worker to acknowledge "shutdown" before the
 // thread is killed from the main side (worker crashed or never replied).
 const SHUTDOWN_FALLBACK_MS = 1000;
@@ -112,10 +114,17 @@ export class DecoderFlow {
   }
 
   destroy() {
+    if (this._destroyed) return; // idempotent: one shutdown, one fallback timer
+    // messages still in flight from the worker must not reach the buffer,
+    // the engine or a switch peer once the flow is destroyed
+    this._destroyed = true;
     const decoder = this._decoder;
+    const peer = this._switchPeerFlow;
+    this._switchPeerFlow = null;
+    // a paired peer learns that this side of the switch is gone
+    if (peer && peer._switchPeerFlow === this) peer._onPeerDestroyed();
     if (!decoder) return;
 
-    this._switchPeerFlow = null;
     this._cancelInput();
     this._shutdown(); // no-op when a switch already posted the shutdown
     // whatever the worker does with the shutdown, it is terminated
@@ -149,6 +158,38 @@ export class DecoderFlow {
     return true;
   }
 
+  // The other side of an in-progress switch was destroyed. Drop the switch
+  // state; the main (dst) flow owns the result.
+  _onPeerDestroyed() {
+    if (this._switchContext?.dst) {
+      this._failSwitch(SWITCH_ABORT_MSG);
+      return;
+    }
+    // the src side only forgets the pairing; the main flow owns the result
+    this._switchContext = null;
+    this._switchPeerFlow = null;
+  }
+
+  // Main (dst) flow: drop the switch state, report the failure once, and
+  // recover when this flow cannot continue on its own. Returns the former
+  // peer (already unpaired, so destroying it sends no notification back).
+  _failSwitch(msg, lostDecoder = false) {
+    const inputCancelled = !!this._switchContext?.inputCancelled;
+    const peer = this._switchPeerFlow;
+    this._switchContext = null;
+    this._switchPeerFlow = null;
+    // teardown is silent: _resetPlayback() destroys flows after the stop
+    if (this._state?.isStopped()) return peer;
+    this._onSwitchResult?.(false, msg);
+    if (lostDecoder || inputCancelled || this._isShuttingDown) {
+      // our server stream was already cancelled (processChunk() on a dst key
+      // chunk, or finalizeSwitch()), or our decoder is gone: let the engine
+      // handle the loss of this media type as a decoding error
+      this._onDecodingError?.(this._type);
+    }
+    return peer;
+  }
+
   _cancelInput() {
     if (this._switchContext && !this._switchContext.inputCancelled) {
       this._switchContext.inputCancelled = true;
@@ -175,6 +216,10 @@ export class DecoderFlow {
     switch (e.data.type) {
       case "decodedFrame":
         let frame = this._prepareFrame(e.data);
+        if (this._destroyed) {
+          frame.close();
+          break;
+        }
         if (this._switchContext) {
           this._updateSwitchTimestamps(frame.timestamp);
           this._switchContext.handleFrame(frame);
@@ -183,8 +228,10 @@ export class DecoderFlow {
         await this._handleDecoderOutput(frame, e.data);
         break;
       case "decoderError":
+        if (this._destroyed) break;
         if (this._switchContext?.src) {
-          this._onSwitchResult(false);
+          // the new rendition's decoder failed: destroying notifies the main
+          // flow, which owns the switch result
           this.destroy();
           break;
         }
@@ -197,6 +244,18 @@ export class DecoderFlow {
           this._removeDecoderListener();
           this._decoder.terminate();
           this._decoder = null;
+        }
+        if (this._destroyed) {
+          // destroyed while a switch was finalizing: adopt nothing
+          this._switchPeerFlow = null;
+          this._switchContext = null;
+          break;
+        }
+        if (this._switchPeerFlow && !this._switchPeerFlow.isActive()) {
+          // the peer was released without telling us: nothing to adopt, and
+          // our own worker is gone
+          this._failSwitch(SWITCH_ABORT_MSG, true);
+          break;
         }
         if (this._switchPeerFlow) {
           this._decoder = this._switchPeerFlow.exportDecoder();
@@ -236,13 +295,10 @@ export class DecoderFlow {
         this._logger.debug(
           `Handle dst switch frame - excessive diff dst ts: ${frame.timestamp}, src ts: ${srcFirstTsUs}`,
         );
-        this._switchContext = null;
-        this._switchPeerFlow.destroy();
-        this._switchPeerFlow = null;
-        this._onSwitchResult(
-          false,
+        const peer = this._failSwitch(
           `Rendition switch isn't possible, because timestamps of renditions aren't in sync: the gap is approximately ${(absDiff / 1_000_000).toFixed(1)} seconds. Please check your ABR setup.`,
         );
+        peer.destroy(); // already unpaired: no notification back
         return;
       }
 
@@ -289,6 +345,10 @@ export class DecoderFlow {
   }
 
   async _handleDecodedFrame(frame) {
+    if (this._destroyed || !this._buffer) {
+      frame.close();
+      return false;
+    }
     if (this._state.isStopped()) {
       frame.close();
       return true;
@@ -296,10 +356,17 @@ export class DecoderFlow {
 
     if (this._startTsUs === 0) {
       if (this._onStartTsNotSet) {
-        let res = await this._onStartTsNotSet(frame);
-        if (!res) {
+        let res;
+        try {
+          res = await this._onStartTsNotSet(frame);
+        } catch (err) {
+          this._logger.error("Flow output initialization failed", err);
+          res = false;
+        }
+        if (!res || this._destroyed || !this._buffer) {
+          // output failed, or the flow was destroyed while waiting
           frame.close();
-          return false; // flow output failed
+          return false;
         }
       }
 

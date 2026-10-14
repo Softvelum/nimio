@@ -115,3 +115,82 @@ describe("TransportAdapter.destroy()", () => {
     error.mockRestore();
   });
 });
+
+describe("TransportAdapter session tagging", () => {
+  beforeEach(() => {
+    workers.length = 0;
+    vi.stubGlobal("Worker", FakeWorker);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("numbers each start and drops tagged messages from an earlier start", () => {
+    const { adapter, worker } = createAdapter("ta-session");
+    const status = vi.fn();
+    adapter.setCallback("status", status);
+
+    adapter.send("start", { url: "wss://a" });
+    adapter.send("start", { url: "wss://b" });
+    const sessions = worker.postMessage.mock.calls.map((c) => c[0].session);
+    expect(sessions).toEqual([1, 2]);
+
+    worker.onmessage({
+      data: { type: "status", data: { from: "a" }, session: 1 },
+    });
+    expect(status).not.toHaveBeenCalled();
+
+    worker.onmessage({
+      data: { type: "status", data: { from: "b" }, session: 2 },
+    });
+    expect(status).toHaveBeenCalledWith({ from: "b" });
+  });
+
+  it("drops a disconnect and a connected:false from an earlier session", () => {
+    const { adapter, worker } = createAdapter("ta-stale-disconnect");
+    const disconnect = vi.fn();
+    adapter.setCallback("disconnect", disconnect);
+    adapter.send("start", { url: "wss://a" });
+    adapter.send("start", { url: "wss://b" });
+    worker.onmessage({ data: { aux: true, connected: true, session: 2 } });
+
+    worker.onmessage({
+      data: {
+        type: "disconnect",
+        data: { code: "CLOSE_ABNORMAL" },
+        session: 1,
+      },
+    });
+    worker.onmessage({ data: { aux: true, connected: false, session: 1 } });
+
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(adapter.connected).toBe(true);
+  });
+
+  it("reports disconnected as soon as a new start replaces the socket", () => {
+    const { adapter, worker } = createAdapter("ta-restart-connected");
+    adapter.send("start", { url: "wss://a" });
+    worker.onmessage({ data: { aux: true, connected: true, session: 1 } });
+    expect(adapter.connected).toBe(true);
+
+    adapter.send("start", { url: "wss://b" }); // stop(); play() in one tick
+    expect(adapter.connected).toBe(false);
+
+    // the old socket's connected:false arrives late and is dropped as stale
+    worker.onmessage({ data: { aux: true, connected: false, session: 1 } });
+    expect(adapter.connected).toBe(false);
+
+    worker.onmessage({ data: { aux: true, connected: true, session: 2 } });
+    expect(adapter.connected).toBe(true);
+  });
+
+  it("passes untagged messages through", () => {
+    const { adapter, worker } = createAdapter("ta-untagged");
+    adapter.send("start", { url: "wss://a" });
+
+    worker.onmessage({ data: { aux: true, connected: true } });
+
+    expect(adapter.connected).toBe(true);
+  });
+});

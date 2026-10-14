@@ -37,15 +37,19 @@ const ws = vi.hoisted(() => {
     }
   }
 
-  return { FakeWebSocket, sockets: [] };
+  return { FakeWebSocket, sockets: [], agents: [] };
 });
 
 vi.mock("@/protocol-agent-factory", () => ({
-  createProtocolAgent: () => ({
-    processFrame: vi.fn(),
-    processStatus: vi.fn(),
-    handleMessage: vi.fn(),
-  }),
+  createProtocolAgent: () => {
+    const agent = {
+      processFrame: vi.fn(),
+      processStatus: vi.fn(),
+      handleMessage: vi.fn(),
+    };
+    ws.agents.push(agent);
+    return agent;
+  },
 }));
 
 function send(data) {
@@ -68,6 +72,65 @@ describe("WebSocket transport worker", () => {
     // Leave no socket open from the previous test
     send({ type: "stop", sns: [], close: true });
     ws.sockets.length = 0;
+  });
+
+  it("hands the start's session to the protocol agent", () => {
+    send({
+      type: "start",
+      url: "wss://host/app/stream",
+      protocols: ["sldp.softvelum.com"],
+      session: 7,
+    });
+
+    expect(ws.agents.at(-1).session).toBe(7);
+  });
+
+  it("tags lifecycle notifications with the start's session", () => {
+    send({
+      type: "start",
+      url: "wss://host/app/stream",
+      protocols: ["sldp.softvelum.com"],
+      session: 5,
+    });
+    const socket = ws.sockets.at(-1);
+    self.postMessage.mockClear();
+
+    socket.onopen();
+    expect(self.postMessage).toHaveBeenLastCalledWith({
+      aux: true,
+      connected: true,
+      session: 5,
+    });
+
+    socket.onclose({ target: socket, code: 1006, reason: "" });
+    expect(self.postMessage).toHaveBeenCalledWith({
+      type: "disconnect",
+      data: { code: "CLOSE_ABNORMAL" },
+      session: 5,
+    });
+    expect(self.postMessage).toHaveBeenLastCalledWith({
+      aux: true,
+      connected: false,
+      session: 5,
+    });
+  });
+
+  it("tags the connected:false of a closing stop with the session", () => {
+    send({
+      type: "start",
+      url: "wss://host/app/stream",
+      protocols: ["sldp.softvelum.com"],
+      session: 6,
+    });
+    self.postMessage.mockClear();
+
+    send({ type: "stop", sns: [], close: true });
+
+    expect(self.postMessage).toHaveBeenLastCalledWith({
+      aux: true,
+      connected: false,
+      session: 6,
+    });
   });
 
   it("closes the previous socket when a new connection is started", () => {

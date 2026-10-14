@@ -20,6 +20,16 @@ export class SLDPAgent {
     this._syncMode = false;
     this._hasShowTime = false;
     this._codecDataStatus = {};
+    this._session = undefined;
+  }
+
+  // Session number of the "start" this agent serves; every message posted
+  // to the main thread carries it so replies of a replaced run are dropped.
+  set session(value) {
+    this._session = value;
+  }
+  get session() {
+    return this._session;
   }
 
   processFrame(data) {
@@ -127,7 +137,7 @@ export class SLDPAgent {
       !status.info[0].stream_info
     ) {
       console.warn("Invalid or empty status received:", status);
-      self.postMessage({ type: "error" });
+      self.postMessage({ type: "error", session: this._session });
       return;
     }
 
@@ -135,7 +145,7 @@ export class SLDPAgent {
       this._hasShowTime = !!status.steady;
     }
 
-    self.postMessage({ type: "status", data: status });
+    self.postMessage({ type: "status", data: status, session: this._session });
     this._codecDataStatus = {};
   }
 
@@ -173,6 +183,7 @@ export class SLDPAgent {
         data: data,
         family: CODEC_FAMILY_MAP[frameType],
       },
+      session: this._session,
     });
   }
 
@@ -193,6 +204,7 @@ export class SLDPAgent {
       {
         type: "videoChunk",
         data: payload,
+        session: this._session,
       },
       [frameWithHeader.buffer],
     );
@@ -214,6 +226,7 @@ export class SLDPAgent {
       {
         type: "audioChunk",
         data: payload,
+        session: this._session,
       },
       [frameWithHeader.buffer],
     );

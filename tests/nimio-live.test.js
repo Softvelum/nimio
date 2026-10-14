@@ -212,16 +212,19 @@ describe("NimioLive.destroy() releases the transport worker", () => {
     live._removeUIEventHandlers = vi.fn(() => order.push("ui"));
     live._deinitTransport = vi.fn(() => order.push("deinitTransport"));
     live._reconnect = { destroy: vi.fn(() => order.push("reconnect")) };
+    live._sldpManager = { destroy: vi.fn(() => order.push("sldp")) };
     live._transport = { destroy: vi.fn(() => order.push("transport")) };
 
     live.destroy();
 
     expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.destroy).toHaveBeenCalledTimes(1);
     expect(order).toEqual([
       "stop",
       "ui",
       "deinitTransport",
       "reconnect",
+      "sldp",
       "transport",
     ]);
   });
