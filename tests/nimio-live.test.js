@@ -205,6 +205,40 @@ describe("NimioLive attach/detach completion", () => {
 });
 
 describe("NimioLive.destroy() releases the transport worker", () => {
+  it("removes the sync-mode params listener it subscribed", () => {
+    const live = Object.create(NimioLive.prototype);
+    const bus = { on: vi.fn(), off: vi.fn() };
+    live._eventBus = bus;
+    live._createSyncModeParams();
+    const handler = bus.on.mock.calls[0][1];
+    expect(typeof handler).toBe("function");
+    live.stop = vi.fn();
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    live._reconnect = { destroy: vi.fn() };
+    live._sldpManager = { destroy: vi.fn() };
+    live._transport = { destroy: vi.fn() };
+
+    live.destroy();
+
+    expect(bus.off).toHaveBeenCalledWith("nimio:sync-mode-params", handler);
+  });
+
+  it("destroy without sync mode unsubscribes nothing extra", () => {
+    const live = Object.create(NimioLive.prototype);
+    const bus = { off: vi.fn() };
+    live._eventBus = bus;
+    live.stop = vi.fn();
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    live._reconnect = { destroy: vi.fn() };
+    live._sldpManager = { destroy: vi.fn() };
+    live._transport = { destroy: vi.fn() };
+
+    expect(() => live.destroy()).not.toThrow();
+    expect(bus.off).not.toHaveBeenCalled();
+  });
+
   it("destroys the transport after stopping and unsubscribing", () => {
     const live = Object.create(NimioLive.prototype);
     const order = [];
@@ -227,5 +261,86 @@ describe("NimioLive.destroy() releases the transport worker", () => {
       "sldp",
       "transport",
     ]);
+  });
+});
+
+describe("NimioLive stream setups while stopped", () => {
+  it("ignores video and audio setups received after stop()", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true };
+    live._config = { hardwareAcceleration: "no-preference" };
+    live._decoderFlows = { video: null, audio: null };
+    live._nextRenditionData = null;
+    live._eventBus = { emit: vi.fn() };
+    live._isAutoAbr = () => false;
+    live._makeUiRenditionList = () => [];
+    live._context = {
+      getCurrentRendition: () => ({ rendition: "r", name: "n", idx: 0 }),
+    };
+    live._createMainDecoderFlow = vi.fn();
+    live._setNoVideo = vi.fn();
+    live._startNoAudioMode = vi.fn();
+    live.stop = vi.fn();
+
+    live._onVideoSetupReceived({ trackId: 1, config: { codec: "avc1" } });
+    live._onAudioSetupReceived({ trackId: 2, config: { codec: "mp4a.40.2" } });
+    live._onAudioSetupReceived({ trackId: 2 }); // no-config branch
+
+    expect(live._createMainDecoderFlow).not.toHaveBeenCalled();
+    expect(live._setNoVideo).not.toHaveBeenCalled();
+    expect(live._startNoAudioMode).not.toHaveBeenCalled();
+    expect(live.stop).not.toHaveBeenCalled();
+  });
+});
+
+describe("NimioLive.detach() and the kept-alive session", () => {
+  function createDetachable(sessionReady) {
+    const live = Object.create(NimioLive.prototype);
+    live._ui = {};
+    live._context = { setState: vi.fn() };
+    live._state = { value: "playing" };
+    live.stop = vi.fn();
+    live._detachUI = vi.fn();
+    live._transport = { connected: true };
+    live._sldpManager = {
+      sessionReady,
+      keepAliveConnection: vi.fn(),
+      stop: vi.fn(),
+    };
+    return live;
+  }
+
+  it("keeps a committed session alive", () => {
+    const live = createDetachable(true);
+
+    expect(live.detach()).toBe(true);
+
+    expect(live.stop).toHaveBeenCalledWith({ keepConnection: true });
+    expect(live._sldpManager.keepAliveConnection).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+  });
+
+  it("does not try to close a session whose socket is not connected", () => {
+    const live = createDetachable(false);
+    live._transport.connected = false; // never opened, or already closed
+
+    expect(live.detach()).toBe(true);
+
+    expect(live._sldpManager.keepAliveConnection).not.toHaveBeenCalled();
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+  });
+
+  it("closes a session that never committed instead of keeping it alive", () => {
+    const live = createDetachable(false);
+
+    expect(live.detach()).toBe(true);
+
+    expect(live.stop).toHaveBeenCalledWith({ keepConnection: true });
+    expect(live._sldpManager.keepAliveConnection).not.toHaveBeenCalled();
+    expect(live._sldpManager.stop).toHaveBeenCalledWith({
+      closeConnection: true,
+    });
+    // the engine stop stays non-closing (keepConnection: true above), which
+    // is what keeps nimio:playback-end from being emitted on a mode switch
   });
 });

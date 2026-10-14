@@ -86,6 +86,7 @@ export class NimioLive {
     this._reconnect = new Reconnector(this._instName, this._config.reconnects);
 
     this._audioWorkletReady = null;
+    this._audioInitGen = 0; // bumped by _stopAudio() to cancel a pending init
     this._audioConfig = new AudioConfig(48000, 1, 1024); // default values
     this._audioCtxProvider = AudioContextProvider.getInstance(this._instName);
     this._audioCtrl = AudioController.getInstance(this._instName);
@@ -255,7 +256,14 @@ export class NimioLive {
 
     this._context.setState(this._state.value, false);
     this.stop({ keepConnection: true });
-    this._sldpManager.keepAliveConnection();
+    if (this._sldpManager.sessionReady) {
+      // the session has stream metadata: keep it for a later attach()
+      this._sldpManager.keepAliveConnection();
+    } else if (this._transport.connected) {
+      // nothing to reuse (attach() would handshake anyway): close it now;
+      // a socket that never opened is replaced by attach()'s start()
+      this._sldpManager.stop({ closeConnection: true });
+    }
 
     if (this._debugView) {
       this._debugView.clear();
@@ -290,6 +298,9 @@ export class NimioLive {
     this.stop();
     this._removeUIEventHandlers();
     this._deinitTransport();
+    if (this._onSyncModeParams) {
+      this._eventBus.off("nimio:sync-mode-params", this._onSyncModeParams);
+    }
     this._reconnect.destroy();
     // a status reply or setup timer of the stopped run must do nothing
     this._sldpManager.destroy();
@@ -583,10 +594,21 @@ export class NimioLive {
     // }
 
     // create AudioContext with correct sampleRate on first frame
+    const gen = this._audioInitGen;
     await this._initAudioProcessor(frame.sampleRate, frame.numberOfChannels);
+    if (gen !== this._audioInitGen) {
+      // audio was torn down (stop, or an audio output re-preparation) and
+      // maybe set up again meanwhile: this frame belongs to the old run and
+      // must not touch the new one's state
+      return false;
+    }
 
     if (!this._audioContext || !this._audioNode) {
-      this._logger.error("Audio context is not initialized. Can't play audio.");
+      if (!this._state.isStopped()) {
+        this._logger.error(
+          "Audio context is not initialized. Can't play audio.",
+        );
+      }
       this._audioContext = this._audioNode = null;
       return false;
     }
@@ -731,6 +753,11 @@ export class NimioLive {
   }
 
   async _initAudioProcessor(sampleRate, channels, idle) {
+    // No-audio mode on top of an existing node: that node already drives the
+    // playback clock and _setNoAudio() silenced it. Re-initialising would
+    // close its context and freeze video.
+    if (idle && this._audioNode) return;
+    const gen = this._audioInitGen;
     this._logger.debug(
       `Initialize audio processor, sampleRate=${sampleRate}, channels=${channels}, idle=${idle}, audio context exists=${!!this._audioContext}`,
     );
@@ -755,7 +782,9 @@ export class NimioLive {
       this._audioWorkletReady = this._audioContext.audioWorklet
         .addModule(audioProcUrl)
         .catch((err) => {
-          this._logger.error("Audio worklet error", err);
+          if (gen === this._audioInitGen) {
+            this._logger.error("Audio worklet error", err);
+          }
         });
 
       this._audioCtrl.initVolume(this._config.volumeId, this._config.muted);
@@ -763,6 +792,11 @@ export class NimioLive {
     }
 
     await this._audioWorkletReady;
+    if (gen !== this._audioInitGen) {
+      // audio was stopped (or the engine destroyed) while the module loaded
+      this._logger.debug("Audio processor initialization cancelled");
+      return;
+    }
     if (this._audioNode) return;
 
     let procOptions = {
@@ -816,6 +850,7 @@ export class NimioLive {
     if (this._config.syncBuffer > 0) {
       let smc = new SyncModeClock(this._audioNode.port);
       await smc.sync();
+      if (gen !== this._audioInitGen) return; // stopped during the handshake
       this._applySyncModeParams();
     }
     this._sendPendingAdvertizerActions();
@@ -856,6 +891,7 @@ export class NimioLive {
 
   _stopAudio() {
     this._logger.debug("stopAudio");
+    this._audioInitGen++;
     if (this._audioContext) {
       this._audioCtrl.reset();
       this._audioContext = this._audioNode = this._audioWorkletReady = null;

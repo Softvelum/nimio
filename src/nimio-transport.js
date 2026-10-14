@@ -39,20 +39,28 @@ export const NimioTransport = {
   },
 
   _sendPendingAdvertizerActions() {
+    const node = this._audioNode; // the node may be replaced before the reply
+    if (!node) return;
     if (this._advertizerEval.hasPendingActions()) {
+      const gen = this._audioInitGen;
       const hdlr = (event) => {
         if (event.data != "transp-discont-eval-ready") return;
+        if (gen !== this._audioInitGen) {
+          // a reply queued before a stop: the queue belongs to the new run
+          node.port.removeEventListener("message", hdlr);
+          return;
+        }
         let pa = this._advertizerEval.pendingActions;
         for (let i = 0; i < pa.length; i++) {
-          this._audioNode.port.postMessage({
+          node.port.postMessage({
             type: "transp-track-action",
             data: pa[i],
           });
         }
         this._advertizerEval.clearPendingActions();
-        this._audioNode.port.removeEventListener("message", hdlr);
+        node.port.removeEventListener("message", hdlr);
       };
-      this._audioNode.port.addEventListener("message", hdlr);
+      node.port.addEventListener("message", hdlr);
     }
   },
 
@@ -86,6 +94,7 @@ export const NimioTransport = {
   },
 
   _onVideoSetupReceived(data) {
+    if (this._state.isStopped()) return; // late setup after stop()
     if (!data || !data.config) {
       this._setNoVideo();
       return;
@@ -123,6 +132,7 @@ export const NimioTransport = {
   },
 
   _onAudioSetupReceived(data) {
+    if (this._state.isStopped()) return; // late setup after stop()
     if (!data || !data.config) {
       if (this._noVideo) {
         this._eventBus.emit("aux:playback-error", {
@@ -223,6 +233,15 @@ export const NimioTransport = {
         this._decoderFlows["audio"] = null;
         this._sldpManager.cancelStream(data.trackId);
         this._context.resetCurrentStream("audio");
+        if (this._nextRenditionData?.type === "audio") {
+          // the main flow's destroy already unpaired the next audio flow;
+          // without a main flow the switch can never finalize, so fail it
+          // now (a pending video switch is unaffected and continues)
+          const next = this._nextRenditionData;
+          next.decoderFlow?.destroy();
+          this._sldpManager.cancelStream(next.trackId);
+          this._onRenditionSwitchResult("audio", false);
+        }
       }
     }
 

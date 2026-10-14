@@ -58,6 +58,7 @@ export const NimioRenditions = {
     });
 
     this._nextRenditionData = {
+      type,
       idx: rendIdx,
       trackId: this._sldpManager.requestStream(type, rendIdx),
       rendition: stream.stream_info.name,
