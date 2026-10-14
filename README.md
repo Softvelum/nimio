@@ -491,6 +491,17 @@ enabled: Boolean;
   }
 ```
 
+- `nimio:playback-error`  
+  Emitted when playback can't continue in the given mode: no playable source was found, the player isn't supported by the browser, or a switch between live and VOD failed. A failed switch restores the previous mode before the event is emitted. The `error` value is one of `"No playable sources found"`, `"Player is not supported in current browser"`, `"Failed to switch playback mode"`, or the name of the browser error that rejected VOD playback (e.g. `"NotAllowedError"`).  
+  **Parameters:**
+
+```javascript
+error: String; // human readable reason, see above
+mode: "live" | "vod"; // mode the error relates to; for a failed switch, the target mode
+```
+
+---
+
 ### Other events that can be handled by the caller
 
 - `nimio:captions-arrived`  

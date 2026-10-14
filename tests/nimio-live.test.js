@@ -122,3 +122,84 @@ describe("NimioLive", () => {
     });
   });
 });
+
+function createLiveForAttach() {
+  const live = Object.create(NimioLive.prototype);
+  live._config = {
+    instanceName: "Test",
+    latency: 200,
+    latencyTolerance: 0,
+    syncBuffer: 0,
+    streamUrl: "wss://x",
+    startOffset: 1000,
+  };
+  live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  live._eventBus = { emit: vi.fn() };
+  live._state = { start: vi.fn(), value: 0 };
+  live._latencyCtrl = { start: vi.fn() };
+  live._isAutoAbr = () => false;
+  live._transport = { connected: false };
+  live._sldpManager = {
+    start: vi.fn(),
+    requestCurrentStreams: vi.fn(),
+    stop: vi.fn(),
+    keepAliveConnection: vi.fn(),
+  };
+  live._context = { setState: vi.fn(), state: { value: 0 } };
+  live._renderVideoFrame = vi.fn();
+  live.stop = vi.fn();
+  return live;
+}
+
+describe("NimioLive attach/detach completion", () => {
+  it("attach calls the callback once and returns true", () => {
+    const live = createLiveForAttach();
+    const ui = { toggleMode: vi.fn(), setDetached: vi.fn() };
+    const cb = vi.fn();
+    expect(live.attach(ui, { latency: 0 }, cb)).toBe(true);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.start).toHaveBeenCalled();
+  });
+
+  it("attach with pbError reports the error, calls back and returns true", () => {
+    const live = createLiveForAttach();
+    const ui = { toggleMode: vi.fn(), setDetached: vi.fn() };
+    const cb = vi.fn();
+    expect(live.attach(ui, { latency: 0, pbError: true }, cb)).toBe(true);
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).toHaveBeenCalledWith(
+      "aux:playback-error",
+      expect.objectContaining({ type: "NO_SRC", stop: true }),
+    );
+    expect(live._sldpManager.start).not.toHaveBeenCalled();
+  });
+
+  it("attach returns false without calling back when already attached", () => {
+    const live = createLiveForAttach();
+    live._ui = { toggleMode: vi.fn() };
+    const cb = vi.fn();
+    expect(live.attach({ toggleMode: vi.fn() }, { latency: 0 }, cb)).toBe(
+      false,
+    );
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it("detach calls the callback synchronously and returns true when attached", () => {
+    const live = createLiveForAttach();
+    live._ui = { toggleMode: vi.fn(), setDetached: vi.fn() };
+    const order = [];
+    const cb = vi.fn(() => order.push("cb"));
+    const res = live.detach(cb);
+    order.push("returned");
+    expect(res).toBe(true);
+    expect(order).toEqual(["cb", "returned"]);
+    expect(live._ui).toBeUndefined();
+  });
+
+  it("detach while not attached still calls back and returns true", () => {
+    const live = createLiveForAttach();
+    const cb = vi.fn();
+    expect(live.detach(cb)).toBe(true);
+    expect(cb).toHaveBeenCalledTimes(1);
+  });
+});

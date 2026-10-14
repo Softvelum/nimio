@@ -355,9 +355,9 @@ export class NimioVod {
   attach(ui, position, callback) {
     if (this._state < VOD_STATE.SYNC) return false;
 
-    if (callback && !this._mediaAttachedCallback) {
-      this._mediaAttachedCallback = callback;
-    }
+    // The newest attach request wins; a stale callback from an attach that
+    // never completed must not be invoked for this one.
+    this._mediaAttachedCallback = callback;
 
     this._ui = ui;
     this._ui.toggleMode(MODE.VOD);
@@ -389,10 +389,13 @@ export class NimioVod {
   detach(callback) {
     if (this._state !== VOD_STATE.PLAY) return false;
 
-    this._setDetachedState(callback);
     if (this._nalProcessor) this._nalProcessor.reset();
+    this._setDetachedState(callback);
 
-    if (this._context.hasVod()) {
+    // The callback may have re-attached this engine (the facade restores VOD
+    // when the other engine refuses). attach() has then requested the master
+    // playlist, which the background variant reload must not replace.
+    if (this._state === VOD_STATE.SYNC && this._context.hasVod()) {
       this._loadCurrentLevel();
     }
 
@@ -400,14 +403,13 @@ export class NimioVod {
   }
 
   _setDetachedState(callback) {
-    if (callback && !this._mediaDetachedCallback) {
-      this._mediaDetachedCallback = callback;
-    }
+    this._mediaDetachedCallback = callback;
+    // An attach that has not completed yet can't complete after detach.
+    this._mediaAttachedCallback = undefined;
 
     this._context.setState(this._playbackService.state, false);
     this._playbackService.resetPosition();
 
-    this._pHandler.detachMedia();
     this._audioCtrl.reset();
     this._vuMeterSvc.stop();
     if (this._state !== VOD_STATE.STOP) this._state = VOD_STATE.SYNC;
@@ -417,6 +419,10 @@ export class NimioVod {
     this._playbackErrCnt = 0;
 
     this._detachUI();
+    // hls.js fires MEDIA_DETACHED synchronously from inside detachMedia(),
+    // which runs the completion callback. Detach last so the callback sees
+    // a fully detached engine and can hand the UI to another one safely.
+    this._pHandler.detachMedia();
   }
 
   _detachUI() {

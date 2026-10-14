@@ -31,6 +31,11 @@ if (scriptPath) {
   scriptPath = scriptPath.substr(0, scriptPath.lastIndexOf("/") + 1);
 }
 
+// Upper bound for a live<->VOD switch to complete. hls.js reports media
+// attached only after the MediaSource "sourceopen" event, which never comes
+// when MSE is unavailable or the media element is broken.
+const MODE_SWITCH_TIMEOUT_MS = 5000;
+
 export default class Nimio {
   constructor(options) {
     if (options && !options.instanceName) {
@@ -102,6 +107,7 @@ export default class Nimio {
   destroy() {
     if (!this._ui) return;
 
+    this._cancelModeSwitch();
     this._ui.destroy();
     this._ui = undefined;
     this._removeVolumeEventHandlers();
@@ -205,21 +211,11 @@ export default class Nimio {
   }
 
   _switchToVod(position) {
-    if (!this._vodPlayer || this._mode === MODE.VOD) return false;
-    this._mode = MODE.PEND;
-
-    return this._livePlayer.detach(() => {
-      // TODO: re-check parameters
-      this._actPlayer = this._vodPlayer;
-      this._actPlayer.attach(this._ui, position, () => {
-        this._mode = MODE.VOD;
-      });
-    });
+    return this._switchMode(MODE.VOD, position);
   }
 
   _switchToLive(latency) {
     if (!this._vodPlayer || this._mode === MODE.LIVE) return false;
-    this._mode = MODE.PEND;
 
     this._logger.debug(
       `Attach live with ${latency === 0 ? "default latency" : "latency = " + latency}`,
@@ -229,11 +225,101 @@ export default class Nimio {
     // that means that there is no playable stream source at the moment
     let pbError =
       this._context.state.initial && this._vodPlayer.hasPlaybackErrors();
-    return this._vodPlayer.detach(() => {
-      this._actPlayer = this._livePlayer;
-      this._actPlayer.attach(this._ui, { latency, pbError });
-      this._mode = MODE.LIVE;
+    return this._switchMode(MODE.LIVE, { latency, pbError });
+  }
+
+  /**
+   * Switch the active engine. Returns true when the switch started (it may
+   * complete later) and false when it was rejected or failed synchronously.
+   * Any failure restores the previous mode and emits nimio:playback-error.
+   */
+  _switchMode(target, attachParams) {
+    if (!this._vodPlayer || this._mode === target) return false;
+    if (this._mode === MODE.PEND) {
+      this._logger.warn(`Switch to ${target} ignored: a switch is in progress`);
+      return false;
+    }
+
+    const sw = {
+      target,
+      prevMode: this._mode,
+      prevPlayer: this._actPlayer,
+      nextPlayer: target === MODE.VOD ? this._vodPlayer : this._livePlayer,
+      detached: false,
+      attachStarted: false,
+      settled: false,
+      ok: false,
+      timer: null,
+    };
+    this._modeSwitch = sw;
+    this._mode = MODE.PEND;
+    sw.timer = setTimeout(
+      () => this._finishModeSwitch(sw, false, "timeout"),
+      MODE_SWITCH_TIMEOUT_MS,
+    );
+
+    const detached = sw.prevPlayer.detach(() => {
+      if (sw.settled) return;
+      sw.detached = true;
+      this._actPlayer = sw.nextPlayer;
+      sw.attachStarted = sw.nextPlayer.attach(this._ui, attachParams, () =>
+        this._finishModeSwitch(sw, true),
+      );
+      if (!sw.attachStarted) {
+        this._finishModeSwitch(sw, false, "attach refused");
+      }
     });
+    if (!detached) this._finishModeSwitch(sw, false, "detach refused");
+
+    return !sw.settled || sw.ok;
+  }
+
+  _finishModeSwitch(sw, ok, reason) {
+    if (sw.settled) return;
+    sw.settled = true;
+    sw.ok = ok;
+    clearTimeout(sw.timer);
+    if (this._modeSwitch === sw) this._modeSwitch = null;
+
+    if (ok) {
+      this._mode = sw.target;
+      return;
+    }
+
+    this._logger.error(
+      `Switch to ${sw.target} failed (${reason}), restoring ${sw.prevMode}`,
+    );
+    this._restoreMode(sw);
+    this._eventBus.emit("nimio:playback-error", {
+      error: ERROR.MODE_SWITCH,
+      mode: sw.target,
+    });
+  }
+
+  _restoreMode(sw) {
+    if (sw.attachStarted) {
+      // The new engine took the UI but never completed; release it.
+      sw.nextPlayer.detach();
+    }
+    this._actPlayer = sw.prevPlayer;
+    this._mode = sw.prevMode;
+
+    // Only an engine that actually let go of the UI is re-attached. If the
+    // detach was refused, the previous engine never changed state and
+    // attaching it would start it rather than restore it.
+    if (!sw.detached) return;
+    const params = sw.prevMode === MODE.LIVE ? { latency: 0 } : undefined;
+    if (!sw.prevPlayer.attach(this._ui, params, () => {})) {
+      this._logger.error(`Could not re-attach ${sw.prevMode} player`);
+    }
+  }
+
+  _cancelModeSwitch() {
+    const sw = this._modeSwitch;
+    if (!sw) return;
+    clearTimeout(sw.timer);
+    sw.settled = true;
+    this._modeSwitch = null;
   }
 
   _onLivePlaybackError(type, allowFailover) {
@@ -273,6 +359,13 @@ export default class Nimio {
   _onVodPlaybackError(type) {
     // Switch to live player for now.
     this._logger.warn(`VOD playback error: ${ERROR[type]}`);
+    const sw = this._modeSwitch;
+    if (sw && sw.target === MODE.VOD) {
+      // The switch can't complete any more; fail it now instead of waiting
+      // for the timeout. This restores the previous (live) mode.
+      this._finishModeSwitch(sw, false, "VOD playback error");
+      return;
+    }
     if (this._config.vod?.liveFailover) {
       this._switchToLive(0);
     } else {

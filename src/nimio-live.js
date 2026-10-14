@@ -188,7 +188,7 @@ export class NimioLive {
     if (playing) this.play();
   }
 
-  attach(ui, params) {
+  attach(ui, params, callback) {
     if (this._ui) return false;
 
     if (!params) params = { latency: 0 };
@@ -218,6 +218,7 @@ export class NimioLive {
         stop: true,
       });
 
+      if (callback) callback();
       return true;
     }
 
@@ -239,13 +240,15 @@ export class NimioLive {
           this._config.startOffset,
         );
     if (this._debugView) this._debugView.start();
+    if (callback) callback();
     return true;
   }
 
   detach(callback) {
     if (!this._ui) {
+      // Nothing to release; the detach is complete.
       if (callback) callback();
-      return false;
+      return true;
     }
 
     this._context.setState(this._state.value, false);

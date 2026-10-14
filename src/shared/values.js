@@ -28,5 +28,6 @@ export const MODE = {
 export const ERROR = {
   NO_SRC: "No playable sources found",
   NOT_SUP: "Player is not supported in current browser",
+  MODE_SWITCH: "Failed to switch playback mode",
 };
 export const AUDIO_BLOCK_FRAMES = 128;
