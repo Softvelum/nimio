@@ -23,14 +23,15 @@ describe("VUMeterUI.destroy()", () => {
     const raf = vi.fn();
     vi.stubGlobal("requestAnimationFrame", raf);
     const { container, ui } = createMeter();
-    ui._drawMeter();
+    const gen = ui._drawGen;
+    ui._drawMeter(gen);
     expect(raf).toHaveBeenCalled(); // the loop is running
 
     container.querySelector("*").innerHTML = ""; // host cleared the inner DOM
     expect(() => ui.destroy(true)).not.toThrow();
 
     raf.mockClear();
-    ui._drawMeter(); // a frame that was already scheduled fires
+    ui._drawMeter(gen); // a frame that was already scheduled fires
     expect(raf).not.toHaveBeenCalled();
     expect(container.childElementCount).toBe(0);
   });
@@ -40,5 +41,33 @@ describe("VUMeterUI.destroy()", () => {
     container.innerHTML = "";
 
     expect(() => ui.destroy(true)).not.toThrow();
+  });
+});
+
+describe("VUMeterUI.refresh()", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = "";
+  });
+
+  it("with a changed size leaves one animation loop running", () => {
+    const frames = [];
+    vi.stubGlobal("requestAnimationFrame", (cb) => frames.push(cb));
+    const container = document.createElement("div");
+    let width = 100;
+    Object.defineProperty(container, "clientWidth", { get: () => width });
+    Object.defineProperty(container, "clientHeight", { get: () => 40 });
+    document.body.appendChild(container);
+    const ui = new VUMeterUI(container, 60);
+    ui.create(2);
+    expect(frames).toHaveLength(1); // the first loop is running
+
+    width = 200;
+    ui.refresh(2); // destroy(true) + create(): the old loop's frame is still queued
+
+    // fire every queued frame once: only the current loop may continue
+    const queued = frames.splice(0);
+    queued.forEach((cb) => cb());
+    expect(frames).toHaveLength(1);
   });
 });

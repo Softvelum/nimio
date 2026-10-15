@@ -116,6 +116,7 @@ The build produces versioned files in `dist/`: `nimio-<version>.js`, `nimio-<ver
 nimio = new Nimio({
   streamUrl: "wss://example.com/stream", //SLDP stream URL
   container: "#player", // CSS selector or HTMLElement
+  instanceName: "player1", // Name of the player instance; generated when omitted. Each player gets its own set of internal services, so a reused name never connects a new player to a previous one's resources
   //optional parameters:
   width: 476, // player width in pixels or CSS string, e.g. "100%"
   height: 268, // player height in pixels or CSS string, e.g. "auto"
@@ -229,7 +230,7 @@ These methods are available on every `Nimio` player instance.
 - `stop()`  
   Stop and reset the player.
 - `destroy()`  
-  Destroy the player instance and release all memory.
+  Destroy the player instance: stops playback, terminates the transport and decoder workers, closes the audio context, removes every event listener (including those added with `on()`) and releases all services registered for the instance. Cleanup always completes; if a component or an application listener throws during it, the first error is rethrown afterwards. Calling `destroy()` again, or any other public method, on a destroyed player is a safe no-op (queries return neutral values). The instance name can be reused by a new player afterwards.
 - `version()`  
   Return the current version string of the player instance.
 

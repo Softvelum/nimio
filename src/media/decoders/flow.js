@@ -2,6 +2,7 @@ import { TimestampManager } from "./timestamp-manager";
 import { MetricsManager } from "@/metrics/manager";
 import { LoggersFactory } from "@/shared/logger";
 import { EventBus } from "@/event-bus";
+import { runCleanupSteps } from "@/shared/helpers";
 
 const SWITCH_THRESHOLD_US = 8_000_000;
 const SWITCH_ABORT_MSG =
@@ -121,12 +122,24 @@ export class DecoderFlow {
     const decoder = this._decoder;
     const peer = this._switchPeerFlow;
     this._switchPeerFlow = null;
-    // a paired peer learns that this side of the switch is gone
-    if (peer && peer._switchPeerFlow === this) peer._onPeerDestroyed();
+    // Each step may reach application code (the peer notification runs the
+    // main flow's switch-result and decoding-error callbacks: engine, facade,
+    // application listener; the cancel reaches the SLDP manager and the
+    // transport; the shutdown the metrics/timestamp services and the bus):
+    // a failure in one must not skip the others, nor keep the worker alive
+    const steps = [];
+    if (peer && peer._switchPeerFlow === this) {
+      // a paired peer learns that this side of the switch is gone
+      steps.push(["switch peer", () => peer._onPeerDestroyed()]);
+    }
+    if (decoder) {
+      steps.push(["input cancel", () => this._cancelInput()]);
+      // no-op when a switch already posted the shutdown
+      steps.push(["shutdown", () => this._shutdown()]);
+    }
+    runCleanupSteps(this._logger, "decoder flow destroy", steps);
     if (!decoder) return;
 
-    this._cancelInput();
-    this._shutdown(); // no-op when a switch already posted the shutdown
     // whatever the worker does with the shutdown, it is terminated
     this._scheduleForcedTermination(decoder);
     this._trackId = null;

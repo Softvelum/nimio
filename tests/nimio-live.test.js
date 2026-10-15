@@ -135,7 +135,7 @@ function createLiveForAttach() {
   };
   live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
   live._eventBus = { emit: vi.fn() };
-  live._state = { start: vi.fn(), value: 0 };
+  live._state = { start: vi.fn(), isStopped: () => false, value: 0 };
   live._latencyCtrl = { start: vi.fn() };
   live._isAutoAbr = () => false;
   live._transport = { connected: false };
@@ -146,7 +146,9 @@ function createLiveForAttach() {
     keepAliveConnection: vi.fn(),
   };
   live._context = { setState: vi.fn(), state: { value: 0 } };
+  live._reconnect = { stop: vi.fn() };
   live._renderVideoFrame = vi.fn();
+  live._playGen = 0;
   live.stop = vi.fn();
   return live;
 }
@@ -211,6 +213,7 @@ describe("NimioLive.destroy() releases the transport worker", () => {
     live.stop = vi.fn(() => {
       throw new Error("VU meter container gone"); // _resetPlayback threw early
     });
+    live._autoplayTimers = [];
     live._decoderFlows = { video: { destroy: vi.fn() }, audio: null };
     live._nextRenditionData = { decoderFlow: { destroy: vi.fn() } };
     live._stopAudio = vi.fn();
@@ -242,6 +245,7 @@ describe("NimioLive.destroy() releases the transport worker", () => {
     const live = Object.create(NimioLive.prototype);
     live._logger = { error: vi.fn(), debug: vi.fn() };
     live._state = { stop: vi.fn() };
+    live._autoplayTimers = [];
     live._decoderFlows = { video: null, audio: null };
     live._nextRenditionData = null;
     live._stopAudio = vi.fn();
@@ -270,6 +274,7 @@ describe("NimioLive.destroy() releases the transport worker", () => {
   it("removes the sync-mode params listener it subscribed", () => {
     const live = Object.create(NimioLive.prototype);
     live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._autoplayTimers = [];
     live._decoderFlows = { video: null, audio: null };
     live._nextRenditionData = null;
     live._stopAudio = vi.fn();
@@ -295,6 +300,7 @@ describe("NimioLive.destroy() releases the transport worker", () => {
   it("destroy without sync mode unsubscribes nothing extra", () => {
     const live = Object.create(NimioLive.prototype);
     live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._autoplayTimers = [];
     live._decoderFlows = { video: null, audio: null };
     live._nextRenditionData = null;
     live._stopAudio = vi.fn();
@@ -316,6 +322,7 @@ describe("NimioLive.destroy() releases the transport worker", () => {
   it("destroys the transport after stopping and unsubscribing", () => {
     const live = Object.create(NimioLive.prototype);
     live._logger = { error: vi.fn(), debug: vi.fn() };
+    live._autoplayTimers = [];
     live._decoderFlows = { video: null, audio: null };
     live._nextRenditionData = null;
     live._stopAudio = vi.fn();
@@ -381,6 +388,7 @@ describe("NimioLive.detach() and the kept-alive session", () => {
     live._state = { value: "playing" };
     live.stop = vi.fn();
     live._detachUI = vi.fn();
+    live._reconnect = { stop: vi.fn() };
     live._transport = { connected: true };
     live._sldpManager = {
       sessionReady,
@@ -422,5 +430,15 @@ describe("NimioLive.detach() and the kept-alive session", () => {
     });
     // the engine stop stays non-closing (keepConnection: true above), which
     // is what keeps nimio:playback-end from being emitted on a mode switch
+  });
+
+  it("stops a reconnect the disconnect handler scheduled", () => {
+    // _onDisconnect() stopped the engine and scheduled play(); the stop()
+    // inside detach() returns early on a stopped engine and never resets it
+    const live = createDetachable(true);
+
+    live.detach();
+
+    expect(live._reconnect.stop).toHaveBeenCalledTimes(1);
   });
 });
