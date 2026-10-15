@@ -28,6 +28,9 @@ export const NimioRenditions = {
   },
 
   setCurrentRendition(type, id) {
+    // stopped: nothing plays, a request now would only leave a stale pending
+    // switch behind (the next play requests the context's current streams)
+    if (this._destroyed || this._state.isStopped()) return false;
     this._logger.debug(`set ${type} rendition ID ${id}`);
     if (!this._isSwitchPossible(type)) return false;
 
@@ -52,10 +55,15 @@ export const NimioRenditions = {
       return false;
     }
 
+    const gen = this._playGen;
     this._eventBus.emit("nimio:rendition-select", {
       rendition: stream.stream_info.name,
       name: stream.stream,
     });
+    // a listener may have destroyed, stopped or restarted the player: the
+    // stop cleared the pending switch state and the requested streams, so
+    // requesting now would leave a stale switch blocking later selections
+    if (this._destroyed || this._isInterrupted(gen)) return false;
 
     this._nextRenditionData = {
       type,

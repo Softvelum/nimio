@@ -213,6 +213,11 @@ export const NimioTransport = {
       decoderFlow = this._nextRenditionData.decoderFlow;
       this._decoderFlows["audio"].switchTo(decoderFlow);
     } else {
+      if (!this._decoderFlows["audio"]) {
+        // the main audio stream was dropped (incompatible update): a late
+        // header, e.g. for the cancelled next track, means nothing now
+        return;
+      }
       if (!this._audioBuffer || this._audioConfig.isCompatible(newCfg)) {
         this._audioConfig.updateFrom(newCfg);
         audioAvailable = this._prepareAudioOutput();

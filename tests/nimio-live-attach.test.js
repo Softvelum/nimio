@@ -22,6 +22,7 @@ function createLive({ connected, savedState }) {
   live._isAutoAbr = () => false;
   live._attachUI = vi.fn();
   live._renderVideoFrame = () => {};
+  live._playGen = 0;
   return live;
 }
 

@@ -41,6 +41,15 @@ export class NimioLive {
     this._workletLogReceiver = new WorkletLogReceiver(this._config.workletLogs);
     this._eventBus = EventBus.getInstance(this._instName);
 
+    try {
+      this._init();
+    } catch (err) {
+      this._rollbackInit();
+      throw err;
+    }
+  }
+
+  _init() {
     const idxCount = Object.values(IDX).reduce((total, val) => {
       total += Array.isArray(val) ? val.length : 1;
       return total;
@@ -77,7 +86,10 @@ export class NimioLive {
     });
 
     this._resetPlaybackTimestamps();
-    this._renderVideoFrame = this._renderVideoFrame.bind(this);
+    // bumped by every playback end and every render loop start: a call
+    // interrupted by a listener that stopped (and maybe restarted) playback
+    // sees a different generation afterwards
+    this._playGen = 0;
 
     this._decoderFlows = { video: null, audio: null };
     this._initTransport(this._instName, wsTransportUrl);
@@ -104,12 +116,8 @@ export class NimioLive {
     }
 
     this._playCb = this.play.bind(this);
-    if (this._config.autoplay) {
-      setTimeout(this._playCb, 0);
-      setTimeout(() => {
-        if (this._ui) this._ui.hideControls(true);
-      }, 1000);
-    }
+    this._autoplayTimers = [];
+    if (this._config.autoplay) this._scheduleAutoplay();
 
     if (this._config.screenshots) {
       this._createMediaGrabber(this._config.screenshots);
@@ -117,8 +125,31 @@ export class NimioLive {
     this._offscreenCanvas = !!this._config.offscreenCanvas;
   }
 
+  // Undo a partially built engine: the same releases destroy() would do for
+  // the parts that exist, each isolated, nothing rethrown (the constructor
+  // rethrows the original error). The UI handler removal needs no guard: the
+  // bus ignores a handler that was never registered.
+  _rollbackInit() {
+    this._destroyed = true;
+    runCleanupSteps(this._logger, "init rollback", [
+      ["autoplay", () => this._cancelAutoplay()],
+      ["UI handlers", () => this._removeUIEventHandlers()],
+      ["transport handlers", () => this._transport && this._deinitTransport()],
+      [
+        "sync-mode handler",
+        () =>
+          this._onSyncModeParams &&
+          this._eventBus.off("nimio:sync-mode-params", this._onSyncModeParams),
+      ],
+      ["reconnector", () => this._reconnect?.destroy()],
+      ["SLDP manager", () => this._sldpManager?.destroy()],
+      ["overlay", () => this._debugView?.stop()],
+      ["transport", () => this._transport?.destroy()],
+    ]);
+  }
+
   play() {
-    if (this._state.isPlaying()) return;
+    if (this._destroyed || this._state.isPlaying()) return;
 
     const initialPlay = !this._state.isPaused();
     this._cancelPauseTimeout();
@@ -128,13 +159,18 @@ export class NimioLive {
     if (this._isAutoAbr()) {
       this._startAbrController();
     }
+    const gen0 = this._playGen;
     this._eventBus.emit("nimio:play", { mode: MODE.LIVE });
+    // a listener may have destroyed, stopped or restarted the player
+    if (this._isInterrupted(gen0)) return;
 
     this._playbackStarted = false;
-    requestAnimationFrame(this._renderVideoFrame);
+    const gen = this._startRenderLoop();
 
     if (initialPlay) {
       this._sldpManager.start(this._config.streamUrl, this._config.startOffset);
+      // start() emits nimio:connection-started: same possibility
+      if (this._isInterrupted(gen)) return;
       if (this._debugView) {
         this._debugView.start();
       }
@@ -144,7 +180,7 @@ export class NimioLive {
   }
 
   pause() {
-    if (this._state.isPaused()) return;
+    if (this._destroyed || this._state.isPaused()) return;
 
     this._state.pause();
     this._latencyCtrl.pause();
@@ -191,7 +227,7 @@ export class NimioLive {
   }
 
   attach(ui, params, callback) {
-    if (this._ui) return false;
+    if (this._ui || this._destroyed) return false;
 
     if (!params) params = { latency: 0 };
     let latencyMs = params.latency * 1000;
@@ -230,7 +266,7 @@ export class NimioLive {
       this._startAbrController();
     }
     this._playbackStarted = false;
-    requestAnimationFrame(this._renderVideoFrame);
+    const gen = this._startRenderLoop();
 
     // A connected transport is the preserved server session (kept alive
     // across the VOD detach); reuse it whatever state was recorded at detach,
@@ -243,9 +279,28 @@ export class NimioLive {
           this._config.streamUrl,
           this._config.startOffset,
         );
-    if (this._debugView) this._debugView.start();
+    // start() emits nimio:connection-started; a listener may have destroyed
+    // the player (the attach did not take) or stopped it (it stays attached
+    // and stopped, as with pbError: false would tell the facade the engine
+    // never took the UI, leaving it un-attachable)
+    if (this._destroyed) return false;
+    // a restart from the listener started its own overlay
+    if (this._debugView && !this._isInterrupted(gen)) this._debugView.start();
     if (callback) callback();
     return true;
+  }
+
+  // True when playback ended or restarted since `gen` was captured.
+  _isInterrupted(gen) {
+    return this._state.isStopped() || gen !== this._playGen;
+  }
+
+  // Each loop carries the generation it was started with; a callback of a
+  // superseded loop (restart from a listener, play after pause) exits.
+  _startRenderLoop() {
+    const gen = ++this._playGen;
+    requestAnimationFrame(() => this._renderVideoFrame(gen));
+    return gen;
   }
 
   detach(callback) {
@@ -257,6 +312,9 @@ export class NimioLive {
 
     this._context.setState(this._state.value, false);
     this.stop({ keepConnection: true });
+    // stop() returns early on an engine _onDisconnect() already stopped, so
+    // the reconnect it scheduled would play() on a detached engine
+    this._reconnect.stop();
     if (this._sldpManager.sessionReady) {
       // the session has stream metadata: keep it for a later attach()
       this._sldpManager.keepAliveConnection();
@@ -296,6 +354,8 @@ export class NimioLive {
   }
 
   destroy() {
+    if (this._destroyed) return; // the facade and a rollback may both call it
+    this._destroyed = true;
     // every stage runs even if an earlier one throws (an application
     // listener invoked from the closing stop, for example); the first error
     // is rethrown once the engine has released everything
@@ -328,6 +388,8 @@ export class NimioLive {
   }
 
   setParameters(params) {
+    if (this._destroyed) return;
+
     let latencyParams = { count: 0 };
     for (let p in params) {
       switch (p) {
@@ -457,10 +519,17 @@ export class NimioLive {
     data.play ? this.play() : this.pause();
   }
 
-  _renderVideoFrame() {
-    if (this._noVideo || !this._state.isPlaying()) return true;
+  _renderVideoFrame(gen) {
+    if (
+      this._destroyed ||
+      gen !== this._playGen ||
+      this._noVideo ||
+      !this._state.isPlaying()
+    ) {
+      return true;
+    }
 
-    requestAnimationFrame(this._renderVideoFrame);
+    requestAnimationFrame(() => this._renderVideoFrame(gen));
     if (null === this._audioWorkletReady || 0 === this._playbackStartTsUs) {
       return true;
     }
@@ -481,10 +550,8 @@ export class NimioLive {
       return true;
     }
 
-    if (!this._playbackStarted) {
-      this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
-      this._playbackStarted = true;
-      this._grabber?.start(MODE.LIVE);
+    if (!this._playbackStarted && !this._startPlaybackOutput(frame, gen)) {
+      return false;
     }
     let isNeedScreenshot = false;
     if (this._grabber && this._offscreenCanvas) {
@@ -496,6 +563,27 @@ export class NimioLive {
       this._grabber.handleLiveFrame(frame);
     }
     frame.close();
+  }
+
+  // First rendered frame: notify the application, then start the grabber.
+  // Returns false (and closes the frame) when a listener destroyed, stopped
+  // or restarted the player meanwhile: the buffer the frame came from is
+  // already cleared, and this loop is superseded.
+  _startPlaybackOutput(frame, gen) {
+    this._playbackStarted = true;
+    try {
+      this._eventBus.emit("nimio:playback-start", { mode: MODE.LIVE });
+    } catch (err) {
+      // an application listener failed; the popped frame must still be
+      // handled below
+      this._logger.error("nimio:playback-start listener failed", err);
+    }
+    if (this._destroyed || this._isInterrupted(gen)) {
+      frame.close();
+      return false;
+    }
+    this._grabber?.start(MODE.LIVE);
+    return true;
   }
 
   // TODO: move this function with renderVideoFrame to a separate component
@@ -662,10 +750,26 @@ export class NimioLive {
     this._pauseTimeoutId = null;
   }
 
+  _scheduleAutoplay() {
+    this._autoplayTimers = [
+      setTimeout(this._playCb, 0),
+      setTimeout(() => {
+        if (this._ui) this._ui.hideControls(true);
+      }, 1000),
+    ];
+  }
+
+  // a destroyed (or rolled back) engine must not autoplay afterwards
+  _cancelAutoplay() {
+    for (const id of this._autoplayTimers || []) clearTimeout(id);
+    this._autoplayTimers = [];
+  }
+
   // Final release of everything _resetPlayback() would release, each part
   // idempotent, for a destroy() whose stop stage did not get that far.
   _releaseMediaResources() {
     this._cancelPauseTimeout();
+    this._cancelAutoplay();
     this._state.stop(); // ends the render loop even if stop() threw early
     this._abrController?.stop({ hard: true });
     if (this._nextRenditionData) {
@@ -684,6 +788,7 @@ export class NimioLive {
   }
 
   _resetPlayback() {
+    this._playGen++; // ends the current render loop and interrupted calls
     this._ui.clear();
     this._videoBuffer.reset();
     this._noVideo = this._config.audioOnly;

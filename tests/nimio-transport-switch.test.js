@@ -188,11 +188,15 @@ describe("incompatible audio config update on the main track", () => {
   });
 });
 
-describe("setCurrentRendition() records the switch type", () => {
-  it("stores the type with the pending rendition data", () => {
+describe("setCurrentRendition()", () => {
+  // the real selector with only what it touches; `flags` mirror the state
+  function createSelector() {
     const live = Object.create(NimioLive.prototype);
+    const flags = { stopped: false };
     live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
     live._isSwitchPossible = () => true;
+    live._state = { isStopped: () => flags.stopped };
+    live._playGen = 0;
     live._context = {
       isCurrentStream: () => false,
       streams: [
@@ -203,6 +207,11 @@ describe("setCurrentRendition() records the switch type", () => {
     live._nextRenditionData = null;
     live._eventBus = { emit: vi.fn() };
     live._sldpManager = { requestStream: vi.fn(() => 9) };
+    return { live, flags };
+  }
+
+  it("records the switch type with the pending rendition data", () => {
+    const { live } = createSelector();
 
     expect(live.setCurrentRendition("audio", 2)).toBe(true);
 
@@ -211,5 +220,99 @@ describe("setCurrentRendition() records the switch type", () => {
       idx: 1,
       trackId: 9,
     });
+  });
+
+  it("on a stopped engine returns false without emitting or requesting", () => {
+    // nothing is playing: a request now would only create a stale pending
+    // switch, and the selection does not change what the next play requests
+    const { live, flags } = createSelector();
+    flags.stopped = true;
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(false);
+
+    expect(live._eventBus.emit).not.toHaveBeenCalled();
+    expect(live._sldpManager.requestStream).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toBeNull();
+  });
+
+  it("on a destroyed engine returns false and requests nothing", () => {
+    const { live } = createSelector();
+    live._destroyed = true;
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(false);
+
+    expect(live._sldpManager.requestStream).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toBeNull();
+  });
+
+  // A nimio:rendition-select listener may end playback: stop() clears the
+  // pending switch state and resets the requested streams, so requesting
+  // the stream afterwards would leave a stale switch that blocks every later
+  // selection ("a switch is in progress").
+  it("a rendition-select listener that stops the player: no request, no pending switch", () => {
+    const { live, flags } = createSelector();
+    live._eventBus.emit = vi.fn(() => {
+      flags.stopped = true;
+      live._playGen++; // what _resetPlayback() does
+    });
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(false);
+
+    expect(live._eventBus.emit).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.requestStream).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toBeNull();
+  });
+
+  it("a rendition-select listener that destroys the player: no request, no pending switch", () => {
+    const { live } = createSelector();
+    live._eventBus.emit = vi.fn(() => (live._destroyed = true));
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(false);
+
+    expect(live._sldpManager.requestStream).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toBeNull();
+  });
+
+  it("a rendition-select listener that stops and restarts the player: no request, no pending switch", () => {
+    const { live } = createSelector();
+    // stop() + play(): the state is playing again, only the generation moved
+    live._eventBus.emit = vi.fn(() => (live._playGen += 2));
+
+    expect(live.setCurrentRendition("audio", 2)).toBe(false);
+
+    expect(live._sldpManager.requestStream).not.toHaveBeenCalled();
+    expect(live._nextRenditionData).toBeNull();
+  });
+});
+
+describe("main-track audio header after the main flow was dropped", () => {
+  // an incompatible update destroyed the main flow and cancelled the next
+  // track; the next track's header may still be in flight and lands here
+  function createDroppedEngine(compatible) {
+    const { live } = createMainTrackEngine({ paired: false });
+    live._decoderFlows.audio = null;
+    live._nextRenditionData = null;
+    live._audioConfig.isCompatible = () => compatible;
+    live._prepareAudioOutput = vi.fn(() => true);
+    return live;
+  }
+
+  it("is ignored on the incompatible path", () => {
+    const live = createDroppedEngine(false);
+
+    expect(() => live._onAudioCodecDataReceived(mainCodecData)).not.toThrow();
+
+    expect(live._sldpManager.cancelStream).not.toHaveBeenCalled();
+    expect(live._context.resetCurrentStream).not.toHaveBeenCalled();
+    expect(live._onRenditionSwitchResult).not.toHaveBeenCalled();
+  });
+
+  it("is ignored on the compatible path", () => {
+    const live = createDroppedEngine(true);
+
+    expect(() => live._onAudioCodecDataReceived(mainCodecData)).not.toThrow();
+
+    expect(live._prepareAudioOutput).not.toHaveBeenCalled();
+    expect(live._audioConfig.updateFrom).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ export class VUMeterUI {
     this._dbRange = dbRange;
     this._dbTickSize = 10;
     this._levelTransition = "0.1s";
+    this._drawGen = 0;
     this._createBasicView();
   }
 
@@ -48,7 +49,7 @@ export class VUMeterUI {
       this._levelValues[i] = this._calcLevel(-this._dbRange);
     }
     this._fullValue = true;
-    this._drawMeter();
+    this._drawMeter(this._drawGen);
   }
 
   refresh(numChannels) {
@@ -74,6 +75,7 @@ export class VUMeterUI {
     // leave _drawMeter() scheduling frames forever
     const items = this._fullValue ? this._fullValueItems : [];
     this._fullValue = false;
+    this._drawGen++; // a frame the old loop already scheduled must not continue
     this._fullValueItems = [];
     this._channelLevels = [];
     for (let i = 0; i < items.length; i++) {
@@ -236,8 +238,8 @@ export class VUMeterUI {
     return level;
   }
 
-  _drawMeter() {
-    if (!this._fullValue) return;
+  _drawMeter(gen) {
+    if (!this._fullValue || gen !== this._drawGen) return;
 
     for (let i = 0; i < this._channels; i++) {
       if (this._vertical) {
@@ -246,6 +248,6 @@ export class VUMeterUI {
         this._channelLevels[i].style.width = this._levelValues[i] + "px";
       }
     }
-    window.requestAnimationFrame(() => this._drawMeter());
+    window.requestAnimationFrame(() => this._drawMeter(gen));
   }
 }

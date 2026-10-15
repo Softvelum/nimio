@@ -57,6 +57,13 @@ export const UiPip = {
   _cleanupPip() {
     // a requestWindow() still pending must not install anything afterwards
     this._pipRequestGen = (this._pipRequestGen || 0) + 1;
+    // a native PiP window would keep showing a detached video
+    if (
+      this._mediaElement &&
+      document.pictureInPictureElement === this._mediaElement
+    ) {
+      document.exitPictureInPicture().catch(() => {});
+    }
     this._clearMediaElementEvents();
 
     if (this._buttonPictureInPicture && this._togglePip) {
@@ -305,10 +312,20 @@ export const UiPip = {
     let rect = this._container.getBoundingClientRect();
     rect = this._getFrameSizePip(rect);
     this._updateLayout(rect);
+    const gen = (this._pipRequestGen = this._pipRequestGen || 0);
     await this._mediaElement.requestPictureInPicture().catch((err) => {
+      if (gen !== this._pipRequestGen) return; // torn down meanwhile
       this._logger.error("Failed to enter PiP mode", err);
       this._handleLeavePip();
     });
+    if (gen !== this._pipRequestGen) {
+      // the UI was torn down while the request was pending: the window
+      // shows a detached video, close it; the button is gone
+      if (document.pictureInPictureElement === this._mediaElement) {
+        document.exitPictureInPicture().catch(() => {});
+      }
+      return;
+    }
     this._buttonPictureInPicture.disabled = false;
   },
 
