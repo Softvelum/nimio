@@ -219,6 +219,15 @@ export class NimioLive {
 
   // The URL is already updated in the config
   setStreamURL() {
+    if (!this._ui) {
+      // detached (VOD mode): a kept-alive session belongs to the old URL,
+      // the next attach() must handshake. Nothing to close when the
+      // transport is not connected (the worker's close needs a socket).
+      if (this._transport.connected) {
+        this._sldpManager.stop({ closeConnection: true });
+      }
+      return;
+    }
     if (this._state.isStopped()) return;
 
     const playing = this._state.isPlaying();
@@ -256,6 +265,16 @@ export class NimioLive {
         stop: true,
       });
 
+      if (callback) callback();
+      return true;
+    }
+
+    if (params.idle) {
+      // take the UI without starting anything: the caller keeps us stopped
+      // (the facade's stop() in VOD mode); a later play() is an initial play.
+      // No live playback-end is emitted, so give the UI the stopped look here
+      // (toggleMode(LIVE) created a capture stream the stop would release)
+      this._ui.showStopped();
       if (callback) callback();
       return true;
     }

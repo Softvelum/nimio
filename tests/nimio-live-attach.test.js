@@ -80,3 +80,45 @@ describe("NimioLive.attach() connection reuse", () => {
     expect(live._sldpManager.requestCurrentStreams).not.toHaveBeenCalled();
   });
 });
+
+describe("NimioLive.attach() idle", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // The facade's stop() in VOD mode gives the UI back to the live engine
+  // without starting it: the player ends in live mode, stopped.
+  it("takes the UI, calls back and starts nothing", () => {
+    const live = createLive({ connected: true, savedState: STATE.PLAYING });
+    live._attachUI = vi.fn(function (ui) {
+      this._ui = ui;
+    });
+    const ui = { showStopped: vi.fn() };
+    const cb = vi.fn();
+
+    expect(live.attach(ui, { latency: 0, idle: true }, cb)).toBe(true);
+
+    expect(live._attachUI).toHaveBeenCalledWith(ui);
+    expect(ui.showStopped).toHaveBeenCalledTimes(1); // the live stopped look
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(live._state.start).not.toHaveBeenCalled();
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+    expect(live._sldpManager.start).not.toHaveBeenCalled();
+    expect(live._sldpManager.requestCurrentStreams).not.toHaveBeenCalled();
+  });
+
+  it("holds the UI afterwards: a second attach is refused", () => {
+    const live = createLive({ connected: false, savedState: STATE.PLAYING });
+    live._attachUI = vi.fn(function (ui) {
+      this._ui = ui;
+    });
+
+    live.attach({ showStopped: vi.fn() }, { latency: 0, idle: true });
+
+    expect(live.attach({}, { latency: 0 })).toBe(false);
+  });
+});

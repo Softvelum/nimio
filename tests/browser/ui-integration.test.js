@@ -230,6 +230,43 @@ describe("UI lifecycle", () => {
 
   const opts = { width: "100%", height: "100%", ar: "16:9" };
 
+  it("showStopped() after the return to live gives the live stopped look and releases the capture stream", async () => {
+    // Nimio.stop() in VOD mode hands the UI back to the live engine without
+    // a live playback-end: the idle attach calls showStopped() instead
+    const parent = newParent();
+    const ui = new UI(
+      "life-stopped-vod",
+      parent,
+      { ...opts, vod: {}, splashScreen: "https://example.test/splash.png" },
+      stubBus,
+    );
+    uis.push(ui);
+    ui._pipCaptureStreamMode = true; // native video PiP (no Document PiP)
+    // the capture stream's play() is refused without a user gesture here;
+    // the stream and the source object are what this test is about
+    ui._mediaElement.play = () => Promise.resolve();
+    await wait(20); // the constructor's splash is applied on a timeout
+    ui.toggleMode(MODE.VOD);
+    ui._onPlaybackStarted({ mode: MODE.VOD }); // VOD playing: splash removed
+    expect(ui._canvas.style["background-image"]).toBe("");
+
+    ui._onPlaybackEnded({ mode: MODE.VOD }); // the VOD stop's event
+    ui.toggleMode(MODE.LIVE); // the idle attach: creates the capture stream
+    const stream = ui._captureStream;
+    expect(stream).toBeDefined();
+    expect(ui._mediaElement.srcObject).toBe(stream);
+
+    ui.showStopped();
+    await wait(20); // _setBackground() applies the image on a timeout
+
+    expect(ui._canvas.style["background-image"]).toContain("splash.png");
+    expect(ui._captureStream).toBeUndefined();
+    expect(ui._mediaElement.srcObject).toBeNull();
+    for (const track of stream.getTracks()) {
+      expect(track.readyState).toBe("ended");
+    }
+  });
+
   it("destroy tolerates a container already removed from the DOM", () => {
     const parent = newParent();
     const ui = new UI("life-removed", parent, opts, stubBus);

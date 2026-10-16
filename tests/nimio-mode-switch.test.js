@@ -6,6 +6,9 @@ import { MODE, ERROR } from "@/shared/values";
 function fakeLive() {
   return {
     attached: true,
+    play: vi.fn(),
+    stop: vi.fn(),
+    setStreamURL: vi.fn(),
     detach: vi.fn(function (cb) {
       this.attached = false;
       if (cb) cb();
@@ -20,11 +23,24 @@ function fakeLive() {
   };
 }
 
+// running: SYNC or PLAY in the real engine (attached, or detached and warm);
+// false after stop()
 function fakeVod({ attach = "async" } = {}) {
   return {
     attached: false,
+    running: false,
     pendingAttach: null,
     hasPlaybackErrors: () => false,
+    isRunning: vi.fn(function () {
+      return this.running;
+    }),
+    play: vi.fn(),
+    stop: vi.fn(function (cb) {
+      this.attached = false;
+      this.running = false;
+      this.pendingAttach = null;
+      if (cb) cb();
+    }),
     detach: vi.fn(function (cb) {
       if (!this.attached) return false;
       this.attached = false;
@@ -35,6 +51,7 @@ function fakeVod({ attach = "async" } = {}) {
     attach: vi.fn(function (ui, position, cb) {
       if (attach === false) return false;
       this.attached = true;
+      this.running = true;
       if (attach === "sync") {
         if (cb) cb();
       } else {
@@ -54,9 +71,11 @@ function createFacade({ mode = MODE.LIVE, vod } = {}) {
   n._livePlayer = fakeLive();
   n._vodPlayer = vod || fakeVod();
   n._vuMeterSvc = { clear: vi.fn() };
+  n._config = { streamUrl: "wss://example.test/old" };
   if (mode === MODE.VOD) {
     n._livePlayer.attached = false;
     n._vodPlayer.attached = true;
+    n._vodPlayer.running = true;
   }
   n._actPlayer = mode === MODE.VOD ? n._vodPlayer : n._livePlayer;
   n._mode = mode;
@@ -299,5 +318,246 @@ describe("Nimio mode switch with the real VOD engine", () => {
 
     expect(order).toEqual(["vod:setDetached", "live:attach"]);
     expect(n._mode).toBe(MODE.LIVE);
+  });
+});
+
+describe("Nimio.stop()", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const idle = { latency: 0, idle: true };
+
+  it("in VOD mode returns to live, stopped, and a later play() starts live", () => {
+    const n = createFacade({ mode: MODE.VOD });
+
+    n.stop();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(n._ui, idle);
+    expect(n._livePlayer.attached).toBe(true);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._eventBus.emit).not.toHaveBeenCalled();
+
+    n.play();
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second stop() is a no-op", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n.stop();
+    n._vodPlayer.stop.mockClear();
+    n._livePlayer.attach.mockClear();
+
+    expect(() => n.stop()).not.toThrow();
+
+    expect(n._vodPlayer.stop).not.toHaveBeenCalled(); // not running any more
+    expect(n._livePlayer.attach.mock.results[0].value).toBe(false); // held
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(2);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("a destroy() from the VOD playback-end listener leaves stop() silent", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._instName = "sw-stop-destroy";
+    n._removeVolumeEventHandlers = vi.fn();
+    n._livePlayer.destroy = vi.fn();
+    n._vodPlayer.destroy = vi.fn();
+    n._vodPlayer.stop = vi.fn(function () {
+      n.destroy(); // an application listener removes the player on playback-end
+      this.attached = false;
+      this.running = false;
+    });
+
+    expect(() => n.stop()).not.toThrow();
+
+    expect(n._destroyed).toBe(true);
+    expect(n._actPlayer).toBeUndefined();
+    expect(n._livePlayer).toBeUndefined();
+  });
+
+  it("a play() from the VOD playback-end listener is a no-op", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(function (cb) {
+      n.play(); // an application listener of nimio:playback-end
+      this.attached = false;
+      this.running = false;
+      if (cb) cb();
+    });
+
+    n.stop();
+
+    expect(n._vodPlayer.play).toHaveBeenCalledTimes(1); // the stopping engine
+    expect(n._livePlayer.play).not.toHaveBeenCalled();
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+  });
+
+  it("during a pending switch to VOD cancels the switch without an error", () => {
+    const n = createFacade();
+    n._switchToVod(3);
+    expect(n._mode).toBe(MODE.PEND);
+    const late = n._vodPlayer.pendingAttach;
+
+    n.stop();
+
+    expect(n._modeSwitch).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1); // it held the UI
+    expect(n._livePlayer.attach).toHaveBeenLastCalledWith(n._ui, idle);
+    expect(n._livePlayer.attached).toBe(true);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._eventBus.emit).not.toHaveBeenCalled();
+
+    late(); // the settled switch ignores its late completion
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("during a pending switch to live stops the warm VOD engine and live", () => {
+    // VOD detached (warm), live attached and playing, switch not settled
+    const n = createFacade({ mode: MODE.VOD });
+    n._mode = MODE.PEND;
+    n._modeSwitch = { settled: false, timer: setTimeout(() => {}, 5000) };
+    n._vodPlayer.attached = false;
+    n._livePlayer.attached = true;
+
+    n.stop();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach.mock.results[0].value).toBe(false); // held
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("in live mode with a warm VOD engine stops it and live", () => {
+    const n = createFacade();
+    n._vodPlayer.running = true; // detached, reloading levels in the background
+
+    n.stop();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attached).toBe(true);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("with no VOD engine stops live only", () => {
+    const n = createFacade();
+    n._vodPlayer = undefined;
+
+    n.stop();
+
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+  });
+
+  it("on a destroyed player does nothing", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._destroyed = true;
+
+    n.stop();
+
+    expect(n._vodPlayer.stop).not.toHaveBeenCalled();
+    expect(n._livePlayer.stop).not.toHaveBeenCalled();
+  });
+});
+
+describe("Nimio.setStreamURL()", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const order = (fn) => fn.mock.invocationCallOrder[0];
+
+  it("in VOD mode tells the live engine first, then switches to live with one attach", () => {
+    const n = createFacade({ mode: MODE.VOD });
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._config.streamUrl).toBe("wss://example.test/new");
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.detach).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0 },
+      expect.any(Function),
+    );
+    expect(order(n._livePlayer.setStreamURL)).toBeLessThan(
+      order(n._livePlayer.attach),
+    );
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it("accepts the object form and records both URLs", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+
+    n.setStreamURL({
+      live: "wss://example.test/new",
+      vod: "https://example.test/new.m3u8",
+    });
+
+    expect(n._config.streamUrl).toBe("wss://example.test/new");
+    expect(n._config.vod.url).toBe("https://example.test/new.m3u8");
+    expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in VOD mode with a refused live attach restores VOD and reports the error", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._livePlayer.attach = vi.fn(() => false);
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._mode).toBe(MODE.VOD);
+    expect(n._actPlayer).toBe(n._vodPlayer);
+    expect(n._vodPlayer.attach).toHaveBeenCalledTimes(1); // restored
+    expect(n._eventBus.emit).toHaveBeenCalledWith(...errorEvent(MODE.LIVE));
+    expect(n._config.streamUrl).toBe("wss://example.test/new"); // kept
+  });
+
+  it("during a pending switch applies only the engine-level change and warns", () => {
+    const n = createFacade();
+    n._switchToVod(1);
+    expect(n._mode).toBe(MODE.PEND);
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach).not.toHaveBeenCalled();
+    expect(n._logger.warn).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.PEND);
+
+    n._vodPlayer.pendingAttach(); // the switch completes as it would have
+    expect(n._mode).toBe(MODE.VOD);
+  });
+
+  it("in live mode only tells the live engine", () => {
+    const n = createFacade();
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.attach).not.toHaveBeenCalled();
+    expect(n._vodPlayer.detach).not.toHaveBeenCalled();
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("on a destroyed player does nothing", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._destroyed = true;
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._config.streamUrl).toBe("wss://example.test/old");
+    expect(n._livePlayer.setStreamURL).not.toHaveBeenCalled();
   });
 });

@@ -442,3 +442,48 @@ describe("NimioLive.detach() and the kept-alive session", () => {
     expect(live._reconnect.stop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("NimioLive.setStreamURL() while detached", () => {
+  // VOD mode: the live engine holds no UI; a kept-alive session belongs to
+  // the old URL, so the next attach() must handshake instead of reusing it
+  function createDetached(connected) {
+    const live = Object.create(NimioLive.prototype);
+    live._ui = undefined;
+    live._transport = { connected };
+    live._sldpManager = { stop: vi.fn() };
+    live._state = { isStopped: () => true, isPlaying: () => false };
+    live.stop = vi.fn();
+    live.play = vi.fn();
+    return live;
+  }
+
+  it("closes a connected kept-alive session", () => {
+    const live = createDetached(true);
+
+    live.setStreamURL();
+
+    expect(live._sldpManager.stop).toHaveBeenCalledWith({
+      closeConnection: true,
+    });
+    expect(live.stop).not.toHaveBeenCalled();
+    expect(live.play).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the transport is disconnected", () => {
+    const live = createDetached(false);
+
+    live.setStreamURL();
+
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+  });
+
+  it("attached and stopped: returns without stopping or playing", () => {
+    const live = createDetached(true);
+    live._ui = {};
+
+    live.setStreamURL();
+
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+    expect(live.stop).not.toHaveBeenCalled();
+  });
+});
