@@ -907,10 +907,21 @@ export class UI {
 
   _onPlaybackEnded(data) {
     if (data.mode === MODE.LIVE) {
-      this._setBackground();
-      this._hideCaptions();
-      this._destroyCaptureStream();
+      this.showStopped();
+      return;
     }
+    this._layoutMgr.pause();
+    this.drawPlay();
+  }
+
+  // The look of a stopped live player: splash, no captions, no capture
+  // stream, controls paused on the play button. Run by the live
+  // playback-end, and by the live engine's idle attach, which takes the UI
+  // back from VOD without starting (no live playback-end is emitted then).
+  showStopped() {
+    this._setBackground();
+    this._hideCaptions();
+    this._destroyCaptureStream();
     this._layoutMgr.pause();
     this.drawPlay();
   }

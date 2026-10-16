@@ -187,15 +187,19 @@ export default class Nimio {
   setStreamURL(url) {
     if (this._destroyed) return;
     updateConfigStreamURL(this._config, url);
-    if (this._vodPlayer && this._vodPlayer.isRunning()) {
-      this._vodPlayer.stop(() => {
-        this._livePlayer.attach(this._ui);
-        this._livePlayer.setStreamURL();
-      });
-      return;
-    }
-
+    // detached (VOD mode or a pending switch): closes the kept-alive
+    // session of the old URL so the next attach handshakes; attached:
+    // stop + play with the new URL
     this._livePlayer.setStreamURL();
+    if (this._mode === MODE.VOD) {
+      // the switch's attach handshakes with the new URL: one connection,
+      // and a failure restores VOD and is reported
+      this._switchMode(MODE.LIVE, { latency: 0 });
+    } else if (this._mode === MODE.PEND) {
+      this._logger.warn(
+        "Stream URL changed during a mode switch; applied on the next attach",
+      );
+    }
   }
 
   pause() {
@@ -204,15 +208,21 @@ export default class Nimio {
 
   stop() {
     if (this._destroyed) return;
-    if (this._vodPlayer && this._vodPlayer.isRunning()) {
-      this._vodPlayer.stop(() => {
-        this._livePlayer.attach(this._ui);
-        this._livePlayer.stop();
-      });
-      return;
-    }
-
-    this._livePlayer.stop();
+    // a switch in flight cannot complete into a stopped player; settle it
+    // silently (no error: the stop is what the application asked for)
+    this._cancelModeSwitch();
+    // running covers the attached VOD engine (VOD mode) and the warm,
+    // detached one that reloads levels in the background (live mode)
+    if (this._vodPlayer?.isRunning()) this._vodPlayer.stop();
+    // a nimio:playback-end listener may have destroyed the player: the
+    // engines are gone and the session closed, nothing left to hand over
+    if (this._destroyed) return;
+    // the VOD stop released the UI synchronously (before detaching media):
+    // give it back to the live engine without starting it. A no-op when
+    // the live engine already holds it.
+    this._livePlayer.attach(this._ui, { latency: 0, idle: true });
+    this._activate(this._livePlayer, MODE.LIVE);
+    this._livePlayer.stop(); // also closes a kept-alive session
   }
 
   seekVod(position) {
@@ -308,7 +318,7 @@ export default class Nimio {
       timer: null,
     };
     this._modeSwitch = sw;
-    this._mode = MODE.PEND;
+    this._activate(sw.prevPlayer, MODE.PEND);
     sw.timer = setTimeout(
       () => this._finishModeSwitch(sw, false, "timeout"),
       MODE_SWITCH_TIMEOUT_MS,
@@ -317,7 +327,7 @@ export default class Nimio {
     const detached = sw.prevPlayer.detach(() => {
       if (sw.settled) return;
       sw.detached = true;
-      this._actPlayer = sw.nextPlayer;
+      this._activate(sw.nextPlayer, MODE.PEND);
       sw.attachStarted = sw.nextPlayer.attach(this._ui, attachParams, () =>
         this._finishModeSwitch(sw, true),
       );
@@ -338,7 +348,7 @@ export default class Nimio {
     if (this._modeSwitch === sw) this._modeSwitch = null;
 
     if (ok) {
-      this._mode = sw.target;
+      this._activate(sw.nextPlayer, sw.target);
       return;
     }
 
@@ -357,8 +367,7 @@ export default class Nimio {
       // The new engine took the UI but never completed; release it.
       sw.nextPlayer.detach();
     }
-    this._actPlayer = sw.prevPlayer;
-    this._mode = sw.prevMode;
+    this._activate(sw.prevPlayer, sw.prevMode);
 
     // Only an engine that actually let go of the UI is re-attached. If the
     // detach was refused, the previous engine never changed state and
@@ -376,6 +385,13 @@ export default class Nimio {
     clearTimeout(sw.timer);
     sw.settled = true;
     this._modeSwitch = null;
+  }
+
+  // The only writer of the active player and the mode (besides the
+  // constructor and destroy()): a mode change is never half applied.
+  _activate(player, mode) {
+    this._actPlayer = player;
+    this._mode = mode;
   }
 
   _onLivePlaybackError(type, allowFailover) {

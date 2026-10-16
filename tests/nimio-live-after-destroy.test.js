@@ -294,6 +294,7 @@ describe("NimioLive restart from a listener", () => {
 
   it("a nimio:play listener that changes the stream URL leaves one loop and one connection", () => {
     const { live } = createEngine();
+    live._ui = {}; // attached: setStreamURL() restarts instead of closing a session
     let once = false;
     live._eventBus.emit = vi.fn((name) => {
       if (name !== "nimio:play" || once) return;
@@ -347,5 +348,38 @@ describe("NimioLive setters after destroy()", () => {
     expect(live._config.latency).toBe(500);
     expect(live._updateLatencyParams).not.toHaveBeenCalled();
     expect(live._abrController.start).not.toHaveBeenCalled();
+  });
+});
+
+describe("NimioLive idle attach then play()", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("an idle attach followed by play() is an initial play", () => {
+    const { live } = createEngine();
+    delete live._attachUI; // the real one
+    const ui = {
+      toggleMode: vi.fn(),
+      setDetached: vi.fn(),
+      showStopped: vi.fn(),
+    };
+
+    expect(live.attach(ui, { latency: 0, idle: true })).toBe(true);
+    // attached, nothing started
+    expect(live._ui).toBe(ui);
+    expect(live._state.start).not.toHaveBeenCalled();
+    expect(live._sldpManager.start).not.toHaveBeenCalled();
+
+    live.play();
+
+    expect(live._state.start).toHaveBeenCalledTimes(1); // by play() only
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1);
+    expect(live._debugView.start).toHaveBeenCalledTimes(1);
   });
 });

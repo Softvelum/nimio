@@ -232,6 +232,9 @@ export class NimioVod {
 
     if (this._ui) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.VOD });
+      // a listener may have destroyed the player: media and UI are released
+      // and the handler is gone; there is nothing left to detach or hand over
+      if (this._destroyed) return;
       this._setDetachedState(callback);
       return;
     }

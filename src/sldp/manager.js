@@ -64,6 +64,7 @@ export class SLDPManager {
   stop(opts = {}) {
     const sns = this.resetRequestedStreams();
     const close = !!opts.closeConnection;
+    if (close) this._sessionReady = false; // the session ends with the socket
     if (sns.length === 0 && !close) return;
     this._sendRequest("stop", { sns, close });
   }

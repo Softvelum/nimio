@@ -132,4 +132,21 @@ describe("SLDPManager closing stop", () => {
     vi.advanceTimersByTime(60000);
     expect(transport.sent).toHaveLength(0);
   });
+
+  it("a closing stop ends the session: sessionReady turns false", () => {
+    // a committed session (status processed for the current run)
+    mgr._sessionReady = true;
+
+    mgr.stop({ closeConnection: true });
+
+    expect(mgr.sessionReady).toBe(false);
+  });
+
+  it("a keep-connection stop leaves sessionReady alone (detach reuses it)", () => {
+    mgr._sessionReady = true;
+
+    mgr.stop();
+
+    expect(mgr.sessionReady).toBe(true);
+  });
 });

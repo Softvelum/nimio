@@ -79,3 +79,42 @@ describe("NimioVod destroyed before hls.js has loaded", () => {
     error.mockRestore();
   });
 });
+
+describe("NimioVod.stop() with a destroying playback-end listener", () => {
+  const NAME = "vod-stop-destroy";
+
+  afterEach(() => {
+    releaseInstances(NAME);
+  });
+
+  // The facade's stop() in VOD mode runs this stop; an application that
+  // removes the player from nimio:playback-end destroys the engine from
+  // inside it, and the stop's continuation must not touch the released
+  // hls.js handler.
+  it("ends quietly after destroy() ran from the listener", () => {
+    const vod = new NimioVod(NAME, undefined);
+    const bus = EventBus.getInstance(NAME);
+    vod._eventBus = bus;
+    vod._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    vod._state = 3; // PLAY, attached
+    vod._config = {};
+    vod._ui = { setDetached: vi.fn() };
+    vod._pHandler = {
+      stopLoad: vi.fn(),
+      detachMedia: vi.fn(() => vod._onMediaDetached()),
+      destroy: vi.fn(),
+    };
+    vod._context = { setState: vi.fn() };
+    vod._playbackService = { resetPosition: vi.fn(), clear: vi.fn(), state: 0 };
+    vod._audioCtrl = { reset: vi.fn() };
+    vod._vuMeterSvc = { stop: vi.fn() };
+    bus.on("nimio:playback-end", () => vod.destroy());
+    const callback = vi.fn();
+
+    expect(() => vod.stop(callback)).not.toThrow();
+
+    expect(vod._destroyed).toBe(true);
+    expect(vod._pHandler).toBeUndefined();
+    expect(callback).not.toHaveBeenCalled(); // nothing left to hand over
+  });
+});
