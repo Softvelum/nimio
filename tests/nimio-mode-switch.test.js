@@ -85,6 +85,7 @@ function createFacade({ mode = MODE.LIVE, vod } = {}) {
   n._livePlayer = fakeLive();
   n._vodPlayer = vod || fakeVod();
   n._vuMeterSvc = { clear: vi.fn() };
+  n._playProgressSvc = { resetVodDuration: vi.fn() };
   n._config = { streamUrl: "wss://example.test/old" };
   if (mode === MODE.VOD) {
     n._livePlayer.attached = false;
@@ -759,6 +760,54 @@ describe("Nimio.setStreamURL()", () => {
     expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1); // live mode by then
     expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
     expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in live mode a changed VOD URL resets the known VOD duration at once", () => {
+    // the seek bar and the application must not keep the old archive's
+    // scale until the new connection brings the reload
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+
+    n.setStreamURL({ vod: "https://example.test/new.m3u8" });
+
+    expect(n._playProgressSvc.resetVodDuration).toHaveBeenCalledTimes(1);
+  });
+
+  it("a destroy() from the progress listener of the duration reset leaves setStreamURL() quiet", () => {
+    // the reset notifies the application synchronously; a listener that
+    // removes the player must not be followed by a call into the gone engine
+    const n = createFacade();
+    n._instName = "sw-url-destroy";
+    n._removeVolumeEventHandlers = vi.fn();
+    n._livePlayer.destroy = vi.fn();
+    n._vodPlayer.destroy = vi.fn();
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+    n._playProgressSvc = { resetVodDuration: vi.fn(() => n.destroy()) };
+
+    expect(() =>
+      n.setStreamURL({ vod: "https://example.test/new.m3u8" }),
+    ).not.toThrow();
+
+    expect(n._destroyed).toBe(true);
+  });
+
+  it("in live mode an unchanged VOD URL keeps the known VOD duration", () => {
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/same.m3u8" };
+
+    n.setStreamURL({ live: "wss://example.test/live2" });
+
+    expect(n._playProgressSvc.resetVodDuration).not.toHaveBeenCalled();
+  });
+
+  it("in VOD mode a changed VOD URL resets the known VOD duration before the stop", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+
+    n.setStreamURL({ vod: "https://example.test/new.m3u8" });
+
+    expect(n._playProgressSvc.resetVodDuration).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.stop).toHaveBeenCalled();
   });
 
   it("in live mode with an unchanged VOD URL only tells the live engine", () => {
