@@ -197,7 +197,10 @@ export class NimioLive {
   stop(opts = {}) {
     const isStopped = this._state.isStopped();
     const closeConnection = !opts.keepConnection;
-    if (!isStopped || (closeConnection && this._transport.connected)) {
+    // a socket that is still connecting may open after the stop and hold
+    // an idle server session: it needs the closing command as well
+    const hasSocket = this._transport.connected || this._transport.connecting;
+    if (!isStopped || (closeConnection && hasSocket)) {
       this._sldpManager.stop({ closeConnection });
     }
     if (isStopped) return;
@@ -318,9 +321,10 @@ export class NimioLive {
     if (this._sldpManager.sessionReady) {
       // the session has stream metadata: keep it for a later attach()
       this._sldpManager.keepAliveConnection();
-    } else if (this._transport.connected) {
+    } else if (this._transport.connected || this._transport.connecting) {
       // nothing to reuse (attach() would handshake anyway): close it now;
-      // a socket that never opened is replaced by attach()'s start()
+      // a socket still connecting would otherwise open while detached and
+      // hold an idle server session until the next start
       this._sldpManager.stop({ closeConnection: true });
     }
 

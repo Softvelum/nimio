@@ -80,3 +80,22 @@ describe("NimioLive.attach() connection reuse", () => {
     expect(live._sldpManager.requestCurrentStreams).not.toHaveBeenCalled();
   });
 });
+
+describe("NimioLive.stop() and a connecting socket", () => {
+  // VOD entered before the live socket opened, then a stop: the engine is
+  // stopped and not connected, but the socket may still open afterwards
+  it("closes a socket that is still connecting", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true };
+    live._transport = { connected: false, connecting: true };
+    live._sldpManager = { stop: vi.fn() };
+    live._reconnect = { stop: vi.fn(), reset: vi.fn() };
+    live._autoplayTimers = [];
+
+    live.stop();
+
+    expect(live._sldpManager.stop).toHaveBeenCalledWith({
+      closeConnection: true,
+    });
+  });
+});
