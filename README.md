@@ -228,14 +228,14 @@ These methods are available on every `Nimio` player instance.
 - `pause()`  
   Pause playback. On a stopped player it only emits `nimio:pause` (so the controls show the play button after a connection failure); during a reconnect wait (the connection dropped and a retry is pending) it also cancels the retry, and on a just-created player with `autoplay` it cancels the automatic start. The next `play()` starts anew.
 - `stop()`  
-  Stops playback and resets the player. Emits `nimio:playback-end` with the mode that was playing (nothing when the player was already stopped). Afterwards the player is in live mode, stopped: `play()` starts the live stream, `seekVod()` opens the VOD at the position, paused. A `play()` called from the `nimio:playback-end` listener restarts the live stream once the stop has completed.
+  Stops playback and resets the player. Emits `nimio:playback-end` with the mode that was playing (nothing when the player was already stopped; during a reconnect wait, or after a `pause()` that cancelled the retry, it emits the live one, since the drop did not). Afterwards the player is in live mode, stopped: `play()` starts the live stream, `seekVod()` opens the VOD at the position, paused. A `play()` called from the `nimio:playback-end` listener restarts the live stream once the stop has completed.
 - `destroy()`  
-  Destroy the player instance: stops playback, terminates the transport and decoder workers, closes the audio context, removes every event listener (including those added with `on()`) and releases all services registered for the instance. Cleanup always completes; if a component or an application listener throws during it, the first error is rethrown afterwards. Calling `destroy()` again, or any other public method, on a destroyed player is a safe no-op (queries return neutral values). The instance name can be reused by a new player afterwards.
+  Destroy the player instance: stops playback, terminates the transport and decoder workers, closes the audio context, removes every event listener (including those added with `on()`) and releases all services registered for the instance. Like `stop()`, during a reconnect wait, or after a `pause()` that cancelled the retry, it emits the live `nimio:playback-end` the drop did not. Cleanup always completes; if a component or an application listener throws during it, the first error is rethrown afterwards. Calling `destroy()` again, or any other public method, on a destroyed player is a safe no-op (queries return neutral values). The instance name can be reused by a new player afterwards.
 - `version()`  
   Return the current version string of the player instance.
 
 - `seekVod(position)`  
-  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode. On a stopped or paused player the VOD opens paused at the position; during live playback it continues playing.\
+  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode. On a stopped or paused player the VOD opens paused at the position; during live playback (a reconnect wait after a drop during playback counts as playing; one after a drop while paused counts as paused) it continues playing. If the switch fails (`nimio:playback-error` with `MODE_SWITCH`), a playing or reconnecting live stream is restarted; a paused one (including one paused during, or before, a reconnect wait) ends stopped and emits `nimio:playback-end`; a stopped one ends stopped silently.\
   **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
   **Parameters:**
   position - playback position in seconds from the start. Possible values are in range [0, duration]
@@ -375,7 +375,7 @@ mode: "live" | "vod"; // playback mode
 ---
 
 - `nimio:playback-end`  
-  Playback ended: the media reached its end, `stop()` / `setStreamURL()` ended it, or the player stopped itself (the pause timeout expired, a decoding failure). `mode` is the mode that was playing; a stop during a pending switch reports the mode being entered.  
+  Playback ended: the media reached its end, `stop()` / `setStreamURL()` ended it, or the player stopped itself (the pause timeout expired, a decoding failure, or a failed switch of a paused live player). `mode` is the mode that was playing; a stop during a pending switch reports the mode being entered.  
   **Parameters:**
 
 ```javascript

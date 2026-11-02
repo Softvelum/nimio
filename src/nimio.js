@@ -1,6 +1,6 @@
 import { ScriptPathProvider } from "./shared/script-path-provider";
 import { EventBus } from "./event-bus";
-import { MODE, ERROR } from "./shared/values";
+import { MODE, ERROR, STATE } from "./shared/values";
 import { UI } from "./ui/ui";
 import { NimioLive } from "./nimio-live";
 import { NimioVod } from "./nimio-vod";
@@ -325,6 +325,9 @@ export default class Nimio {
       // destroyed, stopped or re-targeted meanwhile: the start is void
       if (this._destroyed || gen !== this._vodStartGen) return;
       this._switchToVod(pos);
+      // a refused attach restores live at once; a listener of the end event
+      // an idle restore emits may destroy the player
+      if (this._destroyed) return;
       this._context.setState(this._context.state.value, initial);
       this._context.autoAbr = !!this._config.adaptiveBitrate;
     });
@@ -381,9 +384,20 @@ export default class Nimio {
       MODE_SWITCH_TIMEOUT_MS,
     );
 
+    // a live engine whose retry a pause() cancelled during a reconnect
+    // wait, or that dropped while paused and waits for its retry, is
+    // stopped, but the application still sees it paused; the detach
+    // consumes that state, so a rollback must report the end (the snapshot
+    // below says "stopped"). A retry pending for a drop during playback is
+    // recorded as playing by the detach and takes the restart branch.
+    sw.prevEndUnreported = !!sw.prevPlayer.hasUnreportedEnd?.();
     const detached = sw.prevPlayer.detach(() => {
       if (sw.settled) return;
       sw.detached = true;
+      // the previous engine's detach just recorded its playback state in
+      // the context; a rollback restores from this snapshot, since the new
+      // engine's own detach overwrites the context with its state
+      sw.prevState = this._context.state.value;
       this._activate(sw.nextPlayer, MODE.PEND);
       sw.attachStarted = sw.nextPlayer.attach(this._ui, attachParams, () =>
         this._finishModeSwitch(sw, true),
@@ -413,6 +427,8 @@ export default class Nimio {
       `Switch to ${sw.target} failed (${reason}), restoring ${sw.prevMode}`,
     );
     this._restoreMode(sw);
+    // a listener of the playback end an idle restore emits may destroy
+    if (this._destroyed) return;
     this._eventBus.emit("nimio:playback-error", {
       error: ERROR.MODE_SWITCH,
       mode: sw.target,
@@ -430,9 +446,34 @@ export default class Nimio {
     // detach was refused, the previous engine never changed state and
     // attaching it would start it rather than restore it.
     if (!sw.detached) return;
-    const params = sw.prevMode === MODE.LIVE ? { latency: 0 } : undefined;
+    // Restore the playback state the previous engine had when it let go of
+    // the UI (the new engine's detach above overwrote the context): a live
+    // engine that was playing is restarted; a stopped or paused one takes
+    // the UI back idle, so a failed seek into VOD on a stopped player does
+    // not start playback nobody asked for. VOD reads the context itself.
+    this._context.setState(sw.prevState);
+    let params;
+    if (sw.prevMode === MODE.LIVE) {
+      params =
+        sw.prevState === STATE.PLAYING
+          ? { latency: 0 }
+          : { latency: 0, idle: true };
+    }
     if (!sw.prevPlayer.attach(this._ui, params, () => {})) {
       this._logger.error(`Could not re-attach ${sw.prevMode} player`);
+    } else if (params?.idle) {
+      // a paused engine's detach kept its server session alive for a
+      // restart; a restored player that shows the splash must not keep it
+      sw.prevPlayer.stop();
+      if (sw.prevState === STATE.PAUSED || sw.prevEndUnreported) {
+        // the detach stopped the paused engine without an event (its
+        // session was kept), or consumed an end left unreported by a pause()
+        // during a reconnect wait or by a drop while paused, and the engine's
+        // stop above found it stopped: the application still holds a paused
+        // player, tell it the playback ended (a stopped engine never played:
+        // nothing to end)
+        this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+      }
     }
   }
 

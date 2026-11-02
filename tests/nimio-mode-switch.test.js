@@ -134,6 +134,7 @@ describe("Nimio mode switch", () => {
 
   it("restores live when VOD attach is refused", () => {
     const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._context.state.value = STATE.PLAYING; // what the live detach records
     expect(n._switchToVod(5)).toBe(false);
     expect(n._mode).toBe(MODE.LIVE);
     expect(n._actPlayer).toBe(n._livePlayer);
@@ -148,6 +149,7 @@ describe("Nimio mode switch", () => {
 
   it("restores live and reports an error when VOD never reports media attached", () => {
     const n = createFacade();
+    n._context.state.value = STATE.PLAYING;
     expect(n._switchToVod(5)).toBe(true);
     vi.advanceTimersByTime(4999);
     expect(n._mode).toBe(MODE.PEND);
@@ -157,6 +159,171 @@ describe("Nimio mode switch", () => {
     expect(n._vodPlayer.detach).toHaveBeenCalledTimes(1);
     expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
     expect(n._eventBus.emit).toHaveBeenCalledWith(...errorEvent(MODE.VOD));
+  });
+
+  it("restores a stopped live engine idle when VOD attach is refused", () => {
+    // autoplay: false, a seek into VOD on a stopped player fails: the
+    // rollback must not start live playback nobody asked for
+    const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._context.state.value = STATE.STOPPED;
+
+    expect(n._switchToVod(5)).toBe(false);
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0, idle: true },
+      expect.any(Function),
+    );
+    expect(n._livePlayer.attached).toBe(true);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1); // nothing to close here
+    expect(n._eventBus.emit).toHaveBeenCalledWith(...errorEvent(MODE.VOD));
+  });
+
+  it("restores a paused live engine idle when VOD never reports media attached", () => {
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0, idle: true },
+      expect.any(Function),
+    );
+    // the paused engine's detach kept its session alive; a restored player
+    // that shows the splash must not keep a server session open
+    const attachOrder = n._livePlayer.attach.mock.invocationCallOrder[0];
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.stop.mock.invocationCallOrder[0]).toBeGreaterThan(
+      attachOrder,
+    );
+  });
+
+  it("an idle restore of a paused live engine reports the playback end before the switch error", () => {
+    // the paused engine's detach stopped it without an event (its session
+    // was kept for a restart); the restored player is stopped and shows
+    // the stopped look, so the application must hear that the playback
+    // ended, or it keeps a paused player that cannot be resumed
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._eventBus.emit.mock.calls).toEqual([
+      ["nimio:playback-end", { mode: MODE.LIVE }],
+      errorEvent(MODE.VOD),
+    ]);
+  });
+
+  it("an idle restore of a live engine paused during a reconnect wait reports the playback end", () => {
+    // the drop stopped the engine silently and a pause() cancelled the
+    // retry: the detach recorded the stopped engine, the application still
+    // holds a paused player, and the restored one is stopped with the splash
+    const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._context.state.value = STATE.STOPPED; // what the live detach records
+    n._livePlayer.hasUnreportedEnd = () => true;
+
+    n._switchToVod(5);
+
+    expect(n._eventBus.emit.mock.calls).toEqual([
+      ["nimio:playback-end", { mode: MODE.LIVE }],
+      errorEvent(MODE.VOD),
+    ]);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0, idle: true },
+      expect.any(Function),
+    );
+  });
+
+  it("an idle restore of a stopped live engine reports no playback end", () => {
+    const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._context.state.value = STATE.STOPPED;
+
+    n._switchToVod(5);
+
+    expect(n._eventBus.emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
+  });
+
+  it("a destroy() from the playback end of an idle restore leaves the switch silent", () => {
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    n._eventBus.emit = vi.fn((name) => {
+      if (name === "nimio:playback-end") {
+        n._destroyed = true;
+        n._eventBus = undefined; // what destroy() does
+      }
+    });
+    n._switchToVod(5);
+
+    expect(() => vi.advanceTimersByTime(5000)).not.toThrow();
+  });
+
+  it("restores a playing live engine although the VOD detach recorded STOPPED", () => {
+    // the timeout rollback detaches the VOD engine, whose detach writes its
+    // own (never started) state into the shared context; the live state
+    // must come from a snapshot taken when live let go of the UI
+    const n = createFacade();
+    n._livePlayer.detach = vi.fn(function (cb) {
+      this.attached = false;
+      n._context.setState(STATE.PLAYING, false); // the real live detach
+      if (cb) cb();
+      return true;
+    });
+    n._vodPlayer.detach = vi.fn(function (cb) {
+      this.attached = false;
+      n._context.setState(STATE.STOPPED, false); // the real VOD detach
+      if (cb) cb();
+      return true;
+    });
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0 },
+      expect.any(Function),
+    );
+    expect(n._context.state.value).toBe(STATE.PLAYING);
+  });
+
+  it("restores a paused VOD paused when the switch to live never completes", () => {
+    // the live attach started (and its detach on rollback records a live
+    // state); the VOD must come back with its own paused state, not resume
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.detach = vi.fn(function (cb) {
+      this.attached = false;
+      n._context.setState(STATE.PAUSED, false); // the VOD detach
+      if (cb) cb();
+      return true;
+    });
+    n._livePlayer.attach = vi.fn(function () {
+      this.attached = true;
+      return true; // never calls back
+    });
+    n._livePlayer.detach = vi.fn(function (cb) {
+      this.attached = false;
+      n._context.setState(STATE.STOPPED, false); // the live detach
+      if (cb) cb();
+      return true;
+    });
+    n._switchToLive(0);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._mode).toBe(MODE.VOD);
+    expect(n._vodPlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      undefined,
+      expect.any(Function),
+    );
+    expect(n._context.state.value).toBe(STATE.PAUSED);
   });
 
   it("ignores a late attach completion after timeout", () => {
@@ -965,6 +1132,22 @@ describe("Nimio VOD start from a non-running engine", () => {
       2,
       expect.any(Function),
     );
+  });
+
+  it("a destroy() from the end event of a refused switch ends the start quietly", async () => {
+    // a paused player: the refused attach restores live idle and reports the
+    // end; the listener removes the player, and the start's continuation
+    // must not touch the context any more (the restore wrote it once)
+    const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._context.state.value = STATE.PAUSED;
+    n._eventBus.emit = vi.fn((name) => {
+      if (name === "nimio:playback-end") n._destroyed = true;
+    });
+
+    expect(n._runVodFromStart(5)).toBe(true);
+    await microtasks();
+
+    expect(n._context.setState).toHaveBeenCalledTimes(1); // the restore only
   });
 
   it("returns false for a cold engine and for a running one", () => {
