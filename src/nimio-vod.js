@@ -31,6 +31,7 @@ export class NimioVod {
     this._context = PlaybackContext.getInstance(this._instName);
 
     this._state = VOD_STATE.NULL;
+    this._initGen = 0; // stop() bumps it: a queued initialize() is void
     this._config = config;
     if (!this._config) return;
 
@@ -88,8 +89,12 @@ export class NimioVod {
   }
 
   initialize(mediaElement) {
+    const gen = this._initGen;
     return this._loadSourcePromise
       .then(() => {
+        // a stop() since the call: the facade cancelled the start, and the
+        // reload must not run in the background either
+        if (gen !== this._initGen) return;
         if (
           this._state === VOD_STATE.NULL ||
           this._state === VOD_STATE.PLAY ||
@@ -123,6 +128,9 @@ export class NimioVod {
           this._grabber?.setMediaElement(mediaElement);
         }
 
+        // a reload from STOP keeps the engine stopped: it is not "running"
+        // (a seek goes through the facade's start path), and the facade's
+        // stop() calls stop() here regardless, which stops the loading
         this._url = this._config.url;
         this._pHandler.loadSource(this._fullUrl());
       })
@@ -211,6 +219,10 @@ export class NimioVod {
   play() {
     if (this._state !== VOD_STATE.PLAY || !this._ui) return;
 
+    // attach() paused buffering; only the autoplay path resumed it. A VOD
+    // attached paused (a seek on a stopped or paused player) starts here.
+    // hls.js ignores the call when buffering is already enabled.
+    this._pHandler.resumeBuffering();
     this._playbackService.handlePlay();
     this._eventBus.emit("nimio:play", { mode: MODE.VOD });
     this._grabber?.start(MODE.VOD);
@@ -225,6 +237,10 @@ export class NimioVod {
 
   stop(callback) {
     if (this._state < VOD_STATE.SYNC) return;
+    // a queued reload must not run after this; the first initialize() of
+    // an engine still setting up hls.js (INIT) is the warm-up and may not
+    // be voided: it returned above, before the bump
+    this._initGen++;
 
     this._pHandler.stopLoad();
     this._state = VOD_STATE.STOP;

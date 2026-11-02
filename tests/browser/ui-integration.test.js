@@ -251,7 +251,9 @@ describe("UI lifecycle", () => {
     expect(ui._canvas.style["background-image"]).toBe("");
 
     ui._onPlaybackEnded({ mode: MODE.VOD }); // the VOD stop's event
-    ui.toggleMode(MODE.LIVE); // the idle attach: creates the capture stream
+    // a full toggleMode(LIVE) (not the idle attach's capture: false) creates
+    // the capture stream; showStopped() must release one that exists
+    ui.toggleMode(MODE.LIVE);
     const stream = ui._captureStream;
     expect(stream).toBeDefined();
     expect(ui._mediaElement.srcObject).toBe(stream);
@@ -265,6 +267,31 @@ describe("UI lifecycle", () => {
     for (const track of stream.getTracks()) {
       expect(track.readyState).toBe("ended");
     }
+  });
+
+  it("toggleMode(LIVE, { capture: false }) creates no capture stream; the playback start does", async () => {
+    // the idle attach of a stopped player: nothing to show, so nothing to
+    // capture; a later live start creates the stream as for any live start
+    const parent = newParent();
+    const ui = new UI(
+      "life-idle-capture",
+      parent,
+      { ...opts, vod: {} },
+      stubBus,
+    );
+    uis.push(ui);
+    ui._pipCaptureStreamMode = true; // native video PiP (no Document PiP)
+    ui._mediaElement.play = () => Promise.resolve();
+    ui.toggleMode(MODE.VOD);
+
+    ui.toggleMode(MODE.LIVE, { capture: false });
+
+    expect(ui._mode).toBe(MODE.LIVE);
+    expect(ui._captureStream).toBeUndefined();
+    expect(ui._mediaElement.srcObject).toBeNull();
+
+    ui._onPlaybackStarted({ mode: MODE.LIVE });
+    expect(ui._captureStream).toBeDefined();
   });
 
   it("destroy tolerates a container already removed from the DOM", () => {

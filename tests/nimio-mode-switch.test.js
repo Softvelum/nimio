@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import Nimio from "@/nimio.js";
 import { NimioVod } from "@/nimio-vod.js";
-import { MODE, ERROR } from "@/shared/values";
+import { MODE, ERROR, STATE } from "@/shared/values";
 
 function fakeLive() {
   return {
@@ -31,6 +31,8 @@ function fakeVod({ attach = "async" } = {}) {
     running: false,
     pendingAttach: null,
     hasPlaybackErrors: () => false,
+    isLoaded: () => true,
+    initialize: vi.fn(() => Promise.resolve()),
     isRunning: vi.fn(function () {
       return this.running;
     }),
@@ -66,8 +68,20 @@ function createFacade({ mode = MODE.LIVE, vod } = {}) {
   const n = Object.create(Nimio.prototype);
   n._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
   n._eventBus = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
-  n._ui = { id: "ui", destroy: vi.fn() };
-  n._context = { state: { value: 0, initial: false } };
+  n._ui = { id: "ui", destroy: vi.fn(), mediaElement: { id: "media" } };
+  n._context = {
+    state: { value: STATE.STOPPED, initial: false },
+    setState: vi.fn(function (value, initial) {
+      this.state.value = value;
+      if (initial !== undefined) this.state.initial = initial;
+    }),
+    resetState: vi.fn(function () {
+      this.state.value = STATE.STOPPED;
+      this.state.initial = false;
+    }),
+  };
+  n._vodStartGen = 0;
+  n._stopping = false;
   n._livePlayer = fakeLive();
   n._vodPlayer = vod || fakeVod();
   n._vuMeterSvc = { clear: vi.fn() };
@@ -80,6 +94,10 @@ function createFacade({ mode = MODE.LIVE, vod } = {}) {
   n._actPlayer = mode === MODE.VOD ? n._vodPlayer : n._livePlayer;
   n._mode = mode;
   return n;
+}
+
+async function microtasks(n = 4) {
+  for (let i = 0; i < n; i++) await Promise.resolve();
 }
 
 const errorEvent = (mode) => [
@@ -339,12 +357,13 @@ describe("Nimio.stop()", () => {
     expect(n._mode).toBe(MODE.LIVE);
     expect(n._actPlayer).toBe(n._livePlayer);
     expect(n._eventBus.emit).not.toHaveBeenCalled();
+    expect(n._context.resetState).toHaveBeenCalledTimes(1);
 
     n.play();
     expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
   });
 
-  it("a second stop() is a no-op", () => {
+  it("a second stop() re-runs the engine stop and emits nothing", () => {
     const n = createFacade({ mode: MODE.VOD });
     n.stop();
     n._vodPlayer.stop.mockClear();
@@ -352,7 +371,9 @@ describe("Nimio.stop()", () => {
 
     expect(() => n.stop()).not.toThrow();
 
-    expect(n._vodPlayer.stop).not.toHaveBeenCalled(); // not running any more
+    // the engine stop runs again: idempotent, and it cancels a reload a
+    // seek may have queued meanwhile
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
     expect(n._livePlayer.attach.mock.results[0].value).toBe(false); // held
     expect(n._livePlayer.stop).toHaveBeenCalledTimes(2);
     expect(n._mode).toBe(MODE.LIVE);
@@ -377,10 +398,30 @@ describe("Nimio.stop()", () => {
     expect(n._livePlayer).toBeUndefined();
   });
 
-  it("a play() from the VOD playback-end listener is a no-op", () => {
+  it("a destroy() from the LIVE playback-end listener leaves stop() silent", () => {
+    // live playing (or a pending switch to live): the live stop emits the
+    // event, and the listener removes the player; nothing may run after
+    const n = createFacade();
+    n._instName = "sw-stop-destroy-live";
+    n._removeVolumeEventHandlers = vi.fn();
+    n._livePlayer.destroy = vi.fn();
+    n._vodPlayer.destroy = vi.fn();
+    n._livePlayer.stop = vi.fn(() => n.destroy());
+
+    expect(() => n.stop()).not.toThrow();
+
+    expect(n._destroyed).toBe(true);
+    expect(n._actPlayer).toBeUndefined();
+    expect(n._stopping).toBe(false);
+  });
+
+  it("stop() and seekVod() from the VOD playback-end listener are ignored; a play() waits for the stop", () => {
     const n = createFacade({ mode: MODE.VOD });
     n._vodPlayer.stop = vi.fn(function (cb) {
-      n.play(); // an application listener of nimio:playback-end
+      // application listeners of nimio:playback-end
+      n.play();
+      n.stop();
+      n.seekVod(1);
       this.attached = false;
       this.running = false;
       if (cb) cb();
@@ -388,8 +429,118 @@ describe("Nimio.stop()", () => {
 
     n.stop();
 
-    expect(n._vodPlayer.play).toHaveBeenCalledTimes(1); // the stopping engine
+    expect(n._vodPlayer.play).not.toHaveBeenCalled();
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1); // after the stop
+    expect(n._vodPlayer.initialize).not.toHaveBeenCalled();
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1); // the nested stop was ignored
+    expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._stopping).toBe(false); // released for the next call
+  });
+
+  it("in VOD mode a play() from the VOD playback-end listener restarts live after the stop", () => {
+    // the VOD engine still holds the UI when it emits its end event, so the
+    // play cannot run there; it is remembered and performed as the stop's
+    // last step, so the restart pattern works from either end event
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(function (cb) {
+      this.attached = false;
+      this.running = false;
+      n.play(); // an application listener of nimio:playback-end VOD
+      if (cb) cb();
+    });
+
+    n.stop();
+
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    const order = (fn) => fn.mock.invocationCallOrder[0];
+    expect(order(n._livePlayer.play)).toBeGreaterThan(
+      order(n._livePlayer.stop),
+    );
+    expect(order(n._livePlayer.play)).toBeGreaterThan(
+      order(n._context.resetState),
+    );
+    expect(n._playAfterStop).toBe(false);
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+  });
+
+  it("a deferred play() is not performed when the listener also destroyed the player", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(function (cb) {
+      this.attached = false;
+      n.play();
+      n._destroyed = true; // what destroy() does
+      if (cb) cb();
+    });
+
+    n.stop();
+
     expect(n._livePlayer.play).not.toHaveBeenCalled();
+  });
+
+  it("a throwing VOD playback-end listener leaves no deferred play behind", () => {
+    // the listener asked for a play(), then threw: the stop is over, and
+    // the next stop() must not start live on its own
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(() => {
+      n.play();
+      throw new Error("listener");
+    });
+
+    expect(() => n.stop()).toThrow("listener");
+    expect(n._playAfterStop).toBe(false);
+
+    n._vodPlayer.stop = vi.fn();
+    n._livePlayer.play.mockClear();
+    n.stop();
+    expect(n._livePlayer.play).not.toHaveBeenCalled();
+  });
+
+  it("in live mode a play() from the LIVE playback-end listener restarts live, as in the base", () => {
+    // the live stop is the last step and emits the end event last; an app
+    // that restarts from that event must not be swallowed by the guard that
+    // protects the VOD stop (where the engine still holds the UI)
+    const n = createFacade();
+    let stopped = false;
+    n._livePlayer.stop = vi.fn(() => {
+      if (stopped) return; // the real engine returns before emitting again
+      stopped = true;
+      n.play(); // an application listener of nimio:playback-end LIVE
+      n.stop(); // a nested stop is harmless
+    });
+
+    expect(() => n.stop()).not.toThrow();
+
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(2); // the nested stop ran
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._stopping).toBe(false);
+  });
+
+  it("in live mode resets the context too", () => {
+    const n = createFacade();
+    n._context.state.value = STATE.PLAYING; // left by an earlier VOD detach
+
+    n.stop();
+
+    expect(n._context.resetState).toHaveBeenCalledTimes(1);
+    expect(n._context.state).toEqual({ value: STATE.STOPPED, initial: false });
+  });
+
+  it("voids a VOD start still waiting for hls.js", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+    expect(n._runVodFromStart(5)).toBe(true);
+
+    n.stop(); // before the initialize() promise resolves
+    await microtasks();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1); // cancels it at the engine too
+    expect(n._vodPlayer.attach).not.toHaveBeenCalled();
     expect(n._mode).toBe(MODE.LIVE);
     expect(n._actPlayer).toBe(n._livePlayer);
   });
@@ -446,6 +597,16 @@ describe("Nimio.stop()", () => {
     expect(n._mode).toBe(MODE.LIVE);
   });
 
+  it("in live mode stops a stopped VOD engine too: a queued reload is cancelled at the engine", () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+
+    n.stop();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
   it("with no VOD engine stops live only", () => {
     const n = createFacade();
     n._vodPlayer = undefined;
@@ -473,24 +634,39 @@ describe("Nimio.setStreamURL()", () => {
   afterEach(() => vi.useRealTimers());
 
   const order = (fn) => fn.mock.invocationCallOrder[0];
+  const idle = { latency: 0, idle: true };
 
-  it("in VOD mode tells the live engine first, then switches to live with one attach", () => {
+  it("in VOD mode a play() from the VOD playback-end listener does not double the live play", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(function (cb) {
+      this.attached = false;
+      this.running = false;
+      n.play();
+      if (cb) cb();
+    });
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._playAfterStop).toBe(false);
+  });
+
+  it("in VOD mode stops and starts live with the new URL, no switch", () => {
     const n = createFacade({ mode: MODE.VOD });
 
     n.setStreamURL("wss://example.test/new");
 
     expect(n._config.streamUrl).toBe("wss://example.test/new");
-    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
-    expect(n._vodPlayer.detach).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.detach).not.toHaveBeenCalled();
     expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
-    expect(n._livePlayer.attach).toHaveBeenCalledWith(
-      n._ui,
-      { latency: 0 },
-      expect.any(Function),
-    );
-    expect(order(n._livePlayer.setStreamURL)).toBeLessThan(
-      order(n._livePlayer.attach),
-    );
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(n._ui, idle);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(order(n._livePlayer.stop)).toBeLessThan(order(n._livePlayer.play));
+    expect(n._livePlayer.setStreamURL).not.toHaveBeenCalled();
+    expect(n._context.resetState).toHaveBeenCalledTimes(1);
+    expect(n._modeSwitch ?? null).toBeNull();
     expect(n._mode).toBe(MODE.LIVE);
     expect(n._actPlayer).toBe(n._livePlayer);
     expect(n._eventBus.emit).not.toHaveBeenCalled();
@@ -507,48 +683,163 @@ describe("Nimio.setStreamURL()", () => {
 
     expect(n._config.streamUrl).toBe("wss://example.test/new");
     expect(n._config.vod.url).toBe("https://example.test/new.m3u8");
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in VOD mode a destroy() from the playback-end listener leaves it silent", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._instName = "sw-url-destroy";
+    n._removeVolumeEventHandlers = vi.fn();
+    n._livePlayer.destroy = vi.fn();
+    n._vodPlayer.destroy = vi.fn();
+    const livePlay = n._livePlayer.play;
+    n._vodPlayer.stop = vi.fn(function () {
+      n.destroy();
+      this.attached = false;
+      this.running = false;
+    });
+
+    expect(() => n.setStreamURL("wss://example.test/new")).not.toThrow();
+
+    expect(n._destroyed).toBe(true);
+    expect(livePlay).not.toHaveBeenCalled();
+  });
+
+  it("during a pending switch settles it silently and starts live with the new URL", () => {
+    const n = createFacade();
+    n._switchToVod(1);
+    expect(n._mode).toBe(MODE.PEND);
+    const late = n._vodPlayer.pendingAttach;
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._modeSwitch).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1); // it held the UI
+    expect(n._livePlayer.attach).toHaveBeenLastCalledWith(n._ui, idle);
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._logger.warn).not.toHaveBeenCalled();
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._actPlayer).toBe(n._livePlayer);
+    expect(n._eventBus.emit).not.toHaveBeenCalled();
+
+    late(); // the settled switch ignores its late completion
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("re-entrant from the VOD playback-end listener: the newest URL is recorded and played once", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._vodPlayer.stop = vi.fn(function (cb) {
+      n.setStreamURL("wss://example.test/newer"); // an application listener
+      this.attached = false;
+      this.running = false;
+      if (cb) cb();
+    });
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._config.streamUrl).toBe("wss://example.test/newer");
+    expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("a setStreamURL() from the nimio:play listener of the restart takes the live-mode path once", () => {
+    const n = createFacade({ mode: MODE.VOD });
+    n._livePlayer.play = vi.fn(() => {
+      n.setStreamURL("wss://example.test/newer"); // a listener of nimio:play LIVE
+    });
+
+    n.setStreamURL("wss://example.test/new");
+
+    expect(n._config.streamUrl).toBe("wss://example.test/newer");
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1); // live mode by then
     expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
     expect(n._mode).toBe(MODE.LIVE);
   });
 
-  it("in VOD mode with a refused live attach restores VOD and reports the error", () => {
-    const n = createFacade({ mode: MODE.VOD });
-    n._livePlayer.attach = vi.fn(() => false);
-
-    n.setStreamURL("wss://example.test/new");
-
-    expect(n._mode).toBe(MODE.VOD);
-    expect(n._actPlayer).toBe(n._vodPlayer);
-    expect(n._vodPlayer.attach).toHaveBeenCalledTimes(1); // restored
-    expect(n._eventBus.emit).toHaveBeenCalledWith(...errorEvent(MODE.LIVE));
-    expect(n._config.streamUrl).toBe("wss://example.test/new"); // kept
-  });
-
-  it("during a pending switch applies only the engine-level change and warns", () => {
+  it("in live mode with an unchanged VOD URL only tells the live engine", () => {
     const n = createFacade();
-    n._switchToVod(1);
-    expect(n._mode).toBe(MODE.PEND);
+    n._config.vod = { url: "https://example.test/archive.m3u8" };
+    n._vodPlayer.running = true; // warm
 
     n.setStreamURL("wss://example.test/new");
 
     expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.stop).not.toHaveBeenCalled();
     expect(n._livePlayer.attach).not.toHaveBeenCalled();
-    expect(n._logger.warn).toHaveBeenCalledTimes(1);
-    expect(n._mode).toBe(MODE.PEND);
-
-    n._vodPlayer.pendingAttach(); // the switch completes as it would have
-    expect(n._mode).toBe(MODE.VOD);
-  });
-
-  it("in live mode only tells the live engine", () => {
-    const n = createFacade();
-
-    n.setStreamURL("wss://example.test/new");
-
-    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
-    expect(n._livePlayer.attach).not.toHaveBeenCalled();
+    expect(n._livePlayer.play).not.toHaveBeenCalled();
     expect(n._vodPlayer.detach).not.toHaveBeenCalled();
     expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in live mode stops a running VOD engine whose URL changed", () => {
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+    n._vodPlayer.running = true; // warm, or reloading
+
+    n.setStreamURL({
+      live: "wss://example.test/new",
+      vod: "https://example.test/new.m3u8",
+    });
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.play).not.toHaveBeenCalled();
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in live mode with a cold VOD engine a changed VOD URL calls the engine stop (a no-op there) and restarts live", () => {
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+    n._vodPlayer.running = false;
+    n._vodPlayer.isLoaded = () => false;
+
+    expect(() =>
+      n.setStreamURL({
+        live: "wss://example.test/new",
+        vod: "https://example.test/new.m3u8",
+      }),
+    ).not.toThrow();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(n._livePlayer.setStreamURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("in live mode a changed VOD URL voids a pending VOD start", async () => {
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/old.m3u8" };
+    n._vodPlayer.running = false;
+    expect(n._runVodFromStart(5)).toBe(true);
+
+    n.setStreamURL({
+      live: "wss://example.test/new",
+      vod: "https://example.test/new.m3u8",
+    });
+    await microtasks();
+
+    expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1); // cancels the queued reload
+    expect(n._vodPlayer.attach).not.toHaveBeenCalled();
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("in live mode an unchanged VOD URL keeps a pending VOD start", async () => {
+    const n = createFacade();
+    n._config.vod = { url: "https://example.test/archive.m3u8" };
+    n._vodPlayer.running = false;
+    expect(n._runVodFromStart(5)).toBe(true);
+
+    n.setStreamURL("wss://example.test/new");
+    await microtasks();
+
+    expect(n._vodPlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      5,
+      expect.any(Function),
+    );
   });
 
   it("on a destroyed player does nothing", () => {
@@ -559,5 +850,130 @@ describe("Nimio.setStreamURL()", () => {
 
     expect(n._config.streamUrl).toBe("wss://example.test/old");
     expect(n._livePlayer.setStreamURL).not.toHaveBeenCalled();
+    expect(n._livePlayer.play).not.toHaveBeenCalled();
+  });
+});
+
+describe("Nimio VOD start from a non-running engine", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function liveDetachRecording(n, value) {
+    // the real live detach writes the engine's state into the context
+    n._livePlayer.detach = vi.fn(function (cb) {
+      this.attached = false;
+      n._context.setState(value, false);
+      if (cb) cb();
+      return true;
+    });
+  }
+
+  it("a position change into a non-running VOD engine re-initialises and starts it", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false; // stopped: attachable with a stale URL otherwise
+
+    expect(n._onPlaybackPositionChange(MODE.VOD, 7)).toBe(true);
+    await microtasks();
+
+    expect(n._vodPlayer.initialize).toHaveBeenCalledWith(n._ui.mediaElement);
+    expect(n._vodPlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      7,
+      expect.any(Function),
+    );
+  });
+
+  it("a position change into a running VOD engine switches directly", () => {
+    const n = createFacade();
+    n._vodPlayer.running = true;
+
+    expect(n._onPlaybackPositionChange(MODE.VOD, 7)).toBe(true);
+
+    expect(n._vodPlayer.initialize).not.toHaveBeenCalled();
+    expect(n._vodPlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      7,
+      expect.any(Function),
+    );
+  });
+
+  it("a position change into VOD without a VOD engine returns false", () => {
+    const n = createFacade();
+    n._vodPlayer = undefined;
+
+    expect(n._onPlaybackPositionChange(MODE.VOD, 7)).toBe(false);
+    expect(n._mode).toBe(MODE.LIVE);
+  });
+
+  it("keeps the context value the live detach wrote: stopped player → STOPPED, which opens the VOD paused", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+    liveDetachRecording(n, STATE.STOPPED);
+
+    n._runVodFromStart(3);
+    await microtasks();
+
+    expect(n._context.state).toEqual({ value: STATE.STOPPED, initial: false });
+  });
+
+  it("keeps the context value the live detach wrote: playing player → playing VOD", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+    liveDetachRecording(n, STATE.PLAYING);
+
+    n._runVodFromStart(3);
+    await microtasks();
+
+    expect(n._context.state).toEqual({ value: STATE.PLAYING, initial: false });
+  });
+
+  it("marks the startup failover as initial, so the autoplay setting decides", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+    liveDetachRecording(n, STATE.STOPPED);
+
+    n._runVodFromStart(undefined, { initial: true });
+    await microtasks();
+
+    expect(n._context.state).toEqual({ value: STATE.STOPPED, initial: true });
+  });
+
+  it("the NO_SRC startup failover starts VOD as initial", () => {
+    const n = createFacade();
+    n._config.vod = { startupVodFailover: true };
+    n._runVodFromStart = vi.fn(() => true);
+
+    n._onLivePlaybackError("NO_SRC", true);
+
+    expect(n._runVodFromStart).toHaveBeenCalledWith(undefined, {
+      initial: true,
+    });
+    expect(n._eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it("a newer start supersedes a pending one", async () => {
+    const n = createFacade();
+    n._vodPlayer.running = false;
+
+    n._runVodFromStart(1);
+    n._runVodFromStart(2);
+    await microtasks();
+
+    expect(n._vodPlayer.attach).toHaveBeenCalledTimes(1);
+    expect(n._vodPlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      2,
+      expect.any(Function),
+    );
+  });
+
+  it("returns false for a cold engine and for a running one", () => {
+    const cold = createFacade();
+    cold._vodPlayer.isLoaded = () => false;
+    expect(cold._runVodFromStart(1)).toBe(false);
+
+    const running = createFacade();
+    running._vodPlayer.running = true;
+    expect(running._runVodFromStart(1)).toBe(false);
   });
 });

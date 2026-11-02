@@ -104,6 +104,83 @@ describe("NimioLive after destroy()", () => {
     expect(live._latencyCtrl.pause).not.toHaveBeenCalled();
   });
 
+  it("pause() on a stopped engine reports the pause and changes nothing else", () => {
+    // marking a stopped engine paused would make the next play() skip the
+    // connection start and run a render loop with no stream. The event is
+    // still emitted: after an engine-internal stop (server rejection,
+    // reconnects exhausted) the UI still shows the pause glyph, and the
+    // click that reaches here must flip it, or the button is dead
+    const { live, flags } = createEngine();
+    flags.stopped = true;
+
+    live.pause();
+
+    expect(live._state.pause).not.toHaveBeenCalled();
+    expect(live._eventBus.emit).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).toHaveBeenCalledWith("nimio:pause", {
+      mode: MODE.LIVE,
+    });
+    expect(live._pauseTimeoutId).toBeUndefined();
+
+    live.play();
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1); // initial play
+  });
+
+  it("pause() during a reconnect wait cancels the retry and reports the pause", () => {
+    // the engine is stopped while a retry is pending; the user asked for
+    // playback to stop, so the retry must not play over the pause, and the
+    // UI needs the event to show the play button. The next play() is an
+    // initial play.
+    const { live, flags } = createEngine();
+    flags.stopped = true;
+
+    live.pause();
+
+    expect(live._reconnect.stop).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).toHaveBeenCalledWith("nimio:pause", {
+      mode: MODE.LIVE,
+    });
+    expect(live._state.pause).not.toHaveBeenCalled();
+    expect(live._pauseTimeoutId).toBeUndefined();
+
+    live.play();
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1); // initial play
+  });
+
+  it("pause() on a never-played autoplay player cancels the autoplay", () => {
+    // the engine is stopped with the autoplay start pending; the pause
+    // reports a paused player (the UI shows the play button) and the
+    // autoplay must not play over it
+    vi.useFakeTimers();
+    try {
+      const { live, flags } = createEngine();
+      flags.stopped = true;
+      live._playCb = vi.fn();
+      live._scheduleAutoplay();
+
+      live.pause();
+      vi.advanceTimersByTime(1000);
+
+      expect(live._playCb).not.toHaveBeenCalled();
+      expect(live._autoplayTimers).toEqual([]);
+      expect(live._eventBus.emit).toHaveBeenCalledWith("nimio:pause", {
+        mode: MODE.LIVE,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pause() on a paused engine is a no-op", () => {
+    const { live, flags } = createEngine();
+    flags.paused = true;
+
+    live.pause();
+
+    expect(live._state.pause).not.toHaveBeenCalled();
+    expect(live._eventBus.emit).not.toHaveBeenCalled();
+  });
+
   it("attach() on a destroyed engine returns false without touching the UI", () => {
     const { live } = createEngine();
     live.destroy();
@@ -277,6 +354,7 @@ describe("NimioLive autoplay timers", () => {
     expect(live._playCb).not.toHaveBeenCalled();
     expect(live._ui.hideControls).not.toHaveBeenCalled();
     expect(live._autoplayTimers).toEqual([]);
+    expect(live._controlsTimer).toBeUndefined();
   });
 });
 

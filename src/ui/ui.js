@@ -256,7 +256,7 @@ export class UI {
     }
   }
 
-  toggleMode(mode) {
+  toggleMode(mode, { capture = true } = {}) {
     if (mode === this._mode) return;
     const updatePlayer = this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
@@ -268,7 +268,9 @@ export class UI {
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
-      this._createCaptureStream();
+      // an idle attach (stopped player) has nothing to capture; the
+      // playback start creates the stream when live actually plays
+      if (capture) this._createCaptureStream();
     } else {
       this._destroyCaptureStream();
       if (updatePlayer) {
