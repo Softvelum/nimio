@@ -68,7 +68,28 @@ self.onmessage = (e) => {
     // the new protocol agent.
     if (socket) closeSocket();
 
-    const ws = new WebSocket(e.data.url, e.data.protocols);
+    let ws;
+    try {
+      ws = new WebSocket(e.data.url, e.data.protocols);
+    } catch (err) {
+      // a malformed URL: report it like a dropped connection, so the
+      // adapter learns the socket's fate and the engine does not stay in
+      // its playing state with no data
+      console.warn(`Connection failed for ${e.data.url}: ${err.message}`);
+      // the previous socket's agent must not receive this start's commands
+      protocolAgent = undefined;
+      self.postMessage({
+        type: "disconnect",
+        data: { code: CONN_CLOSE_CODES[1006] },
+        session: e.data.session,
+      });
+      self.postMessage({
+        aux: true,
+        connected: false,
+        session: e.data.session,
+      });
+      return;
+    }
     ws.binaryType = "arraybuffer";
     ws.id = ++curSocketId;
     ws.session = e.data.session; // tags this socket's lifecycle notifications

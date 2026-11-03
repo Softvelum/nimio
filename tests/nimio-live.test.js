@@ -402,6 +402,20 @@ describe("NimioLive.detach() and the kept-alive session", () => {
     return live;
   }
 
+  it("closes a socket that is still connecting when nothing is committed", () => {
+    // nothing to reuse: attach() would handshake anyway, and a socket that
+    // opens while detached would hold an idle server session
+    const live = createDetachable(false);
+    live._transport = { connected: false, connecting: true };
+
+    live.detach();
+
+    expect(live._sldpManager.stop).toHaveBeenCalledWith({
+      closeConnection: true,
+    });
+    expect(live._sldpManager.keepAliveConnection).not.toHaveBeenCalled();
+  });
+
   it("keeps a committed session alive", () => {
     const live = createDetachable(true);
 
