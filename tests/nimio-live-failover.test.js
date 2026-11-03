@@ -49,6 +49,7 @@ describe("NimioLive failover preserves the keep-alive session", () => {
     live._transport = transport;
     live._eventBus = { emit: () => {} };
     live._state = { isStopped: () => true };
+    live._reconnect = { stop: () => {}, reset: () => {} }; // stop() cancels it
   });
 
   afterEach(() => {

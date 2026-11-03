@@ -226,16 +226,16 @@ These methods are available on every `Nimio` player instance.
 - `play()`  
   Start playback.
 - `pause()`  
-  Pause playback.
+  Pause playback. On a stopped player it only emits `nimio:pause` (so the controls show the play button after a connection failure); during a reconnect wait (the connection dropped and a retry is pending) it also cancels the retry, and on a just-created player with `autoplay` it cancels the automatic start. The next `play()` starts anew.
 - `stop()`  
-  Stop and reset the player.
+  Stops playback and resets the player. Emits `nimio:playback-end` with the mode that was playing (nothing when the player was already stopped). Afterwards the player is in live mode, stopped: `play()` starts the live stream, `seekVod()` opens the VOD at the position, paused. A `play()` called from the `nimio:playback-end` listener restarts the live stream once the stop has completed.
 - `destroy()`  
   Destroy the player instance: stops playback, terminates the transport and decoder workers, closes the audio context, removes every event listener (including those added with `on()`) and releases all services registered for the instance. Cleanup always completes; if a component or an application listener throws during it, the first error is rethrown afterwards. Calling `destroy()` again, or any other public method, on a destroyed player is a safe no-op (queries return neutral values). The instance name can be reused by a new player afterwards.
 - `version()`  
   Return the current version string of the player instance.
 
 - `seekVod(position)`  
-  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode.\
+  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode. On a stopped or paused player the VOD opens paused at the position; during live playback it continues playing.\
   **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
   **Parameters:**
   position - playback position in seconds from the start. Possible values are in range [0, duration]
@@ -247,7 +247,7 @@ These methods are available on every `Nimio` player instance.
   buffer - (optional) buffer size in seconds that the player pertains during live playback.
 
 - `setStreamURL(url)`  
-  Switches the player to another stream without recreating it. A playing player reconnects to the new stream right away; if it's in VOD mode, it's switched to live mode first. A paused or stopped player uses the new URL on the next `play()`. Switching emits `nimio:playback-end` followed by `nimio:play`, as with `stop()` and `play()`.  
+  Switches the player to another stream without recreating it. A playing player reconnects to the new stream right away; a player in VOD mode, playing or paused, switches to live and plays the new stream. A paused or stopped live player uses the new URL on the next `play()`. Switching emits `nimio:playback-end` (with the mode that was playing) followed by `nimio:play`, as with `stop()` and `play()`.  
   **Parameters:**  
   url - either the new live stream URL string, or an object `{ live, vod }` to set the live and VOD (DVR) URLs. A field that is omitted keeps its current URL, except a VOD URL that wasn't set explicitly: it follows the new live URL.
 
@@ -375,7 +375,7 @@ mode: "live" | "vod"; // playback mode
 ---
 
 - `nimio:playback-end`  
-  Playback reached the end of the media.  
+  Playback ended: the media reached its end, `stop()` / `setStreamURL()` ended it, or the player stopped itself (the pause timeout expired, a decoding failure). `mode` is the mode that was playing; a stop during a pending switch reports the mode being entered.  
   **Parameters:**
 
 ```javascript
