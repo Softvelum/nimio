@@ -132,7 +132,13 @@ export class NimioLive {
   _rollbackInit() {
     this._destroyed = true;
     runCleanupSteps(this._logger, "init rollback", [
-      ["autoplay", () => this._cancelAutoplay()],
+      [
+        "autoplay",
+        () => {
+          this._cancelAutoplay();
+          this._cancelControlsTimer();
+        },
+      ],
       ["UI handlers", () => this._removeUIEventHandlers()],
       ["transport handlers", () => this._transport && this._deinitTransport()],
       [
@@ -154,11 +160,7 @@ export class NimioLive {
     const initialPlay = !this._state.isPaused();
     this._cancelPauseTimeout();
 
-    this._state.start();
-    this._latencyCtrl.start();
-    if (this._isAutoAbr()) {
-      this._startAbrController();
-    }
+    this._beginPlayback();
     const gen0 = this._playGen;
     this._eventBus.emit("nimio:play", { mode: MODE.LIVE });
     // a listener may have destroyed, stopped or restarted the player
@@ -181,6 +183,20 @@ export class NimioLive {
 
   pause() {
     if (this._destroyed || this._state.isPaused()) return;
+    if (this._state.isStopped()) {
+      // a stopped engine has nothing to pause, and marking it paused would
+      // make the next play() skip the connection start. During a reconnect
+      // wait the user asked for playback to stop: cancel the retry. The
+      // event is emitted either way: after an engine-internal stop (server
+      // rejection, reconnects exhausted) the UI still shows the pause
+      // glyph, and this click must flip it to play, or the button is dead;
+      // the next play() is an initial play. The autoplay of a
+      // just-constructed player must not play over the pause either.
+      this._cancelAutoplay();
+      this._reconnect.stop();
+      this._eventBus.emit("nimio:pause", { mode: MODE.LIVE });
+      return;
+    }
 
     this._state.pause();
     this._latencyCtrl.pause();
@@ -195,6 +211,11 @@ export class NimioLive {
   }
 
   stop(opts = {}) {
+    // timers that would start playback after the stop: the autoplay of a
+    // just-constructed player and a reconnect attempt. Cancelled before the
+    // early return, since both run while the engine is already stopped.
+    this._cancelAutoplay();
+    this._reconnect.stop();
     const isStopped = this._state.isStopped();
     const closeConnection = !opts.keepConnection;
     if (!isStopped || (closeConnection && this._transport.connected)) {
@@ -245,11 +266,14 @@ export class NimioLive {
       this.setParameters(params);
     }
 
-    this._attachUI(ui);
+    // idle and error attaches show the stopped look: no capture stream
+    this._attachUI(ui, { idle: !!(params.idle || params.pbError) });
 
     if (params.pbError) {
       // the stream isn't in fact discontinued, but it couldn't be played
-      // via both live and vod players, so the error notification should be shown
+      // via both live and vod players, so the error notification should be
+      // shown, over the stopped look
+      this._ui.showStopped();
       this._eventBus.emit("aux:playback-error", {
         type: "NO_SRC",
         mode: MODE.LIVE,
@@ -260,11 +284,18 @@ export class NimioLive {
       return true;
     }
 
-    this._state.start();
-    this._latencyCtrl.start();
-    if (this._isAutoAbr()) {
-      this._startAbrController();
+    if (params.idle) {
+      // take the UI without starting anything: the caller keeps us stopped
+      // (the facade's stop() in VOD mode); a later play() is an initial play.
+      // No live playback-end is emitted, so give the UI the stopped look here
+      // (splash, captions, controls; a capture stream left from an earlier
+      // live playback is released too)
+      this._ui.showStopped();
+      if (callback) callback();
+      return true;
     }
+
+    this._beginPlayback();
     this._playbackStarted = false;
     const gen = this._startRenderLoop();
 
@@ -311,10 +342,10 @@ export class NimioLive {
     }
 
     this._context.setState(this._state.value, false);
+    // also cancels a retry _onDisconnect() scheduled (its prologue runs
+    // before the early return on a stopped engine), which would otherwise
+    // play() on a detached engine
     this.stop({ keepConnection: true });
-    // stop() returns early on an engine _onDisconnect() already stopped, so
-    // the reconnect it scheduled would play() on a detached engine
-    this._reconnect.stop();
     if (this._sldpManager.sessionReady) {
       // the session has stream metadata: keep it for a later attach()
       this._sldpManager.keepAliveConnection();
@@ -494,9 +525,10 @@ export class NimioLive {
     return 0;
   }
 
-  _attachUI(ui) {
+  _attachUI(ui, { idle = false } = {}) {
     this._ui = ui;
-    this._ui.toggleMode(MODE.LIVE);
+    // an idle attach shows the stopped look; no capture stream for it
+    this._ui.toggleMode(MODE.LIVE, { capture: !idle });
   }
 
   _detachUI() {
@@ -751,12 +783,24 @@ export class NimioLive {
   }
 
   _scheduleAutoplay() {
-    this._autoplayTimers = [
-      setTimeout(this._playCb, 0),
-      setTimeout(() => {
-        if (this._ui) this._ui.hideControls(true);
-      }, 1000),
-    ];
+    this._autoplayTimers = [setTimeout(this._playCb, 0)];
+    // the controls fade belongs to the autoplay start, not to the play
+    // request: a stop() cancels the play only, destroy() cancels both
+    this._controlsTimer = setTimeout(() => {
+      this._controlsTimer = undefined;
+      // a player stopped meanwhile (an early stop, an immediate server
+      // rejection) keeps its controls visible
+      if (this._ui && !this._state.isStopped()) this._ui.hideControls(true);
+    }, 1000);
+  }
+
+  // The start shared by play() and attach().
+  _beginPlayback() {
+    this._state.start();
+    this._latencyCtrl.start();
+    if (this._isAutoAbr()) {
+      this._startAbrController();
+    }
   }
 
   // a destroyed (or rolled back) engine must not autoplay afterwards
@@ -765,11 +809,17 @@ export class NimioLive {
     this._autoplayTimers = [];
   }
 
+  _cancelControlsTimer() {
+    clearTimeout(this._controlsTimer);
+    this._controlsTimer = undefined;
+  }
+
   // Final release of everything _resetPlayback() would release, each part
   // idempotent, for a destroy() whose stop stage did not get that far.
   _releaseMediaResources() {
     this._cancelPauseTimeout();
     this._cancelAutoplay();
+    this._cancelControlsTimer();
     this._state.stop(); // ends the render loop even if stop() threw early
     this._abrController?.stop({ hard: true });
     if (this._nextRenditionData) {

@@ -165,7 +165,11 @@ describe("NimioLive attach/detach completion", () => {
 
   it("attach with pbError reports the error, calls back and returns true", () => {
     const live = createLiveForAttach();
-    const ui = { toggleMode: vi.fn(), setDetached: vi.fn() };
+    const ui = {
+      toggleMode: vi.fn(),
+      setDetached: vi.fn(),
+      showStopped: vi.fn(),
+    };
     const cb = vi.fn();
     expect(live.attach(ui, { latency: 0, pbError: true }, cb)).toBe(true);
     expect(cb).toHaveBeenCalledTimes(1);
@@ -432,13 +436,57 @@ describe("NimioLive.detach() and the kept-alive session", () => {
     // is what keeps nimio:playback-end from being emitted on a mode switch
   });
 
-  it("stops a reconnect the disconnect handler scheduled", () => {
-    // _onDisconnect() stopped the engine and scheduled play(); the stop()
-    // inside detach() returns early on a stopped engine and never resets it
+  it("the engine stop inside detach() cancels a reconnect the disconnect handler scheduled", () => {
+    // _onDisconnect() stopped the engine and scheduled play(); the real
+    // stop()'s prologue cancels the retry before its early return on a
+    // stopped engine, and a keepConnection stop reports no end event
     const live = createDetachable(true);
+    delete live.stop; // the real stop()
+    live._state = { value: "stopped", isStopped: () => true };
+    live._autoplayTimers = [];
+    live._reconnect = { stop: vi.fn() };
+    live._transport = { connected: true, connecting: false };
+    live._eventBus = { emit: vi.fn() };
 
     live.detach();
 
     expect(live._reconnect.stop).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).not.toHaveBeenCalled();
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+  });
+});
+
+describe("NimioLive.setStreamURL() while stopped", () => {
+  // the facade calls this only when the engine holds the UI (live mode);
+  // a stopped engine picks the new URL up on its next play()
+  function createStopped() {
+    const live = Object.create(NimioLive.prototype);
+    live._ui = {};
+    live._transport = { connected: true };
+    live._sldpManager = { stop: vi.fn() };
+    live._state = { isStopped: () => true, isPlaying: () => false };
+    live.stop = vi.fn();
+    live.play = vi.fn();
+    return live;
+  }
+
+  it("returns without stopping, playing or touching the session", () => {
+    const live = createStopped();
+
+    live.setStreamURL();
+
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+    expect(live.stop).not.toHaveBeenCalled();
+    expect(live.play).not.toHaveBeenCalled();
+  });
+
+  it("detached and stopped: the same, the session is the facade's business", () => {
+    const live = createStopped();
+    live._ui = undefined;
+
+    live.setStreamURL();
+
+    expect(live._sldpManager.stop).not.toHaveBeenCalled();
+    expect(live.stop).not.toHaveBeenCalled();
   });
 });

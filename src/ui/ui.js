@@ -256,7 +256,7 @@ export class UI {
     }
   }
 
-  toggleMode(mode) {
+  toggleMode(mode, { capture = true } = {}) {
     if (mode === this._mode) return;
     const updatePlayer = this._toggleModePip(mode);
     if (mode === MODE.LIVE) {
@@ -268,7 +268,9 @@ export class UI {
       if (this._captionCtrl) {
         this._captionList.refresh();
       }
-      this._createCaptureStream();
+      // an idle attach (stopped player) has nothing to capture; the
+      // playback start creates the stream when live actually plays
+      if (capture) this._createCaptureStream();
     } else {
       this._destroyCaptureStream();
       if (updatePlayer) {
@@ -907,10 +909,21 @@ export class UI {
 
   _onPlaybackEnded(data) {
     if (data.mode === MODE.LIVE) {
-      this._setBackground();
-      this._hideCaptions();
-      this._destroyCaptureStream();
+      this.showStopped();
+      return;
     }
+    this._layoutMgr.pause();
+    this.drawPlay();
+  }
+
+  // The look of a stopped live player: splash, no captions, no capture
+  // stream, controls paused on the play button. Run by the live
+  // playback-end, and by the live engine's idle attach, which takes the UI
+  // back from VOD without starting (no live playback-end is emitted then).
+  showStopped() {
+    this._setBackground();
+    this._hideCaptions();
+    this._destroyCaptureStream();
     this._layoutMgr.pause();
     this.drawPlay();
   }
