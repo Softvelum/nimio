@@ -159,7 +159,33 @@ describe("Nimio mode switch", () => {
     expect(n._vodPlayer.detach).toHaveBeenCalledTimes(1);
     expect(n._livePlayer.attach).toHaveBeenCalledTimes(1);
     expect(n._eventBus.emit).toHaveBeenCalledWith(...errorEvent(MODE.VOD));
+    // live plays again: the detached VOD engine stays warm behind it
+    expect(n._vodPlayer.stop).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["stopped", STATE.STOPPED],
+    ["paused", STATE.PAUSED],
+  ])(
+    "an idle restore of a %s live engine stops the VOD engine too",
+    (_, state) => {
+      // the VOD engine's detach restarts its background playlist reload; a
+      // player that ends stopped must not keep polling the archive
+      const n = createFacade();
+      n._context.state.value = state; // what the live detach records
+      n._switchToVod(5);
+
+      vi.advanceTimersByTime(5000);
+
+      expect(n._vodPlayer.stop).toHaveBeenCalledTimes(1);
+      expect(n._vodPlayer.isRunning()).toBe(false);
+      // released first, then stopped: the engine's stop emits its end event
+      // only while it holds the UI
+      expect(n._vodPlayer.stop.mock.invocationCallOrder[0]).toBeGreaterThan(
+        n._vodPlayer.detach.mock.invocationCallOrder[0],
+      );
+    },
+  );
 
   it("restores a stopped live engine idle when VOD attach is refused", () => {
     // autoplay: false, a seek into VOD on a stopped player fails: the
@@ -202,7 +228,7 @@ describe("Nimio mode switch", () => {
     );
   });
 
-  it("an idle restore of a paused live engine reports the playback end before the switch error", () => {
+  it("an idle restore of a paused live engine reports the switch error, then the playback end", () => {
     // the paused engine's detach stopped it without an event (its session
     // was kept for a restart); the restored player is stopped and shows
     // the stopped look, so the application must hear that the playback
@@ -213,9 +239,11 @@ describe("Nimio mode switch", () => {
 
     vi.advanceTimersByTime(5000);
 
+    // the cause first: an application that restarts from the end event
+    // must not get the error of the old attempt on its new playback
     expect(n._eventBus.emit.mock.calls).toEqual([
-      ["nimio:playback-end", { mode: MODE.LIVE }],
       errorEvent(MODE.VOD),
+      ["nimio:playback-end", { mode: MODE.LIVE }],
     ]);
   });
 
@@ -230,8 +258,8 @@ describe("Nimio mode switch", () => {
     n._switchToVod(5);
 
     expect(n._eventBus.emit.mock.calls).toEqual([
-      ["nimio:playback-end", { mode: MODE.LIVE }],
       errorEvent(MODE.VOD),
+      ["nimio:playback-end", { mode: MODE.LIVE }],
     ]);
     expect(n._livePlayer.attach).toHaveBeenCalledWith(
       n._ui,
@@ -261,6 +289,100 @@ describe("Nimio mode switch", () => {
     n._switchToVod(5);
 
     expect(() => vi.advanceTimersByTime(5000)).not.toThrow();
+  });
+
+  // The facade's public API as an application listener uses it; the log
+  // holds the events and the engine calls in the order they happened.
+  function listenTo(n, event, action) {
+    const log = [];
+    n._livePlayer.play = vi.fn(() => log.push("live.play"));
+    n._vodPlayer.play = vi.fn(() => log.push("vod.play"));
+    n._eventBus.emit = vi.fn((name, data) => {
+      log.push(`${name}:${data.error ? "switch-error" : data.mode}`);
+      if (name === event) action(log);
+    });
+    return log;
+  }
+
+  it("the switch error listener gets a player that is back in live mode", () => {
+    // a play(), stop() or seekVod() from the listener must act on the
+    // restored live engine, not on the VOD engine about to be released
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    const seen = [];
+    n._eventBus.emit = vi.fn((name) => {
+      if (name !== "nimio:playback-error") return;
+      seen.push([
+        n._mode,
+        n._actPlayer === n._livePlayer,
+        n._livePlayer.attached,
+      ]);
+    });
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(seen).toEqual([[MODE.LIVE, true, true]]);
+  });
+
+  it("a play() from the playback end of an idle restore comes after the switch error", () => {
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    const log = listenTo(n, "nimio:playback-end", () => n.play());
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(log).toEqual([
+      "nimio:playback-error:switch-error",
+      "nimio:playback-end:live",
+      "live.play",
+    ]);
+  });
+
+  it("a play() from the switch error listener leaves no playback end for the new playback", () => {
+    // the application restarted the player itself: the end of the paused
+    // playback would arrive on a running stream
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    const log = listenTo(n, "nimio:playback-error", () => n.play());
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(log).toEqual(["nimio:playback-error:switch-error", "live.play"]);
+  });
+
+  it("a stop() from the switch error listener still gets the playback end, once", () => {
+    // the restored engine is already stopped, so its own stop reports
+    // nothing: the application that held a paused player still hears the end
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    const log = listenTo(n, "nimio:playback-error", () => n.stop());
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(log).toEqual([
+      "nimio:playback-error:switch-error",
+      "nimio:playback-end:live",
+    ]);
+  });
+
+  it("a destroy() from the switch error listener leaves the rollback silent", () => {
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    const emit = vi.fn((name) => {
+      if (name === "nimio:playback-error") {
+        n._destroyed = true;
+        n._eventBus = undefined; // what destroy() does
+      }
+    });
+    n._eventBus.emit = emit;
+    n._switchToVod(5);
+
+    expect(() => vi.advanceTimersByTime(5000)).not.toThrow();
+    expect(emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
   });
 
   it("restores a playing live engine although the VOD detach recorded STOPPED", () => {
@@ -484,6 +606,35 @@ describe("Nimio mode switch with the real VOD engine", () => {
     expect(vod._pHandler.loadSource).not.toHaveBeenCalledWith(
       "https://example.com/720p/playlist_dvr.m3u8",
     );
+  });
+
+  it("an idle restore leaves the real VOD engine stopped with nothing loading", () => {
+    const VOD_STOP = 4;
+    const vod = realVod();
+    vod._state = VOD_STOP; // a stopped player's VOD engine
+    vod._context.hasVod = () => true;
+    vod._context.getCurrentLevel = () => ({
+      data: { url: ["https://example.com/720p/playlist_dvr.m3u8"] },
+    });
+    const n = createFacade({ vod });
+    n._ui = uiStub();
+    n._context.state.value = STATE.STOPPED; // what the live detach records
+    n._switchToVod(undefined);
+
+    n._onVodPlaybackError("NO_SRC"); // the archive could not be loaded
+
+    // the detach restarted the variant playlist reload: the stop comes last
+    const { loadSource, stopLoad } = vod._pHandler;
+    expect(loadSource).toHaveBeenLastCalledWith(
+      "https://example.com/720p/playlist_dvr.m3u8",
+    );
+    expect(stopLoad.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+      loadSource.mock.invocationCallOrder.at(-1),
+    );
+    expect(vod.isRunning()).toBe(false);
+    // released before it was stopped: no VOD end event for a seek that
+    // never showed the archive
+    expect(n._eventBus.emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
   });
 
   it("releases the UI from VOD before the live engine takes it", () => {
@@ -1116,6 +1267,95 @@ describe("Nimio VOD start from a non-running engine", () => {
       initial: true,
     });
     expect(n._eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  const noSrcEvent = [
+    "nimio:playback-error",
+    { error: ERROR.NO_SRC, mode: MODE.LIVE },
+  ];
+
+  it("a startup failover whose switch to VOD fails reports NO_SRC after the switch error", async () => {
+    // the server rejected live and the archive could not be opened either:
+    // the player ends stopped, and the application must hear why
+    const n = createFacade();
+    n._config.vod = { startupVodFailover: true };
+    n._onLivePlaybackError("NO_SRC", true);
+    await microtasks();
+    expect(n._mode).toBe(MODE.PEND);
+
+    vi.advanceTimersByTime(5000); // VOD never reports media attached
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0, idle: true },
+      expect.any(Function),
+    );
+    expect(n._eventBus.emit.mock.calls).toEqual([
+      errorEvent(MODE.VOD),
+      noSrcEvent,
+    ]);
+  });
+
+  it("a startup failover refused at once reports NO_SRC as well", async () => {
+    const n = createFacade({ vod: fakeVod({ attach: false }) });
+    n._config.vod = { startupVodFailover: true };
+    n._onLivePlaybackError("NO_SRC", true);
+
+    await microtasks();
+
+    expect(n._eventBus.emit.mock.calls).toEqual([
+      errorEvent(MODE.VOD),
+      noSrcEvent,
+    ]);
+  });
+
+  it("a play() from the switch error listener of a failed failover gets no NO_SRC", async () => {
+    // the new live attempt reports its own outcome
+    const n = createFacade();
+    n._config.vod = { startupVodFailover: true };
+    const events = [];
+    n._eventBus.emit = vi.fn((name, data) => {
+      events.push([name, data]);
+      if (data.error === ERROR.MODE_SWITCH) n.play();
+    });
+    n._onLivePlaybackError("NO_SRC", true);
+    await microtasks();
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([errorEvent(MODE.VOD)]);
+  });
+
+  it("a failover whose rollback restarts live reports no NO_SRC", async () => {
+    // a play() while hls.js was loading: the detach records a playing
+    // engine, the rollback restarts it, and that attempt reports for itself
+    const n = createFacade();
+    n._config.vod = { startupVodFailover: true };
+    liveDetachRecording(n, STATE.PLAYING);
+    n._onLivePlaybackError("NO_SRC", true);
+    await microtasks();
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._livePlayer.attach).toHaveBeenCalledWith(
+      n._ui,
+      { latency: 0 },
+      expect.any(Function),
+    );
+    expect(n._eventBus.emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
+  });
+
+  it("a seek whose switch to VOD fails on a stopped player reports no NO_SRC", async () => {
+    const n = createFacade();
+    liveDetachRecording(n, STATE.STOPPED);
+    n._runVodFromStart(5);
+    await microtasks();
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._eventBus.emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
   });
 
   it("a newer start supersedes a pending one", async () => {

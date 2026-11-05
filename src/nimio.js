@@ -115,6 +115,7 @@ export default class Nimio {
     this._actPlayer = this._livePlayer;
     this._mode = MODE.LIVE;
     this._vodStartGen = 0; // voids VOD starts that resolve after a stop
+    this._idleRestore = null; // a failed switch whose final notice is owed
     this._stopping = false; // re-entrancy guard for stop()
     this._playAfterStop = false; // a play() asked for while stopping
     this._eventBus.on("aux:playback-error", this._onError);
@@ -192,6 +193,10 @@ export default class Nimio {
       this._playAfterStop = true;
       return;
     }
+    // from the error listener of a failed switch: the application restarts
+    // the player itself, and the notice an idle restore still owes it (the
+    // playback end, or NO_SRC) would arrive on the new playback
+    this._idleRestore = null;
     this._actPlayer?.play();
   }
 
@@ -324,9 +329,9 @@ export default class Nimio {
     this._vodPlayer.initialize(this._ui.mediaElement).then(() => {
       // destroyed, stopped or re-targeted meanwhile: the start is void
       if (this._destroyed || gen !== this._vodStartGen) return;
-      this._switchToVod(pos);
-      // a refused attach restores live at once; a listener of the end event
-      // an idle restore emits may destroy the player
+      this._switchToVod(pos, { failover: initial });
+      // a refused attach restores live at once; a listener of the events
+      // the rollback emits may destroy the player
       if (this._destroyed) return;
       this._context.setState(this._context.state.value, initial);
       this._context.autoAbr = !!this._config.adaptiveBitrate;
@@ -335,8 +340,8 @@ export default class Nimio {
     return true;
   }
 
-  _switchToVod(position) {
-    return this._switchMode(MODE.VOD, position);
+  _switchToVod(position, opts) {
+    return this._switchMode(MODE.VOD, position, opts);
   }
 
   _switchToLive(latency) {
@@ -357,8 +362,10 @@ export default class Nimio {
    * Switch the active engine. Returns true when the switch started (it may
    * complete later) and false when it was rejected or failed synchronously.
    * Any failure restores the previous mode and emits nimio:playback-error.
+   * `failover` marks the startup VOD failover: live was rejected, so a
+   * rollback that leaves the player stopped reports NO_SRC as well.
    */
-  _switchMode(target, attachParams) {
+  _switchMode(target, attachParams, { failover = false } = {}) {
     if (this._destroyed) return false;
     if (!this._vodPlayer || this._mode === target) return false;
     if (this._mode === MODE.PEND) {
@@ -371,6 +378,7 @@ export default class Nimio {
       prevMode: this._mode,
       prevPlayer: this._actPlayer,
       nextPlayer: target === MODE.VOD ? this._vodPlayer : this._livePlayer,
+      failover,
       detached: false,
       attachStarted: false,
       settled: false,
@@ -426,15 +434,42 @@ export default class Nimio {
     this._logger.error(
       `Switch to ${sw.target} failed (${reason}), restoring ${sw.prevMode}`,
     );
-    this._restoreMode(sw);
-    // a listener of the playback end an idle restore emits may destroy
-    if (this._destroyed) return;
+    // The previous mode is restored first, without events of its own: the
+    // error listener gets a player that is back in that mode, so its
+    // play(), stop() or seekVod() act on the restored engine and not on the
+    // one being released. The error then comes before what followed from
+    // it: an application that restarts from the end event does not get the
+    // error of the old attempt on its new playback.
+    const idle = this._restoreMode(sw);
+    this._idleRestore = idle ? sw : null;
     this._eventBus.emit("nimio:playback-error", {
       error: ERROR.MODE_SWITCH,
       mode: sw.target,
     });
+    // nothing more for a restarted or untouched engine; the listener may
+    // also have destroyed the player, or restarted it with a play()
+    if (this._destroyed || this._idleRestore !== sw) return;
+    this._idleRestore = null;
+    if (sw.failover) {
+      // the server rejected live and the archive did not open either: the
+      // player is stopped with nothing to play, as when the failover is off
+      this._eventBus.emit("nimio:playback-error", {
+        error: ERROR.NO_SRC,
+        mode: MODE.LIVE,
+      });
+    } else if (sw.prevState === STATE.PAUSED || sw.prevEndUnreported) {
+      // the detach stopped the paused engine without an event (its session
+      // was kept), or consumed an end left unreported by a pause() during a
+      // reconnect wait or by a drop while paused, and the engine's stop in
+      // the restore found it stopped: the application still holds a paused
+      // player, tell it the playback ended (a stopped engine never played:
+      // nothing to end)
+      this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+    }
   }
 
+  // Returns true when a live engine was taken back idle: the player ends
+  // stopped, and the caller reports what the application is still owed.
   _restoreMode(sw) {
     if (sw.attachStarted) {
       // The new engine took the UI but never completed; release it.
@@ -445,7 +480,7 @@ export default class Nimio {
     // Only an engine that actually let go of the UI is re-attached. If the
     // detach was refused, the previous engine never changed state and
     // attaching it would start it rather than restore it.
-    if (!sw.detached) return;
+    if (!sw.detached) return false;
     // Restore the playback state the previous engine had when it let go of
     // the UI (the new engine's detach above overwrote the context): a live
     // engine that was playing is restarted; a stopped or paused one takes
@@ -461,20 +496,18 @@ export default class Nimio {
     }
     if (!sw.prevPlayer.attach(this._ui, params, () => {})) {
       this._logger.error(`Could not re-attach ${sw.prevMode} player`);
-    } else if (params?.idle) {
-      // a paused engine's detach kept its server session alive for a
-      // restart; a restored player that shows the splash must not keep it
-      sw.prevPlayer.stop();
-      if (sw.prevState === STATE.PAUSED || sw.prevEndUnreported) {
-        // the detach stopped the paused engine without an event (its
-        // session was kept), or consumed an end left unreported by a pause()
-        // during a reconnect wait or by a drop while paused, and the engine's
-        // stop above found it stopped: the application still holds a paused
-        // player, tell it the playback ended (a stopped engine never played:
-        // nothing to end)
-        this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
-      }
+      return false;
     }
+    if (!params?.idle) return false;
+    // The player ends stopped, as after stop(): the VOD engine's detach
+    // above restarted its background playlist reload (a warm engine never
+    // stopped it), and a stopped player must not keep polling the archive.
+    // The engine holds no UI here, so its stop emits no end event.
+    this._vodPlayer?.stop();
+    // a paused engine's detach kept its server session alive for a
+    // restart; a restored player that shows the splash must not keep it
+    sw.prevPlayer.stop();
+    return true;
   }
 
   _cancelModeSwitch() {

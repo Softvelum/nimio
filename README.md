@@ -235,7 +235,7 @@ These methods are available on every `Nimio` player instance.
   Return the current version string of the player instance.
 
 - `seekVod(position)`  
-  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode. On a stopped or paused player the VOD opens paused at the position; during live playback (a reconnect wait after a drop during playback counts as playing; one after a drop while paused counts as paused) it continues playing. If the switch fails (`nimio:playback-error` with `MODE_SWITCH`), a playing or reconnecting live stream is restarted; a paused one (including one paused during, or before, a reconnect wait) ends stopped and emits `nimio:playback-end`; a stopped one ends stopped silently.\
+  Updates current VOD playback position with the specified value. If the player is currently in the live mode, it's switched to the VOD mode. On a stopped or paused player the VOD opens paused at the position; during live playback (a reconnect wait after a drop during playback counts as playing; one after a drop while paused counts as paused) it continues playing. If the switch fails (`nimio:playback-error` with `MODE_SWITCH`), a playing or reconnecting live stream is restarted; a paused one (including one paused during, or before, a reconnect wait) ends stopped and emits `nimio:playback-end` after the error; a stopped one ends stopped with the error only.\
   **Return value:** boolean status (`true` - position update is performed successfully, `false` - playback position update failed).\
   **Parameters:**
   position - playback position in seconds from the start. Possible values are in range [0, duration]
@@ -375,7 +375,7 @@ mode: "live" | "vod"; // playback mode
 ---
 
 - `nimio:playback-end`  
-  Playback ended: the media reached its end, `stop()` / `setStreamURL()` ended it, or the player stopped itself (the pause timeout expired, a decoding failure, or a failed switch of a paused live player). `mode` is the mode that was playing; a stop during a pending switch reports the mode being entered.  
+  Playback ended: the media reached its end, `stop()` / `setStreamURL()` ended it, or the player stopped itself (the pause timeout expired, a decoding failure, or a failed switch of a paused live player, reported after that switch's `nimio:playback-error`). `mode` is the mode that was playing; a stop during a pending switch reports the mode being entered.  
   **Parameters:**
 
 ```javascript
@@ -493,7 +493,7 @@ enabled: Boolean;
 ```
 
 - `nimio:playback-error`  
-  Emitted when playback can't continue in the given mode: no playable source was found, the player isn't supported by the browser, or a switch between live and VOD failed. A failed switch restores the previous mode before the event is emitted. The `error` value is one of `"No playable sources found"`, `"Player is not supported in current browser"`, `"Failed to switch playback mode"`, or the name of the browser error that rejected VOD playback (e.g. `"NotAllowedError"`).  
+  Emitted when playback can't continue in the given mode: no playable source was found, the player isn't supported by the browser, or a switch between live and VOD failed. A failed switch restores the previous mode before the event is emitted. When the switch that failed was the startup VOD failover, a second event with `"No playable sources found"` and `mode: "live"` follows: neither source could be played and the player is stopped. The `error` value is one of `"No playable sources found"`, `"Player is not supported in current browser"`, `"Failed to switch playback mode"`, or the name of the browser error that rejected VOD playback (e.g. `"NotAllowedError"`).  
   **Parameters:**
 
 ```javascript

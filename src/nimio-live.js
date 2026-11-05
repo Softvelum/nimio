@@ -219,7 +219,7 @@ export class NimioLive {
     // timers that would start playback after the stop: the autoplay of a
     // just-constructed player and a reconnect attempt. Cancelled before the
     // early return, since both run while the engine is already stopped.
-    const retryPending = this._reconnect.pending || this._retryCancelled;
+    const retryPending = this.hasUnreportedEnd();
     this._retryCancelled = false;
     this._cancelAutoplay();
     this._reconnect.stop();
