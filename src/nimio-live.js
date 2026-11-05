@@ -219,7 +219,7 @@ export class NimioLive {
     // timers that would start playback after the stop: the autoplay of a
     // just-constructed player and a reconnect attempt. Cancelled before the
     // early return, since both run while the engine is already stopped.
-    const retryPending = this.hasUnreportedEnd();
+    const endUnreported = this.hasUnreportedEnd();
     this._retryCancelled = false;
     this._cancelAutoplay();
     this._reconnect.stop();
@@ -236,7 +236,7 @@ export class NimioLive {
       // was coming; cancelling that retry (here, or by an earlier pause)
       // ends the playback the application and the UI still see (a detach
       // keeps it for a restart)
-      if (retryPending && closeConnection) {
+      if (endUnreported && closeConnection) {
         this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
       }
       return;

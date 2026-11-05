@@ -441,6 +441,10 @@ export default class Nimio {
     // it: an application that restarts from the end event does not get the
     // error of the old attempt on its new playback.
     const idle = this._restoreMode(sw);
+    // a restarted live engine emits its own events from inside the restore
+    // (nimio:play, the connection start); a listener may have destroyed the
+    // player
+    if (this._destroyed) return;
     this._idleRestore = idle ? sw : null;
     this._eventBus.emit("nimio:playback-error", {
       error: ERROR.MODE_SWITCH,
@@ -448,8 +452,9 @@ export default class Nimio {
     });
     // nothing more for a restarted or untouched engine; the listener may
     // also have destroyed the player, or restarted it with a play()
-    if (this._destroyed || this._idleRestore !== sw) return;
+    const owed = this._idleRestore === sw;
     this._idleRestore = null;
+    if (this._destroyed || !owed) return;
     if (sw.failover) {
       // the server rejected live and the archive did not open either: the
       // player is stopped with nothing to play, as when the failover is off

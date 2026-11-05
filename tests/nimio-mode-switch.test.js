@@ -369,6 +369,24 @@ describe("Nimio mode switch", () => {
     ]);
   });
 
+  it("a destroy() from an event of the restarted live engine leaves the rollback silent", () => {
+    // the restart emits nimio:play and nimio:connection-started from inside
+    // the restore, before the switch error; their listener may remove the
+    // player, and the real attach then reports that it did not take
+    const n = createFacade();
+    n._context.state.value = STATE.PLAYING;
+    const emit = n._eventBus.emit;
+    n._switchToVod(5);
+    n._livePlayer.attach = vi.fn(() => {
+      n._destroyed = true;
+      n._eventBus = undefined; // what destroy() does
+      return false;
+    });
+
+    expect(() => vi.advanceTimersByTime(5000)).not.toThrow();
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it("a destroy() from the switch error listener leaves the rollback silent", () => {
     const n = createFacade();
     n._context.state.value = STATE.PAUSED;
@@ -383,6 +401,7 @@ describe("Nimio mode switch", () => {
 
     expect(() => vi.advanceTimersByTime(5000)).not.toThrow();
     expect(emit.mock.calls).toEqual([errorEvent(MODE.VOD)]);
+    expect(n._idleRestore).toBeNull(); // the engines are not held any more
   });
 
   it("restores a playing live engine although the VOD detach recorded STOPPED", () => {
