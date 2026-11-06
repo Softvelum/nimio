@@ -32,6 +32,15 @@ export class NimioVod {
 
     this._state = VOD_STATE.NULL;
     this._initGen = 0; // stop() bumps it: a queued initialize() is void
+    // the _initGen the last playlist request was made under: a response is
+    // the engine's own only while no stop() came after its request
+    this._loadGen = 0;
+    // true once the current source's variant playlist loaded: until then
+    // the archive is not usable and an interrupted load must be redone
+    this._metadataReady = false;
+    // true from an attach until the first variant playlist after it, which
+    // validates the position the media element was given meanwhile
+    this._positionUnvalidated = false;
     this._config = config;
     if (!this._config) return;
 
@@ -131,8 +140,21 @@ export class NimioVod {
         // a reload from STOP keeps the engine stopped: it is not "running"
         // (a seek goes through the facade's start path), and the facade's
         // stop() calls stop() here regardless, which stops the loading
+        this._metadataReady = false;
+        if (this._url) {
+          // a source change: the durations the progress service knows
+          // belong to the old archive and would clamp seeks into the new
+          // one until its playlist arrives. The reset notifies the
+          // application synchronously, which may stop or destroy the
+          // player from the listener.
+          this._progressSvc.resetVodDuration();
+          if (this._destroyed || gen !== this._initGen) return;
+          // the session parameter belongs to the old archive; the new
+          // master manifest brings the new one
+          this._sessionParam = undefined;
+        }
         this._url = this._config.url;
-        this._pHandler.loadSource(this._fullUrl());
+        this._loadSource(this._fullUrl());
       })
       .catch((err) => {
         this._logger.error(
@@ -148,7 +170,9 @@ export class NimioVod {
     if (this._state === VOD_STATE.NULL) return;
     if (!this._pHandler) return;
 
-    if (this._url) {
+    // the listeners and the UI handlers exist from SYNC on, whether or not
+    // a stop during an unfinished reload cleared the URL since
+    if (this._state >= VOD_STATE.SYNC) {
       const EV = Hls.Events;
       this._pHandler.stopLoad();
       this._pHandler.detachMedia();
@@ -177,8 +201,7 @@ export class NimioVod {
 
       this._removeUIEventHandlers();
 
-      this._url = undefined;
-      this._sessionParam = undefined;
+      this._forgetSource();
       this._detachUI();
     }
     this._pHandler.destroy();
@@ -245,6 +268,10 @@ export class NimioVod {
     this._pHandler.stopLoad();
     this._state = VOD_STATE.STOP;
     this._grabber?.stop();
+    // the source's variant playlist never arrived: the next initialize()
+    // (the next nimio:connection-established) must load it instead of
+    // treating the archive as known
+    if (!this._metadataReady) this._forgetSource();
 
     if (this._ui) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.VOD });
@@ -378,6 +405,12 @@ export class NimioVod {
 
   attach(ui, position, callback) {
     if (this._state < VOD_STATE.SYNC) return false;
+    // a load that failed before the variant playlist arrived forgot the
+    // URL, and the engine may still count as running (SYNC), so seeks come
+    // straight here: retry the configured source, as the next initialize()
+    // would. hls.js is never handed an undefined source.
+    if (!this._url) this._url = this._config.url;
+    if (!this._url) return false;
 
     // The newest attach request wins; a stale callback from an attach that
     // never completed must not be invoked for this one.
@@ -387,6 +420,7 @@ export class NimioVod {
     this._ui.toggleMode(MODE.VOD);
     this._playbackService.init(this._ui.mediaElement);
     this._state = VOD_STATE.PLAY;
+    this._positionUnvalidated = true;
 
     let currentLevel = this._context.getCurrentLevel();
     if (currentLevel) {
@@ -395,7 +429,7 @@ export class NimioVod {
     }
 
     this._logger.debug("Attach VOD player", this._fullUrl());
-    this._pHandler.loadSource(this._fullUrl());
+    this._loadSource(this._fullUrl());
     this._pHandler.pauseBuffering();
     this._pHandler.attachMedia(this._ui.mediaElement);
     this._addProgressEventHandlers();
@@ -419,7 +453,19 @@ export class NimioVod {
     // The callback may have re-attached this engine (the facade restores VOD
     // when the other engine refuses). attach() has then requested the master
     // playlist, which the background variant reload must not replace.
-    if (this._state === VOD_STATE.SYNC && this._context.hasVod()) {
+    // Only for the current source: after a URL change the levels in the
+    // context may still be the previous archive's, and reloading its
+    // variant would record it under the new URL. The next attach loads
+    // the new master playlist instead. And only once that source's variant
+    // has loaded: before that, the levels are those of an attempt that
+    // failed (their session parameter was forgotten with it), and the
+    // master playlist the attach requested is left to finish.
+    if (
+      this._state === VOD_STATE.SYNC &&
+      this._metadataReady &&
+      this._context.hasVod() &&
+      this._context.levelsSourceUrl === this._url
+    ) {
       this._loadCurrentLevel();
     }
 
@@ -465,6 +511,16 @@ export class NimioVod {
     if (this._nalProcessor) this._nalProcessor.reset();
 
     return true;
+  }
+
+  // The position the media element was given since the attach is checked
+  // against the first variant playlist that arrives after it: a target
+  // beyond the end is moved to the end. The progress service clamps a seek
+  // only to a duration it knows, and a start of a stopped engine does not
+  // pass through it. Later reloads leave the position alone.
+  _validatePosition(duration) {
+    if (this._state !== VOD_STATE.PLAY || !(duration > 0)) return;
+    if (this._playbackService.getCurrentTime() > duration) this.goto(duration);
   }
 
   switchToCurrentRendition() {
@@ -607,6 +663,53 @@ export class NimioVod {
     // this._logger.warn('TOTAL DURATION', details.totalduration); // details.edge,
   }
 
+  // The configured URL changed: what the engine knows is another archive's,
+  // also when the URL changes back before anything was reloaded (the
+  // facade has dropped the durations by then, and an engine that still
+  // held the archive as loaded would never bring them back). Ends what is
+  // loading, as stop() does: a response in flight would find no URL and
+  // be taken as the configured source's.
+  forgetSource() {
+    if (this._state < VOD_STATE.SYNC) return;
+    this._initGen++;
+    this._pHandler.stopLoad();
+    this._metadataReady = false;
+    this._forgetSource();
+  }
+
+  // The URL and the session parameter that came with its master playlist
+  // go together. With no URL the engine knows no source: initialize() and
+  // attach() load the configured one.
+  _forgetSource() {
+    this._url = undefined;
+    this._sessionParam = undefined;
+  }
+
+  // Every playlist request goes through here, so that a response can be
+  // told from one whose request a later stop() ended.
+  _loadSource(url) {
+    this._loadGen = this._initGen;
+    this._pHandler.loadSource(url);
+  }
+
+  // False for a playlist response the engine no longer waits for: one whose
+  // request was made before the last stop(). hls.js aborts a request in
+  // flight on stopLoad(), but a stop() made from inside a callback of a
+  // response (a nimio:vod-progress listener that changes the stream URL)
+  // does not stop the rest of that response: the old archive's playlist
+  // would be taken under a URL the stop kept, or under none. A reload
+  // started after the stop (a stopped engine loads a new URL in the
+  // background) is the engine's own again.
+  // With no URL and no stop since the request, the loading went on after a
+  // fatal error forgot the source (hls.js recovered, or the application
+  // restarted the load through the handler it holds): the response is the
+  // configured source's, which is the current one again.
+  _ownsPlaylist() {
+    if (this._loadGen !== this._initGen) return false;
+    if (!this._url) this._url = this._config.url;
+    return !!this._url;
+  }
+
   _fullUrl() {
     if (this._url) {
       return this._url + (this._sessionParam ? `?${this._sessionParam}` : "");
@@ -616,7 +719,7 @@ export class NimioVod {
   _loadCurrentLevel() {
     let currentLevel = this._context.getCurrentLevel();
     if (currentLevel) {
-      this._pHandler.loadSource(currentLevel.data.url[0]);
+      this._loadSource(currentLevel.data.url[0]);
     } else {
       this._logger.error("Unable to load current level");
     }
@@ -645,13 +748,38 @@ export class NimioVod {
   }
 
   _onManifestParsed = (event, data) => {
+    // a response of a request a stop() ended: its levels are not the
+    // current source's, or there is no URL to record them under
+    if (!this._ownsPlaylist()) return;
     if (!data.levels || data.levels.length === 0) return;
 
     let currentLevel = this._context.getCurrentLevel();
+    // the levels in the context belong to another master playlist (a
+    // stream URL change): the cached current level, its variant details and
+    // its session parameter are the old archive's and must not be reused
+    const sourceChanged =
+      currentLevel && this._context.levelsSourceUrl !== this._url;
+    // the levels belong to this source, but its variant never loaded (a
+    // stop interrupted the load, the URL was forgotten and the master
+    // requested again): a first manifest, not a level update, so the
+    // session parameter is re-read and the variant requested
+    const interruptedLoad = !this._metadataReady && !data.levels[0].details;
 
-    if (!currentLevel || (this._reloadLevels && !data.levels[0].details)) {
+    if (
+      !currentLevel ||
+      sourceChanged ||
+      interruptedLoad ||
+      (this._reloadLevels && !data.levels[0].details)
+    ) {
       this._context.setLevels(data.levels, this._url);
-      if (!this._context.hasLive()) {
+      // no live metadata, or metadata of the previous stream whose current
+      // configuration a source change reset (nothing for the mapping to
+      // follow): pick the configured initial rendition rather than the
+      // mapping's fallback. Fresh live metadata keeps the live selection.
+      if (
+        !this._context.hasLive() ||
+        (sourceChanged && !this._context.hasCurrentStream)
+      ) {
         let initialLvl;
         let initialRend = this._config.adaptiveBitrate.initialRendition;
         if (initialRend) {
@@ -704,8 +832,20 @@ export class NimioVod {
   };
 
   _onLevelLoaded = (event, data) => {
+    if (!this._ownsPlaylist()) {
+      // of a request a stop() ended, as above: it must not mark the source
+      // usable or publish its duration. hls.js enables loading again after
+      // a manifest it delivered; a stopped engine must not keep polling.
+      this._pHandler.stopLoad();
+      return;
+    }
+    this._metadataReady = true; // the current source is usable
     // this._logger.warn('_onLevelLoaded details', data.details);
     this._updatePlaylistDuration(data.details);
+    if (this._positionUnvalidated) {
+      this._positionUnvalidated = false;
+      this._validatePosition(data.details.totalduration);
+    }
     if (this._config.thumbnails) {
       this._segmTracker.setup(data.details.fragments);
     }
@@ -849,6 +989,10 @@ export class NimioVod {
       case Hls.ErrorTypes.NETWORK_ERROR:
       default:
         this._playbackErrCnt++;
+        // the source never became usable: the next initialize() (the next
+        // nimio:connection-established) or the next attach() retries the
+        // load instead of treating the archive as known
+        if (!this._metadataReady) this._forgetSource();
         this._eventBus.emit("aux:playback-error", {
           mode: MODE.VOD,
           type: "NO_SRC",

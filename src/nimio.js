@@ -199,11 +199,25 @@ export default class Nimio {
     if (this._destroyed) return;
     const prevVodUrl = this._config.vod?.url;
     updateConfigStreamURL(this._config, url);
+    const vodUrlChanged = this._config.vod?.url !== prevVodUrl;
+    if (vodUrlChanged) {
+      // the engine knows the old archive: it must load the configured one
+      // anew, also when the URL changes back before any reload (the
+      // durations are dropped right below). First, so that a listener of
+      // the reset finds nothing of the old archive to attach.
+      this._vodPlayer?.forgetSource();
+      // the known durations belong to the old archive: the seek bar and the
+      // application must not keep its scale until the new playlist arrives
+      this._playProgressSvc.resetVodDuration();
+      // the reset notified the application: a listener may have destroyed
+      // the player
+      if (this._destroyed) return;
+    }
     // re-entrant from a listener of a stop in progress: the outer call
     // continues with the newest config
     if (this._stopping) return;
     if (this._mode === MODE.LIVE) {
-      if (this._config.vod?.url !== prevVodUrl) {
+      if (vodUrlChanged) {
         // a pending VOD start would attach the old URL; a running engine
         // re-initialises with the new URL on the next
         // nimio:connection-established and must not be attachable before;

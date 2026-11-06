@@ -37,6 +37,13 @@ class PlaybackProgressService {
   updateVodPlaylistDuration(dur) {
     this._logger.debug(`update VOD duration = ${dur}`);
     this._vodPlaylistDuration = dur;
+    // a seek target accepted while the duration was unknown is validated
+    // now: the position reported from here on is not beyond the duration
+    // (the VOD engine checks the media element at the same playlist)
+    const knownDuration = this._fullVodDuration();
+    if (knownDuration > 0 && this._vodPosition > knownDuration) {
+      this._vodPosition = knownDuration;
+    }
     if (this._ui) {
       this._ui.updateDuration(this._totalDuration());
     }
@@ -46,6 +53,31 @@ class PlaybackProgressService {
     }
 
     this._extProgressNotifier.vodProgress(this._vodPosition, fullDuration);
+  }
+
+  // The VOD source changed: the known durations belong to the old archive
+  // and must not clamp seeks into the new one; the new playlist's
+  // updateVodPlaylistDuration() restores the clamp.
+  resetVodDuration() {
+    if (
+      !this._vodDuration &&
+      !this._vodPlaylistDuration &&
+      !this._vodPosition
+    ) {
+      return; // nothing known: the facade reset already ran
+    }
+    this._vodDuration = 0;
+    this._vodPlaylistDuration = 0;
+    this._vodPosition = 0;
+    if (this._ui) {
+      this._ui.updateDuration(this._totalDuration());
+    }
+    if (this._timeIndUI) {
+      this._timeIndUI.update(0, 0);
+    }
+    // an application's own progress display must not keep the old
+    // archive's duration until the new playlist arrives
+    this._extProgressNotifier.vodProgress(0, 0);
   }
 
   updateLiveProgress(pos, dur) {
@@ -85,8 +117,14 @@ class PlaybackProgressService {
   updateVodPosition(position) {
     if (position < 0) position = 0;
 
+    // an unknown duration (0, after a source change) clamps nothing: the
+    // seek target is validated when the current source's playlist arrives
+    // (updateVodPlaylistDuration() here, the media element by the VOD
+    // engine)
     let fullVodDuration = this._fullVodDuration();
-    if (position > fullVodDuration) position = fullVodDuration;
+    if (fullVodDuration > 0 && position > fullVodDuration) {
+      position = fullVodDuration;
+    }
     let res = this._positionChangeCallback(MODE.VOD, position);
     if (res) {
       this._vodPosition = position;
@@ -127,6 +165,9 @@ class PlaybackProgressService {
     this._logger.debug(
       `update position = ${pos}, vodDuration = ${this._vodDuration}, playlistDuration = ${this._vodPlaylistDuration}`,
     );
+    // no scale yet (between a source change and the new playlist): a drag
+    // would map to position 0 and to the live branch
+    if (this._totalDuration() === 0) return;
     if (pos < this._fullVodDuration()) {
       if (this._positionChangeCallback(MODE.VOD, pos)) {
         this._vodPosition = pos;

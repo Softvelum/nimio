@@ -7,6 +7,7 @@ import { PlaybackContext } from "@/playback/context";
 import { StateManager } from "@/state-manager";
 import { IDX } from "@/shared/values";
 import { PlaybackProgressService } from "@/playback/progress-service";
+import { PlaybackProgressProxy } from "@/playback/progress-proxy";
 import { SLDPManager } from "@/sldp/manager";
 import { releaseInstances } from "@/shared/service";
 import { MODE, STATE } from "@/shared/values";
@@ -24,9 +25,11 @@ const NEW_LIVE = "wss://example.test/live/new";
 const OLD_VOD = "https://example.test/vod/old.m3u8";
 const NEW_VOD = "https://example.test/vod/new.m3u8";
 
-// realSldp: the real SLDP manager over a stubbed transport adapter (a
-// kept-alive session whose status committed), instead of a manager stub.
-function createPlayer({ realSldp = false } = {}) {
+// liveMode: live playing with the UI, the VOD engine stopped after an
+// archive of the old URL played (its levels in the context). realSldp: the
+// real SLDP manager over a stubbed transport adapter (a kept-alive session
+// whose status committed), instead of a manager stub.
+function createPlayer({ liveMode = false, realSldp = false } = {}) {
   const bus = EventBus.getInstance(NAME);
   const context = PlaybackContext.getInstance(NAME);
   const logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -46,14 +49,16 @@ function createPlayer({ realSldp = false } = {}) {
     vod: { url: OLD_VOD, adaptiveBitrate: {} },
   };
 
-  // VOD engine: playing and attached (VOD mode), its hls.js handler stubbed
+  // VOD engine: playing and attached (VOD mode) or stopped after playing
+  // (live mode), its hls.js handler stubbed
   const vod = new NimioVod(NAME, undefined);
   vod._eventBus = bus;
   vod._logger = logger;
-  vod._state = 3; // PLAY
+  vod._state = liveMode ? 4 : 3; // STOP : PLAY
+  vod._metadataReady = true;
   vod._url = OLD_VOD;
   vod._config = config.vod;
-  vod._ui = ui;
+  vod._ui = liveMode ? undefined : ui;
   vod._loadSourcePromise = Promise.resolve();
   vod._pHandler = {
     loadSource: vi.fn(),
@@ -69,7 +74,11 @@ function createPlayer({ realSldp = false } = {}) {
   vod._playbackService = {
     init: vi.fn(),
     resetPosition: vi.fn(),
-    setCurrentTime: vi.fn(),
+    // the media element's position, as the real service reads it back
+    setCurrentTime: vi.fn((time) => {
+      vod._playbackService.currentTime = time;
+    }),
+    getCurrentTime: () => vod._playbackService.currentTime ?? 0,
     startPlayback: vi.fn(() => Promise.resolve()),
     clear: vi.fn(),
     state: STATE.PLAYING,
@@ -77,10 +86,24 @@ function createPlayer({ realSldp = false } = {}) {
   vod._audioCtrl = { reset: vi.fn() };
   vod._vuMeterSvc = { stop: vi.fn() };
   const progress = PlaybackProgressService.getInstance(NAME);
+  progress._extProgressNotifier = { vodProgress: vi.fn() };
   vod._progressSvc = progress;
+  if (liveMode) {
+    // the old archive played: its levels, selection and duration are known
+    context.setLevels(
+      [{ url: ["https://example.test/vod/old/360p.m3u8?s=1"], height: 360 }],
+      OLD_VOD,
+    );
+    context.setCurrentLevelIdx(0);
+    context.updateCurrentLevel({ details: { totalduration: 10 } });
+    vod._sessionParam = "s=1"; // the old archive's
+    progress.updateVodPlaylistDuration(10);
+    progress._extProgressNotifier.vodProgress.mockClear();
+  }
 
-  // live engine: detached and stopped by its detach for the switch to VOD,
-  // the server session kept alive (connected transport)
+  // live engine: in VOD mode detached and stopped by its detach for the
+  // switch, the server session kept alive (connected transport); in live
+  // mode attached and playing
   const live = Object.create(NimioLive.prototype);
   live._instName = NAME;
   live._config = config;
@@ -130,6 +153,11 @@ function createPlayer({ realSldp = false } = {}) {
   live._renderVideoFrame = () => {};
   live._resetPlayback = vi.fn();
   live._audioCtxProvider = { isSuspended: () => false };
+  if (liveMode) {
+    live._ui = ui;
+    live._state.start();
+    live._state.start.mockClear();
+  }
 
   // facade
   const n = Object.create(Nimio.prototype);
@@ -141,11 +169,12 @@ function createPlayer({ realSldp = false } = {}) {
   n._config = config;
   n._livePlayer = live;
   n._vodPlayer = vod;
+  n._playProgressSvc = progress;
   n._vodStartGen = 0;
   n._stopping = false;
   n._playAfterStop = false;
-  n._actPlayer = vod;
-  n._mode = MODE.VOD;
+  n._actPlayer = liveMode ? live : vod;
+  n._mode = liveMode ? MODE.LIVE : MODE.VOD;
   context.setState(STATE.PLAYING, false);
 
   const events = [];
@@ -160,7 +189,7 @@ function createPlayer({ realSldp = false } = {}) {
   bus.on("nimio:connection-started", (url) =>
     events.push(["nimio:connection-started", url]),
   );
-  return { n, live, vod, ui, bus, context, events };
+  return { n, live, vod, ui, bus, context, progress, events };
 }
 
 async function microtasks(n = 6) {
@@ -282,5 +311,304 @@ describe("Nimio stop(): the SLDP session through the real manager", () => {
       ["nimio:play", MODE.LIVE],
       ["nimio:connection-started", OLD_LIVE],
     ]);
+  });
+});
+
+describe("Nimio setStreamURL() in live mode, then a seek into the new archive before the connection is established", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  it("start, attach and manifest come from the new archive; the old one is never requested", async () => {
+    const { n, live, vod, ui, context, progress, events } = createPlayer({
+      liveMode: true,
+    });
+    const requested = () =>
+      vod._pHandler.loadSource.mock.calls.map((c) => c[0]);
+
+    n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+
+    // the live engine restarted with the new URL; the stopped VOD engine
+    // was stopped again (nothing to load yet); the old archive's duration
+    // is forgotten at once
+    expect(events).toEqual([
+      ["nimio:playback-end", MODE.LIVE],
+      ["nimio:play", MODE.LIVE],
+    ]);
+    expect(live._sldpManager.start).toHaveBeenLastCalledWith(NEW_LIVE, 0);
+    expect(requested()).toEqual([]);
+    expect(progress._extProgressNotifier.vodProgress).toHaveBeenCalledWith(
+      0,
+      0,
+    );
+    expect(progress._vodPlaylistDuration).toBe(0);
+    progress._extProgressNotifier.vodProgress.mockClear();
+
+    // a seek before nimio:connection-established of the new URL
+    expect(n.seekVod(30)).toBe(true);
+    await microtasks();
+
+    // the reload loaded the new master playlist without the old session
+    // parameter (its own duration reset was a no-op: the durations were
+    // forgotten at the URL change), and the attach requested the new URL at
+    // the position
+    expect(n._mode).toBe(MODE.VOD);
+    expect(vod._url).toBe(NEW_VOD);
+    expect(requested()).toEqual([NEW_VOD, NEW_VOD]); // no "?s=1", no old URL
+    expect(progress._extProgressNotifier.vodProgress).not.toHaveBeenCalled();
+    expect(vod._playbackService.setCurrentTime).toHaveBeenCalledWith(30);
+    expect(vod._ui).toBe(ui);
+    expect(live._ui).toBeUndefined();
+
+    // the new master manifest replaces the old archive's levels
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/new/360p.m3u8?s=9"], height: 360 },
+        { url: ["https://example.test/vod/new/720p.m3u8?s=9"], height: 720 },
+      ],
+    });
+
+    expect(context.levelsSourceUrl).toBe(NEW_VOD);
+    expect(context.getCurrentLevel().data.url[0]).toContain("/new/");
+    expect(context.getCurrentLevel().data.details).toBeUndefined();
+    expect(vod._sessionParam).toBe("s=9");
+    expect(progress._vodPlaylistDuration).toBe(0); // no old duration republished
+
+    // the new variant playlist brings the duration; live was playing, so
+    // the VOD plays
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+    await microtasks();
+
+    expect(progress._vodPlaylistDuration).toBe(120);
+    expect(progress._extProgressNotifier.vodProgress).toHaveBeenLastCalledWith(
+      0,
+      120,
+    );
+    expect(vod._pHandler.resumeBuffering).toHaveBeenCalledTimes(1);
+    expect(vod._playbackService.startPlayback).toHaveBeenCalledTimes(1);
+    expect(context.state).toEqual({ value: STATE.PLAYING, initial: false });
+    expect(events).toHaveLength(2); // no error, no further end event
+  });
+});
+
+describe("Nimio: a seek into the archive after its first load failed", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+    vi.stubGlobal("Hls", {
+      ErrorTypes: { NETWORK_ERROR: "networkError", MEDIA_ERROR: "mediaError" },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  // live plays; the VOD engine warmed up in the background (SYNC, which
+  // counts as running) and a fatal network error ended its load before the
+  // variant playlist arrived: no duration is known, the URL is forgotten.
+  // Seeks of a running engine go through the progress proxy.
+  function failedWarmUp() {
+    const player = createPlayer({ liveMode: true });
+    const { n, vod, bus, context, progress } = player;
+    vod._state = 2; // SYNC
+    vod._metadataReady = false;
+    // a first load: no levels, no session parameter, no duration
+    context.setLevels([], OLD_VOD);
+    vod._sessionParam = undefined;
+    progress.resetVodDuration();
+    n._playProgressProxy = new PlaybackProgressProxy(bus, progress);
+    progress.positionChangeCb = n._onPlaybackPositionChange.bind(n);
+    const vodProgress = [];
+    bus.on("nimio:vod-progress", (e) =>
+      vodProgress.push([e.position, e.duration]),
+    );
+
+    vod._onError(null, { fatal: true, type: "networkError" });
+    expect(vod._url).toBeUndefined();
+    expect(vod.isRunning()).toBe(true);
+    return { ...player, vodProgress };
+  }
+
+  it("reloads the master playlist and switches to VOD, with no switch error", () => {
+    const { n, vod, ui, events } = failedWarmUp();
+
+    expect(n.seekVod(30)).toBe(true);
+
+    expect(n._mode).toBe(MODE.VOD);
+    expect(vod._ui).toBe(ui);
+    expect(vod._url).toBe(OLD_VOD);
+    expect(vod._pHandler.loadSource.mock.calls).toEqual([[OLD_VOD]]);
+    expect(vod._playbackService.setCurrentTime).toHaveBeenCalledWith(30);
+    expect(events).toEqual([]);
+  });
+
+  it("a target beyond the end is validated when the playlist arrives", () => {
+    const { n, vod, vodProgress } = failedWarmUp();
+
+    expect(n.seekVod(500)).toBe(true);
+    expect(vod._playbackService.setCurrentTime).toHaveBeenLastCalledWith(500);
+
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/old/360p.m3u8?s=2"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+
+    expect(vod._playbackService.setCurrentTime).toHaveBeenLastCalledWith(120);
+    expect(vodProgress).toEqual([[120, 120]]);
+  });
+});
+
+describe("Nimio: a stream URL change from inside a playlist callback of the old archive", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  // live plays, the old archive is known and the VOD engine reloads its
+  // variant playlist in the background (SYNC). hls.js delivers that
+  // response as MANIFEST_PARSED and then LEVEL_LOADED; the first publishes
+  // the duration, and a nimio:vod-progress listener changes the stream URL
+  // right there. A stopLoad() from inside the callback does not stop the
+  // rest of the same response.
+  function urlChangeDuringReload() {
+    const player = createPlayer({ liveMode: true });
+    const { n, vod, progress } = player;
+    vod._state = 2; // SYNC
+    vod._metadataReady = true;
+    const reported = [];
+    let change = true;
+    progress._extProgressNotifier.vodProgress = vi.fn((position, duration) => {
+      reported.push([position, duration]);
+      if (change && duration > 0) {
+        change = false;
+        n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+      }
+    });
+    const oldVariant = {
+      url: ["https://example.test/vod/old/360p.m3u8?s=1"],
+      height: 360,
+      details: { totalduration: 10, fragments: [] },
+    };
+
+    vod._onManifestParsed(null, { levels: [oldVariant] });
+    expect(reported).toEqual([
+      [0, 10],
+      [0, 0],
+    ]);
+    expect(vod._config.url).toBe(NEW_VOD);
+    vod._pHandler.stopLoad.mockClear();
+    vod._onLevelLoaded(null, { details: oldVariant.details });
+    return { ...player, reported };
+  }
+
+  it("the rest of that response does not bring the old duration back, and its loading is stopped", () => {
+    const { vod, progress, reported } = urlChangeDuringReload();
+
+    expect(reported).toEqual([
+      [0, 10],
+      [0, 0],
+    ]);
+    expect(progress._vodPlaylistDuration).toBe(0);
+    // hls.js re-enables loading after a manifest it delivered
+    expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("the reload of the new archive that follows is still taken", async () => {
+    const { vod, context, progress, reported } = urlChangeDuringReload();
+
+    await vod.initialize(); // the next nimio:connection-established
+    expect(vod._pHandler.loadSource).toHaveBeenLastCalledWith(NEW_VOD);
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/new/360p.m3u8?s=9"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+
+    expect(context.levelsSourceUrl).toBe(NEW_VOD);
+    expect(vod._metadataReady).toBe(true);
+    expect(progress._vodPlaylistDuration).toBe(120);
+    expect(reported.at(-1)).toEqual([0, 120]);
+  });
+});
+
+describe("Nimio: the VOD URL changed and changed back before the archive reloads", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  it("the archive is loaded again at the next live connection, and its duration comes back", async () => {
+    // the first change dropped the durations; the engine still held the
+    // archive as loaded and would load nothing, leaving the seek bar
+    // without its archive part for good
+    const { n, vod, progress } = createPlayer({ liveMode: true });
+    expect(progress._vodPlaylistDuration).toBe(10);
+
+    n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+    n.setStreamURL({ live: OLD_LIVE, vod: OLD_VOD });
+    expect(progress._vodPlaylistDuration).toBe(0);
+
+    await vod.initialize(); // nimio:connection-established
+    expect(vod._pHandler.loadSource.mock.calls).toEqual([[OLD_VOD]]);
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/old/360p.m3u8?s=5"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 10, fragments: [] },
+    });
+
+    expect(progress._vodPlaylistDuration).toBe(10);
+    expect(vod._sessionParam).toBe("s=5");
+  });
+
+  it("a seek from the listener of the duration reset opens the new archive only", async () => {
+    // the engine was warm (SYNC) on the old archive when the URL changed:
+    // the listener's seek must not attach what the engine still knew
+    const { n, vod, progress } = createPlayer({ liveMode: true });
+    vod._state = 2; // SYNC
+    // seeks of a running engine go through the progress proxy
+    n._playProgressProxy = {
+      seekVod: (position) => progress.updateVodPosition(position),
+    };
+    progress.positionChangeCb = n._onPlaybackPositionChange.bind(n);
+    let seek = true;
+    progress._extProgressNotifier.vodProgress = vi.fn((position, duration) => {
+      if (seek && duration === 0) {
+        seek = false;
+        n.seekVod(30);
+      }
+    });
+
+    n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+    await microtasks();
+
+    const requested = vod._pHandler.loadSource.mock.calls.map((c) => c[0]);
+    expect(requested.length).toBeGreaterThan(0);
+    expect(requested.every((url) => url === NEW_VOD)).toBe(true);
   });
 });
