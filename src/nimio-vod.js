@@ -32,6 +32,9 @@ export class NimioVod {
 
     this._state = VOD_STATE.NULL;
     this._initGen = 0; // stop() bumps it: a queued initialize() is void
+    // the _initGen the last playlist request was made under: a response is
+    // the engine's own only while no stop() came after its request
+    this._loadGen = 0;
     // true once the current source's variant playlist loaded: until then
     // the archive is not usable and an interrupted load must be redone
     this._metadataReady = false;
@@ -151,7 +154,7 @@ export class NimioVod {
           this._sessionParam = undefined;
         }
         this._url = this._config.url;
-        this._pHandler.loadSource(this._fullUrl());
+        this._loadSource(this._fullUrl());
       })
       .catch((err) => {
         this._logger.error(
@@ -426,7 +429,7 @@ export class NimioVod {
     }
 
     this._logger.debug("Attach VOD player", this._fullUrl());
-    this._pHandler.loadSource(this._fullUrl());
+    this._loadSource(this._fullUrl());
     this._pHandler.pauseBuffering();
     this._pHandler.attachMedia(this._ui.mediaElement);
     this._addProgressEventHandlers();
@@ -668,16 +671,28 @@ export class NimioVod {
     this._sessionParam = undefined;
   }
 
-  // False for a playlist response that belongs to nothing: one that
-  // arrives after a stop() forgot the source. On an engine that is not
-  // stopped a response means the loading went on after a fatal error
-  // forgot the source (hls.js recovered, or the application restarted the
-  // load through the handler it holds): it is the configured source's,
-  // which is the current one again.
-  _sourceKnown() {
-    if (this._url) return true;
-    if (this._state === VOD_STATE.STOP) return false;
-    this._url = this._config.url;
+  // Every playlist request goes through here, so that a response can be
+  // told from one whose request a later stop() ended.
+  _loadSource(url) {
+    this._loadGen = this._initGen;
+    this._pHandler.loadSource(url);
+  }
+
+  // False for a playlist response the engine no longer waits for: one whose
+  // request was made before the last stop(). hls.js aborts a request in
+  // flight on stopLoad(), but a stop() made from inside a callback of a
+  // response (a nimio:vod-progress listener that changes the stream URL)
+  // does not stop the rest of that response: the old archive's playlist
+  // would be taken under a URL the stop kept, or under none. A reload
+  // started after the stop (a stopped engine loads a new URL in the
+  // background) is the engine's own again.
+  // With no URL and no stop since the request, the loading went on after a
+  // fatal error forgot the source (hls.js recovered, or the application
+  // restarted the load through the handler it holds): the response is the
+  // configured source's, which is the current one again.
+  _ownsPlaylist() {
+    if (this._loadGen !== this._initGen) return false;
+    if (!this._url) this._url = this._config.url;
     return !!this._url;
   }
 
@@ -690,7 +705,7 @@ export class NimioVod {
   _loadCurrentLevel() {
     let currentLevel = this._context.getCurrentLevel();
     if (currentLevel) {
-      this._pHandler.loadSource(currentLevel.data.url[0]);
+      this._loadSource(currentLevel.data.url[0]);
     } else {
       this._logger.error("Unable to load current level");
     }
@@ -719,9 +734,9 @@ export class NimioVod {
   }
 
   _onManifestParsed = (event, data) => {
-    // a response that arrived after a stop() forgot the source: there is
-    // no URL to record the levels under
-    if (!this._sourceKnown()) return;
+    // a response of a request a stop() ended: its levels are not the
+    // current source's, or there is no URL to record them under
+    if (!this._ownsPlaylist()) return;
     if (!data.levels || data.levels.length === 0) return;
 
     let currentLevel = this._context.getCurrentLevel();
@@ -803,10 +818,10 @@ export class NimioVod {
   };
 
   _onLevelLoaded = (event, data) => {
-    if (!this._sourceKnown()) {
-      // of a source a stop() forgot, as above: it must not mark the source
-      // usable or publish its duration. hls.js goes on loading after a
-      // manifest it delivered; a stopped engine must not keep polling.
+    if (!this._ownsPlaylist()) {
+      // of a request a stop() ended, as above: it must not mark the source
+      // usable or publish its duration. hls.js enables loading again after
+      // a manifest it delivered; a stopped engine must not keep polling.
       this._pHandler.stopLoad();
       return;
     }

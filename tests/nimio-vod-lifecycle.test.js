@@ -319,6 +319,24 @@ describe("NimioVod.initialize() from the stopped state", () => {
     expect(vod._url).toBeUndefined();
   });
 
+  it("a playlist of a load made before a stop() is ignored although the URL is kept", async () => {
+    // the archive had loaded, so the stop keeps its URL; a stop() made from
+    // inside a callback of a playlist response does not stop the rest of
+    // that response, and hls.js re-enables loading after a manifest: the
+    // stopped engine must not take the playlist or go on loading
+    const vod = stoppedEngine("https://example.test/old.m3u8");
+    vod._state = 2; // SYNC: warm, reloading its variant
+    vod._config.adaptiveBitrate = {};
+
+    vod.stop();
+    expect(vod._url).toBe("https://example.test/old.m3u8");
+    vod._pHandler.stopLoad.mockClear();
+    vod._onLevelLoaded(null, { details: { totalduration: 50, fragments: [] } });
+
+    expect(vod._progressSvc.updateVodPlaylistDuration).not.toHaveBeenCalled();
+    expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
+  });
+
   it("a second interrupted reload is retried like the first", async () => {
     const vod = stoppedEngine("https://example.test/new.m3u8");
     await vod.initialize();

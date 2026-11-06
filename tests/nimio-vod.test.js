@@ -248,8 +248,10 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     // URL; a master playlist response that still arrives has no source to
     // be recorded under, and must not replace the levels or load a variant
     const ctx = contextWithPlayedArchive();
-    const vod = reloadedEngine(ctx, undefined);
+    const vod = reloadedEngine(ctx, NEW);
     vod._metadataReady = false;
+    vod._config.url = NEW;
+    vod.stop(); // during the reload: the URL is forgotten
 
     vod._onManifestParsed(null, {
       levels: [{ url: ["https://a.test/new/360p/playlist.m3u8"], height: 360 }],
@@ -266,8 +268,11 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     // duration; hls.js goes on loading after a manifest it delivered, and
     // a stopped engine must not keep polling the archive
     const ctx = contextWithPlayedArchive();
-    const vod = reloadedEngine(ctx, undefined);
+    const vod = reloadedEngine(ctx, NEW);
     vod._metadataReady = false;
+    vod._config.url = NEW;
+    vod.stop(); // during the reload: the URL is forgotten
+    vod._pHandler.stopLoad.mockClear();
 
     vod._onLevelLoaded(null, {
       details: { totalduration: 99, fragments: [] },

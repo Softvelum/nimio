@@ -469,3 +469,83 @@ describe("Nimio: a seek into the archive after its first load failed", () => {
     expect(vodProgress).toEqual([[120, 120]]);
   });
 });
+
+describe("Nimio: a stream URL change from inside a playlist callback of the old archive", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  // live plays, the old archive is known and the VOD engine reloads its
+  // variant playlist in the background (SYNC). hls.js delivers that
+  // response as MANIFEST_PARSED and then LEVEL_LOADED; the first publishes
+  // the duration, and a nimio:vod-progress listener changes the stream URL
+  // right there. A stopLoad() from inside the callback does not stop the
+  // rest of the same response.
+  function urlChangeDuringReload() {
+    const player = createPlayer({ liveMode: true });
+    const { n, vod, progress } = player;
+    vod._state = 2; // SYNC
+    vod._metadataReady = true;
+    const reported = [];
+    let change = true;
+    progress._extProgressNotifier.vodProgress = vi.fn((position, duration) => {
+      reported.push([position, duration]);
+      if (change && duration > 0) {
+        change = false;
+        n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+      }
+    });
+    const oldVariant = {
+      url: ["https://example.test/vod/old/360p.m3u8?s=1"],
+      height: 360,
+      details: { totalduration: 10, fragments: [] },
+    };
+
+    vod._onManifestParsed(null, { levels: [oldVariant] });
+    expect(reported).toEqual([
+      [0, 10],
+      [0, 0],
+    ]);
+    expect(vod._config.url).toBe(NEW_VOD);
+    vod._pHandler.stopLoad.mockClear();
+    vod._onLevelLoaded(null, { details: oldVariant.details });
+    return { ...player, reported };
+  }
+
+  it("the rest of that response does not bring the old duration back, and its loading is stopped", () => {
+    const { vod, progress, reported } = urlChangeDuringReload();
+
+    expect(reported).toEqual([
+      [0, 10],
+      [0, 0],
+    ]);
+    expect(progress._vodPlaylistDuration).toBe(0);
+    // hls.js re-enables loading after a manifest it delivered
+    expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("the reload of the new archive that follows is still taken", async () => {
+    const { vod, context, progress, reported } = urlChangeDuringReload();
+
+    await vod.initialize(); // the next nimio:connection-established
+    expect(vod._pHandler.loadSource).toHaveBeenLastCalledWith(NEW_VOD);
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/new/360p.m3u8?s=9"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+
+    expect(context.levelsSourceUrl).toBe(NEW_VOD);
+    expect(vod._metadataReady).toBe(true);
+    expect(progress._vodPlaylistDuration).toBe(120);
+    expect(reported.at(-1)).toEqual([0, 120]);
+  });
+});
