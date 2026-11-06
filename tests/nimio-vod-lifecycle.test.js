@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { NimioVod } from "@/nimio-vod";
 import { EventBus } from "@/event-bus";
+import { PlaybackContext } from "@/playback/context";
 import { releaseInstances } from "@/shared/service";
 import { MODE } from "@/shared/values";
 
@@ -286,6 +287,35 @@ describe("NimioVod.initialize() from the stopped state", () => {
 
     vod.stop();
 
+    expect(vod._url).toBeUndefined();
+  });
+
+  it("playlists that still arrive after a stop() during the reload are ignored", async () => {
+    // the stop forgot the URL; a master playlist response in flight would
+    // be recorded under no source (new URL(undefined) throws, after the
+    // context's levels were cleared), and its variant would mark the
+    // forgotten source usable
+    const vod = stoppedEngine("https://example.test/new.m3u8");
+    vod._context = PlaybackContext.getInstance(NAME);
+    vod._context.setLevels(
+      [{ url: ["https://example.test/old/360p.m3u8?s=1"], height: 360 }],
+      "https://example.test/old.m3u8",
+    );
+    vod._context.setCurrentLevelIdx(0);
+    await vod.initialize();
+    vod.stop();
+
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/new/360p.m3u8?s=2"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, { details: { totalduration: 50, fragments: [] } });
+
+    expect(vod._context.levelsSourceUrl).toBe("https://example.test/old.m3u8");
+    expect(vod._context.getCurrentLevel().data.url[0]).toContain("/old/");
+    expect(vod._metadataReady).toBe(false);
+    expect(vod._progressSvc.updateVodPlaylistDuration).not.toHaveBeenCalled();
     expect(vod._url).toBeUndefined();
   });
 

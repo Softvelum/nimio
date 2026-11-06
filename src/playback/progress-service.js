@@ -37,6 +37,13 @@ class PlaybackProgressService {
   updateVodPlaylistDuration(dur) {
     this._logger.debug(`update VOD duration = ${dur}`);
     this._vodPlaylistDuration = dur;
+    // a seek target accepted while the duration was unknown is validated
+    // now: the position reported from here on is not beyond the duration
+    // (the VOD engine checks the media element at the same playlist)
+    const knownDuration = this._fullVodDuration();
+    if (knownDuration > 0 && this._vodPosition > knownDuration) {
+      this._vodPosition = knownDuration;
+    }
     if (this._ui) {
       this._ui.updateDuration(this._totalDuration());
     }
@@ -111,7 +118,9 @@ class PlaybackProgressService {
     if (position < 0) position = 0;
 
     // an unknown duration (0, after a source change) clamps nothing: the
-    // seek target is validated once the current source's playlist arrives
+    // seek target is validated when the current source's playlist arrives
+    // (updateVodPlaylistDuration() here, the media element by the VOD
+    // engine)
     let fullVodDuration = this._fullVodDuration();
     if (fullVodDuration > 0 && position > fullVodDuration) {
       position = fullVodDuration;

@@ -79,6 +79,46 @@ describe("PlaybackProgressService VOD duration after a URL change", () => {
     expect(positions).toEqual([[MODE.VOD, 5]]);
   });
 
+  it("a seek accepted while the duration was unknown is clamped when the playlist arrives", () => {
+    // the application must not be told a position beyond the duration
+    const { svc, positions } = createService();
+
+    svc.updateVodPosition(500);
+    expect(positions).toEqual([[MODE.VOD, 500]]);
+
+    svc.updateVodPlaylistDuration(120);
+
+    expect(svc._extProgressNotifier.vodProgress).toHaveBeenLastCalledWith(
+      120,
+      120,
+    );
+  });
+
+  it("a position inside the new playlist is kept when it arrives", () => {
+    const { svc } = createService();
+
+    svc.updateVodPosition(30);
+    svc.updateVodPlaylistDuration(120);
+
+    expect(svc._extProgressNotifier.vodProgress).toHaveBeenLastCalledWith(
+      30,
+      120,
+    );
+  });
+
+  it("a playlist with no duration validates nothing", () => {
+    // 0 is "unknown" for the service: the target stays as requested
+    const { svc } = createService();
+
+    svc.updateVodPosition(500);
+    svc.updateVodPlaylistDuration(0);
+
+    expect(svc._extProgressNotifier.vodProgress).toHaveBeenLastCalledWith(
+      500,
+      0,
+    );
+  });
+
   it("clamps again when the new source's playlist duration arrives", () => {
     const { svc, positions } = createService();
     svc.updateVodPlaylistDuration(10);

@@ -7,6 +7,7 @@ import { PlaybackContext } from "@/playback/context";
 import { StateManager } from "@/state-manager";
 import { IDX } from "@/shared/values";
 import { PlaybackProgressService } from "@/playback/progress-service";
+import { PlaybackProgressProxy } from "@/playback/progress-proxy";
 import { SLDPManager } from "@/sldp/manager";
 import { releaseInstances } from "@/shared/service";
 import { MODE, STATE } from "@/shared/values";
@@ -73,7 +74,11 @@ function createPlayer({ liveMode = false, realSldp = false } = {}) {
   vod._playbackService = {
     init: vi.fn(),
     resetPosition: vi.fn(),
-    setCurrentTime: vi.fn(),
+    // the media element's position, as the real service reads it back
+    setCurrentTime: vi.fn((time) => {
+      vod._playbackService.currentTime = time;
+    }),
+    getCurrentTime: () => vod._playbackService.currentTime ?? 0,
     startPlayback: vi.fn(() => Promise.resolve()),
     clear: vi.fn(),
     state: STATE.PLAYING,
@@ -390,5 +395,77 @@ describe("Nimio setStreamURL() in live mode, then a seek into the new archive be
     expect(vod._playbackService.startPlayback).toHaveBeenCalledTimes(1);
     expect(context.state).toEqual({ value: STATE.PLAYING, initial: false });
     expect(events).toHaveLength(2); // no error, no further end event
+  });
+});
+
+describe("Nimio: a seek into the archive after its first load failed", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+    vi.stubGlobal("Hls", {
+      ErrorTypes: { NETWORK_ERROR: "networkError", MEDIA_ERROR: "mediaError" },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  // live plays; the VOD engine warmed up in the background (SYNC, which
+  // counts as running) and a fatal network error ended its load before the
+  // variant playlist arrived: no duration is known, the URL is forgotten.
+  // Seeks of a running engine go through the progress proxy.
+  function failedWarmUp() {
+    const player = createPlayer({ liveMode: true });
+    const { n, vod, bus, context, progress } = player;
+    vod._state = 2; // SYNC
+    vod._metadataReady = false;
+    // a first load: no levels, no session parameter, no duration
+    context.setLevels([], OLD_VOD);
+    vod._sessionParam = undefined;
+    progress.resetVodDuration();
+    n._playProgressProxy = new PlaybackProgressProxy(bus, progress);
+    progress.positionChangeCb = n._onPlaybackPositionChange.bind(n);
+    const vodProgress = [];
+    bus.on("nimio:vod-progress", (e) =>
+      vodProgress.push([e.position, e.duration]),
+    );
+
+    vod._onError(null, { fatal: true, type: "networkError" });
+    expect(vod._url).toBeUndefined();
+    expect(vod.isRunning()).toBe(true);
+    return { ...player, vodProgress };
+  }
+
+  it("reloads the master playlist and switches to VOD, with no switch error", () => {
+    const { n, vod, ui, events } = failedWarmUp();
+
+    expect(n.seekVod(30)).toBe(true);
+
+    expect(n._mode).toBe(MODE.VOD);
+    expect(vod._ui).toBe(ui);
+    expect(vod._url).toBe(OLD_VOD);
+    expect(vod._pHandler.loadSource.mock.calls).toEqual([[OLD_VOD]]);
+    expect(vod._playbackService.setCurrentTime).toHaveBeenCalledWith(30);
+    expect(events).toEqual([]);
+  });
+
+  it("a target beyond the end is validated when the playlist arrives", () => {
+    const { n, vod, vodProgress } = failedWarmUp();
+
+    expect(n.seekVod(500)).toBe(true);
+    expect(vod._playbackService.setCurrentTime).toHaveBeenLastCalledWith(500);
+
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/old/360p.m3u8?s=2"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+
+    expect(vod._playbackService.setCurrentTime).toHaveBeenLastCalledWith(120);
+    expect(vodProgress).toEqual([[120, 120]]);
   });
 });
