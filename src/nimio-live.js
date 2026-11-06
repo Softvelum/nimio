@@ -1,6 +1,6 @@
 import audioProcUrl from "./audio/nimio-processor?worker&url"; // ?worker&url - Vite initiate new Rollup build
 import wsTransportUrl from "./transport/web-socket?worker&url";
-import { IDX, MODE } from "./shared/values";
+import { IDX, MODE, STATE } from "./shared/values";
 import { runCleanupSteps } from "./shared/helpers";
 import { StateManager } from "./state-manager";
 import { SLDPManager } from "./sldp/manager";
@@ -117,6 +117,8 @@ export class NimioLive {
 
     this._playCb = this.play.bind(this);
     this._autoplayTimers = [];
+    this._retryCancelled = false; // a pause() cancelled a pending retry
+    this._playingBeforeDrop = false; // what the player did when it dropped
     if (this._config.autoplay) this._scheduleAutoplay();
 
     if (this._config.screenshots) {
@@ -159,6 +161,9 @@ export class NimioLive {
 
     const initialPlay = !this._state.isPaused();
     this._cancelPauseTimeout();
+    // during a reconnect wait this play is the reconnect: the pending retry
+    // would spend an attempt on a playing engine
+    this._reconnect.stop();
 
     this._beginPlayback();
     const gen0 = this._playGen;
@@ -191,8 +196,11 @@ export class NimioLive {
       // rejection, reconnects exhausted) the UI still shows the pause
       // glyph, and this click must flip it to play, or the button is dead;
       // the next play() is an initial play. The autoplay of a
-      // just-constructed player must not play over the pause either.
+      // just-constructed player must not play over the pause either. A
+      // cancelled retry ends the playback the application still sees: the
+      // next closing stop() reports it (this call reports the pause).
       this._cancelAutoplay();
+      if (this._reconnect.pending) this._retryCancelled = true;
       this._reconnect.stop();
       this._eventBus.emit("nimio:pause", { mode: MODE.LIVE });
       return;
@@ -214,6 +222,8 @@ export class NimioLive {
     // timers that would start playback after the stop: the autoplay of a
     // just-constructed player and a reconnect attempt. Cancelled before the
     // early return, since both run while the engine is already stopped.
+    const endUnreported = this.hasUnreportedEnd();
+    this._retryCancelled = false;
     this._cancelAutoplay();
     this._reconnect.stop();
     const isStopped = this._state.isStopped();
@@ -224,7 +234,16 @@ export class NimioLive {
     if (!isStopped || (closeConnection && hasSocket)) {
       this._sldpManager.stop({ closeConnection });
     }
-    if (isStopped) return;
+    if (isStopped) {
+      // a dropped connection stopped the engine silently because a retry
+      // was coming; cancelling that retry (here, or by an earlier pause)
+      // ends the playback the application and the UI still see (a detach
+      // keeps it for a restart)
+      if (endUnreported && closeConnection) {
+        this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
+      }
+      return;
+    }
 
     this._state.stop();
     this._reconnect.reset();
@@ -239,6 +258,20 @@ export class NimioLive {
     if (closeConnection) {
       this._eventBus.emit("nimio:playback-end", { mode: MODE.LIVE });
     }
+  }
+
+  // True while the application still sees a player whose live playback
+  // ended silently: a dropped connection waiting for its retry (a playing
+  // player, or a paused one that dropped), or a pause() that cancelled that
+  // retry (a paused one). The next closing stop() reports the end; a
+  // detach() consumes the state without reporting, so the facade snapshots
+  // it before a switch and reports the end itself when the switch is rolled
+  // back. A retry pending for a drop during playback makes detach() record
+  // a playing state, and the rollback restarts live instead; the paused
+  // cases (a pause() during the wait, or a drop while paused) reach the
+  // report.
+  hasUnreportedEnd() {
+    return !!(this._reconnect.pending || this._retryCancelled);
   }
 
   // The URL is already updated in the config
@@ -344,7 +377,17 @@ export class NimioLive {
       return true;
     }
 
-    this._context.setState(this._state.value, false);
+    // the state the application sees: a connection that dropped during
+    // playback and waits for its retry is still a playing player (the
+    // engine itself is stopped), so a seek into VOD plays the archive and a
+    // rollback restarts live, as a seek during playback does; one that
+    // dropped while paused keeps the pause (the archive opens paused)
+    this._context.setState(
+      this._reconnect.pending && this._playingBeforeDrop
+        ? STATE.PLAYING
+        : this._state.value,
+      false,
+    );
     // also cancels a retry _onDisconnect() scheduled (its prologue runs
     // before the early return on a stopped engine), which would otherwise
     // play() on a detached engine
@@ -798,9 +841,13 @@ export class NimioLive {
     }, 1000);
   }
 
-  // The start shared by play() and attach().
+  // The start shared by play() and attach(): a new playback is what the
+  // application sees from now on, so an end a pause() left unreported
+  // belongs to the previous one.
   _beginPlayback() {
     this._state.start();
+    this._retryCancelled = false;
+    this._playingBeforeDrop = false;
     this._latencyCtrl.start();
     if (this._isAutoAbr()) {
       this._startAbrController();

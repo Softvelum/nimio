@@ -197,6 +197,198 @@ describe("NimioLive.stop() on a stopped engine", () => {
     });
   });
 
+  it("a stop() during a reconnect wait reports the playback end", () => {
+    // the drop stopped the engine silently (a retry was coming): the
+    // application still believes the player is playing and the UI shows
+    // the pause glyph; a stop that cancels the retry ends that playback
+    // for both, so one click stops the player
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true };
+    live._transport = { connected: false, connecting: false };
+    live._sldpManager = { stop: vi.fn() };
+    live._reconnect = { stop: vi.fn(), reset: vi.fn(), pending: true };
+    live._eventBus = { emit: vi.fn() };
+
+    live.stop();
+
+    expect(live._reconnect.stop).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).toHaveBeenCalledTimes(1);
+    expect(live._eventBus.emit).toHaveBeenCalledWith("nimio:playback-end", {
+      mode: MODE.LIVE,
+    });
+  });
+
+  it("a pause() during a reconnect wait, then a stop(): the stop reports the playback end", () => {
+    // the pause cancelled the retry (and reported the pause); the player is
+    // stopped from then on, but the application has not heard that the
+    // playback ended: the next closing stop says so, as a stop that cancels
+    // the retry itself does
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true, isPaused: () => false };
+    live._transport = { connected: false, connecting: false };
+    live._sldpManager = { stop: vi.fn() };
+    live._reconnect = {
+      pending: true,
+      stop: vi.fn(function () {
+        this.pending = false;
+      }),
+      reset: vi.fn(),
+    };
+    live._eventBus = { emit: vi.fn() };
+
+    live.pause();
+    expect(live._eventBus.emit).toHaveBeenCalledWith("nimio:pause", {
+      mode: MODE.LIVE,
+    });
+
+    live.stop();
+
+    expect(live._eventBus.emit).toHaveBeenCalledTimes(2);
+    expect(live._eventBus.emit).toHaveBeenLastCalledWith("nimio:playback-end", {
+      mode: MODE.LIVE,
+    });
+
+    live.stop(); // once: the end was reported
+    expect(live._eventBus.emit).toHaveBeenCalledTimes(2);
+  });
+
+  // a drop, a pause() during the wait, a play(): the new playback is what
+  // the application now sees; when the reconnects later run out (the
+  // engine is stopped directly, without stop()), a stop() must emit no end
+  // event, as it does without the earlier pause
+  function engineAfterDropPausePlay({ pause }) {
+    const live = Object.create(NimioLive.prototype);
+    const flags = { stopped: true, paused: false, playing: false };
+    live._config = { streamUrl: "wss://example.test/live", startOffset: 0 };
+    live._state = {
+      start: vi.fn(() => {
+        flags.stopped = false;
+        flags.playing = true;
+      }),
+      stop: vi.fn(() => {
+        flags.stopped = true;
+        flags.playing = false;
+      }),
+      isStopped: () => flags.stopped,
+      isPaused: () => flags.paused,
+      isPlaying: () => flags.playing,
+    };
+    live._playGen = 0;
+    live._autoplayTimers = [];
+    live._latencyCtrl = { start: vi.fn() };
+    live._isAutoAbr = () => false;
+    live._cancelPauseTimeout = vi.fn();
+    live._renderVideoFrame = () => {};
+    live._transport = { connected: false, connecting: false };
+    live._sldpManager = { start: vi.fn(), stop: vi.fn() };
+    live._reconnect = {
+      pending: true,
+      stop: vi.fn(function () {
+        this.pending = false;
+      }),
+      reset: vi.fn(),
+    };
+    live._eventBus = { emit: vi.fn() };
+    if (pause) live.pause();
+    live._reconnect.pending = false;
+    live.play();
+    live._state.stop(); // the reconnects ran out: _onDisconnect stops directly
+    live._eventBus.emit.mockClear();
+    return live;
+  }
+
+  it.each([
+    ["during a reconnect wait", false],
+    ["after a pause() that cancelled the retry", true],
+  ])("a destroy() %s reports the playback end", (_, paused) => {
+    // destroy() ends the playback the application still sees, as stop()
+    // does: the last thing it hears from the player is the end
+    const live = Object.create(NimioLive.prototype);
+    live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    live._state = { isStopped: () => true, isPaused: () => false };
+    live._transport = {
+      connected: false,
+      connecting: false,
+      destroy: vi.fn(),
+    };
+    live._sldpManager = { stop: vi.fn(), destroy: vi.fn() };
+    live._reconnect = {
+      pending: true,
+      stop: vi.fn(function () {
+        this.pending = false;
+      }),
+      reset: vi.fn(),
+      destroy: vi.fn(),
+    };
+    live._eventBus = { emit: vi.fn(), off: vi.fn() };
+    live._releaseMediaResources = vi.fn();
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    if (paused) {
+      live.pause();
+      live._eventBus.emit.mockClear();
+    }
+
+    live.destroy();
+
+    expect(live._eventBus.emit.mock.calls).toEqual([
+      ["nimio:playback-end", { mode: MODE.LIVE }],
+    ]);
+    expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stop() after a drop, a pause(), a play() and an exhausted reconnect emits nothing, like the control", () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+    try {
+      const control = engineAfterDropPausePlay({ pause: false });
+      control.stop();
+      expect(control._eventBus.emit).not.toHaveBeenCalled();
+
+      const live = engineAfterDropPausePlay({ pause: true });
+      expect(live.hasUnreportedEnd()).toBe(false); // a new playback started
+      live.stop();
+      expect(live._eventBus.emit).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("hasUnreportedEnd() is true while a retry is pending and after a pause() cancelled it", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._reconnect = { pending: true };
+    expect(live.hasUnreportedEnd()).toBe(true);
+    live._reconnect.pending = false;
+    expect(live.hasUnreportedEnd()).toBe(false);
+    live._retryCancelled = true; // what pause() during the wait records
+    expect(live.hasUnreportedEnd()).toBe(true);
+  });
+
+  it("a stop() that keeps the connection (a detach's) during a reconnect wait reports nothing", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true };
+    live._transport = { connected: false, connecting: false };
+    live._sldpManager = { stop: vi.fn() };
+    live._reconnect = { stop: vi.fn(), reset: vi.fn(), pending: true };
+    live._eventBus = { emit: vi.fn() };
+
+    live.stop({ keepConnection: true });
+
+    expect(live._eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it("a stop() on a stopped engine with no retry pending reports nothing", () => {
+    const live = Object.create(NimioLive.prototype);
+    live._state = { isStopped: () => true };
+    live._transport = { connected: false, connecting: false };
+    live._sldpManager = { stop: vi.fn() };
+    live._reconnect = { stop: vi.fn(), reset: vi.fn(), pending: false };
+    live._eventBus = { emit: vi.fn() };
+
+    live.stop();
+
+    expect(live._eventBus.emit).not.toHaveBeenCalled();
+  });
+
   it("cancels the autoplay play timer; the controls fade does not hide a stopped player's controls", () => {
     // the controls fade belongs to the autoplay start: it stays armed
     // across a stop, but a player that is stopped when it fires (an early

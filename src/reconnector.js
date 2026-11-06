@@ -25,6 +25,13 @@ export class Reconnector {
     this._done = 0;
   }
 
+  // True while a retry is scheduled and has not fired yet; false inside the
+  // retry callback, so a stop() from a listener of the retried play sees no
+  // pending retry.
+  get pending() {
+    return !!this._timer;
+  }
+
   stop() {
     if (!this._timer) return;
     clearTimeout(this._timer);
@@ -37,9 +44,9 @@ export class Reconnector {
     if (!this._timer) {
       const inst = this;
       this._timer = setTimeout(function () {
+        inst._timer = undefined;
         inst._done++;
         cb();
-        inst._timer = undefined;
       }, this._timeout());
     }
     return true;

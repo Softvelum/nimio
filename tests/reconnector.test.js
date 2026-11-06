@@ -35,3 +35,35 @@ describe("Reconnector.destroy()", () => {
     expect(cb).not.toHaveBeenCalled();
   });
 });
+
+describe("Reconnector.pending", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    releaseInstances("rc-pending");
+    releaseInstances("rc-pending-cb");
+  });
+
+  it("is true while a retry is scheduled and false once stopped", () => {
+    const rc = new Reconnector("rc-pending", 3);
+    expect(rc.pending).toBe(false);
+
+    rc.schedule(() => {});
+    expect(rc.pending).toBe(true);
+
+    rc.stop();
+    expect(rc.pending).toBe(false);
+  });
+
+  it("is false inside the retry callback", () => {
+    const rc = new Reconnector("rc-pending-cb", 3);
+    let seen;
+    rc.schedule(() => {
+      seen = rc.pending;
+    });
+
+    vi.advanceTimersByTime(1000);
+
+    expect(seen).toBe(false);
+  });
+});
