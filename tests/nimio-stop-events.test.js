@@ -549,3 +549,66 @@ describe("Nimio: a stream URL change from inside a playlist callback of the old 
     expect(reported.at(-1)).toEqual([0, 120]);
   });
 });
+
+describe("Nimio: the VOD URL changed and changed back before the archive reloads", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    releaseInstances(NAME);
+  });
+
+  it("the archive is loaded again at the next live connection, and its duration comes back", async () => {
+    // the first change dropped the durations; the engine still held the
+    // archive as loaded and would load nothing, leaving the seek bar
+    // without its archive part for good
+    const { n, vod, progress } = createPlayer({ liveMode: true });
+    expect(progress._vodPlaylistDuration).toBe(10);
+
+    n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+    n.setStreamURL({ live: OLD_LIVE, vod: OLD_VOD });
+    expect(progress._vodPlaylistDuration).toBe(0);
+
+    await vod.initialize(); // nimio:connection-established
+    expect(vod._pHandler.loadSource.mock.calls).toEqual([[OLD_VOD]]);
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/old/360p.m3u8?s=5"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 10, fragments: [] },
+    });
+
+    expect(progress._vodPlaylistDuration).toBe(10);
+    expect(vod._sessionParam).toBe("s=5");
+  });
+
+  it("a seek from the listener of the duration reset opens the new archive only", async () => {
+    // the engine was warm (SYNC) on the old archive when the URL changed:
+    // the listener's seek must not attach what the engine still knew
+    const { n, vod, progress } = createPlayer({ liveMode: true });
+    vod._state = 2; // SYNC
+    // seeks of a running engine go through the progress proxy
+    n._playProgressProxy = {
+      seekVod: (position) => progress.updateVodPosition(position),
+    };
+    progress.positionChangeCb = n._onPlaybackPositionChange.bind(n);
+    let seek = true;
+    progress._extProgressNotifier.vodProgress = vi.fn((position, duration) => {
+      if (seek && duration === 0) {
+        seek = false;
+        n.seekVod(30);
+      }
+    });
+
+    n.setStreamURL({ live: NEW_LIVE, vod: NEW_VOD });
+    await microtasks();
+
+    const requested = vod._pHandler.loadSource.mock.calls.map((c) => c[0]);
+    expect(requested.length).toBeGreaterThan(0);
+    expect(requested.every((url) => url === NEW_VOD)).toBe(true);
+  });
+});

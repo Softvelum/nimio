@@ -282,12 +282,25 @@ describe("NimioVod.initialize() from the stopped state", () => {
     // the levels are known but the duration is not: the archive is not
     // usable yet, so the next initialize() must load again
     const vod = stoppedEngine("https://example.test/new.m3u8");
+    vod._context = PlaybackContext.getInstance(NAME);
+    vod._config.adaptiveBitrate = {};
+    vod._updateUiLayout = vi.fn();
     await vod.initialize();
-    vod._onManifestParsed(null, { levels: [] });
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/new/360p.m3u8?s=2"], height: 360 },
+      ],
+    });
+    // the master was taken: its variant is requested
+    expect(vod._context.levelsSourceUrl).toBe("https://example.test/new.m3u8");
+    expect(vod._pHandler.loadSource).toHaveBeenLastCalledWith(
+      "https://example.test/new/360p.m3u8?s=2",
+    );
 
     vod.stop();
 
     expect(vod._url).toBeUndefined();
+    expect(vod._sessionParam).toBeUndefined();
   });
 
   it("playlists that still arrive after a stop() during the reload are ignored", async () => {
@@ -335,6 +348,67 @@ describe("NimioVod.initialize() from the stopped state", () => {
 
     expect(vod._progressSvc.updateVodPlaylistDuration).not.toHaveBeenCalled();
     expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("a fatal network error on a loaded source keeps it: the next initialize loads nothing", async () => {
+    // the archive is usable; one failed reload must not make every live
+    // connection load it from scratch
+    const vod = stoppedEngine("https://example.test/old.m3u8");
+    vod._eventBus = { emit: vi.fn() };
+    globalThis.Hls = FakeHls;
+    try {
+      vod._onError(null, {
+        fatal: true,
+        type: FakeHls.ErrorTypes.NETWORK_ERROR,
+      });
+    } finally {
+      delete globalThis.Hls;
+    }
+
+    expect(vod._url).toBe("https://example.test/old.m3u8");
+    await vod.initialize();
+    expect(vod._pHandler.loadSource).not.toHaveBeenCalled();
+  });
+
+  it("forgetSource() makes a loaded source unknown: the next initialize loads the configured URL, although it is the same", async () => {
+    // the facade calls it when the configured URL changes; the URL may
+    // change back before any reload, and the durations are gone by then
+    const vod = stoppedEngine("https://example.test/old.m3u8");
+    vod._sessionParam = "s=1";
+
+    vod.forgetSource();
+
+    expect(vod._metadataReady).toBe(false);
+    await vod.initialize();
+    expect(vod._pHandler.loadSource.mock.calls).toEqual([
+      ["https://example.test/old.m3u8"],
+    ]);
+  });
+
+  it("forgetSource() ends what was loading: a playlist of the forgotten source is not taken under the configured URL", () => {
+    // a warm engine reloading its variant when the URL changes: without
+    // this, the response would find no URL and take the configured one
+    const vod = stoppedEngine("https://example.test/new.m3u8");
+    vod._state = 2; // SYNC
+    vod._config.adaptiveBitrate = {};
+
+    vod.forgetSource();
+    expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
+    vod._onLevelLoaded(null, { details: { totalduration: 50, fragments: [] } });
+
+    expect(vod._url).toBeUndefined();
+    expect(vod._metadataReady).toBe(false);
+    expect(vod._progressSvc.updateVodPlaylistDuration).not.toHaveBeenCalled();
+  });
+
+  it("forgetSource() on an engine still setting up hls.js does not void its first initialize", () => {
+    const vod = new NimioVod(NAME, undefined);
+    vod._state = 1; // INIT
+    const gen = vod._initGen;
+
+    vod.forgetSource();
+
+    expect(vod._initGen).toBe(gen);
   });
 
   it("a second interrupted reload is retried like the first", async () => {
@@ -416,12 +490,28 @@ describe("NimioVod.initialize() from the stopped state", () => {
 
   it("a destroy() from the duration-reset listener ends the reload quietly", async () => {
     const vod = stoppedEngine("https://example.test/new.m3u8");
-    vod._eventBus = { off: vi.fn(), emit: vi.fn() };
+    vod._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const handler = vod._pHandler;
+    handler.off = vi.fn();
+    handler.detachMedia = vi.fn();
+    handler.destroy = vi.fn();
+    vod._removeUIEventHandlers = vi.fn();
+    vod._detachUI = vi.fn();
+    vod._vuMeterSvc = { stop: vi.fn() };
+    vod._playbackService = { clear: vi.fn() };
     vod._progressSvc.resetVodDuration = vi.fn(() => vod.destroy());
+    globalThis.Hls = FakeHls; // loaded: the engine got past INIT
+    try {
+      await expect(vod.initialize()).resolves.toBeUndefined();
+    } finally {
+      delete globalThis.Hls;
+    }
 
-    await expect(vod.initialize()).resolves.toBeUndefined();
-
-    expect(vod._destroyed).toBe(true);
+    // really destroyed, and the reload did not go on into the released
+    // engine (it would throw there, and the error would be logged)
+    expect(handler.destroy).toHaveBeenCalledTimes(1);
+    expect(handler.loadSource).not.toHaveBeenCalled();
+    expect(vod._logger.error).not.toHaveBeenCalled();
   });
 
   it("a stop() while hls.js is still initialising does not void the first initialize", () => {

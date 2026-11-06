@@ -663,6 +663,20 @@ export class NimioVod {
     // this._logger.warn('TOTAL DURATION', details.totalduration); // details.edge,
   }
 
+  // The configured URL changed: what the engine knows is another archive's,
+  // also when the URL changes back before anything was reloaded (the
+  // facade has dropped the durations by then, and an engine that still
+  // held the archive as loaded would never bring them back). Ends what is
+  // loading, as stop() does: a response in flight would find no URL and
+  // be taken as the configured source's.
+  forgetSource() {
+    if (this._state < VOD_STATE.SYNC) return;
+    this._initGen++;
+    this._pHandler.stopLoad();
+    this._metadataReady = false;
+    this._forgetSource();
+  }
+
   // The URL and the session parameter that came with its master playlist
   // go together. With no URL the engine knows no source: initialize() and
   // attach() load the configured one.
