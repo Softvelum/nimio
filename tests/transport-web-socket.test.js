@@ -16,6 +16,7 @@ const ws = vi.hoisted(() => {
     static CLOSED = 3;
 
     constructor(url, protocols) {
+      if (url.includes("invalid")) throw new SyntaxError("invalid URL");
       this.url = url;
       this.protocols = protocols;
       this.readyState = FakeWebSocket.CONNECTING;
@@ -72,6 +73,49 @@ describe("WebSocket transport worker", () => {
     // Leave no socket open from the previous test
     send({ type: "stop", sns: [], close: true });
     ws.sockets.length = 0;
+  });
+
+  it("a WebSocket constructor failure posts the disconnect and the closed notice", () => {
+    // a malformed URL: without these notices the adapter never learns the
+    // socket's fate and the live engine stays in its playing state
+    self.postMessage.mockClear();
+
+    send({
+      type: "start",
+      url: "wss://invalid url",
+      protocols: ["sldp.softvelum.com"],
+      session: 7,
+    });
+
+    expect(ws.sockets).toHaveLength(0);
+    expect(self.postMessage).toHaveBeenCalledWith({
+      type: "disconnect",
+      data: { code: "CLOSE_ABNORMAL" },
+      session: 7,
+    });
+    expect(self.postMessage).toHaveBeenCalledWith({
+      aux: true,
+      connected: false,
+      session: 7,
+    });
+    expect(() => send({ type: "play", streams: [] })).not.toThrow();
+  });
+
+  it("a constructor failure drops the previous start's protocol agent", () => {
+    // the agent of the socket that was just closed must not receive the
+    // commands of the failed start (resetRequestedStreams, timescale)
+    start("wss://example.test/ok");
+    const previous = ws.agents[ws.agents.length - 1];
+
+    send({
+      type: "start",
+      url: "wss://invalid url",
+      protocols: ["sldp.softvelum.com"],
+      session: 8,
+    });
+    send({ type: "timescale", streams: [] });
+
+    expect(previous.handleMessage).not.toHaveBeenCalled();
   });
 
   it("hands the start's session to the protocol agent", () => {

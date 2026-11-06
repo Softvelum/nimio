@@ -194,3 +194,115 @@ describe("TransportAdapter session tagging", () => {
     expect(adapter.connected).toBe(true);
   });
 });
+
+describe("TransportAdapter connecting state", () => {
+  beforeEach(() => {
+    workers.length = 0;
+    vi.stubGlobal("Worker", FakeWorker);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // a start whose socket has not opened yet is neither connected nor idle:
+  // a stop in that window must still ask the worker to close it, or the
+  // socket opens later and the server keeps a session nobody uses
+  it("is connecting from a start until the worker reports the socket's fate", () => {
+    const { adapter, worker } = createAdapter("ta-connecting");
+    expect(adapter.connecting).toBe(false);
+
+    adapter.send("start", { url: "wss://example.test/a" });
+    expect(adapter.connecting).toBe(true);
+    expect(adapter.connected).toBe(false);
+
+    worker.onmessage({ data: { aux: true, connected: true, session: 1 } });
+    expect(adapter.connecting).toBe(false);
+    expect(adapter.connected).toBe(true);
+  });
+
+  it("stops connecting when the worker reports the socket closed before it opened", () => {
+    const { adapter, worker } = createAdapter("ta-connecting-closed");
+    adapter.send("start", { url: "wss://example.test/a" });
+
+    worker.onmessage({ data: { aux: true, connected: false, session: 1 } });
+
+    expect(adapter.connecting).toBe(false);
+    expect(adapter.connected).toBe(false);
+  });
+
+  it("stops connecting on the worker's disconnect notice, which precedes the closed notice", () => {
+    // the worker posts the disconnect first and the connected:false a task
+    // later; a stop() run from the disconnect handler must already see a
+    // socket that is gone
+    const { adapter, worker } = createAdapter("ta-connecting-disconnect");
+    const onDisconnect = vi.fn();
+    adapter.setCallback("disconnect", onDisconnect);
+    adapter.send("start", { url: "wss://example.test/a" });
+
+    worker.onmessage({
+      data: {
+        type: "disconnect",
+        data: { code: "CLOSE_ABNORMAL" },
+        session: 1,
+      },
+    });
+
+    expect(onDisconnect).toHaveBeenCalledTimes(1);
+    expect(adapter.connecting).toBe(false);
+    expect(adapter.connected).toBe(false);
+  });
+
+  it("stops connecting on destroy", () => {
+    const { adapter } = createAdapter("ta-connecting-destroy");
+    adapter.send("start", { url: "wss://example.test/a" });
+
+    adapter.destroy();
+
+    expect(adapter.connecting).toBe(false);
+  });
+});
+
+describe("TransportAdapter closing stop", () => {
+  beforeEach(() => {
+    workers.length = 0;
+    vi.stubGlobal("Worker", FakeWorker);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // the worker closes the socket on a closing stop and reports it in a
+  // later task; until then a second stop (a seek or a nested stop in the
+  // same task) would send another close the worker only logs about
+  it("reports disconnected as soon as a closing stop is sent", () => {
+    const { adapter, worker } = createAdapter("ta-close");
+    adapter.send("start", { url: "wss://example.test/a" });
+    worker.onmessage({ data: { aux: true, connected: true, session: 1 } });
+
+    adapter.send("stop", { sns: [], close: true });
+
+    expect(adapter.connected).toBe(false);
+    expect(adapter.connecting).toBe(false);
+  });
+
+  it("a keep-connection stop leaves the connection state alone", () => {
+    const { adapter, worker } = createAdapter("ta-keep");
+    adapter.send("start", { url: "wss://example.test/a" });
+    worker.onmessage({ data: { aux: true, connected: true, session: 1 } });
+
+    adapter.send("stop", { sns: ["v"], close: false });
+
+    expect(adapter.connected).toBe(true);
+  });
+
+  it("a closing stop while connecting ends the connecting state", () => {
+    const { adapter } = createAdapter("ta-close-connecting");
+    adapter.send("start", { url: "wss://example.test/a" });
+
+    adapter.send("stop", { sns: [], close: true });
+
+    expect(adapter.connecting).toBe(false);
+  });
+});
