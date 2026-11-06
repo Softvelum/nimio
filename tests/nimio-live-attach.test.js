@@ -53,17 +53,6 @@ describe("NimioLive.attach() connection reuse", () => {
     expect(live._sldpManager.start).not.toHaveBeenCalled();
   });
 
-  it("clears an end a pause() left unreported, like play() does", () => {
-    // the sibling start path: a new playback is what the application sees
-    const live = createLive({ connected: false, savedState: STATE.STOPPED });
-    live._reconnect = { pending: false };
-    live._retryCancelled = true;
-
-    live.attach({}, { latency: 0 });
-
-    expect(live.hasUnreportedEnd()).toBe(false);
-  });
-
   it("handshakes again when the session's metadata never committed", () => {
     // connected, but a detach cancelled the pending status commit: the context
     // is empty, so reusing the socket would request nothing
@@ -308,6 +297,46 @@ describe("NimioLive.stop() on a stopped engine", () => {
     return live;
   }
 
+  it.each([
+    ["during a reconnect wait", false],
+    ["after a pause() that cancelled the retry", true],
+  ])("a destroy() %s reports the playback end", (_, paused) => {
+    // destroy() ends the playback the application still sees, as stop()
+    // does: the last thing it hears from the player is the end
+    const live = Object.create(NimioLive.prototype);
+    live._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    live._state = { isStopped: () => true, isPaused: () => false };
+    live._transport = {
+      connected: false,
+      connecting: false,
+      destroy: vi.fn(),
+    };
+    live._sldpManager = { stop: vi.fn(), destroy: vi.fn() };
+    live._reconnect = {
+      pending: true,
+      stop: vi.fn(function () {
+        this.pending = false;
+      }),
+      reset: vi.fn(),
+      destroy: vi.fn(),
+    };
+    live._eventBus = { emit: vi.fn(), off: vi.fn() };
+    live._releaseMediaResources = vi.fn();
+    live._removeUIEventHandlers = vi.fn();
+    live._deinitTransport = vi.fn();
+    if (paused) {
+      live.pause();
+      live._eventBus.emit.mockClear();
+    }
+
+    live.destroy();
+
+    expect(live._eventBus.emit.mock.calls).toEqual([
+      ["nimio:playback-end", { mode: MODE.LIVE }],
+    ]);
+    expect(live._transport.destroy).toHaveBeenCalledTimes(1);
+  });
+
   it("a stop() after a drop, a pause(), a play() and an exhausted reconnect emits nothing, like the control", () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn());
     try {
@@ -334,7 +363,7 @@ describe("NimioLive.stop() on a stopped engine", () => {
     expect(live.hasUnreportedEnd()).toBe(true);
   });
 
-  it("a detach during a reconnect wait (keepConnection) reports nothing", () => {
+  it("a stop() that keeps the connection (a detach's) during a reconnect wait reports nothing", () => {
     const live = Object.create(NimioLive.prototype);
     live._state = { isStopped: () => true };
     live._transport = { connected: false, connecting: false };

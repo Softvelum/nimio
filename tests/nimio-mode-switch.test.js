@@ -228,6 +228,18 @@ describe("Nimio mode switch", () => {
     );
   });
 
+  it("an idle restore presents a stopped context, as stop() does", () => {
+    // one stopped state: the snapshot restored for the engine's attach must
+    // not outlive the stop that follows it
+    const n = createFacade();
+    n._context.state.value = STATE.PAUSED;
+    n._switchToVod(5);
+
+    vi.advanceTimersByTime(5000);
+
+    expect(n._context.state).toEqual({ value: STATE.STOPPED, initial: false });
+  });
+
   it("an idle restore of a paused live engine reports the switch error, then the playback end", () => {
     // the paused engine's detach stopped it without an event (its session
     // was kept for a restart); the restored player is stopped and shows
@@ -1345,6 +1357,55 @@ describe("Nimio VOD start from a non-running engine", () => {
 
     expect(n._livePlayer.play).toHaveBeenCalledTimes(1);
     expect(events).toEqual([errorEvent(MODE.VOD)]);
+  });
+
+  it("a seekVod() from the switch error listener of a failed failover gets no NO_SRC", async () => {
+    // the retry was accepted and the archive is being opened after all:
+    // "no playable sources" would be false, and that attempt reports for
+    // itself
+    const n = createFacade();
+    n._config.vod = { startupVodFailover: true };
+    const events = [];
+    const accepted = [];
+    n._eventBus.emit = vi.fn((name, data) => {
+      events.push([name, data]);
+      if (data.error === ERROR.MODE_SWITCH) accepted.push(n.seekVod(7));
+    });
+    n._onLivePlaybackError("NO_SRC", true);
+    await microtasks();
+
+    vi.advanceTimersByTime(5000);
+
+    expect(accepted).toEqual([true]);
+    expect(events).toEqual([errorEvent(MODE.VOD)]);
+    await microtasks();
+    expect(n._vodPlayer.attach).toHaveBeenLastCalledWith(
+      n._ui,
+      7,
+      expect.any(Function),
+    );
+  });
+
+  it("a seekVod() from the switch error listener of a paused player still gets the playback end", async () => {
+    // the paused live playback did end, whatever opens next
+    const n = createFacade();
+    liveDetachRecording(n, STATE.PAUSED);
+    const events = [];
+    const accepted = [];
+    n._eventBus.emit = vi.fn((name, data) => {
+      events.push([name, data]);
+      if (data.error === ERROR.MODE_SWITCH) accepted.push(n.seekVod(7));
+    });
+    n._runVodFromStart(5);
+    await microtasks();
+
+    vi.advanceTimersByTime(5000);
+
+    expect(accepted).toEqual([true]);
+    expect(events).toEqual([
+      errorEvent(MODE.VOD),
+      ["nimio:playback-end", { mode: MODE.LIVE }],
+    ]);
   });
 
   it("a failover whose rollback restarts live reports no NO_SRC", async () => {

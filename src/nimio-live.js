@@ -161,6 +161,9 @@ export class NimioLive {
 
     const initialPlay = !this._state.isPaused();
     this._cancelPauseTimeout();
+    // during a reconnect wait this play is the reconnect: the pending retry
+    // would spend an attempt on a playing engine
+    this._reconnect.stop();
 
     this._beginPlayback();
     const gen0 = this._playGen;

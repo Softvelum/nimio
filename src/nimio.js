@@ -325,6 +325,10 @@ export default class Nimio {
     if (!this._vodPlayer?.isLoaded() || this._vodPlayer.isRunning()) {
       return false;
     }
+    // from the error listener of a failed startup failover: the archive is
+    // being opened after all, so the NO_SRC the idle restore still owes
+    // would be false. A paused player's end stays owed: that playback ended.
+    if (this._idleRestore?.failover) this._idleRestore = null;
     const gen = ++this._vodStartGen;
     this._vodPlayer.initialize(this._ui.mediaElement).then(() => {
       // destroyed, stopped or re-targeted meanwhile: the start is void
@@ -451,7 +455,8 @@ export default class Nimio {
       mode: sw.target,
     });
     // nothing more for a restarted or untouched engine; the listener may
-    // also have destroyed the player, or restarted it with a play()
+    // also have destroyed the player, or started playback itself (a play(),
+    // or a seekVod() after a failed failover)
     const owed = this._idleRestore === sw;
     this._idleRestore = null;
     if (this._destroyed || !owed) return;
@@ -512,6 +517,9 @@ export default class Nimio {
     // a paused engine's detach kept its server session alive for a
     // restart; a restored player that shows the splash must not keep it
     sw.prevPlayer.stop();
+    // and presents a stopped context: the snapshot restored above was for
+    // the engine's attach only
+    this._context.resetState();
     return true;
   }
 

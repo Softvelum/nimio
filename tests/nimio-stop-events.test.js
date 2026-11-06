@@ -190,6 +190,22 @@ async function microtasks(n = 6) {
   for (let i = 0; i < n; i++) await Promise.resolve();
 }
 
+// the connection drops through the real disconnect handler: the engine
+// is stopped, the socket is gone and a retry is pending; the application
+// and the UI still see what the player was doing before the drop
+function droppedPlayer({ paused = false } = {}) {
+  const player = createPlayer({ liveMode: true });
+  const { live } = player;
+  if (paused) live._state.pause();
+  live._transport.connected = false;
+  live._reconnect = new Reconnector(NAME, 3);
+  live._playCb = () => live.play(); // the real retry
+  live._sldpManager.resetRequestedStreams = vi.fn();
+  live._onDisconnect({ code: 1006 });
+  expect(live._reconnect.pending).toBe(true);
+  return player;
+}
+
 describe("Nimio stop() and setStreamURL() in VOD mode: the event sequence", () => {
   beforeEach(() => {
     vi.stubGlobal("requestAnimationFrame", vi.fn());
@@ -366,22 +382,6 @@ describe("Nimio: a seek into VOD during a reconnect wait", () => {
     releaseInstances(NAME);
   });
 
-  // the connection drops through the real disconnect handler: the engine
-  // is stopped, the socket is gone and a retry is pending; the application
-  // and the UI still see what the player was doing before the drop
-  function droppedPlayer({ paused = false } = {}) {
-    const player = createPlayer({ liveMode: true });
-    const { live } = player;
-    if (paused) live._state.pause();
-    live._transport.connected = false;
-    live._reconnect = new Reconnector(NAME, 3);
-    live._playCb = () => live.play(); // the real retry
-    live._sldpManager.resetRequestedStreams = vi.fn();
-    live._onDisconnect({ code: 1006 });
-    expect(live._reconnect.pending).toBe(true);
-    return player;
-  }
-
   it("opens the VOD playing, as the player was playing a moment ago", async () => {
     const { n, vod, context, events } = droppedPlayer();
 
@@ -467,6 +467,37 @@ describe("Nimio: a seek into VOD during a reconnect wait", () => {
     expect(live._state.start).toHaveBeenCalledTimes(1);
     expect(live._sldpManager.start).toHaveBeenCalledWith(OLD_LIVE, 0);
     expect(events).toEqual([["nimio:playback-error", MODE.VOD]]);
+  });
+});
+
+describe("Nimio: a play() during a reconnect wait", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    releaseInstances(NAME);
+  });
+
+  it("is the reconnect: the pending retry is cancelled and no end is left unreported", async () => {
+    // the stale timer would spend an attempt on a player that is already
+    // playing, and until it fired the engine would claim an unreported end
+    const { n, live, events } = droppedPlayer();
+
+    n.play();
+
+    expect(live._reconnect.pending).toBe(false);
+    expect(live.hasUnreportedEnd()).toBe(false);
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(live._reconnect._done).toBe(0);
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([["nimio:play", MODE.LIVE]]);
   });
 });
 

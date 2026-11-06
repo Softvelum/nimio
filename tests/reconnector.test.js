@@ -37,8 +37,14 @@ describe("Reconnector.destroy()", () => {
 });
 
 describe("Reconnector.pending", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    releaseInstances("rc-pending");
+    releaseInstances("rc-pending-cb");
+  });
+
   it("is true while a retry is scheduled and false once stopped", () => {
-    vi.useFakeTimers();
     const rc = new Reconnector("rc-pending", 3);
     expect(rc.pending).toBe(false);
 
@@ -47,14 +53,9 @@ describe("Reconnector.pending", () => {
 
     rc.stop();
     expect(rc.pending).toBe(false);
-    rc.destroy();
-    vi.useRealTimers();
   });
-});
 
-describe("Reconnector.pending while the retry runs", () => {
   it("is false inside the retry callback", () => {
-    vi.useFakeTimers();
     const rc = new Reconnector("rc-pending-cb", 3);
     let seen;
     rc.schedule(() => {
@@ -64,7 +65,5 @@ describe("Reconnector.pending while the retry runs", () => {
     vi.advanceTimersByTime(1000);
 
     expect(seen).toBe(false);
-    rc.destroy();
-    vi.useRealTimers();
   });
 });
