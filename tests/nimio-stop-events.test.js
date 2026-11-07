@@ -9,8 +9,9 @@ import { IDX } from "@/shared/values";
 import { PlaybackProgressService } from "@/playback/progress-service";
 import { PlaybackProgressProxy } from "@/playback/progress-proxy";
 import { SLDPManager } from "@/sldp/manager";
+import { Reconnector } from "@/reconnector";
 import { releaseInstances } from "@/shared/service";
-import { MODE, STATE } from "@/shared/values";
+import { MODE, STATE, ERROR } from "@/shared/values";
 
 // The event sequence of a stop and of a URL change in VOD mode, pinned
 // through the real facade, the real VOD engine's stop() and the real live
@@ -149,7 +150,7 @@ function createPlayer({ liveMode = false, realSldp = false } = {}) {
       sessionReady: true,
     };
   }
-  live._reconnect = { stop: vi.fn(), reset: vi.fn() };
+  live._reconnect = { stop: vi.fn(), reset: vi.fn(), pending: false };
   live._renderVideoFrame = () => {};
   live._resetPlayback = vi.fn();
   live._audioCtxProvider = { isSuspended: () => false };
@@ -194,6 +195,22 @@ function createPlayer({ liveMode = false, realSldp = false } = {}) {
 
 async function microtasks(n = 6) {
   for (let i = 0; i < n; i++) await Promise.resolve();
+}
+
+// the connection drops through the real disconnect handler: the engine
+// is stopped, the socket is gone and a retry is pending; the application
+// and the UI still see what the player was doing before the drop
+function droppedPlayer({ paused = false } = {}) {
+  const player = createPlayer({ liveMode: true });
+  const { live } = player;
+  if (paused) live._state.pause();
+  live._transport.connected = false;
+  live._reconnect = new Reconnector(NAME, 3);
+  live._playCb = () => live.play(); // the real retry
+  live._sldpManager.resetRequestedStreams = vi.fn();
+  live._onDisconnect({ code: 1006 });
+  expect(live._reconnect.pending).toBe(true);
+  return player;
 }
 
 describe("Nimio stop() and setStreamURL() in VOD mode: the event sequence", () => {
@@ -311,6 +328,234 @@ describe("Nimio stop(): the SLDP session through the real manager", () => {
       ["nimio:play", MODE.LIVE],
       ["nimio:connection-started", OLD_LIVE],
     ]);
+  });
+});
+
+describe("Nimio: a pause() during a reconnect wait, then a failed seek into VOD", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    releaseInstances(NAME);
+  });
+
+  it("the rollback reports the playback end exactly once; a later stop() adds nothing", async () => {
+    const { n, live, vod, events } = createPlayer({ liveMode: true });
+    // the connection dropped: the engine is stopped, the socket is gone and
+    // a retry is pending
+    live._state.stop();
+    live._transport.connected = false;
+    live._reconnect = new Reconnector(NAME, 3);
+    live._reconnect.schedule(() => {});
+    expect(live._reconnect.pending).toBe(true);
+
+    n.pause(); // cancels the retry, reports the pause
+    expect(events).toEqual([["nimio:pause", MODE.LIVE]]);
+
+    // a seek into VOD whose attach never completes (no MEDIA_ATTACHED)
+    vod._pHandler.attachMedia = vi.fn();
+    expect(n.seekVod(30)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(n._mode).toBe(MODE.PEND);
+    await vi.advanceTimersByTimeAsync(5000); // the switch times out
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(events).toEqual([
+      ["nimio:pause", MODE.LIVE],
+      ["nimio:playback-error", MODE.VOD],
+      ["nimio:playback-end", MODE.LIVE],
+    ]);
+
+    n.stop();
+
+    const ends = events.filter(([name]) => name === "nimio:playback-end");
+    expect(ends).toHaveLength(1);
+  });
+});
+
+describe("Nimio: a seek into VOD during a reconnect wait", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    releaseInstances(NAME);
+  });
+
+  it("opens the VOD playing, as the player was playing a moment ago", async () => {
+    const { n, vod, context, events } = droppedPlayer();
+
+    expect(n.seekVod(30)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(n._mode).toBe(MODE.VOD);
+    expect(context.state).toEqual({ value: STATE.PLAYING, initial: false });
+
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/new/360p.m3u8?s=9"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(vod._pHandler.resumeBuffering).toHaveBeenCalledTimes(1);
+    expect(vod._playbackService.startPlayback).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([]); // no end event: the playback goes on, in VOD
+  });
+
+  it("a player paused before the drop opens the VOD paused, as the base did", async () => {
+    // the last user action was pause; the retry would have resumed live
+    // later (base behaviour), but the seek cancels it, and the archive must
+    // not start on its own
+    const { n, vod, context, events } = droppedPlayer({ paused: true });
+
+    expect(n.seekVod(30)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(n._mode).toBe(MODE.VOD);
+    // the engine's own state: the rollback's end event comes from the
+    // unreported-end snapshot, not from a paused one
+    expect(context.state.value).toBe(STATE.STOPPED);
+
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://example.test/vod/new/360p.m3u8?s=9"], height: 360 },
+      ],
+    });
+    vod._onLevelLoaded(null, {
+      details: { totalduration: 120, fragments: [] },
+    });
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(vod._playbackService.startPlayback).not.toHaveBeenCalled();
+    expect(vod._pHandler.resumeBuffering).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
+  it("a player paused before the drop: a timed-out switch ends stopped with the switch error, then the end event", async () => {
+    // the seek cancelled the retry that was the pending end; the
+    // application last heard a pause and now hears the end, once
+    const { n, live, vod, events } = droppedPlayer({ paused: true });
+    vod._pHandler.attachMedia = vi.fn(); // no MEDIA_ATTACHED
+
+    expect(n.seekVod(30)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(live._state.start).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      ["nimio:playback-error", MODE.VOD],
+      ["nimio:playback-end", MODE.LIVE],
+    ]);
+
+    n.stop();
+    expect(events).toHaveLength(2);
+  });
+
+  it("a timed-out switch restarts live (an immediate retry), with the switch error only", async () => {
+    const { n, live, vod, events } = droppedPlayer();
+    vod._pHandler.attachMedia = vi.fn(); // no MEDIA_ATTACHED
+
+    expect(n.seekVod(30)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(n._mode).toBe(MODE.PEND);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(live._state.start).toHaveBeenCalledTimes(1);
+    expect(live._sldpManager.start).toHaveBeenCalledWith(OLD_LIVE, 0);
+    expect(events).toEqual([["nimio:playback-error", MODE.VOD]]);
+  });
+});
+
+describe("Nimio: a play() during a reconnect wait", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    releaseInstances(NAME);
+  });
+
+  it("is the reconnect: the pending retry is cancelled and no end is left unreported", async () => {
+    // the stale timer would spend an attempt on a player that is already
+    // playing, and until it fired the engine would claim an unreported end
+    const { n, live, events } = droppedPlayer();
+
+    n.play();
+
+    expect(live._reconnect.pending).toBe(false);
+    expect(live.hasUnreportedEnd()).toBe(false);
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(live._reconnect._done).toBe(0);
+    expect(live._sldpManager.start).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([["nimio:play", MODE.LIVE]]);
+  });
+});
+
+describe("Nimio: a startup VOD failover whose switch to VOD fails", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    releaseInstances(NAME);
+  });
+
+  it("reports the switch error, then NO_SRC, and leaves both engines stopped", async () => {
+    // the server rejects the stream through the real status handler, the
+    // facade starts the archive instead, and the archive never attaches
+    const { n, live, vod, ui, bus } = createPlayer({ liveMode: true });
+    n._config.vod.startupVodFailover = true;
+    // the facade's own subscription, made by its constructor
+    bus.on("aux:playback-error", (data) =>
+      n._onLivePlaybackError(data.type, !data.stop),
+    );
+    const errors = [];
+    bus.on("nimio:playback-error", (e) => errors.push([e.error, e.mode]));
+    const others = [];
+    for (const name of ["nimio:playback-end", "nimio:play", "nimio:pause"]) {
+      bus.on(name, () => others.push(name));
+    }
+    vod._pHandler.attachMedia = vi.fn(); // no MEDIA_ATTACHED
+
+    live._onInvalidStatus();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(n._mode).toBe(MODE.PEND);
+    expect(errors).toEqual([]); // the failover is trying the archive
+    await vi.advanceTimersByTimeAsync(5000); // the switch times out
+
+    expect(errors).toEqual([
+      [ERROR.MODE_SWITCH, MODE.VOD],
+      [ERROR.NO_SRC, MODE.LIVE],
+    ]);
+    expect(others).toEqual([]);
+    // live holds the UI again without playing; the archive is not polled
+    expect(n._mode).toBe(MODE.LIVE);
+    expect(live._ui).toBe(ui);
+    expect(live._state.start).not.toHaveBeenCalled();
+    expect(vod._state).toBe(4); // STOP
+    expect(
+      vod._pHandler.stopLoad.mock.invocationCallOrder.at(-1),
+    ).toBeGreaterThan(vod._pHandler.loadSource.mock.invocationCallOrder.at(-1));
   });
 });
 

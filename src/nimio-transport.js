@@ -67,6 +67,10 @@ export const NimioTransport = {
   _onDisconnect(data) {
     if (this._state.isStopped()) return;
 
+    // what the player did when it dropped, read by a detach during the
+    // wait: a seek into VOD from a paused player opens the archive paused
+    // (the retry itself is an initial play, as before)
+    this._playingBeforeDrop = this._state.isPlaying();
     this._state.stop();
     this._sldpManager.resetRequestedStreams();
     if (this._isAutoAbr()) {
