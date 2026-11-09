@@ -47,12 +47,11 @@ class PlaybackProgressService {
     if (this._ui) {
       this._ui.updateDuration(this._totalDuration());
     }
-    let fullDuration = this._fullVodDuration();
     if (this._timeIndUI) {
-      this._timeIndUI.update(this._vodPosition, fullDuration);
+      this._timeIndUI.update(this._vodPosition, knownDuration);
     }
 
-    this._extProgressNotifier.vodProgress(this._vodPosition, fullDuration);
+    this._extProgressNotifier.vodProgress(this._vodPosition, knownDuration);
   }
 
   // The VOD source changed: the known durations belong to the old archive
@@ -64,7 +63,7 @@ class PlaybackProgressService {
       !this._vodPlaylistDuration &&
       !this._vodPosition
     ) {
-      return; // nothing known: the facade reset already ran
+      return; // never loaded, or already reset: nothing to drop or to tell
     }
     this._vodDuration = 0;
     this._vodPlaylistDuration = 0;

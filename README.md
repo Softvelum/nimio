@@ -249,7 +249,7 @@ These methods are available on every `Nimio` player instance.
 - `setStreamURL(url)`  
   Switches the player to another stream without recreating it. A playing player reconnects to the new stream right away; a player in VOD mode, playing or paused, switches to live and plays the new stream. A paused or stopped live player uses the new URL on the next `play()`. Switching emits `nimio:playback-end` (with the mode that was playing) followed by `nimio:play`, as with `stop()` and `play()`.  
   **Parameters:**  
-  url - either the new live stream URL string, or an object `{ live, vod }` to set the live and VOD (DVR) URLs. A field that is omitted keeps its current URL, except a VOD URL that wasn't set explicitly: it follows the new live URL. When the VOD URL changes, the archive's duration is unknown until the new playlist loads: `nimio:vod-progress` reports `0` for the duration and the position in between.
+  url - either the new live stream URL string, or an object `{ live, vod }` to set the live and VOD (DVR) URLs. A field that is omitted keeps its current URL, except a VOD URL that wasn't set explicitly: it follows the new live URL. When the VOD URL changes, the archive's duration is unknown until the new playlist loads: if a position or duration of the old archive was known, the change emits one `nimio:vod-progress` with `0` for both, after any `nimio:playback-end` and `nimio:play` events of the change.
 
 - `getCaptionTracks()`  
   Returns a map of the CEA-608 caption tracks currently available in the stream.  

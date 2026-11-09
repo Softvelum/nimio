@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { NimioVod } from "@/nimio-vod";
 import { EventBus } from "@/event-bus";
-import { PlaybackContext } from "@/playback/context";
 import { releaseInstances } from "@/shared/service";
 import { MODE } from "@/shared/values";
 
@@ -282,7 +281,6 @@ describe("NimioVod.initialize() from the stopped state", () => {
     // the levels are known but the duration is not: the archive is not
     // usable yet, so the next initialize() must load again
     const vod = stoppedEngine("https://example.test/new.m3u8");
-    vod._context = PlaybackContext.getInstance(NAME);
     vod._config.adaptiveBitrate = {};
     vod._updateUiLayout = vi.fn();
     await vod.initialize();
@@ -304,12 +302,10 @@ describe("NimioVod.initialize() from the stopped state", () => {
   });
 
   it("playlists that still arrive after a stop() during the reload are ignored", async () => {
-    // the stop forgot the URL; a master playlist response in flight would
-    // be recorded under no source (new URL(undefined) throws, after the
-    // context's levels were cleared), and its variant would mark the
-    // forgotten source usable
+    // the stop forgot the URL and ended the request; a master playlist
+    // response that still arrives would be recorded under the configured
+    // URL, and its variant would mark the forgotten source usable
     const vod = stoppedEngine("https://example.test/new.m3u8");
-    vod._context = PlaybackContext.getInstance(NAME);
     vod._context.setLevels(
       [{ url: ["https://example.test/old/360p.m3u8?s=1"], height: 360 }],
       "https://example.test/old.m3u8",
@@ -339,7 +335,6 @@ describe("NimioVod.initialize() from the stopped state", () => {
     // stopped engine must not take the playlist or go on loading
     const vod = stoppedEngine("https://example.test/old.m3u8");
     vod._state = 2; // SYNC: warm, reloading its variant
-    vod._config.adaptiveBitrate = {};
 
     vod.stop();
     expect(vod._url).toBe("https://example.test/old.m3u8");
@@ -390,7 +385,6 @@ describe("NimioVod.initialize() from the stopped state", () => {
     // this, the response would find no URL and take the configured one
     const vod = stoppedEngine("https://example.test/new.m3u8");
     vod._state = 2; // SYNC
-    vod._config.adaptiveBitrate = {};
 
     vod.forgetSource();
     expect(vod._pHandler.stopLoad).toHaveBeenCalledTimes(1);
@@ -559,21 +553,27 @@ describe("NimioVod.initialize() from the stopped state", () => {
     vod._eventBus = { emit: vi.fn() };
     vod._logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
     globalThis.Hls = FakeHls;
-    await vod.initialize(); // the reload: the new master is requested
+    try {
+      await vod.initialize(); // the reload: the new master is requested
 
-    vod._onError(null, { fatal: true, type: FakeHls.ErrorTypes.NETWORK_ERROR });
+      vod._onError(null, {
+        fatal: true,
+        type: FakeHls.ErrorTypes.NETWORK_ERROR,
+      });
 
-    expect(vod._url).toBeUndefined();
-    expect(vod._eventBus.emit).toHaveBeenCalledWith("aux:playback-error", {
-      mode: MODE.VOD,
-      type: "NO_SRC",
-    });
-    vod._pHandler.loadSource.mockClear();
-    await vod.initialize();
-    expect(vod._pHandler.loadSource).toHaveBeenCalledWith(
-      "https://example.test/new.m3u8",
-    );
-    delete globalThis.Hls;
+      expect(vod._url).toBeUndefined();
+      expect(vod._eventBus.emit).toHaveBeenCalledWith("aux:playback-error", {
+        mode: MODE.VOD,
+        type: "NO_SRC",
+      });
+      vod._pHandler.loadSource.mockClear();
+      await vod.initialize();
+      expect(vod._pHandler.loadSource).toHaveBeenCalledWith(
+        "https://example.test/new.m3u8",
+      );
+    } finally {
+      delete globalThis.Hls;
+    }
   });
 
   it("with the same URL does nothing and stays stopped", async () => {

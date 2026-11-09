@@ -118,6 +118,8 @@ export default class Nimio {
     this._idleRestore = null; // a failed switch whose final notice is owed
     this._stopping = false; // re-entrancy guard for stop()
     this._playAfterStop = false; // a play() asked for while stopping
+    this._urlChanging = false; // re-entrancy mark for setStreamURL()
+    this._vodResetOwed = false; // a VOD URL change the application is not told of yet
     this._eventBus.on("aux:playback-error", this._onError);
 
     this._playProgressSvc = PlaybackProgressService.getInstance(this._instName);
@@ -205,41 +207,59 @@ export default class Nimio {
     const prevVodUrl = this._config.vod?.url;
     updateConfigStreamURL(this._config, url);
     const vodUrlChanged = this._config.vod?.url !== prevVodUrl;
+    // the engine knows the old archive: it must load the configured one
+    // anew, also when the URL changes back before any reload; the known
+    // durations are the old archive's, dropped when the change is done
     if (vodUrlChanged) {
-      // the engine knows the old archive: it must load the configured one
-      // anew, also when the URL changes back before any reload (the
-      // durations are dropped right below). First, so that a listener of
-      // the reset finds nothing of the old archive to attach.
       this._vodPlayer?.forgetSource();
-      // the known durations belong to the old archive: the seek bar and the
-      // application must not keep its scale until the new playlist arrives
-      this._playProgressSvc.resetVodDuration();
-      // the reset notified the application: a listener may have destroyed
-      // the player
-      if (this._destroyed) return;
+      this._vodResetOwed = true;
     }
     // re-entrant from a listener of a stop in progress: the outer call
-    // continues with the newest config
+    // continues with the newest config, and the stop, or the URL change it
+    // belongs to, tells the application
     if (this._stopping) return;
-    if (this._mode === MODE.LIVE) {
-      if (vodUrlChanged) {
-        // a pending VOD start would attach the old URL; a running engine
-        // re-initialises with the new URL on the next
-        // nimio:connection-established and must not be attachable before;
-        // the engine stop also cancels a queued reload
-        this._vodStartGen++;
-        this._vodPlayer?.stop();
+    // re-entrant from a listener of the live restart of a URL change in
+    // progress: the engines take the newest URLs now, the outer call tells
+    const nested = this._urlChanging;
+    this._urlChanging = true;
+    try {
+      if (this._mode === MODE.LIVE) {
+        if (vodUrlChanged) {
+          // a pending VOD start would attach the old URL; a running engine
+          // re-initialises with the new URL on the next
+          // nimio:connection-established and must not be attachable before;
+          // the engine stop also cancels a queued reload
+          this._vodStartGen++;
+          this._vodPlayer?.stop();
+        }
+        // playing: stop + play; paused: stop; stopped: nothing (#98)
+        this._livePlayer.setStreamURL();
+        return;
       }
-      // playing: stop + play; paused: stop; stopped: nothing (#98)
-      this._livePlayer.setStreamURL();
-      return;
+      // VOD mode or a pending switch: stop (VOD stopped, live idle with the
+      // UI, kept-alive session closed, context reset), then an initial live
+      // play with the new URL, performed by the stop as its last step. One
+      // connection; no path back to the old archive.
+      this._playAfterStop = true;
+      this.stop();
+    } finally {
+      // told last, in every branch, by the outermost call: the
+      // application's listener finds the engines done with the change (its
+      // seek opens the new archive from the stopped engine), also when a
+      // listener of the engines' own events threw
+      if (!nested) {
+        this._urlChanging = false;
+        this._tellVodReset();
+      }
     }
-    // VOD mode or a pending switch: stop (VOD stopped, live idle with the
-    // UI, kept-alive session closed, context reset), then an initial live
-    // play with the new URL, performed by the stop as its last step. One
-    // connection; no path back to the old archive.
-    this._playAfterStop = true;
-    this.stop();
+  }
+
+  // Drops the durations a VOD URL change left stale, once: the one event
+  // of the change the application gets from the player itself.
+  _tellVodReset() {
+    if (!this._vodResetOwed) return;
+    this._vodResetOwed = false;
+    if (!this._destroyed) this._playProgressSvc.resetVodDuration();
   }
 
   pause() {
@@ -290,6 +310,9 @@ export default class Nimio {
       this._stopping = false;
       // a listener that threw must not leave a deferred play for the next stop
       this._playAfterStop = false;
+      // a VOD URL change from a listener of the stop: told after the stop's
+      // events, unless the stop is a URL change's own, which tells last
+      if (!this._urlChanging) this._tellVodReset();
     }
   }
 
@@ -524,9 +547,11 @@ export default class Nimio {
     }
     if (!params?.idle) return false;
     // The player ends stopped, as after stop(): the VOD engine's detach
-    // above restarted its background playlist reload (a warm engine never
-    // stopped it), and a stopped player must not keep polling the archive.
-    // The engine holds no UI here, so its stop emits no end event.
+    // above restarted the background playlist reload of a loaded archive
+    // (a warm engine never stopped it), or the master request of an
+    // archive that never loaded is still in flight; a stopped player must
+    // not keep polling the archive. The engine holds no UI here, so its
+    // stop emits no end event.
     this._vodPlayer?.stop();
     // a paused engine's detach kept its server session alive for a
     // restart; a restored player that shows the splash must not keep it

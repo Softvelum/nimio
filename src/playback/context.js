@@ -235,10 +235,10 @@ class PlaybackContext {
   // A live stream is selected (the current configuration survived, or was
   // set by the new stream's status); a stream URL change clears it until
   // the new status arrives.
-  get hasCurrentStream() {
+  hasCurrentStream() {
     return (
-      this._curConf?.video?.idx !== undefined ||
-      this._curConf?.audio?.idx !== undefined
+      this._curConf.video?.idx !== undefined ||
+      this._curConf.audio?.idx !== undefined
     );
   }
 
@@ -311,15 +311,9 @@ class PlaybackContext {
         this._curLevelIdx = 0;
       }
     }
-    // Every replacement ends with a valid current level: with the current
-    // configuration reset (a stream URL change) and the previous stream's
-    // live metadata still present, nothing above selects one, and a
-    // selection index from the previous archive may exceed the new list.
-    if (
-      this._curLevelIdx === undefined ||
-      this._curLevelIdx < 0 ||
-      this._curLevelIdx >= this._levels.length
-    ) {
+    // a selection of the previous archive, or none (the current
+    // configuration was reset): pick one from the new list
+    if (!this._levels[this._curLevelIdx]) {
       this._curLevelIdx = this.getMinimumLevelIdx();
     }
   }

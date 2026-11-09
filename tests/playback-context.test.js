@@ -91,8 +91,7 @@ describe("PlaybackContext.setLevels() current level validity", () => {
   // archive must not survive a replacement with fewer levels.
   it("falls back to a valid level when the replacement has fewer levels", () => {
     const ctx = PlaybackContext.getInstance("ctx-fewer-levels");
-    ctx._ordRenditions = [{}]; // live metadata of the previous stream
-    ctx._curConf = []; // reset by setSourceUrl() of the new URL
+    ctx._ordRenditions = [{}]; // live metadata of the previous stream, no current stream
     ctx.setLevels(levels(3, "https://a.test/old"), "https://a.test/old/p.m3u8");
     ctx.setCurrentLevelIdx(2);
 
@@ -105,12 +104,23 @@ describe("PlaybackContext.setLevels() current level validity", () => {
   it("keeps a selection that is still valid", () => {
     const ctx = PlaybackContext.getInstance("ctx-kept-level");
     ctx._ordRenditions = [{}];
-    ctx._curConf = [];
     ctx.setLevels(levels(3, "https://a.test/old"), "https://a.test/old/p.m3u8");
     ctx.setCurrentLevelIdx(1);
 
     ctx.setLevels(levels(3, "https://a.test/new"), "https://a.test/new/p.m3u8");
 
     expect(ctx.getCurrentLevel().idx).toBe(1);
+  });
+});
+
+describe("PlaybackContext.hasCurrentStream()", () => {
+  it("is true for a video, an audio-only, and false for no current stream", () => {
+    const ctx = PlaybackContext.getInstance("ctx-current-stream");
+    expect(ctx.hasCurrentStream()).toBe(false);
+    ctx._curConf.audio = { idx: 0 };
+    expect(ctx.hasCurrentStream()).toBe(true);
+    ctx._curConf.audio = undefined;
+    ctx._curConf.video = { idx: 1 };
+    expect(ctx.hasCurrentStream()).toBe(true);
   });
 });

@@ -21,8 +21,6 @@ function createVod(state = VOD_STATE.SYNC) {
   vod._context = {
     getCurrentLevel: () => undefined,
     setState: vi.fn(),
-    hasVod: () => false,
-    levelsSourceUrl: "https://example.com/playlist_dvr.m3u8",
   };
   vod._playbackService = { init: vi.fn(), resetPosition: vi.fn(), state: 0 };
   vod._audioCtrl = { reset: vi.fn() };
@@ -125,7 +123,6 @@ describe("NimioVod attach/detach callbacks", () => {
     const vod = createVod();
     vod._metadataReady = true; // the archive played
     vod._pHandler.detachMedia = vi.fn(() => vod._onMediaDetached());
-    vod._context.hasVod = () => true;
     vod._context.getCurrentLevel = () => ({
       data: { url: ["https://example.com/720p/playlist_dvr.m3u8"] },
     });
@@ -139,8 +136,8 @@ describe("NimioVod attach/detach callbacks", () => {
 
   it("does not overwrite the master playlist when the callback re-attaches the engine", () => {
     const vod = createVod();
+    vod._metadataReady = true; // the archive played: a detach that stands reloads
     vod._pHandler.detachMedia = vi.fn(() => vod._onMediaDetached());
-    vod._context.hasVod = () => true;
     vod._context.getCurrentLevel = () => ({
       data: { url: ["https://example.com/720p/playlist_dvr.m3u8"] },
     });
@@ -157,35 +154,13 @@ describe("NimioVod attach/detach callbacks", () => {
     expect(vod._state).toBe(VOD_STATE.PLAY);
   });
 
-  it("does not reload a variant of another source after a detach during a URL change", () => {
-    // the levels in the context still belong to the previous archive; the
-    // reload would fetch its variant and record it under the new URL
-    const vod = createVod();
-    vod._metadataReady = true; // so that only the source check decides
-    vod._pHandler.detachMedia = vi.fn(() => vod._onMediaDetached());
-    vod._context.hasVod = () => true;
-    vod._context.levelsSourceUrl = "https://example.com/old.m3u8";
-    vod._context.getCurrentLevel = () => ({
-      data: { url: ["https://example.com/old/720p/playlist.m3u8"] },
-    });
-    vod.attach(createUi(), undefined, undefined);
-    vod._pHandler.loadSource.mockClear();
-
-    expect(vod.detach(vi.fn())).toBe(true);
-
-    expect(vod._pHandler.loadSource).not.toHaveBeenCalled();
-    expect(vod._state).toBe(VOD_STATE.SYNC);
-  });
-
   it("does not reload a variant of a source whose playlist never loaded", () => {
-    // a load failed after the master playlist, and a seek retried it: the
-    // levels in the context are the failed attempt's, with a session
-    // parameter the engine has forgotten. A detach before the new master
-    // answers must let that request finish, not replace it with the old
-    // variant.
+    // a load failed after the master playlist (or the URL changed) and a
+    // seek retried it: the levels in the context are the failed attempt's
+    // (or the old archive's), with a session parameter the engine has
+    // forgotten. A detach before the new master answers must let that
+    // request finish, not replace it with the old variant.
     const vod = createVod();
-    vod._metadataReady = false;
-    vod._context.hasVod = () => true;
     vod._context.getCurrentLevel = () => ({
       data: { url: ["https://example.com/360p/playlist.m3u8?s=1"] },
     });
@@ -244,10 +219,28 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     releaseInstances(NAME);
   });
 
+  it("a media playlist of the new source replaces the old archive's level", () => {
+    // the VOD URL names a media playlist, not a master: hls.js delivers it
+    // as one level that already has details, like a variant update. After
+    // a source change it must replace the levels all the same, or the old
+    // archive's level would carry the new one's details under its URL and
+    // be reloaded by the next detach
+    const ctx = contextWithPlayedArchive();
+    const vod = reloadedEngine(ctx, NEW);
+
+    vod._onManifestParsed(null, {
+      levels: [{ url: [NEW], details: { totalduration: 20 } }],
+    });
+
+    expect(ctx.levelsSourceUrl).toBe(NEW);
+    expect(ctx.getCurrentLevel().data.url[0]).toBe(NEW);
+  });
+
   it("a manifest that arrives after the source was forgotten is ignored", () => {
-    // a stop() (or a fatal error) before the variant playlist forgot the
-    // URL; a master playlist response that still arrives has no source to
-    // be recorded under, and must not replace the levels or load a variant
+    // a stop() before the variant playlist forgot the URL and ended the
+    // request; a master playlist response that still arrives (from inside
+    // a callback the stop could not end) must not replace the levels or
+    // load a variant
     const ctx = contextWithPlayedArchive();
     const vod = reloadedEngine(ctx, NEW);
     vod._metadataReady = false;
@@ -305,7 +298,12 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     expect(vod._sessionParam).toBe("s=7");
     expect(vod._loadCurrentLevel).toHaveBeenCalledTimes(1);
 
-    vod._forgetSource(); // a second fatal error, then the variant arrives
+    // a second fatal error, then the variant arrives
+    vi.stubGlobal("Hls", { ErrorTypes: { NETWORK_ERROR: "networkError" } });
+    vod._eventBus = { emit: vi.fn() };
+    vod._onError(null, { fatal: true, type: "networkError" });
+    vi.unstubAllGlobals();
+    expect(vod._url).toBeUndefined();
     vod._onLevelLoaded(null, {
       details: { totalduration: 99, fragments: [] },
     });
@@ -316,7 +314,7 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     expect(vod._pHandler.stopLoad).not.toHaveBeenCalled();
   });
 
-  it("the first load in the order hls.js delivers it: master, the variant's own manifest, the variant", () => {
+  it("the variant's own manifest after the master is a level update: the renditions are kept and nothing is requested again", () => {
     // the variant is requested as a source of its own, so hls.js reports
     // it as a manifest (with details) before LEVEL_LOADED: that manifest
     // is a level update and must not replace the master's renditions
@@ -355,14 +353,11 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     const vod = reloadedEngine(ctx, OLD);
     vod._state = VOD_STATE.SYNC;
     vod._config.url = OLD;
-    vod._eventBus = { emit: vi.fn() };
     vod._playbackService.getCurrentTime = () => 0;
-    vod._context.setState(0, false);
     vod.stop();
     vod._pHandler.stopLoad.mockClear();
 
     expect(vod.attach(createUi(), undefined, undefined)).toBe(true);
-    vod._pHandler.stopLoad.mockClear(); // the attach's own
     vod._onLevelLoaded(null, {
       details: { totalduration: 75, fragments: [] },
     });
@@ -420,8 +415,7 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     // change reset the current configuration, and the old live metadata is
     // still there until the new status arrives
     const ctx = PlaybackContext.getInstance(NAME);
-    ctx._ordRenditions = [{}]; // stale live metadata
-    ctx._curConf = [];
+    ctx._ordRenditions = [{}]; // stale live metadata, no current stream
     ctx.setLevels(
       [
         { url: ["https://a.test/old/360p/playlist.m3u8?s=1"], height: 360 },
@@ -433,13 +427,11 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     ctx.setCurrentLevelIdx(2);
     const vod = reloadedEngine(ctx, NEW);
 
-    expect(() =>
-      vod._onManifestParsed(null, {
-        levels: [
-          { url: ["https://a.test/new/360p/playlist.m3u8?s=9"], height: 360 },
-        ],
-      }),
-    ).not.toThrow();
+    vod._onManifestParsed(null, {
+      levels: [
+        { url: ["https://a.test/new/360p/playlist.m3u8?s=9"], height: 360 },
+      ],
+    });
 
     expect(ctx.getCurrentLevel().idx).toBe(0);
     expect(vod._sessionParam).toBe("s=9");
@@ -449,8 +441,7 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
 
   it("a new source selects the configured initial rendition although live metadata is stale", () => {
     const ctx = PlaybackContext.getInstance(NAME);
-    ctx._ordRenditions = [{}]; // stale live metadata of the previous stream
-    ctx._curConf = [];
+    ctx._ordRenditions = [{}]; // stale live metadata, no current stream
     ctx.setLevels(
       [{ url: ["https://a.test/old/360p/playlist.m3u8?s=1"], height: 360 }],
       OLD,
@@ -493,7 +484,6 @@ describe("NimioVod._onManifestParsed() after a source change", () => {
     });
 
     expect(ctx.getCurrentLevel().idx).toBe(0);
-    expect(ctx._curConf.video.idx).toBe(0);
   });
 
   it("a manifest from the same source is a level update and republishes the duration", () => {
@@ -522,9 +512,8 @@ describe("NimioVod: the first playlist after an attach validates the position", 
   // duration known (a new source, a first load still running, a start of a
   // stopped engine) the target reaches the media element as is, and the
   // first variant playlist after the attach validates it
-  function attachedAt(position, { metadataReady = false } = {}) {
+  function attachedAt(position, { stoppedAfterLoad = false } = {}) {
     const vod = createVod(VOD_STATE.SYNC);
-    vod._metadataReady = metadataReady;
     vod._config = {};
     vod._context.state = { value: 0, initial: false }; // opens paused
     vod._progressSvc = { updateVodPlaylistDuration: vi.fn() };
@@ -538,6 +527,10 @@ describe("NimioVod: the first playlist after an attach validates the position", 
         time = t;
       }),
     };
+    if (stoppedAfterLoad) {
+      vod._onLevelLoaded(null, playlist(120)); // loaded while detached
+      vod.stop();
+    }
     vod.attach(createUi(), position, undefined);
     vod._playbackService.setCurrentTime.mockClear();
     return vod;
@@ -554,6 +547,17 @@ describe("NimioVod: the first playlist after an attach validates the position", 
     expect(vod._playbackService.setCurrentTime.mock.calls).toEqual([[120]]);
   });
 
+  it("also when the archive had loaded before the engine was stopped", () => {
+    // a start of the stopped engine from a seek: the engine keeps a loaded
+    // archive of the same URL, and the position did not pass through the
+    // progress service
+    const vod = attachedAt(500, { stoppedAfterLoad: true });
+
+    vod._onLevelLoaded(null, playlist(120));
+
+    expect(vod._playbackService.setCurrentTime.mock.calls).toEqual([[120]]);
+  });
+
   it("a target inside the archive is left alone", () => {
     const vod = attachedAt(30);
 
@@ -562,19 +566,8 @@ describe("NimioVod: the first playlist after an attach validates the position", 
     expect(vod._playbackService.setCurrentTime).not.toHaveBeenCalled();
   });
 
-  it("also for a source whose playlist had loaded before", () => {
-    // the durations may be unknown all the same (a URL changed and changed
-    // back), and a start of a stopped engine does not go through the
-    // progress service at all
-    const vod = attachedAt(500, { metadataReady: true });
-
-    vod._onLevelLoaded(null, playlist(120));
-
-    expect(vod._playbackService.setCurrentTime.mock.calls).toEqual([[120]]);
-  });
-
   it("a seek made between the attach and the playlist is validated too", () => {
-    const vod = attachedAt(undefined, { metadataReady: true });
+    const vod = attachedAt(undefined);
     vod.goto(500);
     vod._playbackService.setCurrentTime.mockClear();
 
@@ -605,7 +598,6 @@ describe("NimioVod: the first playlist after an attach validates the position", 
 
   it("a detached engine has no position to validate", () => {
     const vod = createVod(VOD_STATE.SYNC); // the warm-up load
-    vod._metadataReady = false;
     vod._config = {};
     vod._progressSvc = { updateVodPlaylistDuration: vi.fn() };
     vod._playbackService = {
