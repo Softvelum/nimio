@@ -62,3 +62,65 @@ describe("PlaybackContext.setStreams() concurrency", () => {
     expect(ctx.videoRenditions.map((r) => r.name)).toEqual(["lo", "hi"]);
   });
 });
+
+describe("PlaybackContext VOD levels remember their source", () => {
+  it("levelsSourceUrl is the master playlist the levels came from", () => {
+    const ctx = PlaybackContext.getInstance("ctx-levels-source");
+    expect(ctx.levelsSourceUrl).toBeUndefined();
+
+    ctx.setLevels(
+      [{ url: ["https://a.test/old/720p/playlist.m3u8"], height: 720 }],
+      "https://a.test/old/playlist.m3u8",
+    );
+
+    expect(ctx.levelsSourceUrl).toBe("https://a.test/old/playlist.m3u8");
+  });
+});
+
+describe("PlaybackContext.setLevels() current level validity", () => {
+  function levels(n, base) {
+    return Array.from({ length: n }, (_, i) => ({
+      url: [`${base}/${(i + 1) * 360}p/playlist.m3u8`],
+      height: (i + 1) * 360,
+    }));
+  }
+
+  // A stream URL change resets the current configuration while the old
+  // live metadata is still present, so neither the stream mapping nor the
+  // VOD-only fallback picks a level; a selection index from the previous
+  // archive must not survive a replacement with fewer levels.
+  it("falls back to a valid level when the replacement has fewer levels", () => {
+    const ctx = PlaybackContext.getInstance("ctx-fewer-levels");
+    ctx._ordRenditions = [{}]; // live metadata of the previous stream, no current stream
+    ctx.setLevels(levels(3, "https://a.test/old"), "https://a.test/old/p.m3u8");
+    ctx.setCurrentLevelIdx(2);
+
+    ctx.setLevels(levels(1, "https://a.test/new"), "https://a.test/new/p.m3u8");
+
+    expect(ctx.getCurrentLevel()).toBeDefined();
+    expect(ctx.getCurrentLevel().idx).toBe(0);
+  });
+
+  it("keeps a selection that is still valid", () => {
+    const ctx = PlaybackContext.getInstance("ctx-kept-level");
+    ctx._ordRenditions = [{}];
+    ctx.setLevels(levels(3, "https://a.test/old"), "https://a.test/old/p.m3u8");
+    ctx.setCurrentLevelIdx(1);
+
+    ctx.setLevels(levels(3, "https://a.test/new"), "https://a.test/new/p.m3u8");
+
+    expect(ctx.getCurrentLevel().idx).toBe(1);
+  });
+});
+
+describe("PlaybackContext.hasCurrentStream()", () => {
+  it("is true for a video, an audio-only, and false for no current stream", () => {
+    const ctx = PlaybackContext.getInstance("ctx-current-stream");
+    expect(ctx.hasCurrentStream()).toBe(false);
+    ctx._curConf.audio = { idx: 0 };
+    expect(ctx.hasCurrentStream()).toBe(true);
+    ctx._curConf.audio = undefined;
+    ctx._curConf.video = { idx: 1 };
+    expect(ctx.hasCurrentStream()).toBe(true);
+  });
+});

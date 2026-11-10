@@ -232,7 +232,24 @@ class PlaybackContext {
     return this._levels.length > 0;
   }
 
+  // A live stream is selected (the current configuration survived, or was
+  // set by the new stream's status); a stream URL change clears it until
+  // the new status arrives.
+  hasCurrentStream() {
+    return (
+      this._curConf.video?.idx !== undefined ||
+      this._curConf.audio?.idx !== undefined
+    );
+  }
+
+  // The master playlist the VOD levels came from: a manifest of another
+  // source must replace them instead of updating the cached current level.
+  get levelsSourceUrl() {
+    return this._levelsSourceUrl;
+  }
+
   setLevels(levels, parentUrl) {
+    this._levelsSourceUrl = parentUrl;
     this._levels = [];
     this._levelCount = 0;
     this._lvl2stream = {};
@@ -293,6 +310,11 @@ class PlaybackContext {
       } else {
         this._curLevelIdx = 0;
       }
+    }
+    // a selection of the previous archive, or none (the current
+    // configuration was reset): pick one from the new list
+    if (!this._levels[this._curLevelIdx]) {
+      this._curLevelIdx = this.getMinimumLevelIdx();
     }
   }
 
